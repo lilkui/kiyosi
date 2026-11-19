@@ -42,6 +42,8 @@ macro_rules! quadrature_engine {
         ///     nonpositive or non-finite.
         ///     Gaussian grid pricing also raises this if the estimated grid or
         ///     transition workspace exceeds 256 MiB.
+        ///     Simpson integration, when used, rejects more than 250 million panels
+        ///     across all sections.
         $(#[doc = concat!("    Also raised if ", stringify!($time), " is below 1.")])?
         ///
         $(#[$doc])*

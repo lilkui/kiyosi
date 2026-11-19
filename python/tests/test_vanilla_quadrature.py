@@ -343,3 +343,11 @@ def test_shared_engine_supports_concurrent_pricing():
     with ThreadPoolExecutor(max_workers=3) as pool:
         actual = list(pool.map(lambda context: engine.price(option, context), contexts))
     assert actual == expected
+
+
+def test_european_quadrature_counts_panels_across_sections():
+    engine = pricing.QuadratureVanillaEngine(asset_step_count=125_000_001)
+    instrument = contract(EuropeanOption, "call")
+    with pytest.raises(InvalidInputError, match="panels"):
+        engine.price(instrument, market(100, 0.05, 0.02, 0.2))
+    assert engine.price(instrument, market(100, 0.05, 0.02, 0)) > 0

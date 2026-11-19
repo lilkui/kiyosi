@@ -202,3 +202,19 @@ fn settings_and_life_validation_preserve_expiry_and_failure_state() {
     assert_eq!(engine.settings(), QuadratureVanillaSettings::default());
     assert!(engine.price(&option, &context).unwrap() >= 20.0);
 }
+
+#[test]
+fn european_quadrature_counts_panels_across_sections() -> Result<()> {
+    let (start, end) = dates();
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let engine = QuadratureVanillaEngine::new(QuadratureVanillaSettings {
+        asset_step_count: 125_000_001,
+        ..Default::default()
+    })?;
+    assert!(matches!(
+        engine.price(&option, &market(100.0, 0.05, 0.02, 0.2)),
+        Err(Error::InvalidInput(message)) if message.contains("panels")
+    ));
+    assert!(engine.price(&option, &market(100.0, 0.05, 0.02, 0.0))? > 0.0);
+    Ok(())
+}

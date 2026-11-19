@@ -2229,6 +2229,8 @@ class QuadratureBarrierEngine(_PricingMethods[BarrierOption]):
         nonpositive or non-finite.
         Gaussian grid pricing also raises this if the estimated grid or
         transition workspace exceeds 256 MiB.
+        Simpson integration, when used, rejects more than 250 million panels
+        across all sections.
 
     See Also
     --------
@@ -2301,6 +2303,8 @@ class QuadratureDigitalEngine(
         nonpositive or non-finite.
         Gaussian grid pricing also raises this if the estimated grid or
         transition workspace exceeds 256 MiB.
+        Simpson integration, when used, rejects more than 250 million panels
+        across all sections.
 
     See Also
     --------
@@ -2382,6 +2386,8 @@ class QuadratureVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
         nonpositive or non-finite.
         Gaussian grid pricing also raises this if the estimated grid or
         transition workspace exceeds 256 MiB.
+        Simpson integration, when used, rejects more than 250 million panels
+        across all sections.
         Also raised if time_step_count is below 1.
 
     See Also
@@ -3742,6 +3748,8 @@ class MonteCarloVanillaEngine(
     InvalidInputError
         If paths are outside 1 through 10,000,000, max_active_workers is
         negative, or Sobol paths are not a power of two.
+        Pricing with the shared sampler rejects more than one billion path
+        steps, measured as the path count times the number of draws per path.
         Also raised if step_count is outside 1 through 10,000.
 
     See Also
@@ -3939,6 +3947,8 @@ class MonteCarloDigitalEngine(
     InvalidInputError
         If paths are outside 1 through 10,000,000, max_active_workers is
         negative, or Sobol paths are not a power of two.
+        Pricing with the shared sampler rejects more than one billion path
+        steps, measured as the path count times the number of draws per path.
 
     See Also
     --------
@@ -4094,6 +4104,8 @@ class MonteCarloBarrierEngine(
     InvalidInputError
         If paths are outside 1 through 10,000,000, max_active_workers is
         negative, or Sobol paths are not a power of two.
+        Pricing with the shared sampler rejects more than one billion path
+        steps, measured as the path count times the number of draws per path.
 
     See Also
     --------
@@ -4187,6 +4199,8 @@ class MonteCarloAutocallableEngine(
     InvalidInputError
         If paths are outside 1 through 10,000,000, max_active_workers is
         negative, or Sobol paths are not a power of two.
+        Pricing with the shared sampler rejects more than one billion path
+        steps, measured as the path count times the number of draws per path.
 
     See Also
     --------
@@ -4276,6 +4290,8 @@ class MonteCarloAccumulatorEngine(_MonteCarloMethods[Accumulator, Accumulator]):
     InvalidInputError
         If paths are outside 1 through 10,000,000, max_active_workers is
         negative, or Sobol paths are not a power of two.
+        Pricing with the shared sampler rejects more than one billion path
+        steps, measured as the path count times the number of draws per path.
 
     See Also
     --------
@@ -4370,6 +4386,8 @@ class MonteCarloAsianEngine(
     InvalidInputError
         If paths are outside 1 through 10,000,000, max_active_workers is
         negative, or Sobol paths are not a power of two.
+        Pricing with the shared sampler rejects more than one billion path
+        steps, measured as the path count times the number of draws per path.
         Also raised if step_count is outside 2 through 10,000.
 
     See Also
@@ -6461,6 +6479,8 @@ class QuadratureAutocallableEngine(
         nonpositive or non-finite.
         Gaussian grid pricing also raises this if the estimated grid or
         transition workspace exceeds 256 MiB.
+        Simpson integration, when used, rejects more than 250 million panels
+        across all sections.
 
     See Also
     --------
@@ -8703,6 +8723,8 @@ class QuadratureAccumulatorEngine(_PricingMethods[Accumulator]):
         nonpositive or non-finite.
         Gaussian grid pricing also raises this if the estimated grid or
         transition workspace exceeds 256 MiB.
+        Simpson integration, when used, rejects more than 250 million panels
+        across all sections.
 
     See Also
     --------

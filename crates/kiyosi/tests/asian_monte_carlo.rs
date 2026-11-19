@@ -929,3 +929,25 @@ fn node_curve_affine_history_preserves_the_fused_accrual_residual() {
     let expected = 2.048_766_664_048_984_7e291;
     assert!((engine.price(&option, &context).unwrap() / expected - 1.0).abs() < 1e-12);
 }
+
+#[test]
+fn arithmetic_asian_rejects_excessive_path_steps_before_sampling() -> Result<()> {
+    let start = date(1, 1);
+    let end = start.add_days(365)?;
+    let option =
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)?;
+    let engine = MonteCarloAsianEngine::new(MonteCarloGridSettings {
+        sampling: MonteCarloSettings {
+            path_count: 10_000_000,
+            seed: Some(42),
+            ..Default::default()
+        },
+        step_count: 10_000,
+    })?;
+    assert!(matches!(
+        engine.price(&option, &market(100.0, 0.2, start)),
+        Err(Error::InvalidInput(message)) if message.contains("path steps")
+    ));
+    assert!(engine.price(&option, &market(100.0, 0.0, start))? > 0.0);
+    Ok(())
+}

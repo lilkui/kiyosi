@@ -604,3 +604,13 @@ def test_node_curve_history_retains_fused_accrual_residual():
     assert engine.price(instrument, context) / expected == pytest.approx(
         1, rel=0, abs=1e-12
     )
+
+
+def test_arithmetic_asian_rejects_excessive_path_steps_before_sampling():
+    engine = pricing.MonteCarloAsianEngine(
+        path_count=10_000_000, step_count=10_000, seed=42
+    )
+    contract = option(ArithmeticAveragePriceOption)
+    with pytest.raises(InvalidInputError, match="path steps"):
+        engine.price(contract, market())
+    assert engine.price(contract, market(volatility=0)) > 0

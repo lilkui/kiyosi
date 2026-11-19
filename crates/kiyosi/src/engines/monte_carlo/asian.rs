@@ -92,7 +92,9 @@ impl MonteCarloAsianEngine {
     /// history return [`Error::InvalidInput`].
     /// Before expiry geometric contracts require flat curves
     /// ([`Error::UnsupportedOperation`]); both kinds require curve coverage
-    /// ([`Error::InvalidInput`]). Non-finite parameters, paying samples
+    /// ([`Error::InvalidInput`]). Sampling also returns `InvalidInput` when the
+    /// path count times the number of draws per path exceeds one billion.
+    /// Non-finite parameters, paying samples
     /// or results return [`Error::ComputationFailure`].
     ///
     /// # Panics

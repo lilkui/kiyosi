@@ -52,7 +52,7 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                         if case in ("serial_mc", "parallel_mc", "seeded_mc", "custom_handler"):
                             option = i.ArithmeticAveragePriceOption(option_type="call", strike=100,
                                 effective_time=start, averaging_start_time=start, expiry_time=end)
-                            engine = p.MonteCarloAsianEngine(path_count=10_000_000, step_count=256,
+                            engine = p.MonteCarloAsianEngine(path_count=1_000_000, step_count=256,
                                 seed=42, max_active_workers=2 if case == "parallel_mc" else 1)
                         elif case == "tree":
                             option = i.AmericanOption(option_type="put", strike=100,

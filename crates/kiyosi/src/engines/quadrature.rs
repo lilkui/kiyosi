@@ -31,6 +31,11 @@ fn transition(time: f64, drift_rate: f64, sigma: f64, rate: f64) -> Result<(f64,
 )]
 fn simpson(breaks: &[f64], steps: i32, integrand: impl Fn(f64) -> f64) -> Result<f64> {
     let panels = steps as usize + steps as usize % 2;
+    if panels.saturating_mul(breaks.len().saturating_sub(1)) > 250_000_000 {
+        return Err(Error::InvalidInput(
+            "Simpson quadrature exceeds 250 million panels; reduce asset_step_count".into(),
+        ));
+    }
     let mut result = crate::numerics::Sum::default();
     for section in breaks.windows(2) {
         let step = (section[1] - section[0]) / panels as f64;

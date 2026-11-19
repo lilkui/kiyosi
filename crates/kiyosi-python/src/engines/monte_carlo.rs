@@ -112,6 +112,8 @@ macro_rules! sampling_settings {
         /// InvalidInputError
         ///     If paths are outside 1 through 10,000,000, max_active_workers is
         ///     negative, or Sobol paths are not a power of two.
+        ///     Pricing with the shared sampler rejects more than one billion path
+        ///     steps, measured as the path count times the number of draws per path.
         $(#[doc = concat!("    Also raised if step_count is outside ", stringify!($minimum), " through 10,000.")])?
         ///
         /// See Also

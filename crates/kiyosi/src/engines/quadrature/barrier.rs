@@ -10,6 +10,7 @@ use crate::{
 ///
 /// Gaussian grid pricing returns [`Error::InvalidInput`] when the estimated grid or
 /// transition workspace exceeds 256 MiB.
+/// Simpson integration rejects more than 250 million panels across all sections.
 /// Check spatial and domain convergence separately; see [`QuadratureBarrierEngine::new`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct QuadratureSettings {
