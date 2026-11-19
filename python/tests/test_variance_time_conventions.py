@@ -595,6 +595,42 @@ def test_closed_prefix_carries_knock_in_state_and_spot_into_the_grid():
         assert saved.price(spot) == pytest.approx(expected, abs=1e-12)
 
 
+def test_saved_snowball_keeps_a_single_surviving_unknocked_spot():
+    start = datetime(2026, 11, 14)
+    fixing = start + timedelta(hours=12)
+    end = start + timedelta(days=2, hours=12)
+    knock_out = math.nextafter(100, math.inf)
+    note = ins.SnowballOption(
+        calendar=all_days_calendar(),
+        effective_time=start,
+        expiry_time=end,
+        maturity_coupon_rate=0.08,
+        initial_spot=100,
+        knock_in_level=100,
+        upper_strike=100,
+        lower_strike=50,
+        knock_in_observation=ins.KnockInObservation.every_trading_day(time(12)),
+        autocall_observations=ins.autocallable_observations(
+            [fixing], [knock_out], knock_out_coupon_rates=[0.05]
+        ),
+    )
+    model = bsm(
+        risk_free_rate=0,
+        dividend_yield=0,
+        variance_time_convention="business",
+        calendar=weekdays_calendar(),
+    )
+    market = context(model, start)
+    engine = pricing.FiniteDifferenceAutocallableEngine(asset_upper_boundary=400)
+    saved = engine.solve(note, market, spot_range=(90, 110))
+    spots = (math.nextafter(100, 0), 100, knock_out)
+    expected = tuple(
+        engine.price(note, market.replace(spot_price=spot)) for spot in spots
+    )
+    assert abs(expected[0] - expected[1]) > 1e-5
+    assert saved.price_many(spots) == pytest.approx(expected, rel=0, abs=1e-12)
+
+
 def test_weekend_events_keep_real_timestamp_order():
     start = datetime(2026, 11, 14)
     end = datetime(2026, 11, 16, 12)

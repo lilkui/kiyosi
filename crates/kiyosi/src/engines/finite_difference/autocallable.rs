@@ -8,11 +8,9 @@ use super::{
 };
 use crate::engines::deterministic::{self, continuation_context};
 use crate::instruments::autocallable::ObservationEvent;
-use crate::instruments::autocallable::pricing::{
-    event_times_through, expiry_payment, fixed_value_at, validate,
-};
+use crate::instruments::autocallable::pricing::{expiry_payment, fixed_value_at, validate};
 use crate::numerics::{scaled_cash, scaled_signed_cash};
-use crate::{AutocallableNote, AutocallableTerms, Timestamp};
+use crate::{AutocallableBarrierState, AutocallableNote, AutocallableTerms, Timestamp};
 
 impl FiniteDifferenceAutocallableEngine {
     /// Prices remaining snowball or Phoenix cash flows on exact trading and observation dates.
@@ -561,50 +559,41 @@ impl<T: AutocallableTerms> super::FiniteDifferenceEngine<AutocallableNote<T>>
         crate::cancellation::check()?;
         let anchor = super::solution::at_spot(context, *range.end())?;
         validate(note, &anchor)?;
-        let now = context.valuation_time();
         let start = context.deterministic_until(note.expiry_time())?;
-        let low = super::solution::at_spot(context, *range.start())?;
-        let mut levels = vec![note.view().reference_spot()];
         let mut pending = false;
         let mut starting_knocked = true;
-        if start < note.expiry_time()
-            && deterministic::autocallable_through(note, &low, start)?
-                .settlement
-                .is_none()
-        {
-            if let Some(ki) = note.view().knock_in {
-                levels.push(ki.level);
-                if start > now && note.view().daily_knock_in() {
-                    for time in event_times_through(note, context, true, start)? {
-                        if note.daily_time(time, note.calendar()) {
-                            levels.push(scaled_cash(
-                                ki.level,
-                                -deterministic::log_return(context, time)?,
-                            ));
-                        }
-                    }
-                }
-            }
-            let events = note.events();
-            for record in events[events.partition_point(|r| r.time() < now)..]
-                .iter()
-                .take_while(|r| r.time() <= start)
-            {
-                if record.has_knock_out() {
-                    levels.push(scaled_cash(
-                        record.knock_out_level(),
-                        -deterministic::log_return(context, record.time())?,
-                    ));
-                }
-            }
-            for spot in super::solution::probes(&range, levels) {
-                let probe = super::solution::at_spot(context, spot)?;
-                let state = deterministic::autocallable_through(note, &probe, start)?;
-                if state.settlement.is_none()
-                    && fixed_value_at(note, &probe, start, state.knocked_in).is_none()
+        if start < note.expiry_time() {
+            let low = super::solution::at_spot(context, *range.start())?;
+            let state = deterministic::autocallable_through(note, &low, start)?;
+            if state.settlement.is_none() {
+                pending = fixed_value_at(note, &low, start, state.knocked_in).is_none();
+                starting_knocked = state.knocked_in;
+                if starting_knocked
+                    && note.knock_in_affects_payoff()
+                    && note.barrier_state() != Some(AutocallableBarrierState::KnockedIn)
                 {
-                    pending = true;
-                    starting_knocked &= state.knocked_in;
+                    // Positive f64 bit patterns preserve spot order. A higher spot can avoid
+                    // knock-in or trigger knock-out, so the search takes at most 64 replays.
+                    let mut lo = range.start().to_bits();
+                    let mut hi = range.end().to_bits();
+                    let mut bits = hi;
+                    while bits > lo {
+                        crate::cancellation::check()?;
+                        let probe = super::solution::at_spot(context, f64::from_bits(bits))?;
+                        let state = deterministic::autocallable_through(note, &probe, start)?;
+                        if state.settlement.is_some() {
+                            hi = bits - 1;
+                        } else if state.knocked_in {
+                            lo = bits;
+                        } else {
+                            if fixed_value_at(note, &probe, start, false).is_none() {
+                                pending = true;
+                                starting_knocked = false;
+                            }
+                            break;
+                        }
+                        bits = hi - (hi - lo) / 2;
+                    }
                 }
             }
         }

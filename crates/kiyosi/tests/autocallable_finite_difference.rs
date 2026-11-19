@@ -16,6 +16,63 @@ fn market(spot: f64, valuation: impl Into<Timestamp>) -> PricingContext {
 }
 
 #[test]
+fn saved_snowball_does_not_replay_the_closed_prefix_at_each_fixing_level() -> Result<()> {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    let start = date(1, 4);
+    let end = start.add_days(2)?.add_micros(12 * 3_600_000_000)?;
+    let counts = Arc::new(AtomicUsize::new(0));
+    let calendar = TradingCalendar::new(
+        {
+            let counts = Arc::clone(&counts);
+            move |_| {
+                counts.fetch_add(1, Ordering::Relaxed);
+                true
+            }
+        },
+        365,
+    )?;
+    let times = (1..=500)
+        .map(|seconds| start.add_micros(seconds * 1_000_000))
+        .collect::<Result<Vec<_>>>()?;
+    let levels: Vec<_> = (0..500).map(|i| 110.0 - f64::from(i) * 0.04).collect();
+    let note = SnowballOption::new(SnowballTerms::new(
+        0.08,
+        100.0,
+        50.0,
+        100.0,
+        40.0,
+        start,
+        end,
+        autocallable_observations(&times, &levels, Some(&[0.05; 500]), None)?,
+        KnockInObservation::EveryTradingDay {
+            observation_clock_time: TimeOfDay::new(0, 0, 0, 0)?,
+        },
+        calendar,
+    ))?;
+    let model = BlackScholesMertonParameters::new_with_variance_time_convention(
+        0.04,
+        0.04,
+        0.2,
+        VarianceTimeConvention::Business(TradingCalendar::weekdays()),
+    )?;
+    let context = PricingContext::new(model, 100.0, start)?;
+    let engine = FiniteDifferenceAutocallableEngine::default();
+    counts.store(0, Ordering::Relaxed);
+    let saved = engine.solve(&note, &context, 89.0..=111.0)?;
+    let calendar_queries = counts.load(Ordering::Relaxed);
+    assert!(
+        calendar_queries < 100,
+        "{calendar_queries} calendar queries"
+    );
+    assert!((saved.price(100.0)? - engine.price(&note, &context)?).abs() < 1e-12);
+    Ok(())
+}
+
+#[test]
 fn terminal_binary_matches_independent_cash_and_digital_portfolio() {
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let note = BinarySnowballOption::new(BinarySnowballTerms::new(
