@@ -680,6 +680,16 @@ def test_flat_nonflat_and_negative_rates_against_independent_probabilities():
     )
 
 
+def test_range_accrual_combines_certain_hits_before_discounting():
+    option = contract(
+        notional=1, annual_coupon_rate=1, expiry_time=START + timedelta(days=365)
+    )
+    context = market(rate=744, dividend=744, volatility=0)
+    expected = math.exp(-744)
+    assert expected > 0
+    assert AnalyticRangeAccrualEngine().price(option, context) == expected
+
+
 def test_extreme_coupon_tail_scaling_and_overflow():
     mean = math.log(100) + 0.01 / 365
     width = 0.2 / math.sqrt(365)

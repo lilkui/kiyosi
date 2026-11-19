@@ -112,7 +112,6 @@ impl AnalyticRangeAccrualEngine {
             f64::INFINITY
         };
         let mut value = Sum::default();
-        value.add(scaled_cash(hits, scale));
         let mut forward_to = crate::engines::deterministic::forward_factors(context);
         for date in &dates[future..] {
             let (carry, _) = forward_to(*date)?;
@@ -133,7 +132,7 @@ impl AnalyticRangeAccrualEngine {
                 if (option.lower_bound() == 0.0 || distance(option.lower_bound(), lower) >= 0.0)
                     && distance(option.upper_bound(), upper) <= 0.0
                 {
-                    value.add(scale.exp());
+                    hits += 1.0;
                 }
                 continue;
             }
@@ -146,6 +145,7 @@ impl AnalyticRangeAccrualEngine {
                 });
             value.add((scale + probability).exp());
         }
+        value.add(scaled_cash(hits, scale));
         checked(value.total())
     }
 }

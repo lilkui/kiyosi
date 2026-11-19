@@ -29,6 +29,36 @@ fn market(at: impl Into<Timestamp>, spot: f64) -> PricingContext {
 }
 
 #[test]
+fn range_accrual_combines_certain_hits_before_discounting() -> Result<()> {
+    let start = day(1);
+    let mut terms = RangeAccrualTerms::new(
+        1.0,
+        1.0,
+        90.0,
+        110.0,
+        start,
+        start.add_days(365)?,
+        start.time_of_day(),
+    );
+    terms.calendar = TradingCalendar::all_days();
+    let option = RangeAccrualOption::new(terms)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(744.0, 744.0, 0.0)?,
+        100.0,
+        start,
+    )?;
+    let expected = (-744.0_f64).exp();
+    assert!(expected > 0.0);
+    assert_eq!(
+        AnalyticRangeAccrualEngine
+            .price(&option, &context)?
+            .to_bits(),
+        expected.to_bits()
+    );
+    Ok(())
+}
+
+#[test]
 fn deterministic_range_accrual_includes_upper_bound_at_intraday_curve_node() -> Result<()> {
     let start = day(2);
     let expiry = Timestamp::new(start.date(), 2, 39, 0, 0)?;
