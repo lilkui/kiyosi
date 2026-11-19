@@ -101,7 +101,7 @@ impl AnalyticEuropeanEngine {
             result.set(
                 request,
                 Greek::Rho,
-                sign * rate_time * weighted_cdf(strike, risk_log, sign * d2),
+                sign * weighted_cdf(strike, risk_log + rate_time.ln(), sign * d2),
             )?;
         }
         if want(Greek::DividendRho) {
@@ -111,7 +111,7 @@ impl AnalyticEuropeanEngine {
             result.set(
                 request,
                 Greek::DividendRho,
-                -sign * dividend_time * weighted_cdf(spot, dividend_log, sign * d1),
+                -sign * weighted_cdf(spot, dividend_log + dividend_time.ln(), sign * d1),
             )?;
         }
         if ![
@@ -170,8 +170,15 @@ impl AnalyticEuropeanEngine {
                     ) + carry()
                 }
                 Greek::Charm => {
-                    -density(dividend_log, (rate - dividend) / width - 0.5 * d2 / time)
-                        + sign * probability(dividend)
+                    let change = if width.is_normal() {
+                        density(dividend_log, (rate - dividend) / width - 0.5 * d2 / time)
+                    } else {
+                        // Expand d2 before the diffusion width rounds to a subnormal or zero.
+                        let drift = (-0.5 / time).mul_add(moneyness, rate - dividend);
+                        density(dividend_log, standardize(drift, sigma, root))
+                            + density(dividend_log + sigma.ln() - root.ln() - 4.0_f64.ln(), 1.0)
+                    };
+                    sign * probability(dividend) - change
                 }
                 Greek::Color => {
                     density(log_gamma, dividend)

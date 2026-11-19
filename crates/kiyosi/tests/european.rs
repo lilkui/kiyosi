@@ -367,3 +367,49 @@ fn analytic_european_supports_curve_knots_that_collapse_on_a_grid() -> Result<()
     }
     Ok(())
 }
+
+#[test]
+fn short_dated_rate_greeks_survive_discount_overflow() -> Result<()> {
+    use kiyosi::{Greek, GreeksRequest};
+
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_days(1)?;
+    let strike = 1e308;
+    let vol = 0.2;
+    let option = EuropeanOption::new(OptionType::Call, strike, start, end)?;
+    let model = BlackScholesMertonParameters::new(-1000.0, -1000.0, vol)?;
+    let context = PricingContext::new(model, strike, start)?;
+    let result = AnalyticEuropeanEngine.price_with_greeks(
+        &option,
+        &context,
+        GreeksRequest::new([Greek::Rho, Greek::DividendRho]),
+    )?;
+    let t = 1.0_f64 / 365.0;
+    let p = 0.5 * libm::erfc(0.5 * vol * t.sqrt() / std::f64::consts::SQRT_2);
+    let scaled_strike = (t * strike) * (1000.0 * t).exp();
+    assert!((result.require(Greek::Rho)? / (scaled_strike * p) - 1.0).abs() < 1e-12);
+    assert!(
+        (result.require(Greek::DividendRho)? / (-scaled_strike * (1.0 - p)) - 1.0).abs() < 1e-12
+    );
+    Ok(())
+}
+
+#[test]
+fn short_dated_charm_survives_volatility_width_underflow() -> Result<()> {
+    use kiyosi::{Greek, GreeksRequest};
+
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, start.add_days(1)?)?;
+    let model = BlackScholesMertonParameters::new(0.0, 0.0, f64::from_bits(1))?;
+    let context = PricingContext::new(model, 100.0, start)?;
+    let result = AnalyticEuropeanEngine.price_with_greeks(
+        &option,
+        &context,
+        GreeksRequest::new([Greek::Charm]),
+    )?;
+    assert_eq!(
+        result.require(Greek::Charm)?.to_bits(),
+        (-f64::from_bits(2)).to_bits()
+    );
+    Ok(())
+}

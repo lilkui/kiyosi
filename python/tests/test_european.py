@@ -322,3 +322,34 @@ def test_analytic_european_supports_curve_knots_that_collapse_on_a_grid():
         if volatility > 0:
             with pytest.raises(ComputationFailureError, match="curve knots"):
                 FiniteDifferenceVanillaEngine().price(option, curved)
+
+
+def test_short_dated_rate_greeks_survive_discount_overflow(make_context):
+    strike = 1e308
+    t = 1 / 365
+    vol = 0.2
+    option = make_option(strike=strike, expiry_time=datetime(2025, 1, 2))
+    model = BlackScholesMertonParameters(
+        risk_free_rate=-1000, dividend_yield=-1000, volatility=vol
+    )
+    result = AnalyticEuropeanEngine().price_with_greeks(
+        option,
+        make_context(spot_price=strike, model_parameters=model),
+        ["rho", "dividend_rho"],
+    )
+    scaled_strike = (t * strike) * math.exp(1000 * t)
+    p = 0.5 * math.erfc(0.5 * vol * math.sqrt(t) / math.sqrt(2))
+    assert result.rho == pytest.approx(scaled_strike * p, rel=1e-12)
+    assert result.dividend_rho == pytest.approx(-scaled_strike * (1 - p), rel=1e-12)
+
+
+def test_short_dated_charm_survives_volatility_width_underflow(make_context):
+    option = make_option(expiry_time=datetime(2025, 1, 2))
+    vol = math.ulp(0.0)
+    model = BlackScholesMertonParameters(
+        risk_free_rate=0, dividend_yield=0, volatility=vol
+    )
+    result = AnalyticEuropeanEngine().price_with_greeks(
+        option, make_context(model_parameters=model), "charm"
+    )
+    assert result.charm == -2 * vol
