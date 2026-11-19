@@ -19,8 +19,12 @@ pub(crate) fn greeks_request(greeks: &Bound<'_, PyAny>) -> PyResult<kiyosi::Gree
         return Ok(kiyosi::GreeksRequest::new([greek(greeks)?]));
     }
     let mut measures = [None; kiyosi::Greek::ALL.len()];
-    for item in greeks.try_iter()? {
-        let measure = greek(&item?)?;
+    for (index, item) in greeks.try_iter()?.enumerate() {
+        let item = item?;
+        if index % 1024 == 0 {
+            greeks.py().check_signals()?;
+        }
+        let measure = greek(&item)?;
         measures[measure as usize] = Some(measure);
     }
     Ok(kiyosi::GreeksRequest::new(measures.into_iter().flatten()))

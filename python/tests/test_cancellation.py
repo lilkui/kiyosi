@@ -1,10 +1,61 @@
 """Signals stop numerical requests and preserve Python exception semantics."""
 
+import signal
 import subprocess
 import sys
 import textwrap
 
 import pytest
+
+
+@pytest.mark.skipif(not hasattr(signal, "setitimer"), reason="requires an OS alarm")
+def test_greek_iterable_polls_signals_before_consuming_duplicates():
+    from datetime import datetime
+    from itertools import repeat
+    from operator import length_hint
+
+    from kiyosi.instruments import EuropeanOption
+    from kiyosi.market import BlackScholesMertonParameters, PricingContext
+    from kiyosi.pricing import AnalyticEuropeanEngine
+
+    class StopConversion(Exception):
+        pass
+
+    def stop(*_):
+        raise StopConversion
+
+    count = 50_000_000
+    names = repeat("delta", count)
+
+    class Names:
+        def __iter__(self):
+            signal.setitimer(signal.ITIMER_REAL, 0.005)
+            return names
+
+    start = datetime(2025, 1, 1)
+    contract = EuropeanOption(
+        option_type="call",
+        strike=100,
+        effective_time=start,
+        expiry_time=datetime(2026, 1, 1),
+    )
+    market = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+        ),
+        spot_price=100,
+        valuation_time=start,
+    )
+    engine = AnalyticEuropeanEngine()
+    original_handler = signal.signal(signal.SIGALRM, stop)
+    try:
+        with pytest.raises(StopConversion):
+            engine.price_with_greeks(contract, market, Names())
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, original_handler)
+    assert length_hint(names) > 0
+    assert engine.price_with_greeks(contract, market, ["delta", "delta"]).delta > 0
 
 
 @pytest.mark.parametrize(
