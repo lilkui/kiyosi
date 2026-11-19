@@ -469,6 +469,29 @@ class ReportTests(unittest.TestCase):
             report["cases"][0]["backends"]["kiyosi"]["accuracy"]["absolute_error"], 1
         )
 
+    def test_overflowing_price_error_still_writes_accuracy_report(self):
+        result, report = self.run_fixture(
+            reference=-1e308,
+            extra=("--price-only",),
+            patch={"error_budget": 1e308},
+            batch={
+                "price": 1e308,
+                "elapsed_ns": 1,
+                "iterations": 1,
+                "warmup_iterations": 3,
+            },
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        row = report["cases"][0]
+        self.assertEqual(row["status"], "accuracy_failed")
+        self.assertIsNone(row["ratio"])
+        for backend in row["backends"].values():
+            accuracy = backend["accuracy"]
+            self.assertFalse(accuracy["passed"])
+            self.assertIsNone(accuracy["absolute_error"])
+            self.assertIsNone(accuracy["error_including_reference_uncertainty"])
+            self.assertIn("overflowed", accuracy["error"])
+
     def test_unknown_requested_case_fails_explicitly(self):
         result, report = self.run_fixture(extra=("--case", "absent"))
         self.assertNotEqual(result.returncode, 0)

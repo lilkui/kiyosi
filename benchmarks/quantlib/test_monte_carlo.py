@@ -116,6 +116,14 @@ class MonteCarloReportTests(unittest.TestCase):
             self.assertAlmostEqual(ensemble["signed_bias"], 0.06)
             self.assertNotIn("timing", backend)
 
+    def test_large_finite_seed_errors_keep_a_finite_rmse_in_the_report(self):
+        result, data = self.fixture(noise=1e155)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(data["status"], "precision_failed")
+        self.assertIsNone(data["ratio"])
+        for backend in data["backends"].values():
+            self.assertAlmostEqual(backend["seed_ensemble"]["rmse"] / 1e155, 1)
+
     def test_passing_ensemble_retains_every_seed_and_fifteen_timing_pairs(self):
         result, data = self.fixture(noise=0.02)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)

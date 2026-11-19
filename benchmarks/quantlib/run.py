@@ -239,12 +239,17 @@ def native(executable, case, backend, iterations):
 def accuracy(price, reference, budget):
     """Apply the same conservative absolute error budget to both libraries."""
     error = abs(price - reference["value"])
-    return {
+    total = error + reference["uncertainty"]
+    finite_total = finite_number(total)
+    result = {
         "price": price,
-        "absolute_error": error,
-        "error_including_reference_uncertainty": error + reference["uncertainty"],
-        "passed": error + reference["uncertainty"] <= budget,
+        "absolute_error": error if finite_number(error) else None,
+        "error_including_reference_uncertainty": total if finite_total else None,
+        "passed": finite_total and total <= budget,
     }
+    if not finite_total:
+        result["error"] = "price error including reference uncertainty overflowed"
+    return result
 
 
 def seed_ensemble(case, reference, executable, backend):
@@ -290,20 +295,29 @@ def seed_ensemble(case, reference, executable, backend):
             validation_profile["calibration_seed"] = seed + offset
         validation_case = {**case, "profiles": {backend: validation_profile}}
         batch = native(executable, validation_case, backend, 1)
+        signed_error = batch["price"] - reference["value"]
+        if not finite_number(signed_error):
+            raise ValueError(f"price error overflowed for {backend} seed {seed}")
         rows.append(
             {
                 "seed": seed,
                 "profile": validation_profile,
                 "price": batch["price"],
-                "signed_error": batch["price"] - reference["value"],
+                "signed_error": signed_error,
             }
         )
     errors = [row["signed_error"] for row in rows]
-    rmse = math.sqrt(statistics.mean(error * error for error in errors))
+    maximum = max(map(abs, errors))
+    rmse = (
+        maximum * math.sqrt(statistics.mean((error / maximum) ** 2 for error in errors))
+        if maximum
+        else 0.0
+    )
     bias = statistics.mean(errors)
     dispersion = statistics.stdev(errors)
+    if not all(finite_number(metric) for metric in (rmse, bias, dispersion)):
+        raise ValueError(f"Monte Carlo error metrics overflowed for {backend}")
     uncertainty = reference["uncertainty"]
-    maximum = max(map(abs, errors))
     accuracy_passed = (
         rmse + uncertainty <= policy["max_rmse"]
         and abs(bias) + uncertainty <= policy["max_abs_bias"]
@@ -454,11 +468,9 @@ def table(cases):
         errors = []
         for backend in BACKENDS:
             data = case["backends"].get(backend, {})
-            errors.append(
-                f"{data['accuracy']['absolute_error']:.3g}"
-                if "accuracy" in data
-                else "unavailable"
-            )
+            accuracy_result = data.get("accuracy")
+            error = accuracy_result["absolute_error"] if accuracy_result else None
+            errors.append(f"{error:.3g}" if error is not None else "unavailable")
             timing = data.get("timing", {})
             values.append(
                 f"{timing['median_ns'] / 1000:.3f} [{timing['iqr_ns'] / 1000:.3f}]"
