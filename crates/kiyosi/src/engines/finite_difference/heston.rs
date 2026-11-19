@@ -589,11 +589,6 @@ macro_rules! heston_solution {
                     Payoff::vanilla(option.option_type(), option.strike(), $american),
                     self.settings,
                 )?;
-                if *range.start() == 0.0 && matches!(state, HestonState::Grid { .. }) {
-                    return Err(invalid_grid(
-                        "Heston grid solutions require a positive lower spot bound",
-                    ));
-                }
                 state.price(*range.start())?;
                 crate::cancellation::check()?;
                 Ok(super::FiniteDifferenceSolution::new(
