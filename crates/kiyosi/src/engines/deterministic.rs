@@ -105,9 +105,7 @@ pub(super) fn exercise_value(
     risk: &Curve,
     dividend: &Curve,
 ) -> Result<f64> {
-    let value = |t| {
-        let dividend_log = dividend.log_factor(start, t);
-        let risk_log = risk.log_factor(start, t);
+    let value = |dividend_log: f64, risk_log: f64| {
         let price = if spot == 0.0 {
             if payoff.sign < 0.0 {
                 scaled_cash(payoff.strike, risk_log)
@@ -135,34 +133,44 @@ pub(super) fn exercise_value(
         };
         checked_with_scale(price, 0.0)
     };
-    if !payoff.is_american() {
-        return value(end);
+    if !payoff.is_american() || start >= end {
+        return value(dividend.log_factor(start, end), risk.log_factor(start, end));
+    }
+    if spot == 0.0 && payoff.sign > 0.0 {
+        return Ok(0.0);
     }
     let mut knots: Vec<_> = risk
-        .ends()
-        .chain(dividend.ends())
-        .filter(|&t| t > start && t < end)
-        .chain([start, end])
+        .ends_between(start, end)
+        .chain(dividend.ends_between(start, end))
         .collect();
     knots.sort_by(f64::total_cmp);
     knots.dedup();
-    let mut best = value(start)?.max(value(end)?);
-    for pair in knots.windows(2) {
-        let [a, b] = [pair[0], pair[1]];
-        best = best.max(value(b)?);
+    let mut best = value(0.0, 0.0)?;
+    let mut a = start;
+    let mut risk_log = Sum::default();
+    let mut dividend_log = Sum::default();
+    for b in knots.into_iter().chain([end]) {
+        crate::cancellation::check()?;
         let middle = a.midpoint(b);
         let r = risk.rate(middle);
         let q = dividend.rate(middle);
         if spot > 0.0 && r != 0.0 && q != 0.0 && r.signum() == q.signum() && r != q {
-            let log = log_ratio(r.abs(), q.abs())
-                + log_ratio(payoff.strike, spot)
-                + risk.log_factor(start, a)
-                - dividend.log_factor(start, a);
+            let log =
+                log_ratio(r.abs(), q.abs()) + log_ratio(payoff.strike, spot) + risk_log.total()
+                    - dividend_log.total();
             let t = a + log / (r - q);
             if t > a && t < b {
-                best = best.max(value(t)?);
+                best = best.max(value(
+                    dividend_log.total() + dividend.log_factor(a, t),
+                    risk_log.total() + risk.log_factor(a, t),
+                )?);
             }
         }
+        // Advance by each interval to preserve short widths without rescanning prior knots.
+        risk_log.add(risk.log_factor(a, b));
+        dividend_log.add(dividend.log_factor(a, b));
+        best = best.max(value(dividend_log.total(), risk_log.total())?);
+        a = b;
     }
     Ok(best)
 }

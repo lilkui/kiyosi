@@ -28,8 +28,18 @@ impl Segment {
 }
 
 impl Curve {
-    pub fn ends(&self) -> impl Iterator<Item = f64> + '_ {
+    pub fn ends(&self) -> impl ExactSizeIterator<Item = f64> + '_ {
         self.segments.iter().map(|segment| segment.end)
+    }
+
+    pub fn ends_between(&self, start: f64, end: f64) -> impl Iterator<Item = f64> + '_ {
+        let first = self
+            .segments
+            .partition_point(|segment| segment.end <= start);
+        self.segments[first..]
+            .iter()
+            .map(|segment| segment.end)
+            .take_while(move |&knot| knot < end)
     }
 
     pub fn new(

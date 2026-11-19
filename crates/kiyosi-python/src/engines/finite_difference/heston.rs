@@ -35,7 +35,9 @@ use pyo3::prelude::*;
 /// including violations of the Feller condition, zero parameters, correlation
 /// endpoints and deterministic rate curves. Pricing rejects grids whose estimated
 /// workspace exceeds 1 GiB or whose spatial grid point count times the number
-/// of time intervals, including curve knots, exceeds one billion. Check spatial
+/// of time intervals, including curve knots, exceeds one billion. American
+/// pricing also limits estimated exercise-boundary work to 25 million curve-knot
+/// visits. Check spatial
 /// and time refinement and domain enlargement
 /// separately. Non-finite or materially negative results raise
 /// ComputationFailureError. Requested Greeks have status "unsupported";

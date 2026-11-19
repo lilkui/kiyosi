@@ -116,7 +116,8 @@ impl HestonFiniteDifferenceSettings {
 /// Returns [`crate::Error::UnsupportedOperation`] for other models,
 /// [`crate::Error::InvalidInput`] outside permitted valuation bounds or curve coverage, or for explicit
 /// bounds that exclude spot, strike or initial variance, estimated workspace above 1 GiB,
-/// or more than one billion spatial grid points times time intervals, and
+/// more than one billion spatial grid points times time intervals, or American
+/// exercise-boundary work estimated above 25 million curve-knot visits, and
 /// [`crate::Error::ComputationFailure`] for unrepresentable grids, intermediates or
 /// invalid prices. Fixed grids do not report error-target nonconvergence.
 /// Inputs and settings remain unchanged on success and failure.
@@ -346,6 +347,14 @@ fn prepare(
     validate_work(assets * rows, steps)?;
     let times = TimeGrid::with_events(time, settings.time_step_count, &risk, &dividend, &[])?;
     validate_work(assets * rows, times.widths.len() as u64)?;
+    if payoff.is_american() {
+        let knots = risk.ends().len() + dividend.ends().len() - 2;
+        if knots.saturating_mul(times.widths.len()) > 25_000_000 {
+            return Err(invalid_grid(
+                "American Heston exercise boundary exceeds 25 million curve-knot visits; reduce time steps or curve nodes",
+            ));
+        }
+    }
     // A nearby spot anchor can shrink spacing across the entire concentrated mesh.
     let asset = space(
         settings.asset_step_count,
@@ -421,6 +430,7 @@ fn prepare(
     let mut values: Vec<_> = (0..length).map(|k| terminal[k % nx]).collect();
     let intrinsic: Vec<_> = asset.nodes.iter().map(|&s| payoff.value(s)).collect();
     let mut multiplier = vec![0.0; length];
+    let mut put_discount = 0.0_f64;
     for step in (0..times.widths.len()).rev() {
         crate::cancellation::check()?;
         let a = times.times[step];
@@ -429,8 +439,15 @@ fn prepare(
         let middle = a.midpoint(b);
         let rate = risk.rate(middle);
         let q = dividend.rate(middle);
+        let low = if payoff.is_american() && payoff.sign < 0.0 {
+            // Spot stays at zero. Exercise immediately or discount the best later payment.
+            put_discount = (risk.log_factor(a, b) + put_discount).max(0.0);
+            scaled_cash(payoff.strike, put_discount)
+        } else {
+            exercise_value(payoff, 0.0, a, time, &risk, &dividend)?
+        };
         let edges = [
-            exercise_value(payoff, 0.0, a, time, &risk, &dividend)?,
+            low,
             exercise_value(payoff, upper, a, time, &risk, &dividend)?,
         ];
         if edges.iter().any(|x| !x.is_finite()) {

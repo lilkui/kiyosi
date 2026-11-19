@@ -420,3 +420,43 @@ fn settings_and_unsupported_sensitivities_have_structured_errors() {
     assert_eq!(result.status(Greek::Delta), GreekStatus::NotRequested);
     assert!(result.values().iter().all(Option::is_none));
 }
+
+#[test]
+fn american_heston_dense_curves_preserve_price_and_bound_boundary_work() -> kiyosi::Result<()> {
+    let (start, end) = dates();
+    let engine = FiniteDifferenceHestonVanillaEngine::new(HestonFiniteDifferenceSettings {
+        asset_step_count: 40,
+        variance_step_count: 3,
+        time_step_count: 1,
+        ..Default::default()
+    })?;
+    let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let market = |count: i32| -> kiyosi::Result<PricingContext> {
+        let times = (1..=count)
+            .map(|j| start.add_micros(31_536_000_000_000 * i64::from(j) / i64::from(count)))
+            .collect::<kiyosi::Result<_>>()?;
+        let factors = (1..=count)
+            .map(|j| (-0.05 * f64::from(j) / f64::from(count) - 0.000_005 * f64::from(j % 2)).exp())
+            .collect();
+        let curve = RateTermStructure::new(start, times, factors)?;
+        PricingContext::new(
+            HestonParameters::new(kiyosi::HestonParameterInputs {
+                risk_free_rate: curve.into(),
+                dividend_yield: 0.02.into(),
+                initial_variance: 0.04,
+                long_run_variance: 0.04,
+                mean_reversion_speed: 1.5,
+                vol_of_vol: 0.3,
+                correlation: -0.7,
+            })?,
+            100.0,
+            start,
+        )
+    };
+    assert!((engine.price(&option, &market(2000)?)? - 6.184_597_331_03).abs() < 1e-8);
+    assert!(matches!(
+        engine.price(&option, &market(6000)?),
+        Err(Error::InvalidInput(message)) if message.contains("exercise boundary")
+    ));
+    Ok(())
+}
