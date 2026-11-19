@@ -7,7 +7,6 @@ use super::{
     local_volatility, validate_work, validate_workspace,
 };
 use crate::engines::deterministic::{self, continuation_context};
-use crate::instruments::autocallable::Coupon;
 use crate::instruments::autocallable::ObservationEvent;
 use crate::instruments::autocallable::pricing::{
     event_times_through, expiry_payment, fixed_value_at, validate,
@@ -134,26 +133,6 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
         <Self as PricingEngine<AutocallableNote<T>>>::validate_applicability(self, context)?;
         analysis(option, context, self.settings, request, shifts, native)
     }
-}
-
-fn highest<T: AutocallableTerms>(note: &AutocallableNote<T>) -> f64 {
-    let t = note.view();
-    let mut level = t.reference_spot();
-    if let Some(ki) = t.knock_in {
-        level = level.max(ki.level);
-    }
-    if let Some(d) = t.downside() {
-        level = level.max(d.upper_strike).max(d.lower_strike);
-    }
-    note.events().iter().fold(level, |level, r| {
-        level
-            .max(if r.has_knock_out() {
-                r.knock_out_level()
-            } else {
-                0.0
-            })
-            .max(r.coupon_barrier_level().unwrap_or(0.0))
-    })
 }
 
 fn event<'a, T: AutocallableTerms>(
@@ -295,7 +274,27 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
         u64::from(settings.asset_step_count.unsigned_abs()) * layers,
         grid.rollback_steps(settings.scheme, &observations)?,
     )?;
-    let highest = highest(note);
+    let mut levels = Vec::new();
+    if let Some(ki) = t.knock_in {
+        levels.extend([t.reference_spot(), ki.level]);
+    }
+    if let Some(d) = t.downside() {
+        levels.extend([d.lower_strike, d.upper_strike]);
+    }
+    let events = note.events();
+    let first = events.partition_point(|r| r.time() <= context.valuation_time());
+    for r in &events[first..] {
+        crate::cancellation::check()?;
+        if r.has_knock_out() {
+            levels.push(r.knock_out_level());
+        }
+        levels.extend(r.coupon_barrier_level());
+    }
+    let highest = levels
+        .iter()
+        .copied()
+        .reduce(f64::max)
+        .unwrap_or_else(|| context.spot_price());
     let upper = match settings.asset_upper_boundary {
         Some(upper) => upper,
         None => diffusion_upper(
@@ -313,25 +312,6 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
         highest.max(context.spot_price()),
     )?;
     if settings.scheme != FiniteDifferenceScheme::ExplicitEuler {
-        let mut levels = vec![t.reference_spot()];
-        if let Some(ki) = t.knock_in {
-            levels.push(ki.level);
-        }
-        if let Some(d) = t.downside() {
-            levels.extend([d.lower_strike, d.upper_strike]);
-        }
-        for r in note
-            .events()
-            .iter()
-            .filter(|r| r.time() > context.valuation_time())
-        {
-            if r.has_knock_out() {
-                levels.push(r.knock_out_level());
-            }
-            if matches!(t.coupon, Coupon::Phoenix(_)) {
-                levels.push(r.coupon_barrier_level().unwrap_or(0.0));
-            }
-        }
         let scale = highest * (0.001 * (nearest * 365.0).min(1.0).sqrt()).max(64.0 * f64::EPSILON);
         super::grid::concentrate(&mut space, levels, scale)?;
     }

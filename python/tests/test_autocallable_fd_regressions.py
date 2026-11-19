@@ -3,6 +3,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from datetime import time as clock_time
+from math import exp
 
 import pytest
 from kiyosi import (
@@ -91,6 +92,43 @@ def test_finite_difference_greek_workspaces_preserve_independent_prices(subtests
         with subtests.test(mode=mode, greek=greek):
             single = numerical_greeks(engine, note, context, greek, **shifts)
             assert getattr(single, greek) == getattr(actual, greek)
+
+
+@pytest.mark.parametrize("upper", (None, 400))
+def test_past_knock_out_levels_do_not_size_the_grid(upper):
+    start = datetime(2025, 1, 1)
+    valuation = start + timedelta(days=30)
+    end = valuation + timedelta(days=365)
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.03, dividend_yield=0, volatility=0.2
+        ),
+        spot_price=100,
+        valuation_time=valuation,
+    )
+    note = BinarySnowballOption(
+        calendar=all_days_calendar(),
+        maturity_coupon_rate=0.1,
+        effective_time=start,
+        expiry_time=end,
+        barrier_state="no_event",
+        autocall_observations=autocallable_observations(
+            [start, end], [10_000_000, 100], knock_out_coupon_rates=[0.5, 0.5]
+        ),
+    )
+    digital = CashOrNothingOption(
+        option_type="call",
+        strike=100,
+        payout=0.4,
+        effective_time=start,
+        expiry_time=end,
+    )
+    term = 395 / 365
+    expected = (1 + 0.1 * term) * exp(
+        -0.03
+    ) + term * pricing.AnalyticDigitalEngine().price(digital, context)
+    engine = pricing.FiniteDifferenceAutocallableEngine(asset_upper_boundary=upper)
+    assert engine.price(note, context) == pytest.approx(expected, abs=1e-5)
 
 
 def test_automatic_domains_converge_to_volatile_terminal_portfolios(subtests):

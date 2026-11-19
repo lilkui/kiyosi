@@ -36,6 +36,42 @@ fn terminal_binary_matches_independent_cash_and_digital_portfolio() {
 }
 
 #[test]
+fn past_knock_out_levels_do_not_size_the_grid() -> Result<()> {
+    let start = date(1, 1);
+    let valuation = start.add_days(30)?;
+    let end = valuation.add_days(365)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.03, 0.0, 0.2)?,
+        100.0,
+        valuation,
+    )?;
+    let digital = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 0.4, start, end)?;
+    let term = start.years_until(end);
+    let expected = (1.0 + 0.1 * term) * (-0.03_f64).exp()
+        + term * AnalyticDigitalEngine.price(&digital, &context)?;
+    for past_level in [100.0, 10_000_000.0] {
+        let mut terms = BinarySnowballTerms::new(
+            0.1,
+            start,
+            end,
+            autocallable_observations(&[start, end], &[past_level, 100.0], Some(&[0.5; 2]), None)?,
+            TradingCalendar::all_days(),
+        );
+        terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+        let note = BinarySnowballOption::new(terms)?;
+        for asset_upper_boundary in [None, Some(400.0)] {
+            let engine = FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {
+                asset_upper_boundary,
+                ..Default::default()
+            })?;
+            let price = engine.price(&note, &context)?;
+            assert!((price - expected).abs() < 1e-5, "{price} != {expected}");
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn daily_layers_and_all_variants_converge_to_quadrature() {
     fn check<T: AutocallableTerms>(note: &AutocallableNote<T>, context: &PricingContext) {
         let reference = QuadratureAutocallableEngine::new(QuadratureSettings {
