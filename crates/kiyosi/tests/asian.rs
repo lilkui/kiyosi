@@ -42,6 +42,49 @@ fn continuous_asian_prices_match_existing_independent_references() {
 }
 
 #[test]
+fn arithmetic_asian_preserves_one_microsecond_of_history() -> Result<()> {
+    let (start, _) = dates();
+    let at = start.add_micros(1)?;
+    let simulation = MonteCarloAsianEngine::new(MonteCarloGridSettings {
+        sampling: MonteCarloSettings {
+            path_count: 16,
+            seed: Some(42),
+            ..Default::default()
+        },
+        step_count: 4,
+    })?;
+    for years in [10, 300] {
+        let end = start.add_days(365 * i64::from(years))?;
+        let option = ArithmeticAveragePriceOption::new(
+            OptionType::Call,
+            100.0,
+            start,
+            start,
+            end,
+            Some(1e16),
+        )?;
+        let expected = (1e16 - 100.0) * 1e-6 / (365.0 * 86400.0 * f64::from(years));
+        for volatility in [0.0, 1e-20] {
+            let context = PricingContext::new(
+                BlackScholesMertonParameters::new(0.0, 0.0, volatility)?,
+                100.0,
+                at,
+            )?;
+            for price in [
+                TurnbullWakemanArithmeticAveragePriceEngine.price(&option, &context)?,
+                simulation.price(&option, &context)?,
+            ] {
+                assert!(
+                    (price - expected).abs() < 1e-12,
+                    "{years} years: {price} vs {expected}"
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn geometric_microsecond_window_preserves_carry() -> Result<()> {
     let (start, end) = dates();
     let context = PricingContext::new(

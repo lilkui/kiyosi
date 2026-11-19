@@ -109,7 +109,7 @@ impl AverageTerms {
         }
         times.sort_unstable();
         times.dedup();
-        let prior_weight = (1.0 - start.years_until(expiry) / self.period()).max(0.0);
+        let prior_weight = self.averaging_start.years_until(start) / self.period();
         let mut total = crate::numerics::Sum::default();
         let mut cumulative = crate::numerics::Sum::default();
         cumulative.add(carry(valuation, start)?);
@@ -152,9 +152,10 @@ impl AverageTerms {
         }
     }
 
-    pub(crate) fn adjusted_strike(&self, tau: f64) -> f64 {
-        let elapsed = self.period() - tau;
+    pub(crate) fn adjusted_strike(&self, valuation: Timestamp) -> f64 {
+        let elapsed = self.averaging_start.years_until(valuation);
         if elapsed > 0.0 {
+            let tau = valuation.years_until(self.terms.expiry_time());
             self.terms.strike()
                 + elapsed / tau * (self.terms.strike() - self.realized.unwrap_or(0.0))
         } else {
@@ -283,11 +284,7 @@ macro_rules! average_option {
         }
         impl OptionContract for $name {
             fn volatility_affects_price(&self, context: &PricingContext) -> bool {
-                $geometric
-                    || self
-                        .0
-                        .adjusted_strike(context.valuation_time().years_until(self.expiry_time()))
-                        > 0.0
+                $geometric || self.0.adjusted_strike(context.valuation_time()) > 0.0
             }
             fn effective_time(&self) -> Timestamp {
                 self.effective_time()

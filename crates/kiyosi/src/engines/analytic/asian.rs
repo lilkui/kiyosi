@@ -251,16 +251,19 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
         let carry = rate - model.flat_dividend_yield()?;
         let sigma = model.volatility();
         let period = o.period();
-        let lead = (tau - period).max(0.0);
-        let elapsed = period - tau;
-        let delta = tau - lead;
+        let valuation = context.valuation_time();
+        let lead = valuation.years_until(o.averaging_start).max(0.0);
+        let elapsed = o.averaging_start.years_until(valuation);
+        let delta = valuation
+            .max(o.averaging_start)
+            .years_until(o.terms.expiry_time());
         let m1 = (carry * lead).exp() * exprel(carry * delta);
         if !m1.is_finite() || m1 <= 0.0 {
             return Err(Error::ComputationFailure(
                 "invalid arithmetic moment".into(),
             ));
         }
-        let strike = o.adjusted_strike(tau);
+        let strike = o.adjusted_strike(valuation);
         let scale = if elapsed > 0.0 { tau / period } else { 1.0 };
         if elapsed > 0.0 && strike <= 0.0 {
             if o.sign() < 0.0 {

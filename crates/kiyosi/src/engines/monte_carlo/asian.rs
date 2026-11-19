@@ -241,6 +241,11 @@ impl MonteCarloAsianEngine {
             valuation.max(start).years_until(expiry)
         };
         let weight = if single { 1.0 } else { future / o.period() };
+        let prior_weight = if valuation > start {
+            start.years_until(valuation) / o.period()
+        } else {
+            0.0
+        };
         let sigma = model.volatility();
         let flat =
             model.risk_free_curve().nodes().is_empty() && model.dividend_curve().nodes().is_empty();
@@ -264,15 +269,14 @@ impl MonteCarloAsianEngine {
             Some([risk, dividend]) => -risk.log_factor(from, to) + dividend.log_factor(from, to),
             None => rate * (to - from) - dividend * (to - from),
         };
-        if !geometric && !single && o.adjusted_strike(tau) <= 0.0 {
+        if !geometric && !single && o.adjusted_strike(valuation) <= 0.0 {
             let log_mean = log_average_forward(model, valuation, lead, future, carry_between);
             let first = if o.sign() > 0.0 {
                 (log_discount + weight.ln() + log_mean).exp()
             } else {
                 0.0
             };
-            let elapsed_weight = start.years_until(valuation) / o.period();
-            let accrued = elapsed_weight
+            let accrued = prior_weight
                 .mul_add(o.realized.unwrap_or(0.0), -o.terms.strike())
                 .max(0.0);
             let price = if flat {
@@ -305,7 +309,7 @@ impl MonteCarloAsianEngine {
                 log_base_width: sigma.ln() + 0.5 * variance_time.ln(),
                 initial_moneyness: weight * log_ratio(context.spot_price(), o.terms.strike())
                     + if valuation > start {
-                        (1.0 - weight) * log_ratio(o.realized.unwrap_or(0.0), o.terms.strike())
+                        prior_weight * log_ratio(o.realized.unwrap_or(0.0), o.terms.strike())
                     } else {
                         0.0
                     },
@@ -341,6 +345,7 @@ impl MonteCarloAsianEngine {
                 strike: o.terms.strike(),
                 realized: o.realized.unwrap_or(0.0),
                 weight,
+                prior_weight,
                 log_discount,
                 drift: if flat {
                     drift_rate * dt
@@ -617,6 +622,7 @@ struct ArithmeticParameters {
     strike: f64,
     realized: f64,
     weight: f64,
+    prior_weight: f64,
     log_discount: f64,
     drift: f64,
     width: f64,
@@ -681,8 +687,8 @@ impl ArithmeticParameters {
         };
         let log_q = log_spot + self.weight.ln() + lead_growth + log_rest + self.interval_forward;
         let log_c = log_spot + self.weight.ln() + lead_growth + half.ln();
-        let log_history = if self.realized > 0.0 && self.weight < 1.0 {
-            self.realized.ln() + (-self.weight).ln_1p()
+        let log_history = if self.realized > 0.0 && self.prior_weight > 0.0 {
+            self.realized.ln() + self.prior_weight.ln()
         } else {
             f64::NEG_INFINITY
         };
@@ -709,15 +715,15 @@ impl ArithmeticParameters {
         }
         let log_b = log_strike + (-(log_accrued - log_strike).exp_m1()).ln();
         let mut forward = log_q - log_b;
+        let baseline = self.prior_weight * ((self.realized - self.strike) / self.spot)
+            + self.weight * ((self.spot - self.strike) / self.spot);
         if log_sum == f64::NEG_INFINITY {
             // Keep tiny growth separate from the unit value and monetary scale.
             let extra = lead_growth.exp_m1()
                 + lead_growth.exp()
                     * (rest * self.interval_forward.exp_m1()
                         + relative_sum * self.interval_forward.exp());
-            let excess = (1.0 - self.weight) * ((self.realized - self.strike) / self.spot)
-                + self.weight * ((self.spot - self.strike) / self.spot)
-                + self.weight * extra;
+            let excess = baseline + self.weight * extra;
             let b = (log_b - log_spot).exp();
             if b > 0.0 && (excess / b).abs() < 0.5 {
                 forward = (excess / b).ln_1p();
@@ -731,8 +737,6 @@ impl ArithmeticParameters {
         } else {
             (forward / (self.log_width / 2.0).exp()) / (self.log_width / 2.0).exp()
         };
-        let baseline = (1.0 - self.weight) * ((self.realized - self.strike) / self.spot)
-            + self.weight * ((self.spot - self.strike) / self.spot);
         if interval_drifts.is_empty()
             && self.width < f64::MIN_POSITIVE
             && self.drift == 0.0
@@ -806,7 +810,7 @@ impl ArithmeticParameters {
             0.0
         };
         let gamma = if request.has(Greek::Gamma) {
-            let k = (-(1.0 - self.weight)).mul_add(self.realized, self.strike);
+            let k = (-self.prior_weight).mul_add(self.realized, self.strike);
             (self.log_discount + 2.0 * k.ln()
                 - 2.0 * log_spot
                 - log_b

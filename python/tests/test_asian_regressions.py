@@ -39,6 +39,37 @@ def test_geometric_microsecond_window_preserves_carry(years, expected):
     ) == pytest.approx(expected, rel=0, abs=1e-12)
 
 
+@pytest.mark.parametrize("years", [10, 300])
+@pytest.mark.parametrize("volatility", [0.0, 1e-20])
+def test_arithmetic_asian_preserves_one_microsecond_of_history(years, volatility):
+    start = datetime(2025, 1, 1)
+    window = timedelta(days=365 * years)
+    realized = 1e16
+    option = ArithmeticAveragePriceOption(
+        option_type="call",
+        strike=100,
+        effective_time=start,
+        averaging_start_time=start,
+        expiry_time=start + window,
+        realized_average=realized,
+    )
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=volatility
+        ),
+        spot_price=100,
+        valuation_time=start + timedelta(microseconds=1),
+    )
+    expected = (realized - 100) * 1e-6 / window.total_seconds()
+    for engine in (
+        pricing.TurnbullWakemanArithmeticAveragePriceEngine(),
+        pricing.MonteCarloAsianEngine(path_count=16, step_count=4, seed=42),
+    ):
+        assert engine.price(option, context) == pytest.approx(
+            expected, rel=0, abs=1e-12
+        )
+
+
 def test_arithmetic_prices_survive_adjusted_strike_overflow(subtests):
     start, end = datetime(2023, 1, 1), datetime(2026, 1, 1)
     engine = pricing.TurnbullWakemanArithmeticAveragePriceEngine()
