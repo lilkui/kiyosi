@@ -96,12 +96,6 @@ impl AverageTerms {
             Ok(model.dividend_curve().log_factor(from, to)?
                 - model.risk_free_curve().log_factor(from, to)?)
         };
-        if self.period() == 0.0 {
-            return checked(crate::numerics::scaled_cash(
-                context.spot_price(),
-                carry(valuation, expiry)?,
-            ));
-        }
         let start = self.averaging_start.max(valuation);
         let mut times = vec![start, expiry];
         for curve in [model.risk_free_curve(), model.dividend_curve()] {
@@ -307,6 +301,7 @@ macro_rules! average_option {
                     .as_bsm()
                     .is_ok_and(|model| model.volatility() == 0.0)
                     && context.valuation_time() < self.expiry_time()
+                    && self.0.period() > 0.0
                 {
                     let average = |spot| -> Result<f64> {
                         let bumped = context.replace(crate::PricingContextChanges {

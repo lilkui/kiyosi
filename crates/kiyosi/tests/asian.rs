@@ -789,6 +789,35 @@ fn arithmetic_affine_cashflows_and_adjusted_strike_overflow_keep_original_payoff
 }
 
 #[test]
+fn deterministic_single_fixings_match_european_prices() -> Result<()> {
+    let (start, end) = dates();
+    let vanilla = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let geometric =
+        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None)?;
+    let arithmetic =
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None)?;
+    let quoted = RateTermStructure::new(start, vec![end], vec![0.99])?;
+    for (rate, spot) in [(Rate::from(710.0), 100.0), (quoted.into(), 99.0)] {
+        let context = PricingContext::new(
+            BlackScholesMertonParameters::new(rate, 0.0, 0.0)?,
+            spot,
+            start,
+        )?;
+        let expected = AnalyticEuropeanEngine.price(&vanilla, &context)?;
+        assert!(expected > 0.0);
+        for actual in [
+            AnalyticGeometricAveragePriceEngine.price(&geometric, &context)?,
+            TurnbullWakemanArithmeticAveragePriceEngine.price(&arithmetic, &context)?,
+            MonteCarloAsianEngine::default().price(&geometric, &context)?,
+            MonteCarloAsianEngine::default().price(&arithmetic, &context)?,
+        ] {
+            assert!((actual / expected - 1.0).abs() < 1e-14);
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn single_fixing_preserves_independent_asset_discount_at_extreme_rates() {
     let (start, end) = dates();
     let context = PricingContext::new(

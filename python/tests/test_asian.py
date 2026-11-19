@@ -28,6 +28,7 @@ from kiyosi.market import (
 from kiyosi.pricing import (
     AnalyticEuropeanEngine,
     AnalyticGeometricAveragePriceEngine,
+    MonteCarloAsianEngine,
     TurnbullWakemanArithmeticAveragePriceEngine,
     implied_volatility,
     numerical_greeks,
@@ -346,6 +347,23 @@ def test_arithmetic_solver_prices_only_the_requested_bracket():
         lower_bound=0.05,
         upper_bound=0.4,
     ) == pytest.approx(0.2, rel=0, abs=1e-7)
+
+
+def test_deterministic_single_fixings_match_european_prices():
+    quoted = RateTermStructure(reference_time=START, times=[END], factors=[0.99])
+    vanilla = EuropeanOption(
+        option_type="call", strike=100, effective_time=START, expiry_time=END
+    )
+    for rate, spot in [(710, 100), (quoted, 99)]:
+        context = market(rate=rate, spot=spot, dividend=0, volatility=0)
+        expected = AnalyticEuropeanEngine().price(vanilla, context)
+        assert expected > 0
+        for kind, engine_type in PAIRS:
+            option = kind(**terms(averaging_start_time=END))
+            for engine in (engine_type(), MonteCarloAsianEngine()):
+                assert engine.price(option, context) == pytest.approx(
+                    expected, rel=1e-14, abs=0
+                )
 
 
 def test_single_fixing_preserves_independent_asset_discount_at_extreme_rates():

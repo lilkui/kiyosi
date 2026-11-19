@@ -774,6 +774,14 @@ pub(super) fn average(
     if tau == 0.0 {
         return terms.settlement(context);
     }
+    if terms.period() == 0.0 {
+        let option = &terms.terms;
+        return vanilla(
+            option,
+            Payoff::vanilla(option.option_type(), option.strike(), false),
+            context,
+        );
+    }
     terms.coverage(context)?;
     let average = terms.deterministic_average(context, geometric)?;
     checked(scaled_cash(
