@@ -1,7 +1,9 @@
 use std::borrow::Cow;
 
 use super::{Payoff, curve::Curve};
-use crate::instruments::autocallable::pricing::{Initial, event_times_through, initial, validate};
+use crate::instruments::autocallable::pricing::{
+    Initial, event_times_through, fixed_value, initial, validate,
+};
 use crate::instruments::{
     binary_barrier::{Contract, Settlement},
     monitoring::{Monitoring, validate_life},
@@ -660,6 +662,12 @@ pub(super) fn autocallable_through<T: AutocallableTerms>(
     let mut state = initial(note, context);
     if state.settlement.is_some() || horizon == context.valuation_time() {
         return Ok(state);
+    }
+    if horizon == note.expiry_time() {
+        if let Some(value) = fixed_value(note, context, state.knocked_in) {
+            state.settlement = Some(finite(state.coupon + value)?);
+            return Ok(state);
+        }
     }
     let daily = note.view().daily_knock_in();
     let mut next = note

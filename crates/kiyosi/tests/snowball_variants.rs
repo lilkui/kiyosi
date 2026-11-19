@@ -16,6 +16,37 @@ fn observations() -> Vec<AutocallableObservation> {
 }
 
 #[test]
+fn fixed_snowball_payment_needs_only_the_risk_curve() -> Result<()> {
+    let start = date(1, 1);
+    let end = date(4, 1);
+    let option = BinarySnowballOption::new(BinarySnowballTerms::new(
+        0.0,
+        start,
+        end,
+        vec![AutocallableObservation::snowball(end, 120.0, 0.0)?],
+        TradingCalendar::weekdays(),
+    ))?;
+    let short_dividend = RateTermStructure::bounded_flat(0.0, start, start)?;
+    let engines: [&dyn PricingEngine<BinarySnowballOption>; 3] = [
+        &FiniteDifferenceAutocallableEngine::default(),
+        &QuadratureAutocallableEngine::default(),
+        &MonteCarloAutocallableEngine::default(),
+    ];
+    let expected = (-0.05 * start.years_until(end)).exp();
+    for volatility in [0.0, 0.2] {
+        let context = PricingContext::new(
+            BlackScholesMertonParameters::new(0.05, short_dividend.clone(), volatility)?,
+            100.0,
+            start,
+        )?;
+        for engine in engines {
+            assert!((engine.price(&option, &context)? - expected).abs() < 1e-14);
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn quadrature_covers_drift_into_future_knock_out() {
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let note = BinarySnowballOption::new(BinarySnowballTerms::new(

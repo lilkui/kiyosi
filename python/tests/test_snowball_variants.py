@@ -22,6 +22,7 @@ from kiyosi.instruments import (
 )
 from kiyosi.market import RateTermStructure, weekdays_calendar
 from kiyosi.pricing import (
+    FiniteDifferenceAutocallableEngine,
     MonteCarloAutocallableEngine,
     QuadratureAutocallableEngine,
     implied_snowball_coupon,
@@ -30,6 +31,30 @@ from kiyosi.pricing import (
 )
 from support.assertions import assert_decimal_equal, assert_rejection
 from test_snowball import END, START, autocallable_observations, market, structured
+
+
+def test_fixed_snowball_payment_needs_only_the_risk_curve():
+    note = BinarySnowballOption(
+        calendar=weekdays_calendar(),
+        maturity_coupon_rate=0,
+        effective_time=START,
+        expiry_time=END,
+        autocall_observations=autocallable_observations(
+            [END], [120], knock_out_coupon_rates=[0]
+        ),
+    )
+    dividend = RateTermStructure.bounded_flat(0, reference_time=START, max_time=START)
+    expected = math.exp(-0.05 * (END - START).days / 365)
+    for engine in (
+        FiniteDifferenceAutocallableEngine(),
+        QuadratureAutocallableEngine(),
+        MonteCarloAutocallableEngine(),
+    ):
+        for volatility in (0.0, 0.2):
+            context = market(volatility=volatility, rate=0.05, dividend=dividend)
+            assert engine.price(note, context) == pytest.approx(
+                expected, rel=0, abs=1e-14
+            )
 
 
 def test_european_snowball_signature_defaults_can_be_forwarded():
