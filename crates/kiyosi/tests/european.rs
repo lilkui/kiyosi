@@ -115,6 +115,29 @@ fn invalid_domain_values_are_rejected_before_construction() {
 }
 
 #[test]
+fn analytic_european_price_survives_overflowing_discounted_legs() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let expiry = start.add_days(365)?;
+    for sigma in [1e-8, 1e-3] {
+        let context = PricingContext::new(
+            BlackScholesMertonParameters::new(-710.0, -710.0, sigma)?,
+            100.0,
+            start,
+        )?;
+        let expected = (100.0_f64.ln() + 710.0 + libm::erf(sigma / 8.0_f64.sqrt()).ln()).exp();
+        for direction in [OptionType::Call, OptionType::Put] {
+            let option = EuropeanOption::new(direction, 100.0, start, expiry)?;
+            let price = AnalyticEuropeanEngine.price(&option, &context)?;
+            assert!(
+                (price / expected - 1.0).abs() < 2e-12,
+                "{price} vs {expected}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn analytic_regressions_retain_tail_prices_and_extreme_scales() {
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();

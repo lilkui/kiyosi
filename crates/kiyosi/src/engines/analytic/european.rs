@@ -1,4 +1,4 @@
-use crate::numerics::{standardize, weighted_cdf};
+use crate::numerics::{log_difference, log_normal_cdf, standardize, weighted_cdf};
 use std::f64::consts::PI;
 
 use crate::{
@@ -301,11 +301,8 @@ pub(crate) fn lognormal_price(
         ));
     }
     let (d1, d2) = black_scholes_arguments(log_moneyness, volatility, root_time);
-    let asset = weighted_cdf(spot, asset_log, sign * d1);
-    let cash = weighted_cdf(strike, risk_log, sign * d2);
-    let mut value = sign * (asset - cash);
-    let standardized = d1 - 0.5 * width;
-    if width < 1e-5 && standardized.is_finite() && sign * standardized <= -10.0 {
+    let standardized = standardize(log_moneyness, volatility, root_time);
+    let value = if width < 1e-5 && standardized.is_finite() && sign * standardized <= -10.0 {
         // Expand both tail legs together to avoid cancellation at tiny positive volatility.
         let distance = standardized.abs();
         let inverse_square = (1.0 / distance) / distance;
@@ -317,23 +314,41 @@ pub(crate) fn lognormal_price(
             sum += term;
             correction -= f64::from(2 * order + 3) * term;
         }
-        value = (spot.ln() + (asset_log) - 0.5 * standardized * width
-            + volatility.ln()
-            + root_time.ln()
+        (spot.ln() + asset_log - 0.5 * standardized * width + volatility.ln() + root_time.ln()
             - 0.5 * distance * distance
             - 0.5 * (2.0 * PI).ln()
             - 2.0 * distance.ln()
             + (sum + width * width * correction / 24.0).ln())
-        .exp();
+        .exp()
     } else if width < 1e-5 && standardized.abs() < 10.0 {
         let squared = standardized * standardized;
-        let time_value = (spot.ln() + (asset_log) + volatility.ln() + root_time.ln()
-            - 0.5 * squared
-            - 0.5 * (2.0 * PI).ln())
-        .exp()
-            * (1.0 + (squared - 1.0) * width * width / 24.0);
-        value = sign * cash * (standardized * width).exp_m1() + time_value;
-    }
+        let time_value = volatility.ln() + root_time.ln() - 0.5 * squared - 0.5 * (2.0 * PI).ln()
+            + ((squared - 1.0) * width * width / 24.0).ln_1p();
+        // Express both terms relative to the discounted asset before applying its scale.
+        let intrinsic = (-log_moneyness).exp_m1().abs().ln() + log_normal_cdf(sign * d2);
+        let scale = spot.ln() + asset_log;
+        if sign * log_moneyness >= 0.0 {
+            (scale + time_value).exp() + (scale + intrinsic).exp()
+        } else {
+            (scale + log_difference(time_value, intrinsic)).exp()
+        }
+    } else {
+        let asset = weighted_cdf(spot, asset_log, sign * d1);
+        let cash = weighted_cdf(strike, risk_log, sign * d2);
+        let direct = sign * (asset - cash);
+        if direct.is_finite() {
+            direct
+        } else {
+            let asset = log_moneyness + log_normal_cdf(sign * d1);
+            let cash = log_normal_cdf(sign * d2);
+            let difference = if sign > 0.0 {
+                log_difference(asset, cash)
+            } else {
+                log_difference(cash, asset)
+            };
+            (strike.ln() + risk_log + difference).exp()
+        }
+    };
     if !value.is_finite() {
         return Err(Error::ComputationFailure(
             "analytic pricing produced a non-finite result".into(),

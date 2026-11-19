@@ -230,6 +230,24 @@ def test_owned_readonly_values_and_concurrent_pricing(make_context):
     assert saved.volatility == 0.2
 
 
+@pytest.mark.parametrize("direction", ["call", "put"])
+@pytest.mark.parametrize("volatility", [1e-8, 1e-3])
+def test_analytic_european_price_survives_overflowing_discounted_legs(
+    direction, volatility, make_context
+):
+    parameters = BlackScholesMertonParameters(
+        risk_free_rate=-710, dividend_yield=-710, volatility=volatility
+    )
+    context = make_context(model_parameters=parameters)
+    option = make_option(option_type=direction)
+    expected = math.exp(
+        math.log(100) + 710 + math.log(math.erf(volatility / math.sqrt(8)))
+    )
+    assert AnalyticEuropeanEngine().price(option, context) == pytest.approx(
+        expected, rel=2e-12
+    )
+
+
 def test_extreme_numerical_regressions(make_context, subtests):
     # Independent high-precision references for tail prices and extreme scales.
     for direction, spot, strike, sigma, expected in (
