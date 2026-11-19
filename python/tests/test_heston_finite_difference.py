@@ -25,6 +25,33 @@ from kiyosi.pricing import (
 from test_heston import END, START, context, model, option, reference
 
 
+def test_absorbing_heston_preserves_quoted_forward_payoffs():
+    risk, dividend = (
+        RateTermStructure(reference_time=START, times=[END], factors=[factor])
+        for factor in (0.75, 0.625)
+    )
+    spot = 1.2e17
+    market = context(
+        model(
+            risk_free_rate=risk,
+            dividend_yield=dividend,
+            initial_variance=0,
+            long_run_variance=0,
+        ),
+        spot_price=spot,
+    )
+    engine = FiniteDifferenceHestonVanillaEngine()
+    spots = (spot - 16, spot, spot + 16)
+    for direction, expected in (("call", (0, 0, 10)), ("put", (10, 0, 0))):
+        contract = option(option_type=direction, strike=1e17)
+        saved = engine.solve(contract, market, spot_range=(spots[0], spots[-1]))
+        direct = tuple(
+            engine.price(contract, market.replace(spot_price=query)) for query in spots
+        )
+        assert direct == pytest.approx(expected, abs=1e-12, rel=0)
+        assert saved.price_many(spots) == pytest.approx(expected, abs=1e-12, rel=0)
+
+
 def test_rejects_oversized_heston_workspace_before_pricing():
     engine = FiniteDifferenceHestonVanillaEngine(
         asset_step_count=4000, variance_step_count=4000, time_step_count=1

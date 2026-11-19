@@ -15,6 +15,44 @@ fn dates() -> (Timestamp, Timestamp) {
     )
 }
 
+#[test]
+fn absorbing_heston_preserves_quoted_forward_payoffs() -> kiyosi::Result<()> {
+    use kiyosi::{FiniteDifferenceEngine, HestonParameterInputs, PricingContextChanges};
+
+    let (start, end) = dates();
+    let strike = 1e17;
+    let spot = 1.2e17;
+    let model = HestonParameters::new(HestonParameterInputs {
+        risk_free_rate: RateTermStructure::new(start, vec![end], vec![0.75])?.into(),
+        dividend_yield: RateTermStructure::new(start, vec![end], vec![0.625])?.into(),
+        initial_variance: 0.0,
+        long_run_variance: 0.0,
+        mean_reversion_speed: 1.0,
+        vol_of_vol: 0.3,
+        correlation: 0.0,
+    })?;
+    let context = PricingContext::new(model, spot, start)?;
+    let engine = FiniteDifferenceHestonVanillaEngine::default();
+    let spots = [spot - 16.0, spot, spot + 16.0];
+    for (direction, expected) in [
+        (OptionType::Call, [0.0, 0.0, 10.0]),
+        (OptionType::Put, [10.0, 0.0, 0.0]),
+    ] {
+        let option = EuropeanOption::new(direction, strike, start, end)?;
+        let saved = engine.solve(&option, &context, spots[0]..=spots[2])?;
+        for (spot, expected) in spots.into_iter().zip(expected) {
+            let shifted = context.replace(PricingContextChanges {
+                spot_price: Some(spot),
+                ..Default::default()
+            })?;
+            for actual in [engine.price(&option, &shifted)?, saved.price(spot)?] {
+                assert!((actual - expected).abs() < 1e-12, "{spot}: {actual}");
+            }
+        }
+    }
+    Ok(())
+}
+
 fn context(xi: f64, correlation: f64) -> PricingContext {
     PricingContext::new(
         HestonParameters::new(kiyosi::HestonParameterInputs {

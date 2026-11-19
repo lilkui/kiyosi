@@ -1,10 +1,10 @@
 use super::grid::{SpatialGrid, TimeGrid, concentrate};
 use super::{
-    Curve, FiniteDifferenceSettings, Payoff, WORKSPACE_BUDGET, invalid_grid, prepare_rate_curves,
+    FiniteDifferenceSettings, Payoff, WORKSPACE_BUDGET, invalid_grid, prepare_rate_curves,
     time_to_expiry, unstable, validate_work,
 };
 use crate::engines::analytic::heston::integrated_variance;
-use crate::engines::deterministic::{AmericanExercise, exercise_value};
+use crate::engines::deterministic::{self, AmericanExercise, exercise_value};
 use crate::numerics::{checked_with_scale, scaled_cash};
 use crate::{
     AmericanOption, EuropeanOption, GreeksRequest, HestonParameters, OptionContract,
@@ -268,7 +268,7 @@ fn price(
     payoff: Payoff,
     settings: HestonFiniteDifferenceSettings,
 ) -> Result<f64> {
-    prepare(option, context, payoff, settings)?.price(context.spot_price())
+    prepare(option, context, payoff, settings)?.price(option, context)
 }
 
 fn prepare(
@@ -281,7 +281,6 @@ fn prepare(
     const BYTES_PER_TIME_STEP: u64 = 24;
     let model = context.model_parameters().as_heston()?;
     let time = time_to_expiry(option, context)?;
-    let start = context.valuation_time();
     let end = option.expiry_time();
     context.validate_curve_coverage(end)?;
     if time == 0.0 {
@@ -295,14 +294,8 @@ fn prepare(
                 payoff, context, end,
             )?));
         }
-        let risk = Curve::new(model.risk_free_curve(), start, end)?;
-        let dividend = Curve::new(model.dividend_curve(), start, end)?;
-        return Ok(HestonState::Direct {
-            payoff,
-            time,
-            risk,
-            dividend,
-        });
+        context.validate_curve_horizon(end)?;
+        return Ok(HestonState::Direct(payoff));
     }
     let scale = payoff.strike.max(context.spot_price());
     let spot = context.spot_price() / scale;
@@ -524,12 +517,7 @@ fn prepare(
 enum HestonState {
     Expiry(Payoff),
     Exercise(AmericanExercise),
-    Direct {
-        payoff: Payoff,
-        time: f64,
-        risk: Curve,
-        dividend: Curve,
-    },
+    Direct(Payoff),
     Grid {
         scale: f64,
         asset: SpatialGrid,
@@ -537,16 +525,12 @@ enum HestonState {
     },
 }
 impl HestonState {
-    fn price(&self, spot: f64) -> Result<f64> {
+    fn price(&self, option: &impl OptionContract, context: &PricingContext) -> Result<f64> {
+        let spot = context.spot_price();
         match self {
             Self::Expiry(payoff) => Ok(payoff.value(spot)),
             Self::Exercise(exercise) => exercise.price(spot),
-            Self::Direct {
-                payoff,
-                time,
-                risk,
-                dividend,
-            } => exercise_value(*payoff, spot, 0.0, *time, risk, dividend),
+            Self::Direct(payoff) => deterministic::vanilla(option, *payoff, context),
             Self::Grid {
                 scale,
                 asset,
@@ -561,7 +545,7 @@ impl HestonState {
         }
     }
 }
-impl<I> super::solution::Backend<I> for HestonState {
+impl<I: OptionContract> super::solution::Backend<I> for HestonState {
     fn deterministic_exercise(&self) -> Option<(f64, usize)> {
         if let Self::Exercise(exercise) = self {
             Some(exercise.metadata())
@@ -572,12 +556,12 @@ impl<I> super::solution::Backend<I> for HestonState {
 
     fn evaluate(
         &self,
-        _: &I,
+        option: &I,
         context: &PricingContext,
         _: GreeksRequest,
         _: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        PricingResult::new(self.price(context.spot_price())?)
+        PricingResult::new(self.price(option, context)?)
     }
 }
 macro_rules! heston_solution {
@@ -599,7 +583,8 @@ macro_rules! heston_solution {
                     Payoff::vanilla(option.option_type(), option.strike(), $american),
                     self.settings,
                 )?;
-                state.price(*range.start())?;
+                let low = super::solution::at_spot(context, *range.start())?;
+                state.price(option, &low)?;
                 crate::cancellation::check()?;
                 Ok(super::FiniteDifferenceSolution::new(
                     option.clone(),
