@@ -720,6 +720,24 @@ def test_extreme_coupon_tail_scaling_and_overflow():
     )
 
 
+@pytest.mark.parametrize(("lower", "upper"), [(0.0, 128.0), (128.0, 256.0)])
+def test_stochastic_range_accrual_preserves_exact_quoted_boundaries(lower, upper):
+    expiry = START + timedelta(days=1)
+    discount = 1.0 - 51.0 / 1_048_576.0
+    curve = RateTermStructure(reference_time=START, times=[expiry], factors=[discount])
+    option = contract(
+        expiry_time=expiry,
+        notional=365,
+        annual_coupon_rate=1,
+        lower_bound=lower,
+        upper_bound=upper,
+    )
+    context = market(spot=128.0 * discount, rate=curve, dividend=0, volatility=1e-20)
+    assert AnalyticRangeAccrualEngine().price(option, context) == pytest.approx(
+        discount / 2.0, rel=0, abs=1e-14
+    )
+
+
 def test_adjacent_price_bounds_at_tiny_volatility(subtests):
     below = math.nextafter(100.0, 0.0)
     above = math.nextafter(100.0, math.inf)

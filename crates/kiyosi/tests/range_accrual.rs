@@ -59,6 +59,37 @@ fn range_accrual_combines_certain_hits_before_discounting() -> Result<()> {
 }
 
 #[test]
+fn stochastic_range_accrual_preserves_exact_quoted_boundaries() -> Result<()> {
+    let start = day(1);
+    let expiry = day(2);
+    let discount = 1.0 - 51.0 / 1_048_576.0;
+    let curve = RateTermStructure::new(start, vec![expiry], vec![discount])?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(curve, 0.0, 1e-20)?,
+        128.0 * discount,
+        start,
+    )?;
+    for (lower, upper) in [(0.0, 128.0), (128.0, 256.0)] {
+        let option = RangeAccrualOption::new(RangeAccrualTerms::new(
+            365.0,
+            1.0,
+            lower,
+            upper,
+            start,
+            expiry,
+            expiry.time_of_day(),
+        ))?;
+        let price = AnalyticRangeAccrualEngine.price(&option, &context)?;
+        // At the quoted forward, the normal probability rounds to one half.
+        assert!(
+            (price - discount / 2.0).abs() < 1e-14,
+            "{lower}..{upper}: {price}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn deterministic_range_accrual_includes_upper_bound_at_intraday_curve_node() -> Result<()> {
     let start = day(2);
     let expiry = Timestamp::new(start.date(), 2, 39, 0, 0)?;

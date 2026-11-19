@@ -113,21 +113,13 @@ impl AnalyticRangeAccrualEngine {
         };
         let mut value = Sum::default();
         let mut forward_to = crate::engines::deterministic::forward_factors(context);
+        let volatility = model.volatility();
         for date in &dates[future..] {
             let (carry, _) = forward_to(*date)?;
-            let time = valuation.years_until(*date);
-            let volatility = model.volatility();
-            let drift = carry - 0.5 * volatility * volatility * time;
-            let root = time.sqrt();
-            if !drift.is_finite() || !(volatility * root).is_finite() {
-                return Err(Error::ComputationFailure(
-                    "non-finite range transition".into(),
-                ));
-            }
             if volatility == 0.0 {
                 let distance = |bound, log| {
                     crate::engines::deterministic::quoted_spot_distance(context, *date, bound)
-                        .unwrap_or(drift - log)
+                        .unwrap_or(carry - log)
                 };
                 if (option.lower_bound() == 0.0 || distance(option.lower_bound(), lower) >= 0.0)
                     && distance(option.upper_bound(), upper) <= 0.0
@@ -136,12 +128,23 @@ impl AnalyticRangeAccrualEngine {
                 }
                 continue;
             }
-            let start = standardize(lower - drift, volatility, root);
+            let root = valuation.years_until(*date).sqrt();
+            let deviation = volatility * root;
+            if !deviation.is_finite() {
+                return Err(Error::ComputationFailure(
+                    "non-finite range transition".into(),
+                ));
+            }
+            let standardized_bound = |bound| {
+                let moneyness = context.log_forward_moneyness(*date, bound, carry);
+                standardize(-moneyness, volatility, root) + 0.5 * deviation
+            };
+            let start = standardized_bound(option.lower_bound());
             // Preserve the width even when the standardized endpoints round together.
             let width = standardize(log_width, volatility, root);
             let probability =
                 log_narrow_interval_mass(start + 0.5 * width, width).unwrap_or_else(|| {
-                    log_interval_mass(start, standardize(upper - drift, volatility, root))
+                    log_interval_mass(start, standardized_bound(option.upper_bound()))
                 });
             value.add((scale + probability).exp());
         }
