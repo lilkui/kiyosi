@@ -28,9 +28,7 @@ pub(super) fn boundary_value<D: Diffusion>(
         }
     } else {
         let (d1, d2) = black_scholes_arguments(
-            upper,
-            payoff.strike,
-            dividend_log - risk_log,
+            crate::numerics::log_ratio(upper, payoff.strike) + (dividend_log - risk_log),
             diffusion.sigma(0.0, 0.0),
             tau.sqrt(),
         );

@@ -432,6 +432,19 @@ impl PricingContext {
         ))
     }
 
+    pub(crate) fn log_forward_moneyness(
+        &self,
+        time: Timestamp,
+        strike: f64,
+        log_carry: f64,
+    ) -> f64 {
+        if self.quoted_spot_cmp(time, self.spot_price, strike) == Some(Ordering::Equal) {
+            0.0
+        } else {
+            crate::numerics::log_ratio(self.spot_price, strike) + log_carry
+        }
+    }
+
     pub(crate) fn forward_crosses(&self, time: Timestamp, level: f64, radius: f64) -> bool {
         self.forward_carry(time).is_ok_and(|carry| {
             let lower = (self.spot_price - radius).max(0.0);

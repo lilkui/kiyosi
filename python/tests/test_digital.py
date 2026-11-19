@@ -660,3 +660,32 @@ def test_expiry_reaching_time_stencils_use_scalar_derivatives_on_both_sides(
         expected = differences(base_engine, option, context, ["charm", "color"])
         assert actual.charm == pytest.approx(expected.charm, rel=0, abs=3.65e-7)
         assert actual.color == pytest.approx(expected.color, rel=0, abs=0.0000365)
+
+
+def test_tiny_positive_volatility_preserves_exact_quoted_moneyness():
+    start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+
+    def quote(factor):
+        return RateTermStructure(reference_time=start, times=[end], factors=[factor])
+
+    model = BlackScholesMertonParameters(
+        risk_free_rate=quote(95 / 128), dividend_yield=quote(0.75), volatility=1e-19
+    )
+    context = PricingContext(
+        model_parameters=model, spot_price=95, valuation_time=start
+    )
+    terms = {
+        "option_type": "call",
+        "strike": 96,
+        "effective_time": start,
+        "expiry_time": end,
+    }
+    digital = CashOrNothingOption(payout=100, **terms)
+    expected = 50 * 95 / 128
+    result = AnalyticDigitalEngine().price_with_greeks(digital, context, "delta")
+    assert result.price == pytest.approx(expected, rel=1e-13)
+    assert result.delta == pytest.approx(
+        2 * expected / (95e-19 * math.sqrt(2 * math.pi)), rel=1e-13
+    )
+    deterministic = context.replace(model_parameters=model.replace(volatility=0))
+    assert AnalyticEuropeanEngine().price(EuropeanOption(**terms), deterministic) == 0

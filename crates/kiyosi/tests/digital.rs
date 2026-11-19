@@ -787,3 +787,37 @@ fn expiry_reaching_time_stencils_use_paired_scalar_fallback() {
         numeric.require(Greek::Color).unwrap()
     );
 }
+
+#[test]
+fn tiny_positive_volatility_preserves_exact_quoted_moneyness() -> Result<()> {
+    let (start, end) = dates();
+    let quote = |factor| RateTermStructure::new(start, vec![end], vec![factor]);
+    let model = BlackScholesMertonParameters::new(quote(95.0 / 128.0)?, quote(0.75)?, 1e-19)?;
+    let context = PricingContext::new(model.clone(), 95.0, start)?;
+    let digital = DigitalOption::cash_or_nothing(OptionType::Call, 96.0, 100.0, start, end)?;
+    let expected = 50.0 * 95.0 / 128.0;
+    let result = AnalyticDigitalEngine.price_with_greeks(
+        &digital,
+        &context,
+        GreeksRequest::new([Greek::Delta]),
+    )?;
+    assert!((result.price() - expected).abs() < 1e-12);
+    let expected_delta = expected * 2.0 / (95.0e-19 * (2.0 * std::f64::consts::PI).sqrt());
+    assert!((result.require(Greek::Delta)? / expected_delta - 1.0).abs() < 1e-12);
+    let deterministic = PricingContext::new(
+        model.replace(BlackScholesMertonParameterChanges {
+            volatility: Some(0.0),
+            ..Default::default()
+        })?,
+        95.0,
+        start,
+    )?;
+    let vanilla = EuropeanOption::new(OptionType::Call, 96.0, start, end)?;
+    assert_eq!(
+        AnalyticEuropeanEngine
+            .price(&vanilla, &deterministic)?
+            .to_bits(),
+        0
+    );
+    Ok(())
+}

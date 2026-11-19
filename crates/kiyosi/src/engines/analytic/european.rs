@@ -1,4 +1,4 @@
-use crate::numerics::{log_ratio, standardize, weighted_cdf};
+use crate::numerics::{standardize, weighted_cdf};
 use std::f64::consts::PI;
 
 use crate::{
@@ -13,15 +13,12 @@ use crate::{
 pub struct AnalyticEuropeanEngine;
 
 pub(crate) fn black_scholes_arguments(
-    spot: f64,
-    strike: f64,
-    log_carry: f64,
+    log_moneyness: f64,
     volatility: f64,
     root_time: f64,
 ) -> (f64, f64) {
-    let forward = log_ratio(spot, strike) + log_carry;
     let width = volatility * root_time;
-    let standardized = standardize(forward, volatility, root_time);
+    let standardized = standardize(log_moneyness, volatility, root_time);
     (standardized + 0.5 * width, standardized - 0.5 * width)
 }
 
@@ -82,7 +79,8 @@ impl AnalyticEuropeanEngine {
         let width = sigma * root;
         let dividend_log = model.dividend_curve().log_factor(valuation, expiry)?;
         let risk_log = model.risk_free_curve().log_factor(valuation, expiry)?;
-        let (d1, d2) = black_scholes_arguments(spot, strike, dividend_log - risk_log, sigma, root);
+        let moneyness = context.log_forward_moneyness(expiry, strike, dividend_log - risk_log);
+        let (d1, d2) = black_scholes_arguments(moneyness, sigma, root);
         let sign = if option.option_type() == OptionType::Call {
             1.0
         } else {
@@ -248,7 +246,7 @@ impl AnalyticEuropeanEngine {
         lognormal_price(
             spot,
             strike,
-            dividend_log - risk_log,
+            context.log_forward_moneyness(expiry, strike, dividend_log - risk_log),
             (dividend_log, risk_log),
             model.volatility(),
             time.sqrt(),
@@ -293,7 +291,7 @@ impl PricingEngine for AnalyticEuropeanEngine {
 pub(crate) fn lognormal_price(
     spot: f64,
     strike: f64,
-    log_forward: f64,
+    log_moneyness: f64,
     log_discounts: (f64, f64),
     volatility: f64,
     root_time: f64,
@@ -306,7 +304,7 @@ pub(crate) fn lognormal_price(
             "unstable volatility limit".into(),
         ));
     }
-    let (d1, d2) = black_scholes_arguments(spot, strike, log_forward, volatility, root_time);
+    let (d1, d2) = black_scholes_arguments(log_moneyness, volatility, root_time);
     let asset = weighted_cdf(spot, asset_log, sign * d1);
     let cash = weighted_cdf(strike, risk_log, sign * d2);
     let mut value = sign * (asset - cash);
@@ -369,14 +367,12 @@ mod tests {
                 f64::MIN_POSITIVE.ln() - f64::MAX.ln(),
             ),
         ] {
-            let (d1, d2) = black_scholes_arguments(spot, strike, 0.0, 1.0, 1.0);
+            let (d1, d2) =
+                black_scholes_arguments(crate::numerics::log_ratio(spot, strike), 1.0, 1.0);
             assert!((d1 - (expected + 0.5)).abs() <= f64::EPSILON);
             assert!((d2 - (expected - 0.5)).abs() <= f64::EPSILON);
         }
         let tiny = f64::from_bits(1);
-        assert_eq!(
-            black_scholes_arguments(1.0, 1.0, tiny, tiny, 0.5),
-            (2.0, 2.0)
-        );
+        assert_eq!(black_scholes_arguments(tiny, tiny, 0.5), (2.0, 2.0));
     }
 }

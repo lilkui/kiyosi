@@ -4,7 +4,7 @@ use num_complex::Complex64;
 
 use super::european::lognormal_price;
 use crate::instruments::monitoring::validate_life;
-use crate::numerics::{Sum, checked_with_scale, log_ratio, scaled_cash};
+use crate::numerics::{Sum, checked_with_scale, scaled_cash};
 use crate::{
     Error, EuropeanOption, GreeksRequest, HestonParameters, OptionType, PricingContext,
     PricingEngine, PricingResult, Result,
@@ -183,7 +183,7 @@ impl AnalyticHestonEuropeanEngine {
         }
         let absorbing = model.initial_variance() == 0.0
             && (model.mean_reversion_speed() == 0.0 || model.long_run_variance() == 0.0);
-        let log_moneyness = log_ratio(spot, strike) + (dividend - risk);
+        let log_moneyness = context.log_forward_moneyness(end, strike, dividend - risk);
         if absorbing {
             let value = if sign * log_moneyness > 0.0 {
                 let amount = if sign > 0.0 { asset } else { cash };
@@ -199,7 +199,7 @@ impl AnalyticHestonEuropeanEngine {
         let base = lognormal_price(
             spot,
             strike,
-            dividend - risk,
+            log_moneyness,
             (dividend, risk),
             variance.sqrt(),
             1.0,

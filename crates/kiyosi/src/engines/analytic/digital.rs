@@ -156,8 +156,9 @@ impl AnalyticDigitalEngine {
         let dividend_log = model.dividend_curve().log_factor(valuation, expiry)?;
         let root = time.sqrt();
         let width = sigma * root;
-        let (d1, d2) =
-            black_scholes_arguments(spot, option.strike(), dividend_log - risk_log, sigma, root);
+        let moneyness =
+            context.log_forward_moneyness(expiry, option.strike(), dividend_log - risk_log);
+        let (d1, d2) = black_scholes_arguments(moneyness, sigma, root);
         let asset = option.payout().is_none();
         let (amount, discount, d) = if asset {
             (spot, dividend_log, d1)

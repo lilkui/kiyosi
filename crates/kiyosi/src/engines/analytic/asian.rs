@@ -117,7 +117,7 @@ impl AnalyticGeometricAveragePriceEngine {
         checked(crate::engines::analytic::european::lognormal_price(
             context.spot_price(),
             o.terms.strike(),
-            log_forward,
+            log_ratio(context.spot_price(), o.terms.strike()) + log_forward,
             (log_forward + log_discount, log_discount),
             sigma * weight,
             variance_time.sqrt(),
@@ -336,7 +336,7 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
                 * crate::engines::analytic::european::lognormal_price(
                     context.spot_price(),
                     cash_strike,
-                    log_scale + m1.ln(),
+                    log_ratio(context.spot_price(), cash_strike) + (log_scale + m1.ln()),
                     (log_scale + m1.ln() - rate * tau, -rate * tau),
                     adjusted_vol,
                     tau.sqrt(),

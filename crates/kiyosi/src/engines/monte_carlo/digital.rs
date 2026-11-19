@@ -212,9 +212,7 @@ impl MonteCarloDigitalEngine {
         let width = sigma * root;
         let carry = (rate - dividend) * time;
         let (_, d2) = crate::engines::analytic::european::black_scholes_arguments(
-            spot,
-            option.strike(),
-            carry,
+            context.log_forward_moneyness(option.expiry_time(), option.strike(), carry),
             sigma,
             root,
         );

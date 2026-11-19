@@ -67,6 +67,12 @@ pub(super) fn vanilla(
     }
     let risk = Curve::new(model.risk_free_curve(), start, end)?;
     let dividend = Curve::new(model.dividend_curve(), start, end)?;
+    if !payoff.is_american()
+        && context.quoted_spot_cmp(end, context.spot_price(), payoff.strike)
+            == Some(std::cmp::Ordering::Equal)
+    {
+        return Ok(0.0);
+    }
     let time = start.years_until(end);
     exercise_value(payoff, context.spot_price(), 0.0, time, &risk, &dividend)
 }
