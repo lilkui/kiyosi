@@ -1,6 +1,44 @@
 use kiyosi::*;
 
 #[test]
+fn deterministic_barrier_uses_current_and_future_fixings_after_dense_history() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let valuation = start.add_days(1)?;
+    let first = valuation.add_days(30)?;
+    let expiry = valuation.add_days(60)?;
+    let mut terms = BarrierOptionTerms::new(
+        OptionType::Call,
+        90.0,
+        start,
+        expiry,
+        100.0,
+        BarrierType::UpAndOut,
+    );
+    terms.rebate = 2.0;
+    terms.rebate_timing = RebateTiming::AtHit;
+    terms.touch_state = Some(BarrierTouchState::Untouched);
+    terms.calendar = TradingCalendar::all_days();
+    terms.observation_times = Some(
+        (0..4096)
+            .map(|offset| start.add_micros(offset * 1_000_000))
+            .chain([Ok(valuation), Ok(first), Ok(expiry)])
+            .collect::<Result<Vec<_>>>()?,
+    );
+    let option = BarrierOption::new(terms)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.2, 0.0, 0.0)?,
+        99.0,
+        valuation,
+    )?;
+    let expected = 2.0 * (-0.2 * valuation.years_until(first)).exp();
+    assert!((AnalyticBarrierEngine.price(&option, &context)? - expected).abs() < 1e-14);
+    let saved = FiniteDifferenceBarrierEngine::default().solve(&option, &context, 98.0..=101.0)?;
+    assert!((saved.price(99.0)? - expected).abs() < 1e-14);
+    assert_eq!(saved.price(100.0)?, 2.0);
+    Ok(())
+}
+
+#[test]
 fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
     let start = Date::new(2025, 1, 3)?.start_of_day();
     let expiry = start.add_days(2)?;

@@ -1,11 +1,52 @@
 """Barrier calendars belong to contracts across construction and replacement."""
 
 import inspect
-from datetime import datetime
+import math
+from datetime import datetime, timedelta
 
 import pytest
 from kiyosi import InvalidInputError, market, pricing
 from kiyosi import instruments as ins
+
+
+def test_deterministic_barrier_uses_current_and_future_fixings_after_dense_history():
+    start = datetime(2025, 1, 1)
+    valuation = start + timedelta(days=1)
+    first, expiry = (valuation + timedelta(days=days) for days in (30, 60))
+    option = ins.BarrierOption(
+        option_type="call",
+        strike=90,
+        effective_time=start,
+        expiry_time=expiry,
+        barrier_level=100,
+        barrier_type="up_and_out",
+        rebate=2,
+        rebate_timing="at_hit",
+        touch_state="untouched",
+        calendar=market.all_days_calendar(),
+        observation_times=(
+            *(start + timedelta(seconds=offset) for offset in range(4096)),
+            valuation,
+            first,
+            expiry,
+        ),
+    )
+    context = market.PricingContext(
+        model_parameters=market.BlackScholesMertonParameters(
+            risk_free_rate=0.2, dividend_yield=0, volatility=0
+        ),
+        spot_price=99,
+        valuation_time=valuation,
+    )
+    expected = 2 * math.exp(-0.2 * 30 / 365)
+    assert pricing.AnalyticBarrierEngine().price(option, context) == pytest.approx(
+        expected, rel=0, abs=1e-14
+    )
+    saved = pricing.FiniteDifferenceBarrierEngine().solve(
+        option, context, spot_range=(98, 101)
+    )
+    assert saved.price(99) == pytest.approx(expected, rel=0, abs=1e-14)
+    assert saved.price(100) == 2
 
 
 def test_barrier_calendars_are_owned_and_preserved_by_replacement(subtests):

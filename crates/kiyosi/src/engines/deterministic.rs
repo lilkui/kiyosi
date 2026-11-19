@@ -411,11 +411,8 @@ pub(super) fn barrier_probe_levels(
     let mut forward_to = forward_factors(context);
     let mut lower = 0.0_f64;
     let mut higher = f64::INFINITY;
-    for &time in times
-        .iter()
-        .skip_while(|&&time| time <= start)
-        .take_while(|&&time| time <= end)
-    {
+    let first = times.partition_point(|&time| time <= start);
+    for &time in times[first..].iter().take_while(|&&time| time <= end) {
         let (carry, _) = forward_to(time)?;
         if up {
             higher = higher.min(scaled_cash(level, -carry));
@@ -502,12 +499,9 @@ fn first_touch(
     let start = context.valuation_time();
     let mut advance = forward_factors(context);
     if monitoring.observation_mode() == ObservationMode::Scheduled {
-        for &time in monitoring
-            .observation_times()
-            .iter()
-            .skip_while(|&&time| time <= start)
-            .take_while(|&&time| time <= end)
-        {
+        let times = monitoring.observation_times();
+        let first = times.partition_point(|&time| time <= start);
+        for &time in times[first..].iter().take_while(|&&time| time <= end) {
             let (value, log_discount) = advance(time)?;
             if let Some((level, distance)) = hit(time, value) {
                 return Ok(Some(Touch {
