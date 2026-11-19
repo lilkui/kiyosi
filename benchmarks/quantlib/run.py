@@ -361,7 +361,9 @@ def measure(case, reference, executables, args, info):
         ):
             result["status"] = "accuracy_failed"
             return result
-        if "mc_validation" in case:
+        if case["family"].startswith("mc_") or "mc_validation" in case:
+            if "mc_validation" not in case:
+                raise ValueError("Monte Carlo cases require mc_validation")
             for backend in BACKENDS:
                 result["backends"][backend]["seed_ensemble"] = seed_ensemble(
                     case, reference, executables[backend], backend

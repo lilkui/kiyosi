@@ -12,7 +12,7 @@ HERE = Path(__file__).resolve().parent
 
 
 class MonteCarloReportTests(unittest.TestCase):
-    def fixture(self, noise=0.08, bias=0):
+    def fixture(self, noise=0.08, bias=0, *, include_policy=True):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             executable = root / "native"
@@ -44,6 +44,8 @@ class MonteCarloReportTests(unittest.TestCase):
                     "max_sample_stddev": 0.05,
                 },
             }
+            if not include_policy:
+                del case["mc_validation"]
             cases = root / "cases.json"
             cases.write_text(json.dumps({"schema_version": 1, "cases": [case]}))
             references = root / "references.json"
@@ -81,6 +83,16 @@ class MonteCarloReportTests(unittest.TestCase):
                 check=False,
             )
             return result, json.loads(report.read_text())["cases"][0]
+
+    def test_missing_seed_policy_prevents_timing(self):
+        result, data = self.fixture(include_policy=False)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertEqual(data["status"], "failed")
+        self.assertIn("require mc_validation", data["error"])
+        self.assertIsNone(data["ratio"])
+        for backend in data["backends"].values():
+            self.assertTrue(backend["accuracy"]["passed"])
+            self.assertNotIn("timing", backend)
 
     def test_wide_sampling_dispersion_suppresses_ratio(self):
         result, data = self.fixture()
