@@ -536,6 +536,9 @@ def main(argv=None):
     )
     parser.add_argument("--report", type=Path, default=HERE / "report.json")
     args = parser.parse_args(argv)
+    if args.rust_executable is not None:
+        args.rust_executable = args.rust_executable.absolute()
+    args.quantlib_executable = args.quantlib_executable.absolute()
     start = time.monotonic()
     report = {
         "schema_version": 1,

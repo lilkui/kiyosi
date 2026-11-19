@@ -290,6 +290,7 @@ class ReportTests(unittest.TestCase):
         families=None,
         runtime_name=None,
         build_source=None,
+        relative_executables=False,
     ):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -381,9 +382,9 @@ class ReportTests(unittest.TestCase):
                     *runner,
                     "--no-build",
                     "--rust-executable",
-                    str(native),
+                    f"./{native.name}" if relative_executables else str(native),
                     "--quantlib-executable",
-                    str(native),
+                    native.name if relative_executables else str(native),
                     "--cases",
                     str(cases),
                     "--references",
@@ -397,10 +398,17 @@ class ReportTests(unittest.TestCase):
                 capture_output=True,
                 check=False,
                 env=environment,
-                cwd=RUNNER.parent,
+                cwd=root if relative_executables else RUNNER.parent,
             )
             self.assertTrue(report.exists(), result.stderr)
             return result, json.loads(report.read_text())
+
+    def test_relative_executables_use_the_callers_directory(self):
+        result, report = self.run_fixture(
+            extra=("--price-only",), relative_executables=True
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(report["cases"][0]["status"], "passed")
 
     def test_no_build_retains_the_binary_build_revision(self):
         build_source = {"revision": "build-revision", "dirty_state": " M Cargo.toml"}
