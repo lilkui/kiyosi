@@ -344,13 +344,14 @@ fn native(
     }
     let mut first = [0.0; 2];
     let mut second = [0.0; 3];
+    // The log-space sum can price rare large payoffs whose discounted values overflow.
     let direct = no_early_exercise
-        && steps >= 256
-        && scaled(
-            values.iter().copied().fold(0.0, f64::max),
-            steps as f64 * discount.ln(),
-        )
-        .is_finite();
+        && (steps >= 256
+            || !scaled(
+                values.iter().copied().fold(0.0, f64::max),
+                steps as f64 * discount.ln(),
+            )
+            .is_finite());
     if direct {
         let level = if request.has(Greek::Gamma) {
             2

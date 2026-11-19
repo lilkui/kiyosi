@@ -76,6 +76,25 @@ fn market(spot: f64, rate: f64, dividend: f64, sigma: f64) -> PricingContext {
 }
 
 #[test]
+fn cash_digital_keeps_finite_price_when_discounted_payout_overflows() -> Result<()> {
+    let payout = 1.75e308;
+    let (start, end) = dates();
+    let unit = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 1.0, start, end)?;
+    let large = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, payout, start, end)?;
+    let context = market(100.0, -0.05, -0.05, 0.2);
+    for step_count in [15, 16_001] {
+        let engine = CoxRossRubinsteinDigitalEngine::new(BinomialSettings { step_count })?;
+        let expected = engine.price(&unit, &context)? * payout;
+        let price = engine.price(&large, &context)?;
+        assert!(
+            (price / expected - 1.0).abs() < 1e-12,
+            "{step_count}: {price}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn american_rollback_budget_preserves_direct_tree_pricing() -> Result<()> {
     let (start, end) = dates();
     let context = market(100.0, 0.05, 0.02, 0.2);

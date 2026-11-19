@@ -88,6 +88,17 @@ def engine_for(kind, steps=256):
     return factory(step_count=steps)
 
 
+def test_cash_digital_keeps_finite_price_when_discounted_payout_overflows():
+    payout = 1.75e308
+    unit = contract(CashOrNothingOption).replace(payout=1)
+    large = unit.replace(payout=payout)
+    context = market(rate=-0.05, dividend=-0.05)
+    for steps in (15, 16_001):
+        engine = CoxRossRubinsteinDigitalEngine(step_count=steps)
+        expected = engine.price(unit, context) * payout
+        assert engine.price(large, context) == pytest.approx(expected, rel=1e-12)
+
+
 def test_american_rollback_budget_preserves_direct_tree_pricing():
     context = market()
     put = contract(AmericanOption, "put")
