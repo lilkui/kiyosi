@@ -12,9 +12,9 @@ fn day(year: i32, month: u32, day: u32) -> Date {
     Date::new(year, month, day).unwrap()
 }
 
-fn assert_schedule_interrupts_after_closed_candidate(
+fn assert_calendar_interrupts_after_closed_candidate<T: std::fmt::Debug>(
     first: Date,
-    generate: impl FnOnce(&TradingCalendar) -> kiyosi::Result<ObservationSchedule>,
+    operation: impl FnOnce(&TradingCalendar) -> kiyosi::Result<T>,
 ) -> kiyosi::Result<()> {
     let token = CancellationToken::default();
     let calls = Arc::new(AtomicUsize::new(0));
@@ -34,7 +34,7 @@ fn assert_schedule_interrupts_after_closed_candidate(
     )?;
 
     let result = token.run(|| {
-        let result = generate(&calendar);
+        let result = operation(&calendar);
         assert_eq!(
             calls.load(Ordering::Relaxed),
             1,
@@ -42,7 +42,7 @@ fn assert_schedule_interrupts_after_closed_candidate(
         );
         assert!(
             matches!(&result, Err(Error::Io(error)) if error.kind() == ErrorKind::Interrupted),
-            "the schedule itself must return Interrupted, got {result:?}"
+            "the operation must return Interrupted, got {result:?}"
         );
         result
     });
@@ -54,10 +54,22 @@ fn assert_schedule_interrupts_after_closed_candidate(
 }
 
 #[test]
+fn calendar_searches_and_counts_stop_after_cancellation() -> kiyosi::Result<()> {
+    let first = day(2025, 1, 2);
+    let end = first.add_days(3)?;
+    assert_calendar_interrupts_after_closed_candidate(first, |calendar| {
+        calendar.adjust(first, BusinessDayConvention::Following)
+    })?;
+    assert_calendar_interrupts_after_closed_candidate(first, |calendar| {
+        calendar.trading_days_between(first, end)
+    })
+}
+
+#[test]
 fn fixed_interval_schedule_interrupts_after_first_closed_candidate() -> kiyosi::Result<()> {
     let start = day(2025, 1, 2).start_of_day();
     let end = day(2025, 1, 5).start_of_day();
-    assert_schedule_interrupts_after_closed_candidate(day(2025, 1, 3), |calendar| {
+    assert_calendar_interrupts_after_closed_candidate(day(2025, 1, 3), |calendar| {
         ObservationSchedule::fixed_interval(start, end, 1, calendar, start.time_of_day())
     })
 }
@@ -66,7 +78,7 @@ fn fixed_interval_schedule_interrupts_after_first_closed_candidate() -> kiyosi::
 fn monthly_schedule_interrupts_after_first_closed_candidate() -> kiyosi::Result<()> {
     let start = day(2025, 1, 2).start_of_day();
     let end = day(2025, 4, 2).start_of_day();
-    assert_schedule_interrupts_after_closed_candidate(day(2025, 2, 2), |calendar| {
+    assert_calendar_interrupts_after_closed_candidate(day(2025, 2, 2), |calendar| {
         ObservationSchedule::monthly(start, end, 1, calendar, start.time_of_day())
     })
 }

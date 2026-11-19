@@ -273,7 +273,8 @@ impl TradingCalendar {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] if no trading date exists before reaching
-    /// the supported date-range boundary.
+    /// the supported date-range boundary. Cancellation returns [`Error::Io`]
+    /// with [`std::io::ErrorKind::Interrupted`].
     ///
     /// # Panics
     ///
@@ -297,6 +298,7 @@ impl TradingCalendar {
         };
         let mut date = nominal;
         loop {
+            crate::cancellation::check()?;
             if self.is_trading_day(date) {
                 return Ok(date);
             }
@@ -308,7 +310,8 @@ impl TradingCalendar {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] for reversed ranges.
+    /// Returns [`Error::InvalidInput`] for reversed ranges. Cancellation returns
+    /// [`Error::Io`] with [`std::io::ErrorKind::Interrupted`].
     /// See [`Self::adjust`] for calendar setup.
     ///
     /// # Panics
@@ -319,6 +322,7 @@ impl TradingCalendar {
         let mut date = start;
         let mut count = 0;
         while date < end {
+            crate::cancellation::check()?;
             count += i32::from(self.is_trading_day(date));
             date = date.add_days(1)?;
         }
