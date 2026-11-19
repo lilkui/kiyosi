@@ -459,7 +459,14 @@ def measure(case, reference, executables, args, info):
             result["status"] = "passed"
         else:
             result["status"] = "accuracy_failed"
-    except (RuntimeError, ValueError, KeyError, TypeError, OverflowError) as error:
+    except (
+        RuntimeError,
+        ValueError,
+        OSError,
+        KeyError,
+        TypeError,
+        OverflowError,
+    ) as error:
         result["error"] = str(error)
     return result
 

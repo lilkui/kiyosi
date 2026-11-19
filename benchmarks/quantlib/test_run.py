@@ -1,5 +1,6 @@
 """Checks at the benchmark command and report boundaries."""
 
+import errno
 import json
 import subprocess
 import sys
@@ -23,7 +24,7 @@ RUNNER = Path(__file__).with_name("run.py")
 
 
 class CommandTests(unittest.TestCase):
-    def test_native_timeout_is_reported_as_a_case_failure(self):
+    def test_native_launch_errors_are_reported_as_case_failures(self):
         case = {
             "id": "fixture",
             "family": "european_bsm",
@@ -35,17 +36,21 @@ class CommandTests(unittest.TestCase):
         executables = {"kiyosi": Path("rust"), "quantlib": Path("cpp")}
         info = {backend: {"families": ["european_bsm"]} for backend in executables}
 
-        def stall(argv, *, timeout, **kwargs):
-            self.assertGreater(timeout, 0)
-            raise subprocess.TimeoutExpired(argv, timeout)
-
-        with patch("run.subprocess.run", side_effect=stall):
-            row = measure(
-                case, reference, executables, SimpleNamespace(price_only=True), info
-            )
-        self.assertEqual(row["status"], "failed")
-        self.assertIsNone(row["ratio"])
-        self.assertIn("timed out", row["error"])
+        for error, message in (
+            (subprocess.TimeoutExpired("rust", 1), "timed out"),
+            (OSError(errno.E2BIG, "Argument list too long"), "Argument list too long"),
+        ):
+            with (
+                self.subTest(error=type(error).__name__),
+                patch("run.subprocess.run", side_effect=error) as launch,
+            ):
+                row = measure(
+                    case, reference, executables, SimpleNamespace(price_only=True), info
+                )
+                self.assertGreater(launch.call_args.kwargs["timeout"], 0)
+                self.assertEqual(row["status"], "failed")
+                self.assertIsNone(row["ratio"])
+                self.assertIn(message, row["error"])
 
     def test_rust_executable_override_requires_no_build(self):
         with tempfile.TemporaryDirectory() as directory:
