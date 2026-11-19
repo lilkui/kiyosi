@@ -24,10 +24,7 @@ pub(crate) fn initial<T: AutocallableTerms>(
     if note.daily_at(context) {
         knocked_in |= note.view().below_knock_in(context.spot_price());
     }
-    let current = note
-        .events()
-        .iter()
-        .find(|r| r.time == context.valuation_time());
+    let current = note.event_at(context.valuation_time());
     let coupon = current.map_or(0.0, |r| {
         note.observation_coupon(r, |level| context.spot_price() >= level)
     });

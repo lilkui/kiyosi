@@ -1040,6 +1040,13 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     pub(crate) fn events(&self) -> &[ObservationEvent] {
         &self.1
     }
+    fn event_at(&self, time: Timestamp) -> Option<&ObservationEvent> {
+        let events = self.events();
+        events
+            .binary_search_by_key(&time, ObservationEvent::time)
+            .ok()
+            .map(|index| &events[index])
+    }
     /// Returns events strictly before valuation, or `None` for unknown; see [`Self::new`].
     pub fn barrier_state(&self) -> Option<AutocallableBarrierState> {
         self.view().barrier_state
@@ -1352,9 +1359,7 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
         }
         let spot = context.spot_price();
         let crosses = |level| spot - radius <= level && level <= spot + radius;
-        let events = self.events();
-        if let Ok(index) = events.binary_search_by_key(&context.valuation_time(), |r| r.time) {
-            let record = &events[index];
+        if let Some(record) = self.event_at(context.valuation_time()) {
             if matches!(self.view().coupon, Coupon::Phoenix(_))
                 && self.period_coupon() != 0.0
                 && record.coupon_barrier_level().unwrap_or_default() > 0.0
