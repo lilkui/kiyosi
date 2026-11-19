@@ -589,9 +589,6 @@ macro_rules! vanilla_solution {
                 solution::validate_range(&range)?;
                 crate::cancellation::check()?;
                 let payoff: Payoff = ($payoff)(option);
-                if payoff.is_digital() {
-                    flat_rates(context)?;
-                }
                 let anchor = solution::at_spot(context, *range.end())?;
                 let state = prepare_vanilla_state(
                     option,
