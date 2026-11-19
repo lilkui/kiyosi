@@ -667,31 +667,37 @@ impl VanillaGrid {
     ) -> Result<PricingResult> {
         let spot = context.spot_price();
         let payoff = self.payoff;
-        let price_at = |spot| {
-            payoff::checked_price(
+        let sample_at = |spot| -> Result<[f64; 3]> {
+            let [raw_price, delta, gamma] = self.grid.sample(spot);
+            let price = payoff::checked_price(
                 payoff,
                 spot,
-                self.grid.sample(spot)[0],
+                raw_price,
                 self.discount,
                 self.relative_upper_error,
-            )
+            )?;
+            if payoff.is_american() && payoff.value(spot) > raw_price {
+                let slope = if payoff.sign * (spot - payoff.strike) > 0.0 {
+                    payoff.sign
+                } else {
+                    0.0
+                };
+                Ok([price, slope, 0.0])
+            } else {
+                Ok([price, delta, gamma])
+            }
         };
-        let mut result = PricingResult::new(price_at(spot)?)?;
-        if request.has(Greek::Delta) || request.has(Greek::Gamma) {
-            let sample = self.grid.sample(spot);
-            result.set(request, Greek::Delta, sample[1])?;
-            result.set(request, Greek::Gamma, sample[2])?;
-        }
+        let [price, delta, gamma] = sample_at(spot)?;
+        let mut result = PricingResult::new(price)?;
+        result.set(request, Greek::Delta, delta)?;
+        result.set(request, Greek::Gamma, gamma)?;
         if request.has(Greek::Speed) {
             let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
-            if let Some(speed) =
-                self.grid
-                    .space
-                    .speed(&self.grid.values, &self.grid.curvature, spot, h)
-            {
-                price_at(spot + h)?;
-                price_at(spot - h)?;
-                result.set(request, Greek::Speed, speed)?;
+            let space = &self.grid.space;
+            if h > 0.0 && spot - h > space.asset(0) && spot + h < space.upper {
+                let up = sample_at(spot + h)?[2];
+                let down = sample_at(spot - h)?[2];
+                result.set(request, Greek::Speed, (up - down) / (2.0 * h))?;
             }
         }
         Ok(result)

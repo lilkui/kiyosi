@@ -626,3 +626,29 @@ def test_current_scheduled_barrier_events_precede_saved_interpolation(kind, bina
             abs=1e-10,
         )
     assert solution.price_with_greeks(110, "all").status("delta") == "undefined"
+
+
+def test_american_exercise_floor_greeks_follow_the_quoted_price():
+    contract = ins.AmericanOption(
+        option_type="put", strike=100, effective_time=START, expiry_time=END
+    )
+    market = context(spot=73.47)
+    market = market.replace(
+        model_parameters=market.model_parameters.replace(dividend_yield=0)
+    )
+    engine = pricing.FiniteDifferenceVanillaEngine(
+        asset_step_count=40, asset_upper_boundary=400
+    )
+    solution = engine.solve(contract, market, spot_range=(70, 100))
+    h = 0.001
+    down, center, up = solution.price_many([73.47 - h, 73.47, 73.47 + h])
+    assert center == pytest.approx(26.53, abs=1e-12)
+    assert (up - down) / (2 * h) == pytest.approx(-1, abs=1e-9)
+    assert (up - 2 * center + down) / h**2 == pytest.approx(0, abs=1e-8)
+    for result in (
+        engine.price_with_greeks(contract, market, ["delta", "gamma"]),
+        solution.price_with_greeks(73.47, ["delta", "gamma"]),
+    ):
+        assert result.price == center
+        assert result.delta == -1
+        assert result.gamma == 0

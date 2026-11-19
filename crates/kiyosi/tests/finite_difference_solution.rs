@@ -552,3 +552,45 @@ fn digital_binary_double_barrier_and_touch_solutions_match_analytics() {
         );
     }
 }
+
+#[test]
+fn american_exercise_floor_greeks_follow_the_quoted_price() -> Result<()> {
+    let (start, end) = dates();
+    let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let spot = 73.47;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.0, 0.2)?,
+        spot,
+        start,
+    )?;
+    let engine = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 40,
+        asset_upper_boundary: Some(400.0),
+        ..Default::default()
+    })?;
+    let solution = engine.solve(&option, &context, 70.0..=100.0)?;
+    let h = 0.001;
+    let prices = solution.price_many(&[spot - h, spot, spot + h])?;
+    close(prices[1], 26.53, 1e-12);
+    close((prices[2] - prices[0]) / (2.0 * h), -1.0, 1e-9);
+    close((prices[2] - 2.0 * prices[1] + prices[0]) / h / h, 0.0, 1e-8);
+    let greeks = GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Speed]);
+    for result in [
+        engine.price_with_greeks_with_settings(
+            &option,
+            &context,
+            greeks,
+            NumericalShiftSettings {
+                spot_shift: Some(h),
+                ..Default::default()
+            },
+        )?,
+        solution.price_with_greeks(spot, greeks, Some(h))?,
+    ] {
+        close(result.price(), prices[1], 1e-12);
+        close(result.require(Greek::Delta)?, -1.0, 1e-12);
+        close(result.require(Greek::Gamma)?, 0.0, 1e-12);
+        close(result.require(Greek::Speed)?, 0.0, 1e-12);
+    }
+    Ok(())
+}
