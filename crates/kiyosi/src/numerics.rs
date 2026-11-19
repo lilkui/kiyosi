@@ -90,6 +90,41 @@ pub(crate) fn log_ratio(numerator: f64, denominator: f64) -> f64 {
         }
     }
 }
+
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    reason = "Exponent and shift fields fit in i32; narrowing extracts the low product limb."
+)]
+pub(crate) fn compare_positive_products(left: [f64; 3], right: [f64; 3]) -> std::cmp::Ordering {
+    const FRACTION_BITS: u32 = f64::MANTISSA_DIGITS - 1;
+    let key = |factors: [f64; 3]| {
+        let parts = factors.map(|value| {
+            debug_assert!(value.is_finite() && value > 0.0, "invalid factor {value}");
+            let bits = value.to_bits();
+            let exponent = (bits >> FRACTION_BITS) as i32;
+            let fraction = bits & ((1_u64 << FRACTION_BITS) - 1);
+            let significand = fraction | (u64::from(exponent != 0) << FRACTION_BITS);
+            let shift = significand.leading_zeros() - (u64::BITS - f64::MANTISSA_DIGITS);
+            (exponent.max(1) - shift as i32, significand << shift)
+        });
+        let [(a_power, a), (b_power, b), (c_power, c)] = parts;
+        // Three binary64 significands need at most 159 bits.
+        let ab = u128::from(a) * u128::from(b);
+        let low_with_carry = u128::from(ab as u64) * u128::from(c);
+        let high = (ab >> u64::BITS) * u128::from(c) + (low_with_carry >> u64::BITS);
+        let low = low_with_carry as u64;
+        // Align the leading bits before comparing the exponent and the two limbs.
+        let shift = high.leading_zeros() - (u128::BITS + u64::BITS - 3 * f64::MANTISSA_DIGITS);
+        (
+            a_power + b_power + c_power - shift as i32,
+            (high << shift) | ((u128::from(low) << shift) >> u64::BITS),
+            low << shift,
+        )
+    };
+    key(left).cmp(&key(right))
+}
+
 pub(crate) fn standardize(value: f64, volatility: f64, root: f64) -> f64 {
     let width = volatility * root;
     if width == 0.0 {
@@ -273,6 +308,22 @@ mod integration_tests {
 #[cfg(test)]
 mod price_validation_tests {
     use super::*;
+
+    #[test]
+    fn exact_product_order_survives_unrepresentable_intermediates() {
+        use std::cmp::Ordering::{Equal, Greater, Less};
+
+        let tiny = f64::from_bits(1);
+        let huge = f64::MAX;
+        for (left, right, expected) in [
+            ([huge, huge, tiny], [tiny, huge, huge], Equal),
+            ([huge, huge, 2.0], [huge, huge, 1.0], Greater),
+            ([tiny, tiny, 1.0], [tiny, tiny, 2.0], Less),
+            ([1.5, 1.5, 1.0], [1.0, 1.0, 2.0], Greater),
+        ] {
+            assert_eq!(compare_positive_products(left, right), expected);
+        }
+    }
 
     #[test]
     fn signed_cash_scaling_preserves_sign_and_extreme_finite_values() {

@@ -413,23 +413,37 @@ impl RateTermStructure {
     }
 
     pub(crate) fn quoted_log_factor(&self, start: Timestamp, end: Timestamp) -> Option<f64> {
-        if self.factors.is_empty() {
-            return None;
-        }
-        let factor = |time| {
-            if self.reference == Some(time) {
-                Some(1.0)
-            } else {
-                self.nodes
-                    .binary_search(&time)
-                    .ok()
-                    .map(|i| self.factors[i])
-            }
-        };
         Some(
-            crate::numerics::log_ratio(factor(end)?, factor(start)?)
+            crate::numerics::log_ratio(self.quoted_factor_at(end)?, self.quoted_factor_at(start)?)
                 - self.spread * start.years_until(end),
         )
+    }
+
+    fn quoted_factor_at(&self, time: Timestamp) -> Option<f64> {
+        if self.factors.is_empty() {
+            None
+        } else if self.reference == Some(time) {
+            Some(1.0)
+        } else {
+            self.nodes
+                .binary_search(&time)
+                .ok()
+                .map(|i| self.factors[i])
+        }
+    }
+
+    pub(crate) fn unshifted_factor_quotes(
+        &self,
+        start: Timestamp,
+        end: Timestamp,
+    ) -> Option<[f64; 2]> {
+        if self.rate == Some(0.0) || self.calendar_quote().is_some_and(|(rate, _)| rate == 0.0) {
+            return Some([1.0, 1.0]);
+        }
+        if self.spread != 0.0 {
+            return None;
+        }
+        Some([self.quoted_factor_at(start)?, self.quoted_factor_at(end)?])
     }
 
     pub(crate) fn accrual_year_fraction(&self, start: Timestamp, end: Timestamp) -> f64 {

@@ -19,6 +19,70 @@ fn scheduled_touch_preserves_the_exact_final_curve_quote() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn accumulator_uses_base_quantity_at_an_exact_future_strike() -> Result<()> {
+    let start = Timestamp::new(Date::new(2025, 1, 1)?, 12, 0, 0, 0)?;
+    let fixing = Date::new(2025, 1, 2)?.start_of_day();
+    let expiry = fixing.add_days(1)?;
+    let curve = |base, fixing_factor, expiry_factor| {
+        if let Some(base) = base {
+            RateTermStructure::new(
+                start.add_days(-1)?,
+                vec![start, fixing, expiry],
+                vec![base, fixing_factor, expiry_factor],
+            )
+        } else {
+            RateTermStructure::new(
+                start,
+                vec![fixing, expiry],
+                vec![fixing_factor, expiry_factor],
+            )
+        }
+    };
+    let engine = FiniteDifferenceAccumulatorEngine::default();
+    let risk_factor = 1.0 - 33.0 / 1_048_576.0;
+    for (risk_base, dividend_base, risk, dividend) in [
+        (None, None, risk_factor, None),
+        (None, None, risk_factor, Some(1.0 - 1.0 / 1_048_576.0)),
+        (
+            Some(1.0 - 9.0 / 32768.0),
+            Some(1.0 - 4.0 / 32768.0),
+            1.0 - 11.0 / 32768.0,
+            Some(1.0 - 10.0 / 32768.0),
+        ),
+    ] {
+        let expiry_factor = risk * (1.0 - 1.0 / 4096.0);
+        let dividend_curve = match dividend {
+            Some(factor) => Rate::from(curve(dividend_base, factor, factor)?),
+            None => Rate::from(0.0),
+        };
+        let model = BlackScholesMertonParameters::new(
+            curve(risk_base, risk, expiry_factor)?,
+            dividend_curve,
+            0.0,
+        )?;
+        let [risk_base, dividend_base, dividend] =
+            [risk_base, dividend_base, dividend].map(|f| f.unwrap_or(1.0));
+        let boundary = 100.0 * risk * dividend_base;
+        let strike = 100.0 * dividend * risk_base;
+        let option = Accumulator::new(AccumulatorTerms {
+            knock_out_observation_times: Some(vec![]),
+            ..AccumulatorTerms::new(strike, 120.0, 1.0, 2.0, start, expiry, fixing.time_of_day())
+        })?;
+        for (spot, quantity) in [
+            (libm::nextafter(boundary, 0.0), 3.0),
+            (boundary, 2.0),
+            (libm::nextafter(boundary, f64::INFINITY), 2.0),
+        ] {
+            let context = PricingContext::new(model.clone(), spot, start)?;
+            let expected =
+                quantity * (spot * dividend / dividend_base - strike * expiry_factor / risk_base);
+            assert!((engine.price(&option, &context)? - expected).abs() < 1e-12);
+        }
+    }
+    Ok(())
+}
+
 fn verify<I: OptionContract>(
     option: &I,
     context: &PricingContext,

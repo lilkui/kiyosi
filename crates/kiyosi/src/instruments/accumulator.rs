@@ -378,9 +378,12 @@ impl Accumulator {
         )
     }
     pub(crate) fn purchase(&self, spot: f64) -> f64 {
+        self.purchase_from_strike_distance(spot - self.strike())
+    }
+    pub(crate) fn purchase_from_strike_distance(&self, distance: f64) -> f64 {
         let accelerated = match self.option_type() {
-            OptionType::Call => spot < self.strike(),
-            OptionType::Put => spot > self.strike(),
+            OptionType::Call => distance < 0.0,
+            OptionType::Put => distance > 0.0,
         };
         if accelerated {
             self.daily_quantity() * self.acceleration_factor()

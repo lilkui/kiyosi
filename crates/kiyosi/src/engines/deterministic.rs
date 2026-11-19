@@ -176,12 +176,32 @@ pub(super) fn log_return(context: &PricingContext, time: Timestamp) -> Result<f6
 }
 
 pub(super) fn spot(context: &PricingContext, time: Timestamp) -> Result<f64> {
-    let value = scaled_cash(context.spot_price(), log_return(context, time)?);
+    spot_after_carry(context.spot_price(), log_return(context, time)?)
+}
+
+fn spot_after_carry(spot: f64, carry: f64) -> Result<f64> {
+    let value = scaled_cash(spot, carry);
     if value.is_finite() && value > 0.0 {
         Ok(value)
     } else {
         Err(invalid())
     }
+}
+
+fn quoted_strike_distance(context: &PricingContext, time: Timestamp, strike: f64) -> Option<f64> {
+    let model = context.model_parameters();
+    let start = context.valuation_time();
+    let [risk_start, risk_end] = model
+        .risk_free_curve()
+        .unshifted_factor_quotes(start, time)?;
+    let [dividend_start, dividend_end] = model
+        .dividend_curve()
+        .unshifted_factor_quotes(start, time)?;
+    let ordering = crate::numerics::compare_positive_products(
+        [context.spot_price(), dividend_end, risk_start],
+        [strike, risk_end, dividend_start],
+    );
+    Some(f64::from(ordering as i8))
 }
 
 pub(super) fn discount(context: &PricingContext, time: Timestamp) -> Result<f64> {
@@ -586,13 +606,18 @@ pub(super) fn accumulator(option: &Accumulator, context: &PricingContext) -> Res
     if let Some(value) = settlement {
         return finite(value);
     }
+    let initial = context.spot_price();
+    let strike_distance = log_ratio(initial, option.strike());
     for time in option.future_observation_times(context)? {
-        let spot = spot(context, time)?;
+        let carry = log_return(context, time)?;
+        let spot = spot_after_carry(initial, carry)?;
         if option.observes_knock_out(time) && option.is_knock_out(spot) {
             return finite(quantity * option.unit_payoff(spot) * discount(context, time)?.exp());
         }
         if option.accumulates_at(time, option.calendar()) {
-            quantity += option.purchase(spot);
+            let distance = quoted_strike_distance(context, time, option.strike())
+                .unwrap_or(strike_distance + carry);
+            quantity += option.purchase_from_strike_distance(distance);
         }
         if time == option.expiry_time() {
             return finite(quantity * option.unit_payoff(spot) * discount(context, time)?.exp());

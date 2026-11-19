@@ -48,6 +48,78 @@ def test_scheduled_touch_preserves_the_exact_final_curve_quote():
         )
 
 
+@pytest.mark.parametrize(
+    ("risk_base", "dividend_base", "risk_factor", "dividend_factor"),
+    [
+        (None, None, 1 - 33 / 2**20, None),
+        (None, None, 1 - 33 / 2**20, 1 - 1 / 2**20),
+        (1 - 9 / 2**15, 1 - 4 / 2**15, 1 - 11 / 2**15, 1 - 10 / 2**15),
+    ],
+)
+def test_accumulator_uses_base_quantity_at_an_exact_future_strike(
+    risk_base, dividend_base, risk_factor, dividend_factor
+):
+    start = datetime(2025, 1, 1, 12)
+    fixing, expiry = datetime(2025, 1, 2), datetime(2025, 1, 3)
+
+    def curve(base, fixing_factor, expiry_factor):
+        if base is None:
+            return RateTermStructure(
+                reference_time=start,
+                times=[fixing, expiry],
+                factors=[fixing_factor, expiry_factor],
+            )
+        return RateTermStructure(
+            reference_time=start - timedelta(days=1),
+            times=[start, fixing, expiry],
+            factors=[base, fixing_factor, expiry_factor],
+        )
+
+    expiry_factor = risk_factor * (1 - 1 / 4096)
+    dividend = (
+        0
+        if dividend_factor is None
+        else curve(dividend_base, dividend_factor, dividend_factor)
+    )
+    model = BlackScholesMertonParameters(
+        risk_free_rate=curve(risk_base, risk_factor, expiry_factor),
+        dividend_yield=dividend,
+        volatility=0,
+    )
+    risk_base, dividend_base, dividend_factor = (
+        risk_base or 1,
+        dividend_base or 1,
+        dividend_factor or 1,
+    )
+    strike = 100 * dividend_factor * risk_base
+    option = ins.Accumulator(
+        strike=strike,
+        knock_out_level=120,
+        daily_quantity=1,
+        acceleration_factor=2,
+        effective_time=start,
+        expiry_time=expiry,
+        observation_clock_time=clock_time(),
+        knock_out_observation_times=[],
+    )
+    engine = pricing.FiniteDifferenceAccumulatorEngine()
+    boundary = 100 * risk_factor * dividend_base
+    for spot, quantity in [
+        (math.nextafter(boundary, 0), 3),
+        (boundary, 2),
+        (math.nextafter(boundary, math.inf), 2),
+    ]:
+        context = PricingContext(
+            model_parameters=model, spot_price=spot, valuation_time=start
+        )
+        expected = quantity * (
+            spot * dividend_factor / dividend_base - strike * expiry_factor / risk_base
+        )
+        assert engine.price(option, context) == pytest.approx(
+            expected, rel=0, abs=1e-12
+        )
+
+
 def test_equal_carry_preserves_a_spot_just_above_the_strike():
     expiry = START + timedelta(days=25 * 365)
     spot = math.nextafter(100.0, math.inf)
