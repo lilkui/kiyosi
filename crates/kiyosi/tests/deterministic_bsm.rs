@@ -1099,3 +1099,38 @@ fn quoted_fixings_use_exact_payoff_boundaries() -> Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn accumulator_discounts_large_settlement_before_rounding() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_days(365)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(750.0, 750.0, 0.0)?,
+        110.0,
+        start,
+    )?;
+    for (knock_out_level, purchases) in [(110.0, 365.0_f64), (200.0, 366.0_f64)] {
+        let option = Accumulator::new(AccumulatorTerms {
+            calendar: TradingCalendar::all_days(),
+            knock_out_observation_times: Some(vec![end]),
+            ..AccumulatorTerms::new(
+                100.0,
+                knock_out_level,
+                1e300,
+                2.0,
+                start,
+                end,
+                end.time_of_day(),
+            )
+        })?;
+        let expected = (purchases.ln() + 1e301_f64.ln() - 750.0).exp();
+        for price in [
+            FiniteDifferenceAccumulatorEngine::default().price(&option, &context)?,
+            QuadratureAccumulatorEngine::default().price(&option, &context)?,
+            MonteCarloAccumulatorEngine::default().price(&option, &context)?,
+        ] {
+            assert!((price / expected - 1.0).abs() < 1e-12);
+        }
+    }
+    Ok(())
+}

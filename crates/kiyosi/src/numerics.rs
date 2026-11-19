@@ -191,6 +191,20 @@ pub(crate) fn weighted_cdf(amount: f64, exponent: f64, argument: f64) -> f64 {
     }
 }
 
+pub(crate) fn discounted_product(scale: f64, weight: f64, log_discount: f64) -> f64 {
+    let value = scale * weight;
+    let discount = log_discount.exp();
+    if scale == 0.0 || weight == 0.0 {
+        0.0
+    } else if discount.is_normal() && value.is_normal() {
+        value * discount
+    } else {
+        (scale.ln() + weight.abs().ln() + log_discount)
+            .exp()
+            .copysign(weight)
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct Sum {
     value: f64,

@@ -11,7 +11,7 @@ use std::{
 use rayon::prelude::*;
 
 use super::greeks;
-use crate::numerics::log_ratio;
+use crate::numerics::{discounted_product, log_ratio};
 use crate::{
     Error, EuropeanOption, GreeksRequest, NumericalShiftSettings, OptionType, PricingContext,
     PricingEngine, PricingResult, Result,
@@ -1384,17 +1384,7 @@ fn transition(
 }
 
 fn scaled_value(scale: f64, weight: f64, log_discount: f64) -> Result<f64> {
-    let value = scale * weight;
-    let discount = log_discount.exp();
-    let result = if scale == 0.0 || weight == 0.0 {
-        0.0
-    } else if discount.is_normal() && value.is_normal() {
-        value * discount
-    } else {
-        (scale.ln() + weight.abs().ln() + log_discount)
-            .exp()
-            .copysign(weight)
-    };
+    let result = discounted_product(scale, weight, log_discount);
     if !result.is_finite() {
         return Err(unstable());
     }

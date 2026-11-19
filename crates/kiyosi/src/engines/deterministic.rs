@@ -7,8 +7,8 @@ use crate::instruments::{
     monitoring::{Monitoring, validate_life},
 };
 use crate::numerics::{
-    Sum, checked, checked_with_scale, finite_price as finite, log_ratio, scaled_cash,
-    scaled_signed_cash,
+    Sum, checked, checked_with_scale, discounted_product, finite_price as finite, log_ratio,
+    scaled_cash, scaled_signed_cash,
 };
 use crate::{
     Accumulator, AutocallableNote, AutocallableTerms, BarrierOption, DoubleBarrierOption, Error,
@@ -648,7 +648,11 @@ pub(super) fn accumulator(option: &Accumulator, context: &PricingContext) -> Res
                 )
         };
         if option.observes_knock_out(time) && knocked_out() {
-            return finite(quantity * option.unit_payoff(spot) * log_discount.exp());
+            return finite(discounted_product(
+                quantity,
+                option.unit_payoff(spot),
+                log_discount,
+            ));
         }
         if option.accumulates_at(time, option.calendar()) {
             let distance = quoted_spot_distance(context, time, option.strike())
@@ -656,7 +660,11 @@ pub(super) fn accumulator(option: &Accumulator, context: &PricingContext) -> Res
             quantity += option.purchase_from_strike_distance(distance);
         }
         if time == option.expiry_time() {
-            return finite(quantity * option.unit_payoff(spot) * log_discount.exp());
+            return finite(discounted_product(
+                quantity,
+                option.unit_payoff(spot),
+                log_discount,
+            ));
         }
     }
     Err(invalid())

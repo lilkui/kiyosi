@@ -1162,3 +1162,40 @@ def test_quoted_fixings_use_exact_payoff_boundaries():
         assert pricing.AnalyticRangeAccrualEngine().price(
             accrual, market
         ) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    ("knock_out_level", "purchases"),
+    [(110, 365), (200, 366)],
+    ids=["knock-out", "expiry"],
+)
+def test_accumulator_discounts_large_settlement_before_rounding(
+    knock_out_level, purchases
+):
+    start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+    model = BlackScholesMertonParameters(
+        risk_free_rate=750, dividend_yield=750, volatility=0
+    )
+    context = PricingContext(
+        model_parameters=model, spot_price=110, valuation_time=start
+    )
+    option = ins.Accumulator(
+        strike=100,
+        knock_out_level=knock_out_level,
+        daily_quantity=1e300,
+        acceleration_factor=2,
+        effective_time=start,
+        expiry_time=end,
+        observation_clock_time=clock_time(),
+        knock_out_observation_times=[end],
+        calendar=all_days_calendar(),
+    )
+    expected = math.exp(math.log(purchases) + math.log(1e301) - 750)
+    for engine in (
+        pricing.FiniteDifferenceAccumulatorEngine(),
+        pricing.QuadratureAccumulatorEngine(),
+        pricing.MonteCarloAccumulatorEngine(),
+    ):
+        assert engine.price(option, context) == pytest.approx(
+            expected, rel=1e-12, abs=0
+        )
