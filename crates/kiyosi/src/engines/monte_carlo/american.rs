@@ -314,35 +314,56 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
         let native = |context: &PricingContext, requested: GreeksRequest| {
             let (price, seed) = engine.american_price(option, context, true)?;
             let mut result = PricingResult::new(price)?.with_seed(seed);
-            let rate = context.natural_bsm_parameters()?.flat_risk_free_rate()?;
-            let dividend = context.natural_bsm_parameters()?.flat_dividend_yield()?;
-            for (greek, value) in [(Greek::Rho, rate), (Greek::DividendRho, dividend)] {
-                if !requested.has(greek)
-                    || context.valuation_time() == option.expiry_time()
-                    || option.option_type() != OptionType::Call
-                {
+            if option.option_type() != OptionType::Call
+                || super::super::deterministic::enabled(context)
+            {
+                return Ok(result);
+            }
+            let model = context.natural_bsm_parameters()?;
+            let rate = model.flat_risk_free_rate()?;
+            let dividend = model.flat_dividend_yield()?;
+            for (greek, curve, effective_rate, can_switch) in [
+                (Greek::Rho, model.risk_free_curve(), rate, dividend <= 0.0),
+                (
+                    Greek::DividendRho,
+                    model.dividend_curve(),
+                    dividend,
+                    rate >= 0.0,
+                ),
+            ] {
+                if !requested.has(greek) || !can_switch {
                     continue;
                 }
-                let shift = crate::risk::numerical::symmetric_shift(value, settings.rate_shift);
-                let crosses_shortcut = if greek == Greek::Rho {
-                    dividend <= 0.0 && rate - shift < 0.0 && rate + shift >= 0.0
-                } else {
-                    rate >= 0.0 && dividend - shift <= 0.0 && dividend + shift > 0.0
+                let quote = curve
+                    .calendar_quote()
+                    .map_or(effective_rate, |(quote, _)| quote);
+                let shift = crate::risk::numerical::symmetric_shift(quote, settings.rate_shift);
+                if shift <= 0.0 || !(2.0 * shift).is_finite() {
+                    continue;
+                }
+                let down = curve.shifted(-shift)?;
+                let up = curve.shifted(shift)?;
+                let Some((lo, hi)) = down.exact_flat_rate().zip(up.exact_flat_rate()) else {
+                    continue;
                 };
-                if shift <= 0.0 || !(2.0 * shift).is_finite() || !crosses_shortcut {
+                let crosses_shortcut = if greek == Greek::Rho {
+                    lo < 0.0 && hi >= 0.0
+                } else {
+                    lo <= 0.0 && hi > 0.0
+                };
+                if !crosses_shortcut {
                     continue;
                 }
                 // Keep the exercise-grid estimator on both sides of the terminal shortcut boundary.
-                let evaluate = |value: f64| {
-                    let model = context.natural_bsm_parameters()?.replace(
-                        BlackScholesMertonParameterChanges {
-                            risk_free_rate: (greek == Greek::Rho).then_some(value.into()),
-                            dividend_yield: (greek == Greek::DividendRho).then_some(value.into()),
-                            ..Default::default()
-                        },
-                    )?;
+                let evaluate = |curve: crate::RateTermStructure| {
+                    let mut changes = BlackScholesMertonParameterChanges::default();
+                    if greek == Greek::Rho {
+                        changes.risk_free_rate = Some(curve.into());
+                    } else {
+                        changes.dividend_yield = Some(curve.into());
+                    }
                     let shifted = context.replace(PricingContextChanges {
-                        model_parameters: Some(model.into()),
+                        model_parameters: Some(model.replace(changes)?.into()),
                         ..Default::default()
                     })?;
                     Ok::<_, Error>(engine.american_price(option, &shifted, false)?.0)
@@ -350,7 +371,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
                 result.set(
                     requested,
                     greek,
-                    (evaluate(value + shift)? - evaluate(value - shift)?) / (2.0 * shift),
+                    (evaluate(up)? - evaluate(down)?) / (2.0 * shift),
                 )?;
             }
             Ok(result)
@@ -430,6 +451,40 @@ fn solve_quadratic(samples: [[f64; 4]; 3]) -> Option<[f64; 3]> {
 mod tests {
     use super::*;
     use crate::{BlackScholesMertonParameters, Date, MonteCarloSettings};
+
+    #[test]
+    fn weekend_rate_greeks_keep_calendar_accrual() -> Result<()> {
+        let start = Date::new(2025, 1, 4)?.start_of_day();
+        let end = start.add_days(2)?;
+        let option = AmericanOption::new(OptionType::Call, 100.0, start, end)?;
+        let curve = crate::RateTermStructure::bounded_flat_with_calendar(
+            0.05,
+            start,
+            end,
+            crate::TradingCalendar::weekdays(),
+        )?;
+        let context = PricingContext::new(
+            BlackScholesMertonParameters::new(curve.clone(), curve, 0.25)?,
+            100.0,
+            start,
+        )?;
+        let engine = MonteCarloVanillaEngine::new(crate::MonteCarloGridSettings {
+            sampling: MonteCarloSettings {
+                path_count: 2048,
+                seed: Some(42),
+                ..Default::default()
+            },
+            step_count: 25,
+        })?;
+        let result = engine.price_with_greeks(
+            &option,
+            &context,
+            GreeksRequest::new([Greek::Rho, Greek::DividendRho]),
+        )?;
+        assert_eq!(result.require(Greek::Rho)?, 0.0);
+        assert_eq!(result.require(Greek::DividendRho)?, 0.0);
+        Ok(())
+    }
 
     #[test]
     fn american_workspace_reports_capacity_failure() {

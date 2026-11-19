@@ -16,7 +16,7 @@ from kiyosi import (
     UnsupportedOperationError,
 )
 from kiyosi.instruments import AmericanOption, CashOrNothingOption, EuropeanOption
-from kiyosi.market import RateTermStructure
+from kiyosi.market import RateTermStructure, weekdays_calendar
 from kiyosi.pricing import (
     CoxRossRubinsteinVanillaEngine,
     MonteCarloVanillaEngine,
@@ -199,6 +199,25 @@ def test_terminal_call_shortcut_and_rate_stencil_crossing_zero():
         down = engine.price(call, market(rate=rate - shift, dividend=math.ulp(0.0)))
         assert result.rho == pytest.approx((up - down) / (2 * shift), rel=0, abs=1e-8)
         assert result.price == engine.price(call, context)
+
+
+def test_weekend_rate_greeks_keep_calendar_accrual():
+    start = datetime(2025, 1, 4)
+    end = start + timedelta(days=2)
+    option = contract("call").replace(effective_time=start, expiry_time=end)
+    curve = RateTermStructure.bounded_flat(
+        0.05, reference_time=start, max_time=end, calendar=weekdays_calendar()
+    )
+    context = market(rate=curve, dividend=curve, sigma=0.25, valuation=start)
+    engine = MonteCarloVanillaEngine(path_count=2048, step_count=25, seed=42)
+    base = engine.price(option, context)
+    shift = 0.001
+    for field, greek in (("risk_free_rate", "rho"), ("dividend_yield", "dividend_rho")):
+        for bump in (-shift, shift):
+            model = context.model_parameters.replace(**{field: curve.shifted(bump)})
+            assert engine.price(option, context.replace(model_parameters=model)) == base
+        result = engine.price_with_greeks(option, context, greek, rate_shift=shift)
+        assert getattr(result, greek) == 0
 
 
 def test_shared_samples_defaults_solving_and_concurrent_calls():
