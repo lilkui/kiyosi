@@ -428,12 +428,22 @@ impl AbsorbingDistribution {
         if rate == 0.0 {
             return self.cash_value(amount, rate, true);
         }
-        // Reflection bounds both hit probabilities, including the largest possible discount.
-        let distance = (self.initial - (-self.drift).max(0.0) * self.time)
-            .min(self.upper_distance - self.drift.max(0.0) * self.time)
-            .max(0.0);
-        let z = distance / (self.volatility * self.time.sqrt());
-        let log_bound = amount.ln() + (-rate * self.time).max(0.0) + 4.0_f64.ln() - 0.5 * z * z;
+        let width = self.volatility * self.time.sqrt();
+        let log_hit_bound = |distance: f64, toward: f64| {
+            let z = (distance - toward.max(0.0) * self.time).max(0.0) / width;
+            let reflected = std::f64::consts::LN_2 - 0.5 * z * z;
+            if toward < 0.0 {
+                // Against the drift, even the probability of ever hitting may round to zero.
+                let ever_hit = 2.0 * ((toward / self.volatility) * (distance / self.volatility));
+                reflected.min(ever_hit)
+            } else {
+                reflected
+            }
+        };
+        let largest = log_hit_bound(self.initial, -self.drift)
+            .max(log_hit_bound(self.upper_distance, self.drift));
+        let log_bound =
+            amount.ln() + (-rate * self.time).max(0.0) + std::f64::consts::LN_2 + largest;
         if log_bound < f64::from_bits(1).ln() - std::f64::consts::LN_2 {
             return Ok(0.0);
         }

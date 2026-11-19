@@ -92,6 +92,21 @@ def test_analytic_touch_payments_require_only_the_settlement_curve():
             engine.price(option, context)
 
 
+@pytest.mark.parametrize(
+    "lower,upper,dividend",
+    [(99.99, 150, 0.0), (50, 100.01, 0.10)],
+    ids=["drift_up", "drift_down"],
+)
+def test_double_touch_at_hit_returns_zero_when_both_payments_underflow(
+    lower, upper, dividend
+):
+    option = contract(
+        lower_barrier=lower, upper_barrier=upper, settlement_timing="at_hit"
+    )
+    context = market(rate=0.05, dividend=dividend, volatility=0.0001)
+    assert pricing.AnalyticDoubleTouchEngine().price(option, context) == 0.0
+
+
 def continuous_reference(
     spot=100,
     *,

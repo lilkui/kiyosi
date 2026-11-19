@@ -61,6 +61,29 @@ fn analytic_touch_payments_require_only_the_settlement_curve() -> Result<()> {
 }
 
 #[test]
+fn double_touch_at_hit_returns_zero_when_both_payments_underflow() -> Result<()> {
+    for (lower, upper, dividend) in [(99.99, 150.0, 0.0), (50.0, 100.01, 0.10)] {
+        let mut terms = terms(DoubleBarrierType::KnockIn);
+        terms.lower_barrier = lower;
+        terms.upper_barrier = upper;
+        terms.settlement_timing = SettlementTiming::AtHit;
+        let context = PricingContext::new(
+            BlackScholesMertonParameters::new(0.05, dividend, 0.0001)?,
+            100.0,
+            terms.effective_time,
+        )?;
+        let option = DoubleTouchOption::cash(terms, 1.0)?;
+        assert_eq!(
+            AnalyticDoubleTouchEngine
+                .price(&option, &context)?
+                .to_bits(),
+            0
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn analytic_at_hit_cash_converges_near_the_upper_barrier() -> Result<()> {
     let context = market(100.0).replace(PricingContextChanges {
         model_parameters: Some(BlackScholesMertonParameters::new(0.03, 0.0, 0.2)?.into()),
