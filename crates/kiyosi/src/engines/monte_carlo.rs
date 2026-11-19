@@ -11,7 +11,7 @@ use std::{
 use rayon::prelude::*;
 
 use super::greeks;
-use crate::numerics::{discounted_product, log_ratio};
+use crate::numerics::discounted_product;
 use crate::{
     Error, EuropeanOption, GreeksRequest, NumericalShiftSettings, OptionType, PricingContext,
     PricingEngine, PricingResult, Result,
@@ -980,12 +980,15 @@ impl MonteCarloVanillaEngine {
             );
             return Ok((sample, Moments::default(), 0.0, None));
         }
-        let drift = (rate - dividend - 0.5 * sigma * sigma) * time;
         let diffusion = sigma * time.sqrt();
+        let carry = (rate - dividend) * time;
+        let half_variance = (0.5 * diffusion) * diffusion;
+        let drift = carry - half_variance;
         if !drift.is_finite() || !diffusion.is_finite() {
             return Err(unstable());
         }
-        let moneyness = log_ratio(context.spot_price(), option.strike());
+        let moneyness =
+            context.log_forward_moneyness(expiry, option.strike(), carry) - half_variance;
         let (total, pairs, seed) =
             path_samples(self.settings.sampling, 1, statistics, |normals| {
                 let increment = diffusion.mul_add(normals[0], drift);
@@ -993,7 +996,7 @@ impl MonteCarloVanillaEngine {
                 if !terminal.is_finite() || terminal <= 0.0 {
                     return Err(unstable());
                 }
-                let distance = moneyness + increment;
+                let distance = diffusion.mul_add(normals[0], moneyness);
                 let payoff = if distance.abs() < 0.5 {
                     option.strike() * distance.exp_m1()
                 } else {

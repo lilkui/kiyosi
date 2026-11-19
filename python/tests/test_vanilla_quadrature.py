@@ -21,6 +21,27 @@ from support.terminal import assert_terminal_greeks
 from test_binomial import END, GREEKS, START, contract, market
 
 
+@pytest.mark.parametrize("direction", ("call", "put"))
+def test_european_quadrature_and_sampling_preserve_quoted_forward(direction):
+    start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+    risk, dividend = (
+        RateTermStructure(reference_time=start, times=[end], factors=[factor])
+        for factor in (0.75, 0.625)
+    )
+    context = market(1.2e17, risk, dividend, 1e-17, valuation=start)
+    option = EuropeanOption(
+        option_type=direction, strike=1e17, effective_time=start, expiry_time=end
+    )
+    expected = pricing.AnalyticEuropeanEngine().price(option, context)
+    assert pricing.QuadratureVanillaEngine().price(option, context) == pytest.approx(
+        expected, abs=1e-8, rel=0
+    )
+    mc = pricing.MonteCarloVanillaEngine(
+        path_count=16_384, max_active_workers=1, seed=42, sampling="sobol"
+    )
+    assert mc.price(option, context) == pytest.approx(expected, abs=1e-3, rel=0)
+
+
 def test_settings_signatures_and_conversion_boundaries(subtests):
     factory = pricing.QuadratureVanillaEngine
     engine = factory()

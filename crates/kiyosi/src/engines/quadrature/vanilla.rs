@@ -160,15 +160,25 @@ macro_rules! vanilla_pricing {
                     return checked(payoff.value(context.spot_price()));
                 }
                 let sigma = context.natural_bsm_parameters()?.volatility();
-                let drift = (rate - dividend - 0.5 * sigma * sigma) * time;
                 let width = sigma * time.sqrt();
+                let carry = (rate - dividend) * time;
+                let half_variance = (0.5 * width) * width;
+                let drift = carry - half_variance;
                 if !drift.is_finite() || !width.is_finite() || width <= 0.0 {
                     return Err(invalid_transition());
                 }
                 if $american {
                     american_price(payoff, context, time, drift, width, rate, self.settings)
                 } else {
-                    european_price(payoff, context, time, drift, width, rate, self.settings)
+                    let forward =
+                        context.log_forward_moneyness(option.expiry_time(), payoff.strike, carry);
+                    european_price(
+                        payoff,
+                        forward - half_variance,
+                        width,
+                        -rate * time,
+                        self.settings,
+                    )
                 }
             }
         }
@@ -185,11 +195,9 @@ fn invalid_transition() -> Error {
 
 fn european_price(
     payoff: Payoff,
-    context: &PricingContext,
-    time: f64,
-    drift: f64,
+    log_moneyness: f64,
     width: f64,
-    rate: f64,
+    log_discount: f64,
     settings: QuadratureVanillaSettings,
 ) -> Result<f64> {
     let extent = settings.integration_standard_deviations;
@@ -197,14 +205,13 @@ fn european_price(
     if !upper.is_finite() {
         return Err(invalid_transition());
     }
-    let current = log_ratio(context.spot_price(), payoff.strike);
-    let kink = (-current - drift) / width;
+    let kink = -log_moneyness / width;
     let mut breaks = vec![-extent, upper];
     if kink > -extent && kink < upper {
         breaks.insert(1, kink);
     }
     let integrand = |z: f64| {
-        let distance = current + drift + width * z;
+        let distance = width.mul_add(z, log_moneyness);
         if payoff.sign * distance <= 0.0 {
             return 0.0;
         }
@@ -214,7 +221,7 @@ fn european_price(
             } else {
                 (-distance.exp_m1()).ln()
             };
-        (log_payoff - rate * time - 0.5 * z * z - 0.918_938_533_204_672_7).exp()
+        (log_payoff + log_discount - 0.5 * z * z - 0.918_938_533_204_672_7).exp()
     };
     checked(simpson(&breaks, settings.asset_step_count, integrand)?)
 }

@@ -17,6 +17,44 @@ fn market(spot: f64, rate: f64, dividend: f64, sigma: f64) -> PricingContext {
 }
 
 #[test]
+fn european_quadrature_and_sampling_preserve_quoted_forward_at_tiny_volatility() -> Result<()> {
+    let (start, end) = dates();
+    let risk = RateTermStructure::new(start, vec![end], vec![0.75])?;
+    let dividend = RateTermStructure::new(start, vec![end], vec![0.625])?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(risk, dividend, 1e-17)?,
+        1.2e17,
+        start,
+    )?;
+    let quadrature = QuadratureVanillaEngine::default();
+    let monte_carlo = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+        sampling: MonteCarloSettings {
+            path_count: 16_384,
+            max_active_workers: 1,
+            seed: Some(42),
+            sampling: MonteCarloSampling::Sobol,
+            ..Default::default()
+        },
+        ..Default::default()
+    })?;
+    for kind in [OptionType::Call, OptionType::Put] {
+        let option = EuropeanOption::new(kind, 1e17, start, end)?;
+        let expected = AnalyticEuropeanEngine.price(&option, &context)?;
+        let integrated = quadrature.price(&option, &context)?;
+        let sampled = monte_carlo.price(&option, &context)?;
+        assert!(
+            (integrated - expected).abs() < 1e-8,
+            "{kind:?}: {integrated} != {expected}"
+        );
+        assert!(
+            (sampled - expected).abs() < 1e-3,
+            "{kind:?}: {sampled} != {expected}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn european_prices_match_analytic_across_moneyness_carry_and_scale() {
     let (start, end) = dates();
     for kind in [OptionType::Call, OptionType::Put] {
