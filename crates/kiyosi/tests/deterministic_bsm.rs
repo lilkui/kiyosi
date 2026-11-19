@@ -1,6 +1,33 @@
 use kiyosi::*;
 
 #[test]
+fn deterministic_barrier_can_settle_before_a_bounded_curve_ends() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let coverage_end = start.add_days(180)?;
+    let expiry = start.add_days(365)?;
+    let risk = RateTermStructure::bounded_flat(0.1, start, coverage_end)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(risk, 0.0, 0.0)?,
+        100.0,
+        start,
+    )?;
+    let mut terms = BarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        start,
+        expiry,
+        102.0,
+        BarrierType::UpAndOut,
+    );
+    terms.rebate = 7.0;
+    terms.rebate_timing = RebateTiming::AtHit;
+    let option = BarrierOption::new(terms)?;
+    let price = AnalyticBarrierEngine.price(&option, &context)?;
+    assert!((price - 7.0 / 1.02).abs() < 1e-14, "{price}");
+    Ok(())
+}
+
+#[test]
 fn scheduled_barrier_checks_the_deterministic_window_once() -> Result<()> {
     use std::sync::{
         Arc,

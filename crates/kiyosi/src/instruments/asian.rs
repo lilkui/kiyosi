@@ -99,13 +99,8 @@ impl AverageTerms {
         let start = self.averaging_start.max(valuation);
         let mut times = vec![start, expiry];
         for curve in [model.risk_free_curve(), model.dividend_curve()] {
-            times.extend(
-                curve
-                    .nodes()
-                    .iter()
-                    .copied()
-                    .filter(|&time| time > start && time < expiry),
-            );
+            let nodes = curve.nodes_after(start);
+            times.extend_from_slice(&nodes[..nodes.partition_point(|&time| time < expiry)]);
         }
         times.sort_unstable();
         times.dedup();

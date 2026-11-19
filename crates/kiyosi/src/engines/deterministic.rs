@@ -436,14 +436,9 @@ fn continuous_knots(context: &PricingContext, end: Timestamp) -> Vec<Timestamp> 
     let model = context.model_parameters();
     let mut times = vec![start, end];
     for curve in [model.risk_free_curve(), model.dividend_curve()] {
-        times.extend(
-            curve
-                .nodes()
-                .iter()
-                .copied()
-                .chain(curve.max_time())
-                .filter(|&time| time > start && time < end),
-        );
+        let nodes = curve.nodes_after(start);
+        times.extend_from_slice(&nodes[..nodes.partition_point(|&time| time < end)]);
+        times.extend(curve.max_time().filter(|&time| time > start && time < end));
     }
     times.sort_unstable();
     times.dedup();
