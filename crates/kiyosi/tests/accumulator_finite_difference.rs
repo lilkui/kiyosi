@@ -20,6 +20,33 @@ fn market(spot: f64, at: Timestamp) -> PricingContext {
     .unwrap()
 }
 
+#[test]
+fn accumulator_work_limit_counts_both_rollback_layers() -> Result<()> {
+    let start = day(1, 1);
+    let end = start.add_days(365)?;
+    let option = Accumulator::new(AccumulatorTerms::new(
+        100.0,
+        120.0,
+        1.0,
+        2.0,
+        start,
+        end,
+        start.time_of_day(),
+    ))?;
+    let engine = FiniteDifferenceAccumulatorEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 16_000,
+        time_step_count: 50_000,
+        // Explicit Euler also fails stability checks quickly if the work guard is missing.
+        scheme: FiniteDifferenceScheme::ExplicitEuler,
+        ..Default::default()
+    })?;
+    assert!(matches!(
+        engine.price(&option, &market(100.0, start)),
+        Err(Error::InvalidInput(message)) if message.contains("rollback")
+    ));
+    Ok(())
+}
+
 fn terminal_reference(option: &Accumulator, context: &PricingContext) -> f64 {
     let below = |level| {
         let cash = DigitalOption::cash_or_nothing(

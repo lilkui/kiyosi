@@ -34,10 +34,10 @@ pub(crate) fn scheme_name(value: kiyosi::FiniteDifferenceScheme) -> &'static str
 }
 
 macro_rules! fd_engine {
-    ($name:ident, $instrument:ty $(,)?) => {
-        fd_engine!($name, $instrument, with_contract);
+    ($(#[$doc:meta])* $name:ident, $instrument:ty $(,)?) => {
+        fd_engine!($(#[$doc])* $name, $instrument, with_contract);
     };
-    ($name:ident, $instrument:ty, $with:path $(,)?) => {
+    ($(#[$doc:meta])* $name:ident, $instrument:ty, $with:path $(,)?) => {
         /// Finite-difference pricing.
         ///
         /// Parameters
@@ -88,6 +88,7 @@ macro_rules! fd_engine {
         /// coverage follows required future discounting. Automatic local-volatility
         /// domains require convergence checks.
         ///
+        $(#[$doc])*
         #[pyclass(frozen, eq, module = "kiyosi._native")]
         #[derive(PartialEq)]
         pub(crate) struct $name(pub(crate) kiyosi::$name);
@@ -201,6 +202,8 @@ macro_rules! fd_engine {
 }
 
 fd_engine!(
+    /// The rollback work limit counts both layers when future purchases are possible.
+    ///
     FiniteDifferenceAccumulatorEngine,
     PyRef<'_, accumulator::Accumulator>,
 );

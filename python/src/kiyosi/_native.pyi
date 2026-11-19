@@ -2898,6 +2898,8 @@ class FiniteDifferenceAccumulatorEngine(_FiniteDifferenceMethods[Accumulator]):
     strike. Surface coverage follows remaining stochastic evolution; rate
     coverage follows required future discounting. Automatic local-volatility
     domains require convergence checks.
+
+    The rollback work limit counts both layers when future purchases are possible.
     """
 
 class FiniteDifferenceBarrierEngine(_FiniteDifferenceMethods[BarrierOption]):

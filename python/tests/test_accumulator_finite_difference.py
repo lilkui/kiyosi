@@ -26,6 +26,17 @@ from support.terminal import assert_terminal_greeks
 from test_accumulator import START, contract, market, terminal_reference
 
 
+def test_accumulator_work_limit_counts_both_rollback_layers():
+    engine = pricing.FiniteDifferenceAccumulatorEngine(
+        asset_step_count=16_000, time_step_count=50_000, scheme="explicit_euler"
+    )
+    option = contract(end=START + timedelta(days=365), quantity=None)
+    context = market(valuation=START)
+    with pytest.raises(InvalidInputError, match="rollback"):
+        engine.price(option, context)
+    assert engine.price(option.replace(daily_quantity=0), context) == 0
+
+
 def test_settings_protocols_defaults_exports_and_ownership(subtests):
     assert "FiniteDifferenceAccumulatorEngine" in pricing.__all__
     engine = pricing.FiniteDifferenceAccumulatorEngine()

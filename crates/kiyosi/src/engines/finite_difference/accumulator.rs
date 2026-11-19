@@ -2,6 +2,7 @@ use super::{
     Curve, Diffusion, FiniteDifferenceAccumulatorEngine, FiniteDifferenceSettings, Greek,
     GreeksRequest, NumericalShiftSettings, OptionContract, PricingContext, PricingEngine,
     PricingResult, Result, SpatialGrid, analysis, diffusion, diffusion_upper, local_volatility,
+    validate_work,
 };
 use crate::Accumulator;
 
@@ -20,7 +21,8 @@ impl FiniteDifferenceAccumulatorEngine {
     /// see the [caller-supplied history contract](crate).
     ///
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside contract life or curve coverage,
-    /// for impossible history, clipped domains or unstable explicit steps.
+    /// for impossible history, clipped domains, unstable explicit steps or more than one
+    /// billion spatial intervals times time intervals across both active rollback layers.
     /// Numerical failures return [`Error::ComputationFailure`][crate::Error::ComputationFailure].
     ///
     /// # Greeks
@@ -178,6 +180,8 @@ fn solve_grid<D: Diffusion>(
     let dates = option.future_observation_times(context)?;
     let trading = diffusion::observation_times(context.valuation_time(), expiry, &dates)?;
     let grid = diffusion::time_grid(context, expiry, settings, &risk, &dividend, &trading)?;
+    let count = if option.accrues(context) { 2 } else { 1 };
+    validate_work(space.count as u64 * count as u64, grid.widths.len() as u64)?;
     if !D::LOCAL {
         grid.validate_stability(
             &space,
@@ -188,7 +192,6 @@ fn solve_grid<D: Diffusion>(
             &dividend,
         )?;
     }
-    let count = if option.accrues(context) { 2 } else { 1 };
     let mut layers = [vec![0.0; space.count + 1], vec![0.0; space.count + 1]];
     let mut next = layers.clone();
     let mut breaks = vec![option.strike(), option.knock_out_level()];
