@@ -206,12 +206,9 @@ impl RangeAccrualOption {
 
 impl OptionContract for RangeAccrualOption {
     fn volatility_affects_price(&self, context: &PricingContext) -> bool {
+        let last = self.schedule.times().last();
         self.annual_coupon_rate() != 0.0
-            && self
-                .observation_schedule()
-                .times()
-                .iter()
-                .any(|&time| time > context.valuation_time())
+            && last.is_some_and(|&time| time > context.valuation_time())
     }
     fn effective_time(&self) -> Timestamp {
         self.effective_time()
