@@ -1,5 +1,6 @@
 use crate::numerics::{
-    discounted_product, log_difference, log_normal_cdf, standardize, weighted_cdf,
+    discounted_product, log_difference, log_normal_cdf, scaled_signed_cash, standardize,
+    weighted_cdf,
 };
 use std::f64::consts::PI;
 
@@ -145,10 +146,6 @@ impl AnalyticEuropeanEngine {
             }
         };
         let log_gamma = dividend_log - spot.ln() - sigma.ln() - root.ln();
-        let carry = || {
-            sign * dividend * weighted_cdf(spot, dividend_log, sign * d1)
-                - sign * rate * weighted_cdf(strike, risk_log, sign * d2)
-        };
         for greek in Greek::ALL {
             if !want(greek) {
                 continue;
@@ -164,10 +161,50 @@ impl AnalyticEuropeanEngine {
                     )
                 }
                 Greek::Theta => {
-                    -density(
-                        spot.ln() + dividend_log + sigma.ln() - 2.0_f64.ln() - root.ln(),
-                        1.0,
-                    ) + carry()
+                    let diffusion = if regular {
+                        log_density + spot.ln() + dividend_log + sigma.ln()
+                            - 2.0_f64.ln()
+                            - root.ln()
+                    } else {
+                        f64::NEG_INFINITY
+                    };
+                    let [asset, cash] = if rate - dividend == 0.0 {
+                        let price = result.price();
+                        [
+                            (
+                                rate.abs().ln() + price.abs().ln(),
+                                rate.signum() * price.signum(),
+                            ),
+                            (f64::NEG_INFINITY, 1.0),
+                        ]
+                    } else {
+                        [
+                            (
+                                dividend.abs().ln()
+                                    + spot.ln()
+                                    + dividend_log
+                                    + log_normal_cdf(sign * d1),
+                                sign * dividend.signum(),
+                            ),
+                            (
+                                rate.abs().ln()
+                                    + strike.ln()
+                                    + risk_log
+                                    + log_normal_cdf(sign * d2),
+                                -sign * rate.signum(),
+                            ),
+                        ]
+                    };
+                    // Cancel signed terms before restoring their monetary scale.
+                    let scale = diffusion.max(asset.0).max(cash.0);
+                    if scale == f64::NEG_INFINITY {
+                        0.0
+                    } else {
+                        let total = asset.1 * (asset.0 - scale).exp()
+                            + cash.1 * (cash.0 - scale).exp()
+                            - (diffusion - scale).exp();
+                        scaled_signed_cash(total, scale)
+                    }
                 }
                 Greek::Charm => {
                     let change = if width.is_normal() {

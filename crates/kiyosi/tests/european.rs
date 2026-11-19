@@ -395,6 +395,30 @@ fn short_dated_rate_greeks_survive_discount_overflow() -> Result<()> {
 }
 
 #[test]
+fn european_theta_survives_discounted_leg_overflow() -> Result<()> {
+    use kiyosi::{Greek, GreeksRequest};
+
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let spot = 1.7e308;
+    for (strike, rate, dividend) in [(1.5e308, -0.1, -0.1), (1.66e308, -2.0, -2.01)] {
+        let option = EuropeanOption::new(OptionType::Call, strike, start, start.add_days(365)?)?;
+        let model = BlackScholesMertonParameters::new(rate, dividend, 0.001)?;
+        let context = PricingContext::new(model, spot, start)?;
+        let result = AnalyticEuropeanEngine.price_with_greeks(
+            &option,
+            &context,
+            GreeksRequest::new([Greek::Theta]),
+        )?;
+        // The option is deep enough in the money to compare against discounted intrinsic.
+        let expected = (dividend * (spot / 1e308) * (-dividend).exp()
+            - rate * (strike / 1e308) * (-rate).exp())
+            * 1e308;
+        assert!((result.require(Greek::Theta)? / expected - 1.0).abs() < 1e-11);
+    }
+    Ok(())
+}
+
+#[test]
 fn short_dated_charm_survives_volatility_width_underflow() -> Result<()> {
     use kiyosi::{Greek, GreeksRequest};
 

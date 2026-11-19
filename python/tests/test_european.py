@@ -343,6 +343,30 @@ def test_short_dated_rate_greeks_survive_discount_overflow(make_context):
     assert result.dividend_rho == pytest.approx(-scaled_strike * (1 - p), rel=1e-12)
 
 
+@pytest.mark.parametrize(
+    ("strike", "rate", "dividend"),
+    [(1.5e308, -0.1, -0.1), (1.66e308, -2.0, -2.01)],
+    ids=["equal_rates", "unequal_rates"],
+)
+def test_european_theta_survives_discounted_leg_overflow(
+    make_context, strike, rate, dividend
+):
+    spot = 1.7e308
+    model = BlackScholesMertonParameters(
+        risk_free_rate=rate, dividend_yield=dividend, volatility=0.001
+    )
+    result = AnalyticEuropeanEngine().price_with_greeks(
+        make_option(strike=strike),
+        make_context(spot_price=spot, model_parameters=model),
+        "theta",
+    )
+    expected = (
+        dividend * (spot / 1e308) * math.exp(-dividend)
+        - rate * (strike / 1e308) * math.exp(-rate)
+    ) * 1e308
+    assert result.theta == pytest.approx(expected, rel=1e-11)
+
+
 def test_short_dated_charm_survives_volatility_width_underflow(make_context):
     option = make_option(expiry_time=datetime(2025, 1, 2))
     vol = math.ulp(0.0)
