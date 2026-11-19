@@ -17,6 +17,31 @@ fn market(spot: f64, rate: f64, dividend: f64, sigma: f64) -> PricingContext {
 }
 
 #[test]
+fn american_upper_boundary_includes_intermediate_exercise() -> Result<()> {
+    let (start, end) = dates();
+    let exercise = start.add_days(182)?;
+    let curve = RateTermStructure::new(
+        start,
+        vec![exercise, end],
+        vec![(0.15 * start.years_until(exercise)).exp(), 1.0],
+    )?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.0, curve, 0.05)?,
+        120.0,
+        start,
+    )?;
+    let american = AmericanOption::new(OptionType::Call, 100.0, start, end)?;
+    let european = EuropeanOption::new(OptionType::Call, 100.0, start, exercise)?;
+    let engine = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+        asset_upper_boundary: Some(130.0),
+        ..Default::default()
+    })?;
+    let lower_bound = AnalyticEuropeanEngine.price(&european, &context)?;
+    assert!(engine.price(&american, &context)? >= lower_bound - 0.0005);
+    Ok(())
+}
+
+#[test]
 fn materially_negative_prices_fail_instead_of_being_clipped() {
     let (start, end) = dates();
     for scale in [1e-100, 1.0, 1e100] {

@@ -356,10 +356,22 @@ fn solve_model<D: Diffusion>(
         }
     }
     let time_grid = diffusion::time_grid(context, expiry, settings, &risk, &dividend, &[])?;
-    validate_work(
-        space.count as u64,
-        time_grid.rollback_steps(settings.scheme, &[])?,
-    )?;
+    let rollback_steps = time_grid.rollback_steps(settings.scheme, &[])?;
+    validate_work(space.count as u64, rollback_steps)?;
+    let can_exercise = payoff.is_american()
+        && (model.risk_free_curve().exact_flat_rate().is_none()
+            || model.dividend_curve().exact_flat_rate().is_none()
+            || payoff.sign < 0.0
+            || dividend.rate(0.0) > 0.0
+            || risk.rate(0.0) < 0.0);
+    if can_exercise {
+        let knots = (risk.ends().len() + dividend.ends().len() - 2) as u64;
+        if knots.saturating_mul(rollback_steps) > 25_000_000 {
+            return Err(invalid_grid(
+                "American exercise boundary exceeds 25 million curve-knot visits; reduce time steps or curve nodes",
+            ));
+        }
+    }
     let theta = settings.scheme.theta();
     if !D::LOCAL {
         time_grid.validate_stability(
@@ -406,12 +418,6 @@ fn solve_model<D: Diffusion>(
             }
         })
         .collect();
-    let can_exercise = payoff.is_american()
-        && (model.risk_free_curve().exact_flat_rate().is_none()
-            || model.dividend_curve().exact_flat_rate().is_none()
-            || payoff.sign < 0.0
-            || dividend.rate(0.0) > 0.0
-            || risk.rate(0.0) < 0.0);
     let exercise = if can_exercise {
         old.clone()
     } else {
@@ -448,8 +454,13 @@ fn solve_model<D: Diffusion>(
             let q = dividend.rate(middle);
             let risk_log = risk.log_factor(time - tau, time);
             let dividend_log = dividend.log_factor(time - tau, time);
-            let high =
+            let mut high =
                 payoff::boundary_value(payoff, upper, [risk_log, dividend_log], diffusion, tau);
+            if can_exercise {
+                high = high.max(crate::engines::deterministic::exercise_value(
+                    payoff, upper, current, time, &risk, &dividend,
+                )?);
+            }
             let low = if payoff.sign > 0.0 || (payoff.is_digital() && payoff.payout().is_none()) {
                 0.0
             } else if payoff.is_american() {

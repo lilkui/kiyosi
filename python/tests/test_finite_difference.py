@@ -74,6 +74,25 @@ def test_grid_workspace_includes_off_grid_curve_knots():
         engine.price(option, context)
 
 
+def test_american_upper_boundary_includes_intermediate_exercise():
+    exercise = START + timedelta(days=182)
+    dividend = RateTermStructure(
+        reference_time=START,
+        times=[exercise, END],
+        factors=[math.exp(0.15 * 182 / 365), 1.0],
+    )
+    context = market(spot=120, rate=0, dividend=dividend, sigma=0.05)
+    american = AmericanOption(
+        option_type="call", strike=100, effective_time=START, expiry_time=END
+    )
+    european = EuropeanOption(
+        option_type="call", strike=100, effective_time=START, expiry_time=exercise
+    )
+    engine = FiniteDifferenceVanillaEngine(asset_upper_boundary=130)
+    lower_bound = AnalyticEuropeanEngine().price(european, context)
+    assert engine.price(american, context) >= lower_bound - 0.0005
+
+
 def test_coarse_automatic_grids_resolve_short_and_annual_payoffs_and_spot_greeks(
     subtests,
 ):
