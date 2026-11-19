@@ -2393,7 +2393,9 @@ class QuadratureVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
     -----
     Uses Simpson integration for European options and Gaussian backward
     induction with piecewise cubic continuation interpolation for American
-    options. Requires flat-rate BSM parameters. Check spatial, time and
+    options. American pricing raises InvalidInputError if rollback would
+    exceed one billion node and cell visits. Requires flat-rate BSM parameters.
+    Check spatial, time and
     integration-extent convergence separately; fixed-grid completion does not
     estimate error. Higher Greeks near exercise boundaries also require bump
     convergence checks.

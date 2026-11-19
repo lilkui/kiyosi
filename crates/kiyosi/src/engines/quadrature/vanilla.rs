@@ -1,6 +1,6 @@
 use super::gaussian::{
     CubicInterpolation, Layer, Polynomial, TerminalPiece, TransitionCache, integrate_terminal,
-    integration_nodes,
+    integration_nodes, validate_rollback_work,
 };
 use super::{QuadratureSettings, flat_rates, simpson};
 use crate::engines::Payoff;
@@ -10,7 +10,7 @@ use crate::{AmericanOption, Error, EuropeanOption, PricingContext, PricingEngine
 
 /// Configures vanilla spatial quadrature and American exercise intervals.
 ///
-/// American pricing checks Gaussian grid and transition workspace sizes at pricing time.
+/// American pricing checks Gaussian workspace and rollback work at pricing time.
 /// See [`QuadratureVanillaEngine::new`] for an example.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct QuadratureVanillaSettings {
@@ -82,8 +82,8 @@ impl QuadratureVanillaSettings {
 /// Returns [`Error::UnsupportedOperation`] for other models or nonconstant rate curves,
 /// before life validation. Returns [`Error::InvalidInput`] outside permitted
 /// valuation bounds or curve coverage, or when the estimated Gaussian grid or transition
-/// workspace exceeds 256 MiB. Returns [`Error::ComputationFailure`] for unrepresentable
-/// grids, transitions, tails or prices.
+/// workspace exceeds 256 MiB or American rollback exceeds one billion node and cell visits.
+/// Returns [`Error::ComputationFailure`] for unrepresentable grids, transitions, tails or prices.
 ///
 /// # Greeks
 ///
@@ -237,6 +237,7 @@ fn american_price(
         return Err(invalid_transition());
     }
     let nodes = integration_nodes(-extent, extent, settings.asset_step_count, &[0.0])?;
+    validate_rollback_work(&nodes, drift_step, deviation, settings.time_step_count)?;
     let interpolation = CubicInterpolation::new(&nodes);
     let intrinsic: Vec<_> = nodes
         .iter()

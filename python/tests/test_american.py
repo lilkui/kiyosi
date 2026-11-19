@@ -25,6 +25,7 @@ from kiyosi.market import (
 from kiyosi.pricing import (
     AnalyticEuropeanEngine,
     BjerksundStenslandVanillaEngine,
+    QuadratureVanillaEngine,
     implied_volatility,
     numerical_greeks,
 )
@@ -82,6 +83,18 @@ def make_market(base_terms):
         )
 
     return create
+
+
+def test_american_quadrature_rejects_excessive_rollback_work(base_terms, make_market):
+    engine = QuadratureVanillaEngine(time_step_count=10_000_000)
+    context = make_market(spot=1e308)
+    option = AmericanOption(**dict(base_terms, strike=1e308))
+    with pytest.raises(InvalidInputError, match="rollback"):
+        engine.price(option, context)
+    european = EuropeanOption(**base_terms)
+    assert engine.price(european, make_market()) == QuadratureVanillaEngine().price(
+        european, make_market()
+    )
 
 
 def test_early_exercise_and_european_limits(base_engine, base_terms, make_market):

@@ -14,6 +14,26 @@ fn market(spot: f64, rate: f64, dividend: f64, volatility: f64) -> PricingContex
 }
 
 #[test]
+fn american_quadrature_rejects_excessive_rollback_work() -> Result<()> {
+    let (start, end) = (day(2025, 1, 1), day(2026, 1, 1));
+    // A huge strike makes the old path fail quickly at the upper grid boundary.
+    let option = AmericanOption::new(OptionType::Call, 1e308, start, end)?;
+    let context = market(1e308, 0.05, 0.03, 0.2);
+    for (asset_step_count, time_step_count) in [(512, 10_000_000), (5000, 10_000)] {
+        let engine = QuadratureVanillaEngine::new(QuadratureVanillaSettings {
+            asset_step_count,
+            time_step_count,
+            ..Default::default()
+        })?;
+        assert!(matches!(
+            engine.price(&option, &context),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    Ok(())
+}
+
+#[test]
 fn american_construction_and_replacement_validate_without_mutating() {
     let (start, end) = (day(2025, 1, 1), day(2026, 1, 1));
     let option = AmericanOption::new(OptionType::Put, 100.0, start, end).unwrap();

@@ -365,6 +365,37 @@ fn active_cells(nodes: &[f64], mean: f64, deviation: f64) -> std::ops::Range<usi
     first..last
 }
 
+pub(super) fn validate_rollback_work(
+    nodes: &[f64],
+    drift: f64,
+    deviation: f64,
+    intervals: i32,
+) -> Result<()> {
+    const WORK_BUDGET: u64 = 1_000_000_000;
+    let excessive_work = || {
+        Error::InvalidInput(
+            "American quadrature rollback exceeds one billion node and cell visits; reduce step counts"
+                .into(),
+        )
+    };
+    let exercise_steps = u64::from(intervals.unsigned_abs() - 1);
+    let mut remaining = WORK_BUDGET
+        .checked_sub(nodes.len() as u64 * exercise_steps)
+        .ok_or_else(excessive_work)?;
+    // The first rollback integrates terminal pieces directly, without interpolated cells.
+    let continuation_steps = exercise_steps.saturating_sub(1);
+    if continuation_steps > 0 {
+        for &node in nodes {
+            crate::cancellation::check()?;
+            let cells = active_cells(nodes, node + drift, deviation).len() as u64;
+            remaining = remaining
+                .checked_sub(cells * continuation_steps)
+                .ok_or_else(excessive_work)?;
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn integrate_curve(
     curve: &[Polynomial],
     nodes: &[f64],
