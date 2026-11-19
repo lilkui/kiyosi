@@ -103,16 +103,20 @@ impl AnalyticGeometricAveragePriceEngine {
             let to = pair[1];
             let interval = -model.risk_free_curve().log_factor(from, to)?
                 + model.dividend_curve().log_factor(from, to)?;
-            let midpoint = valuation.years_until(from) + from.years_until(to) / 2.0;
-            carry += interval * (tau - lead.max(midpoint)) / period;
+            let remaining = if to <= start {
+                period
+            } else {
+                from.years_until(expiry).midpoint(to.years_until(expiry))
+            };
+            carry += interval * (remaining / period);
         }
         let variance_time = lead + future / 3.0;
         let deviation = sigma * weight * variance_time.sqrt();
         let mut log_forward = carry - weight * 0.5 * sigma * sigma * (lead + future / 2.0)
             + 0.5 * deviation * deviation;
         if valuation > start {
-            log_forward +=
-                (1.0 - weight) * log_ratio(o.realized.unwrap_or(0.0), context.spot_price());
+            log_forward += (start.years_until(valuation) / period)
+                * log_ratio(o.realized.unwrap_or(0.0), context.spot_price());
         }
         let log_discount = model.risk_free_curve().log_factor(valuation, expiry)?;
         checked(crate::engines::analytic::european::lognormal_price(

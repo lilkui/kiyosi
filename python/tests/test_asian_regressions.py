@@ -14,6 +14,31 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 from kiyosi.pricing import implied_volatility, numerical_greeks
 
 
+@pytest.mark.parametrize(
+    "years,expected", [(1, 9.227005508153953), (10, 30.166761281088156)]
+)
+def test_geometric_microsecond_window_preserves_carry(years, expected):
+    start = datetime(2025, 1, 1)
+    expiry = start + timedelta(days=365 * years)
+    option = GeometricAveragePriceOption(
+        option_type="call",
+        strike=100,
+        effective_time=start,
+        averaging_start_time=expiry - timedelta(microseconds=1),
+        expiry_time=expiry,
+    )
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+        ),
+        spot_price=100,
+        valuation_time=start,
+    )
+    assert pricing.AnalyticGeometricAveragePriceEngine().price(
+        option, context
+    ) == pytest.approx(expected, rel=0, abs=1e-12)
+
+
 def test_arithmetic_prices_survive_adjusted_strike_overflow(subtests):
     start, end = datetime(2023, 1, 1), datetime(2026, 1, 1)
     engine = pricing.TurnbullWakemanArithmeticAveragePriceEngine()

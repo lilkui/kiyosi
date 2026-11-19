@@ -41,6 +41,32 @@ fn continuous_asian_prices_match_existing_independent_references() {
     );
 }
 
+#[test]
+fn geometric_microsecond_window_preserves_carry() -> Result<()> {
+    let (start, end) = dates();
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?,
+        100.0,
+        start,
+    )?;
+    for (expiry, expected) in [
+        (end, 9.227_005_508_153_953),
+        (start.add_days(3650)?, 30.166_761_281_088_156),
+    ] {
+        let option = GeometricAveragePriceOption::new(
+            OptionType::Call,
+            100.0,
+            start,
+            expiry.add_micros(-1)?,
+            expiry,
+            None,
+        )?;
+        let price = AnalyticGeometricAveragePriceEngine.price(&option, &context)?;
+        assert!((price - expected).abs() < 1e-12, "{price} vs {expected}");
+    }
+    Ok(())
+}
+
 macro_rules! contract_tests {
     ($module:ident, $option:ident, $engine:ident, $refreshed_price:expr) => {
         mod $module {
