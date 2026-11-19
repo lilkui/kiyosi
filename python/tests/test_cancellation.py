@@ -143,8 +143,10 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
     assert result.stdout.strip() == "cancelled and replayed"
 
 
-@pytest.mark.parametrize("case", ("schedule", "range_new", "range_replace"))
-def test_large_schedule_releases_gil_and_propagates_signals(case):
+@pytest.mark.parametrize(
+    "case", ("schedule", "range_new", "range_replace", "curve_factors")
+)
+def test_large_market_operations_release_gil_and_propagate_signals(case):
     result = subprocess.run(
         [
             sys.executable,
@@ -155,7 +157,9 @@ def test_large_schedule_releases_gil_and_propagates_signals(case):
                 import threading
                 from datetime import datetime, time
                 from kiyosi.instruments import RangeAccrualOption
-                from kiyosi.market import all_days_calendar, fixed_interval_schedule
+                from kiyosi.market import (
+                    RateTermStructure, all_days_calendar, fixed_interval_schedule, weekdays_calendar,
+                )
 
                 start_time = datetime(1, 1, 1)
                 short_end = datetime(1, 1, 3)
@@ -175,13 +179,21 @@ def test_large_schedule_releases_gil_and_propagates_signals(case):
                     "range_new": lambda: RangeAccrualOption(expiry_time=long_end, **terms),
                     "range_replace": lambda: original.replace(expiry_time=long_end),
                 }
-                operation = operations[sys.argv[1]]
+                case = sys.argv[1]
+                if case == "curve_factors":
+                    curve = RateTermStructure.bounded_flat(
+                        0.01, reference_time=start_time, max_time=long_end,
+                        calendar=weekdays_calendar(),
+                    )
+                    operation = lambda: curve.factors
+                else:
+                    operation = operations[case]
 
-                class StopSchedule(Exception):
+                class StopOperation(Exception):
                     pass
 
                 def stop(*args):
-                    raise StopSchedule
+                    raise StopOperation
 
                 signal.signal(signal.SIGINT, stop)
                 ready, start = threading.Event(), threading.Event()
@@ -202,10 +214,10 @@ def test_large_schedule_releases_gil_and_propagates_signals(case):
                     start.set()
                     try:
                         operation()
-                    except StopSchedule:
+                    except StopOperation:
                         pass
                     else:
-                        raise AssertionError("schedule returned before processing the signal")
+                        raise AssertionError(f"{case} returned before processing the signal")
                 finally:
                     sys.setswitchinterval(interval)
                     timer.join()
@@ -220,6 +232,10 @@ def test_large_schedule_releases_gil_and_propagates_signals(case):
                 assert replacement.observation_schedule.times == tuple(
                     datetime(1, 1, day) for day in (2, 3, 4)
                 )
+                if case == "curve_factors":
+                    factors = curve.factors
+                    assert len(factors) > 1_000_000
+                    assert 1.0 > factors[0] > factors[-1] > 0.0
                 """),
             case,
         ],

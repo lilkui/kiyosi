@@ -304,10 +304,16 @@ impl RateTermStructure {
     /// Calendar curves return factors at their transition times.
     /// Reconstruct factor-node curves from base_factors, then apply
     /// shifted(parallel_shift).
+    /// Large factor calculations release the GIL and poll Python signals.
     ///
     #[getter]
     fn factors<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-        PyTuple::new(py, domain(self.0.factors())?)
+        let factors = if self.0.nodes().len() > 1024 {
+            crate::cancellation::run(py, || self.0.factors())?
+        } else {
+            self.0.factors()
+        };
+        PyTuple::new(py, domain(factors)?)
     }
     /// Return original node factors without parallel shifts.
     ///

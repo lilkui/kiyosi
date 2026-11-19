@@ -341,12 +341,17 @@ impl RateTermStructure {
     /// # Errors
     ///
     /// Returns [`Error::ComputationFailure`] for a non-finite log factor or overflow.
+    /// Cancellation returns [`Error::Io`] with [`std::io::ErrorKind::Interrupted`].
     pub fn factors(&self) -> Result<Vec<f64>> {
+        crate::cancellation::check()?;
         if let Some(accrual) = &self.calendar_accrual {
             return accrual
                 .open_micros_at_nodes
                 .iter()
-                .map(|&micros| node_factor(-accrual.rate * accrual.year_fraction(micros)))
+                .enumerate()
+                .map(|(index, &micros)| {
+                    node_factor(index, -accrual.rate * accrual.year_fraction(micros))
+                })
                 .collect();
         }
         let Some(reference) = self.reference.filter(|_| self.spread != 0.0) else {
@@ -355,8 +360,12 @@ impl RateTermStructure {
         self.nodes
             .iter()
             .zip(self.factors.iter())
-            .map(|(&node, &factor)| {
-                node_factor(factor.ln() - self.spread * reference.years_until(node))
+            .enumerate()
+            .map(|(index, (&node, &factor))| {
+                node_factor(
+                    index,
+                    factor.ln() - self.spread * reference.years_until(node),
+                )
             })
             .collect()
     }
@@ -583,7 +592,10 @@ impl RateTermStructure {
     }
 }
 
-fn node_factor(log: f64) -> Result<f64> {
+fn node_factor(index: usize, log: f64) -> Result<f64> {
+    if index % 1024 == 0 {
+        crate::cancellation::check()?;
+    }
     let factor = log.exp();
     if log.is_finite() && factor.is_finite() {
         Ok(factor)
@@ -598,6 +610,37 @@ fn node_factor(log: f64) -> Result<f64> {
 mod tests {
     use super::*;
     use crate::{CancellationToken, Date};
+
+    #[test]
+    fn curve_factor_reads_observe_active_cancellation() -> Result<()> {
+        let start = Date::new(2025, 1, 1)?.start_of_day();
+        let end = start.add_days(365)?;
+        let base = RateTermStructure::new(start, vec![end], vec![0.95])?;
+        for curve in [
+            base.shifted(0.01)?,
+            base,
+            RateTermStructure::bounded_flat_with_calendar(
+                0.05,
+                start,
+                end,
+                TradingCalendar::weekdays(),
+            )?,
+        ] {
+            let token = CancellationToken::default();
+            token
+                .run(|| {
+                    token.cancel();
+                    assert!(matches!(
+                        curve.factors(),
+                        Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted
+                    ));
+                    Ok(())
+                })
+                .unwrap_err();
+            assert_eq!(curve.factors()?.len(), curve.nodes().len());
+        }
+        Ok(())
+    }
 
     #[test]
     fn curve_horizon_scan_observes_active_cancellation() -> Result<()> {

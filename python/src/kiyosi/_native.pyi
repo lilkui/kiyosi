@@ -671,6 +671,7 @@ class RateTermStructure:
         Calendar curves return factors at their transition times.
         Reconstruct factor-node curves from base_factors, then apply
         shifted(parallel_shift).
+        Large factor calculations release the GIL and poll Python signals.
         """
 
     @property
