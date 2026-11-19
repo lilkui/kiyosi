@@ -1,6 +1,6 @@
 use std::{any::Any, fmt, ops::RangeInclusive, sync::Arc};
 
-use super::{SpatialGrid, local_volatility};
+use super::{SpatialGrid, grid::Spline, local_volatility};
 use crate::{
     Error, EuropeanOption, Greek, GreeksRequest, NumericalShiftSettings, OptionContract,
     PricingContext, PricingContextChanges, PricingEngine, PricingResult, Result, Timestamp,
@@ -366,20 +366,18 @@ pub(super) fn probes(
 #[derive(PartialEq)]
 pub(super) struct Grid {
     pub space: SpatialGrid,
-    pub values: Vec<f64>,
-    pub curvature: Vec<f64>,
+    spline: Spline,
 }
 impl Grid {
     pub fn new(space: SpatialGrid, values: Vec<f64>) -> Self {
-        let curvature = space.curvature(&values);
-        Self {
-            space,
-            values,
-            curvature,
-        }
+        let spline = space.spline(values);
+        Self { space, spline }
     }
     pub fn sample(&self, spot: f64) -> [f64; 3] {
-        self.space.sample(&self.values, &self.curvature, spot)
+        self.space.sample(&self.spline, spot)
+    }
+    pub fn speed(&self, spot: f64, shift: f64) -> Option<f64> {
+        self.space.speed(&self.spline, spot, shift)
     }
 }
 

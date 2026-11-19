@@ -2,8 +2,9 @@ use super::{
     Curve, Diffusion, FiniteDifferenceAutocallableEngine, FiniteDifferenceScheme,
     FiniteDifferenceSettings, Greek, GreeksRequest, NumericalShiftSettings, OptionContract,
     PricingContext, PricingEngine, PricingResult, Result, SpatialGrid, TimeGrid, analysis,
-    diffusion, diffusion_upper, grid::project_in_coordinates, local_volatility, validate_work,
-    validate_workspace,
+    diffusion, diffusion_upper,
+    grid::{Spline, project_in_coordinates},
+    local_volatility, validate_work, validate_workspace,
 };
 use crate::engines::deterministic::{self, continuation_context};
 use crate::instruments::autocallable::Coupon;
@@ -466,18 +467,12 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
             damping = 2;
         }
     }
-    let curvatures = [
-        space.curvature(&alive),
-        if layered {
-            space.curvature(&knocked)
-        } else {
-            Vec::new()
-        },
-    ];
+    let alive = space.spline(alive);
+    let knocked = layered.then(|| space.spline(knocked));
     Ok(AutocallableGrid {
         space,
-        layers: [alive, knocked],
-        curvatures,
+        alive,
+        knocked,
         starting_knocked,
     })
 }
@@ -485,8 +480,8 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
 #[derive(PartialEq)]
 struct AutocallableGrid {
     space: SpatialGrid,
-    layers: [Vec<f64>; 2],
-    curvatures: [Vec<f64>; 2],
+    alive: Spline,
+    knocked: Option<Spline>,
     starting_knocked: bool,
 }
 
@@ -530,13 +525,14 @@ impl AutocallableState {
         }
         let (rolled, carry, discount) = continuation_context(context, self.start)?;
         let grid = self.grid.as_ref().ok_or_else(super::unstable)?;
-        let layer =
-            usize::from(state.knocked_in && !grid.starting_knocked && !grid.layers[1].is_empty());
-        let alive = &grid.layers[layer];
-        let curvature = &grid.curvatures[layer];
+        let layer = if state.knocked_in && !grid.starting_knocked {
+            grid.knocked.as_ref().unwrap_or(&grid.alive)
+        } else {
+            &grid.alive
+        };
         let space = &grid.space;
         let spot = rolled.spot_price();
-        let [price, delta, gamma] = space.sample(alive, curvature, spot);
+        let [price, delta, gamma] = space.sample(layer, spot);
         let mut result = PricingResult::new(state.coupon + scaled_signed_cash(price, discount))?;
         for (greek, value, powers) in [(Greek::Delta, delta, 1.0), (Greek::Gamma, gamma, 2.0)] {
             if spot_greeks && request.has(greek) {
@@ -549,7 +545,7 @@ impl AutocallableState {
         }
         if spot_greeks && request.has(Greek::Speed) {
             let h = crate::risk::numerical::symmetric_shift(spot, scaled_cash(h, carry));
-            if let Some(speed) = space.speed(alive, curvature, spot, h) {
+            if let Some(speed) = space.speed(layer, spot, h) {
                 result.set(
                     request,
                     Greek::Speed,

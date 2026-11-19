@@ -79,6 +79,13 @@ pub(super) struct SpatialGrid {
     pub nodes: Vec<f64>,
 }
 
+#[derive(PartialEq)]
+pub(super) struct Spline {
+    values: Vec<f64>,
+    curvature: Vec<f64>,
+    bounds: [f64; 2],
+}
+
 impl SpatialGrid {
     #[expect(
         clippy::cast_precision_loss,
@@ -242,7 +249,25 @@ impl SpatialGrid {
         }
     }
 
-    pub fn curvature(&self, values: &[f64]) -> Vec<f64> {
+    pub fn spline(&self, values: Vec<f64>) -> Spline {
+        let bounds = if self.nodes.is_empty() {
+            [f64::NEG_INFINITY, f64::INFINITY]
+        } else {
+            values
+                .iter()
+                .fold([f64::INFINITY, f64::NEG_INFINITY], |[lo, hi], &value| {
+                    [lo.min(value), hi.max(value)]
+                })
+        };
+        let curvature = self.curvature(&values);
+        Spline {
+            values,
+            curvature,
+            bounds,
+        }
+    }
+
+    fn curvature(&self, values: &[f64]) -> Vec<f64> {
         let mut curvature = vec![0.0; values.len()];
         let mut factors = vec![0.0; values.len()];
         for node in 1..self.count {
@@ -265,11 +290,10 @@ impl SpatialGrid {
         curvature
     }
 
-    pub fn speed(&self, values: &[f64], curvature: &[f64], spot: f64, shift: f64) -> Option<f64> {
+    pub fn speed(&self, spline: &Spline, spot: f64, shift: f64) -> Option<f64> {
         if shift > 0.0 && spot - shift > self.asset(0) && spot + shift < self.upper {
             Some(
-                (self.sample(values, curvature, spot + shift)[2]
-                    - self.sample(values, curvature, spot - shift)[2])
+                (self.sample(spline, spot + shift)[2] - self.sample(spline, spot - shift)[2])
                     / (2.0 * shift),
             )
         } else {
@@ -281,7 +305,12 @@ impl SpatialGrid {
         clippy::float_cmp,
         reason = "Exact endpoint weights select one-sided formulas without mixing adjacent cells."
     )]
-    pub fn sample(&self, values: &[f64], curvature: &[f64], spot: f64) -> [f64; 3] {
+    pub fn sample(&self, spline: &Spline, spot: f64) -> [f64; 3] {
+        let Spline {
+            values,
+            curvature,
+            bounds: [global_min, global_max],
+        } = spline;
         let (index, weight) = self.locate(spot);
         let h = self.width(index);
         let left = 1.0 - weight;
@@ -333,10 +362,8 @@ impl SpatialGrid {
                 if self.nodes.is_empty() {
                     return [interpolated.clamp(minimum, maximum), 0.0, 0.0];
                 }
-                let global_min = values.iter().copied().fold(f64::INFINITY, f64::min);
-                let global_max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-                if first_control.min(second_control) < global_min
-                    || first_control.max(second_control) > global_max
+                if first_control.min(second_control) < *global_min
+                    || first_control.max(second_control) > *global_max
                 {
                     return [linear, slope / self.spacing, 0.0];
                 }
@@ -734,6 +761,24 @@ mod tests {
     }
 
     #[test]
+    fn nonuniform_spline_uses_global_bounds_for_overshoot() {
+        let mut grid = SpatialGrid::new(
+            FiniteDifferenceSettings {
+                asset_step_count: 4,
+                ..Default::default()
+            },
+            4.0,
+            0.0,
+            0.0,
+        )
+        .unwrap();
+        grid.nodes = vec![0.0, 1.0, 1.5, 3.0, 4.0];
+        let spline = grid.spline(vec![0.0, 0.0, 1.0, 2.0, 3.0]);
+        let sample = grid.sample(&spline, 0.5);
+        assert!(sample.into_iter().all(|value| value.abs() < f64::EPSILON));
+    }
+
+    #[test]
     fn speed_uses_gamma_differences_only_strictly_inside_grid() {
         let mut grid = SpatialGrid::new(
             FiniteDifferenceSettings {
@@ -746,12 +791,15 @@ mod tests {
         )
         .unwrap();
         grid.uniform_domain(10.0, 20.0).unwrap();
-        let values: Vec<_> = (0..=grid.count).map(|i| grid.asset(i).powi(3)).collect();
-        let curvature: Vec<_> = (0..=grid.count)
-            .map(|i| 6.0 * grid.asset(i) * grid.spacing.powi(2))
-            .collect();
+        let spline = Spline {
+            values: (0..=grid.count).map(|i| grid.asset(i).powi(3)).collect(),
+            curvature: (0..=grid.count)
+                .map(|i| 6.0 * grid.asset(i) * grid.spacing.powi(2))
+                .collect(),
+            bounds: [1_000.0, 8_000.0],
+        };
         for spot in [11.25, 15.0, 18.75] {
-            assert!((grid.speed(&values, &curvature, spot, 1.0).unwrap() - 6.0).abs() < 1e-12);
+            assert!((grid.speed(&spline, spot, 1.0).unwrap() - 6.0).abs() < 1e-12);
         }
         for (spot, shift) in [
             (11.0, 1.0),
@@ -763,7 +811,7 @@ mod tests {
             (15.0, f64::NAN),
             (15.0, f64::INFINITY),
         ] {
-            assert_eq!(grid.speed(&values, &curvature, spot, shift), None);
+            assert_eq!(grid.speed(&spline, spot, shift), None);
         }
     }
 

@@ -1,8 +1,8 @@
 use super::{
     Curve, Diffusion, FiniteDifferenceAccumulatorEngine, FiniteDifferenceSettings, Greek,
     GreeksRequest, NumericalShiftSettings, OptionContract, PricingContext, PricingEngine,
-    PricingResult, Result, SpatialGrid, analysis, diffusion, diffusion_upper, local_volatility,
-    validate_work,
+    PricingResult, Result, SpatialGrid, analysis, diffusion, diffusion_upper, grid::Spline,
+    local_volatility, validate_work,
 };
 use crate::{Accumulator, Timestamp, engines::deterministic};
 
@@ -313,19 +313,14 @@ fn solve_grid<D: Diffusion>(
             damping = 2;
         }
     }
-    let curvatures = layers.each_ref().map(|layer| space.curvature(layer));
-    Ok(AccumulatorGrid {
-        space,
-        layers,
-        curvatures,
-    })
+    let layers = layers.map(|layer| space.spline(layer));
+    Ok(AccumulatorGrid { space, layers })
 }
 
 #[derive(PartialEq)]
 struct AccumulatorGrid {
     space: SpatialGrid,
-    layers: [Vec<f64>; 2],
-    curvatures: [Vec<f64>; 2],
+    layers: [Spline; 2],
 }
 impl AccumulatorGrid {
     fn evaluate(
@@ -336,15 +331,11 @@ impl AccumulatorGrid {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        let Self {
-            space,
-            layers,
-            curvatures,
-        } = self;
+        let Self { space, layers } = self;
         let upper = space.upper;
         let sample = |spot| {
-            let slope = space.sample(&layers[0], &curvatures[0], spot);
-            let intercept = space.sample(&layers[1], &curvatures[1], spot);
+            let slope = space.sample(&layers[0], spot);
+            let intercept = space.sample(&layers[1], spot);
             [
                 quantity * slope[0] + intercept[0],
                 quantity * slope[1] + intercept[1],

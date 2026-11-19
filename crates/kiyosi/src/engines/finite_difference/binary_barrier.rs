@@ -472,11 +472,7 @@ impl BinaryGrid {
             result.set(request, Greek::Delta, sample[1])?;
             result.set(request, Greek::Gamma, sample[2])?;
             if request.has(Greek::Speed) {
-                if let Some(speed) =
-                    self.grid
-                        .space
-                        .speed(&self.grid.values, &self.grid.curvature, spot, h)
-                {
+                if let Some(speed) = self.grid.speed(spot, h) {
                     result.set(request, Greek::Speed, speed)?;
                 }
             }
