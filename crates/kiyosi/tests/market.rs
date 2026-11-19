@@ -670,3 +670,18 @@ fn bounded_flat_curves_preserve_exact_rates_coverage_and_engine_support() -> kiy
     );
     Ok(())
 }
+
+#[test]
+fn adjacent_factors_preserve_implied_forwards() -> kiyosi::Result<()> {
+    let start = at(2025, 1, 2);
+    let node = start.add_days(365)?;
+    let midpoint = node.add_micros(1)?;
+    let end = node.add_micros(2)?;
+    let first = 0.1;
+    let second = libm::nextafter(first, f64::INFINITY);
+    let curve = RateTermStructure::new(start, vec![node, end], vec![first, second])?;
+    let log = ((second - first) / first).ln_1p();
+    assert!((curve.forward_rate(node)? + log / node.years_until(end)).abs() < 1e-16);
+    assert!((curve.log_factor(node, midpoint)? - log / 2.0).abs() < 1e-30);
+    Ok(())
+}

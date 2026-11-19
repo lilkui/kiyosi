@@ -214,7 +214,7 @@ impl RateTermStructure {
             ));
         }
         let mut previous = reference;
-        let mut previous_log = 0.0;
+        let mut previous_factor = 1.0;
         let mut forwards = Vec::with_capacity(nodes.len());
         for (&node, &factor) in nodes.iter().zip(&factors) {
             if node <= previous {
@@ -223,12 +223,12 @@ impl RateTermStructure {
                 ));
             }
             finite(factor, true, "factors")?;
-            let log = factor.ln();
-            let forward = (previous_log - log) / previous.years_until(node);
+            let forward =
+                -crate::numerics::log_ratio(factor, previous_factor) / previous.years_until(node);
             finite(forward, false, "forward_rate")?;
             forwards.push(forward);
             previous = node;
-            previous_log = log;
+            previous_factor = factor;
         }
         Ok(Self {
             reference: Some(reference),

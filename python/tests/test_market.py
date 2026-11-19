@@ -813,3 +813,22 @@ def test_curve_numerical_limits_ownership_and_concurrency():
     with ThreadPoolExecutor(max_workers=4) as pool:
         prices = list(pool.map(lambda _: engine.price(option, replaced), range(8)))
     assert prices == [expected] * 8
+
+
+def test_adjacent_factors_preserve_implied_forwards():
+    start = datetime(2025, 1, 2)
+    node = start + timedelta(days=365)
+    midpoint = node + timedelta(microseconds=1)
+    end = node + timedelta(microseconds=2)
+    first = 0.1
+    second = math.nextafter(first, math.inf)
+    curve = RateTermStructure(
+        reference_time=start, times=[node, end], factors=[first, second]
+    )
+    log_factor = math.log1p((second - first) / first)
+    assert curve.forward_rate(node) == pytest.approx(
+        -log_factor * 365 * 86400 / 2e-6, rel=1e-14, abs=0
+    )
+    assert curve.log_factor(node, midpoint) == pytest.approx(
+        log_factor / 2, rel=1e-14, abs=0
+    )
