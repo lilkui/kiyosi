@@ -9331,7 +9331,7 @@ class FiniteDifferenceSolution:
     model, valuation time and supplied history are fixed. Current observations
     use each query's spot. Queries may cross current knock-in, knock-out, coupon
     and settlement conditions. Source objects can be released or replaced.
-    Shared instances permit concurrent reads; long batches release the GIL and
+    Shared instances permit concurrent reads; long queries release the GIL and
     support cancellation without partial results. The object is immutable and
     cannot be constructed directly. Mesh and truncation accuracy require
     convergence checks; there is no automatic error estimate or refinement.

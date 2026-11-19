@@ -35,13 +35,27 @@ pub(crate) fn solve<I: kiyosi::OptionContract + Sync>(
 /// model, valuation time and supplied history are fixed. Current observations
 /// use each query's spot. Queries may cross current knock-in, knock-out, coupon
 /// and settlement conditions. Source objects can be released or replaced.
-/// Shared instances permit concurrent reads; long batches release the GIL and
+/// Shared instances permit concurrent reads; long queries release the GIL and
 /// support cancellation without partial results. The object is immutable and
 /// cannot be constructed directly. Mesh and truncation accuracy require
 /// convergence checks; there is no automatic error estimate or refinement.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
 pub(crate) struct FiniteDifferenceSolution(pub(crate) kiyosi::FiniteDifferenceSolution);
+
+impl FiniteDifferenceSolution {
+    fn evaluate<T: Send>(
+        &self,
+        py: Python<'_>,
+        operation: impl FnOnce() -> kiyosi::Result<T> + Send,
+    ) -> PyResult<T> {
+        if self.0.exercise_intervals() > 1024 {
+            domain(crate::cancellation::run(py, operation)?)
+        } else {
+            domain(operation())
+        }
+    }
+}
 
 #[pymethods]
 impl FiniteDifferenceSolution {
@@ -92,8 +106,8 @@ impl FiniteDifferenceSolution {
     ///     If numerical values or financial price checks fail.
     /// TypeError
     ///     If the numeric representation is invalid, including a bool.
-    fn price(&self, #[pyo3(from_py_with = real)] spot_price: f64) -> PyResult<f64> {
-        domain(self.0.price(spot_price))
+    fn price(&self, py: Python<'_>, #[pyo3(from_py_with = real)] spot_price: f64) -> PyResult<f64> {
+        self.evaluate(py, || self.0.price(spot_price))
     }
 
     /// Evaluate saved prices in input order, preserving duplicates.
@@ -167,18 +181,17 @@ impl FiniteDifferenceSolution {
     #[pyo3(signature = (spot_price, greeks, *, spot_shift=crate::conversions::OMITTED))]
     fn price_with_greeks(
         &self,
+        py: Python<'_>,
         spot_price: &Bound<'_, PyAny>,
         greeks: &Bound<'_, PyAny>,
         #[pyo3(from_py_with = crate::conversions::supplied)] spot_shift: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<crate::risk::PricingResult> {
         let request = NativeGreeksRequest::from_python(greeks, spot_shift, None, None, None)?;
-        Ok(crate::risk::PricingResult(domain(
-            self.0.price_with_greeks(
-                real(spot_price)?,
-                request.request,
-                request.settings.spot_shift,
-            ),
-        )?))
+        let spot = real(spot_price)?;
+        Ok(crate::risk::PricingResult(self.evaluate(py, || {
+            self.0
+                .price_with_greeks(spot, request.request, request.settings.spot_shift)
+        })?))
     }
 
     /// Evaluate saved prices and requested Greeks in input order.

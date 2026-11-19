@@ -59,6 +59,7 @@ pub struct FiniteDifferenceSolution {
     context: PricingContext,
     range: RangeInclusive<f64>,
     supported: GreeksRequest,
+    deterministic_exercise: Option<(f64, usize)>,
     value: Arc<dyn Erased>,
 }
 
@@ -106,6 +107,7 @@ impl FiniteDifferenceSolution {
             context: context.clone(),
             range,
             supported,
+            deterministic_exercise: backend.deterministic_exercise(),
             value: Arc::new(Prepared {
                 instrument,
                 backend,
@@ -129,6 +131,13 @@ impl FiniteDifferenceSolution {
     /// and Heston no Greeks. See [`PricingResult::status`].
     pub fn supported(&self) -> GreeksRequest {
         self.supported
+    }
+
+    /// Reports the number of deterministic American exercise intervals scanned per spot.
+    #[doc(hidden)]
+    pub fn exercise_intervals(&self) -> usize {
+        self.deterministic_exercise
+            .map_or(0, |(_, intervals)| intervals)
     }
 
     /// Evaluates a spot without rollback; see [`FiniteDifferenceEngine::solve`].
@@ -201,11 +210,11 @@ impl FiniteDifferenceSolution {
         }
         let h =
             crate::risk::numerical::symmetric_shift(spot_price, shifts.spot_shift_at(spot_price));
-        let undefined = self.value.contract().at_spot_discontinuity(&context, 0.0);
+        let undefined = self.at_spot_discontinuity(&context, 0.0);
         let stencil = h > 0.0
             && self.range.contains(&(spot_price - h))
             && self.range.contains(&(spot_price + h))
-            && !self.value.contract().at_spot_discontinuity(&context, h);
+            && !self.at_spot_discontinuity(&context, h);
         let native = GreeksRequest::new(
             Greek::ALL
                 .into_iter()
@@ -250,7 +259,7 @@ impl FiniteDifferenceSolution {
                         && self.range.contains(&(spot_price - two_h))
                         && self.range.contains(&(spot_price + two_h))
                         && crate::risk::numerical::symmetric_shift(spot_price, two_h) == two_h
-                        && !self.value.contract().at_spot_discontinuity(&context, two_h)
+                        && !self.at_spot_discontinuity(&context, two_h)
                     {
                         let up2 = sample(spot_price + two_h)?.price();
                         let down2 = sample(spot_price - two_h)?.price();
@@ -298,6 +307,15 @@ impl FiniteDifferenceSolution {
             .iter()
             .map(|&spot| self.price_with_greeks(spot, request, spot_shift))
             .collect()
+    }
+
+    fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
+        if let Some((boundary, _)) = self.deterministic_exercise {
+            let spot = context.spot_price();
+            spot - radius <= boundary && boundary <= spot + radius
+        } else {
+            self.value.contract().at_spot_discontinuity(context, radius)
+        }
     }
 
     fn validate_spot(&self, spot: f64) -> Result<()> {
@@ -366,6 +384,10 @@ impl Grid {
 }
 
 pub(super) trait Backend<I>: PartialEq + Send + Sync + 'static {
+    fn deterministic_exercise(&self) -> Option<(f64, usize)> {
+        None
+    }
+
     fn evaluate(
         &self,
         instrument: &I,

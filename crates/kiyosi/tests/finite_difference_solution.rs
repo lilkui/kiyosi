@@ -333,6 +333,41 @@ fn local_volatility_and_heston_keep_model_capabilities() {
 }
 
 #[test]
+fn saved_deterministic_american_uses_dense_exercise_intervals() -> Result<()> {
+    let start = dates().0;
+    let times = (1..=1200)
+        .map(|day| start.add_days(day))
+        .collect::<Result<Vec<_>>>()?;
+    let end = start.add_days(1200)?;
+    let curve = RateTermStructure::new(start, times, vec![1.0; 1200])?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(curve, 0.0, 0.0)?,
+        100.0,
+        start,
+    )?;
+    let option = AmericanOption::new(OptionType::Call, 100.0, start, end)?;
+    let engine = FiniteDifferenceVanillaEngine::default();
+    let solution = engine.solve(&option, &context, 80.0..=120.0)?;
+    let delta = GreeksRequest::new([Greek::Delta]);
+    assert_eq!(solution.exercise_intervals(), 1200);
+    close(solution.price(110.0)?, 10.0, 1e-12);
+    close(
+        solution
+            .price_with_greeks(110.0, delta, None)?
+            .require(Greek::Delta)?,
+        1.0,
+        1e-9,
+    );
+    assert_eq!(
+        solution
+            .price_with_greeks(100.0, delta, None)?
+            .status(Greek::Delta),
+        GreekStatus::Undefined,
+    );
+    Ok(())
+}
+
+#[test]
 fn expiry_deterministic_and_cancelled_queries_keep_their_contracts() {
     let expiry = market(100.0)
         .replace(PricingContextChanges {

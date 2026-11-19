@@ -85,16 +85,69 @@ pub(crate) fn american_exercise_boundary(
     let end = option.expiry_time();
     let risk = Curve::new(model.risk_free_curve(), start, end)?;
     let dividend = Curve::new(model.dividend_curve(), start, end)?;
-    // Carry is linear between curve knots. The most favorable exercise carry
-    // determines where the discounted payoff first becomes positive.
-    let best = match option.option_type() {
-        crate::OptionType::Call => f64::max,
-        crate::OptionType::Put => f64::min,
+    let payoff = Payoff::vanilla(option.option_type(), option.strike(), true);
+    exercise_boundary(payoff, &risk, &dividend)
+}
+
+fn exercise_boundary(payoff: Payoff, risk: &Curve, dividend: &Curve) -> Result<f64> {
+    // The most favorable carry occurs at a knot and sets the first paying spot.
+    let best = if payoff.sign > 0.0 {
+        f64::max
+    } else {
+        f64::min
     };
-    let carry = risk.ends().chain(dividend.ends()).fold(0.0, |carry, t| {
-        best(carry, dividend.log_factor(0.0, t) - risk.log_factor(0.0, t))
-    });
-    Ok(scaled_cash(option.strike(), -carry))
+    let mut carry = 0.0;
+    for t in risk.ends().chain(dividend.ends()) {
+        crate::cancellation::check()?;
+        carry = best(carry, dividend.log_factor(0.0, t) - risk.log_factor(0.0, t));
+    }
+    Ok(scaled_cash(payoff.strike, -carry))
+}
+
+#[derive(PartialEq)]
+pub(super) struct AmericanExercise {
+    payoff: Payoff,
+    risk: Curve,
+    dividend: Curve,
+    end: f64,
+    knots: Vec<f64>,
+    boundary: f64,
+}
+
+impl AmericanExercise {
+    pub(super) fn new(payoff: Payoff, context: &PricingContext, expiry: Timestamp) -> Result<Self> {
+        let model = context.model_parameters();
+        let start = context.valuation_time();
+        let end = start.years_until(expiry);
+        let risk = Curve::new(model.risk_free_curve(), start, expiry)?;
+        let dividend = Curve::new(model.dividend_curve(), start, expiry)?;
+        let knots = exercise_knots(0.0, end, &risk, &dividend);
+        let boundary = exercise_boundary(payoff, &risk, &dividend)?;
+        Ok(Self {
+            payoff,
+            risk,
+            dividend,
+            end,
+            knots,
+            boundary,
+        })
+    }
+
+    pub(super) fn metadata(&self) -> (f64, usize) {
+        (self.boundary, self.knots.len() + 1)
+    }
+
+    pub(super) fn price(&self, spot: f64) -> Result<f64> {
+        exercise_value_on_knots(
+            self.payoff,
+            spot,
+            0.0,
+            self.end,
+            &self.risk,
+            &self.dividend,
+            &self.knots,
+        )
+    }
 }
 
 fn discounted_intrinsic(
@@ -132,10 +185,6 @@ fn discounted_intrinsic(
 }
 
 // Discounted deterministic intrinsic values also supply the far-asset asymptote.
-#[expect(
-    clippy::float_cmp,
-    reason = "Equal forward rates have no isolated stationary point."
-)]
 pub(super) fn exercise_value(
     payoff: Payoff,
     spot: f64,
@@ -143,6 +192,37 @@ pub(super) fn exercise_value(
     end: f64,
     risk: &Curve,
     dividend: &Curve,
+) -> Result<f64> {
+    let knots = if payoff.is_american() && start < end && (spot > 0.0 || payoff.sign < 0.0) {
+        exercise_knots(start, end, risk, dividend)
+    } else {
+        Vec::new()
+    };
+    exercise_value_on_knots(payoff, spot, start, end, risk, dividend, &knots)
+}
+
+fn exercise_knots(start: f64, end: f64, risk: &Curve, dividend: &Curve) -> Vec<f64> {
+    let mut knots: Vec<_> = risk
+        .ends_between(start, end)
+        .chain(dividend.ends_between(start, end))
+        .collect();
+    knots.sort_by(f64::total_cmp);
+    knots.dedup();
+    knots
+}
+
+#[expect(
+    clippy::float_cmp,
+    reason = "Equal forward rates have no isolated stationary point."
+)]
+fn exercise_value_on_knots(
+    payoff: Payoff,
+    spot: f64,
+    start: f64,
+    end: f64,
+    risk: &Curve,
+    dividend: &Curve,
+    knots: &[f64],
 ) -> Result<f64> {
     let value = |dividend_log, risk_log| {
         discounted_intrinsic(
@@ -159,17 +239,11 @@ pub(super) fn exercise_value(
     if spot == 0.0 && payoff.sign > 0.0 {
         return Ok(0.0);
     }
-    let mut knots: Vec<_> = risk
-        .ends_between(start, end)
-        .chain(dividend.ends_between(start, end))
-        .collect();
-    knots.sort_by(f64::total_cmp);
-    knots.dedup();
     let mut best = value(0.0, 0.0)?;
     let mut a = start;
     let mut risk_log = Sum::default();
     let mut dividend_log = Sum::default();
-    for b in knots.into_iter().chain([end]) {
+    for b in knots.iter().copied().chain([end]) {
         crate::cancellation::check()?;
         let middle = a.midpoint(b);
         let r = risk.rate(middle);

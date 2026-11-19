@@ -5,7 +5,7 @@ import gc
 import inspect
 import math
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from decimal import Decimal
 
 import pytest
@@ -16,6 +16,7 @@ from kiyosi.market import (
     LocalVolatilityParameters,
     LocalVolatilitySurface,
     PricingContext,
+    RateTermStructure,
 )
 from test_heston import context as heston_context
 from test_local_volatility import option
@@ -330,6 +331,30 @@ def test_current_autocall_events_use_each_scenario_spot_with_fixed_history(kind)
                 rel=0,
                 abs=1e-4,
             )
+
+
+def test_saved_deterministic_american_uses_dense_exercise_intervals():
+    times = [START + timedelta(days=day) for day in range(1, 1201)]
+    curve = RateTermStructure(
+        reference_time=START, times=times, factors=[1.0] * len(times)
+    )
+    model = BlackScholesMertonParameters(
+        risk_free_rate=curve, dividend_yield=0, volatility=0
+    )
+    snapshot = PricingContext(
+        model_parameters=model, spot_price=100, valuation_time=START
+    )
+    instrument = ins.AmericanOption(
+        option_type="call", strike=100, effective_time=START, expiry_time=times[-1]
+    )
+    solution = pricing.FiniteDifferenceVanillaEngine().solve(
+        instrument, snapshot, spot_range=(80, 120)
+    )
+    assert solution.price(110) == pytest.approx(10.0, abs=1e-12)
+    assert solution.price_with_greeks(110, "delta").delta == pytest.approx(
+        1.0, abs=1e-9
+    )
+    assert solution.price_with_greeks(100, "delta").status("delta") == "undefined"
 
 
 def test_expiry_deterministic_and_settlement_paths_ignore_unused_grid_bounds():

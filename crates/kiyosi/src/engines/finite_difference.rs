@@ -521,6 +521,7 @@ struct VanillaGrid {
 struct VanillaState {
     payoff: Payoff,
     grid: Option<VanillaGrid>,
+    exercise: Option<crate::engines::deterministic::AmericanExercise>,
 }
 
 impl<I: OptionContract> solution::Backend<I> for VanillaState {
@@ -533,6 +534,9 @@ impl<I: OptionContract> solution::Backend<I> for VanillaState {
     ) -> Result<PricingResult> {
         if let Some(grid) = &self.grid {
             return grid.evaluate(context, request, shifts);
+        }
+        if let Some(exercise) = &self.exercise {
+            return PricingResult::new(exercise.price(context.spot_price())?);
         }
         if context.valuation_time() == option.expiry_time() {
             let result = PricingResult::new(self.payoff.value(context.spot_price()))?;
@@ -556,6 +560,12 @@ impl<I: OptionContract> solution::Backend<I> for VanillaState {
             context,
         )?)
     }
+
+    fn deterministic_exercise(&self) -> Option<(f64, usize)> {
+        self.exercise
+            .as_ref()
+            .map(crate::engines::deterministic::AmericanExercise::metadata)
+    }
 }
 
 fn prepare_vanilla_state(
@@ -576,7 +586,20 @@ fn prepare_vanilla_state(
             solve_model(option, payoff, context, settings, concentrate, diffusion)
         })?)
     };
-    let state = VanillaState { payoff, grid };
+    let exercise = if grid.is_none() && payoff.is_american() && time > 0.0 {
+        Some(crate::engines::deterministic::AmericanExercise::new(
+            payoff,
+            context,
+            option.expiry_time(),
+        )?)
+    } else {
+        None
+    };
+    let state = VanillaState {
+        payoff,
+        grid,
+        exercise,
+    };
     solution::Backend::evaluate(
         &state,
         option,
