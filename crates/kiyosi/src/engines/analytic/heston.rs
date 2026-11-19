@@ -168,33 +168,27 @@ impl AnalyticHestonEuropeanEngine {
         if time == 0.0 {
             return Ok((sign * (spot - strike)).max(0.0));
         }
+        let absorbing = model.initial_variance() == 0.0
+            && (model.mean_reversion_speed() == 0.0 || model.long_run_variance() == 0.0);
+        if absorbing {
+            return crate::engines::deterministic::vanilla(
+                option,
+                crate::engines::Payoff::vanilla(option.option_type(), strike, false),
+                context,
+            );
+        }
         let risk = model.risk_free_curve().log_factor(start, end)?;
         let dividend = model.dividend_curve().log_factor(start, end)?;
-        let asset = scaled_cash(spot, dividend);
-        let cash = scaled_cash(strike, risk);
-        let scale = asset.max(cash);
-        if !asset.is_finite() || !cash.is_finite() {
+        let scale = scaled_cash(spot, dividend).max(scaled_cash(strike, risk));
+        let deterministic = model.vol_of_vol() == 0.0;
+        if !deterministic && (!scale.is_finite() || scale == 0.0) {
             return Err(computation());
         }
         let variance = integrated_variance(model, time);
-        if !variance.is_finite() || variance < 0.0 {
+        if !variance.is_finite() || variance <= 0.0 {
             return Err(computation());
         }
-        let absorbing = model.initial_variance() == 0.0
-            && (model.mean_reversion_speed() == 0.0 || model.long_run_variance() == 0.0);
         let log_moneyness = context.log_forward_moneyness(end, strike, dividend - risk);
-        if absorbing {
-            let value = if sign * log_moneyness > 0.0 {
-                let amount = if sign > 0.0 { asset } else { cash };
-                amount * -(-sign * log_moneyness).exp_m1()
-            } else {
-                0.0
-            };
-            return checked_with_scale(value, scale);
-        }
-        if variance == 0.0 {
-            return Err(computation());
-        }
         let base = lognormal_price(
             spot,
             strike,
@@ -204,11 +198,8 @@ impl AnalyticHestonEuropeanEngine {
             1.0,
             sign,
         )?;
-        if model.vol_of_vol() == 0.0 {
+        if deterministic {
             return checked_with_scale(base, scale);
-        }
-        if scale == 0.0 {
-            return Err(computation());
         }
         let weight = (spot.ln() + dividend - scale.ln())
             .midpoint(strike.ln() + risk - scale.ln())

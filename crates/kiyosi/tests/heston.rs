@@ -57,6 +57,28 @@ fn heston_matches_quantlib_and_put_call_parity() {
 }
 
 #[test]
+fn deterministic_variance_prices_survive_overflowing_discounted_legs() -> Result<()> {
+    let (start, end) = dates();
+    let engine = AnalyticHestonEuropeanEngine::default();
+    let heston = HestonParameters::new(HestonParameterInputs {
+        risk_free_rate: (-0.75).into(),
+        dividend_yield: (-0.75).into(),
+        initial_variance: 0.04,
+        long_run_variance: 0.04,
+        mean_reversion_speed: 2.0,
+        vol_of_vol: 0.0,
+        correlation: 0.0,
+    })?;
+    let context = PricingContext::new(heston, 1e308, start)?;
+    let expected = (1e308 * libm::erf(0.1 / std::f64::consts::SQRT_2)) * 0.75_f64.exp();
+    for kind in [OptionType::Call, OptionType::Put] {
+        let option = EuropeanOption::new(kind, 1e308, start, end)?;
+        assert!((engine.price(&option, &context)? / expected - 1.0).abs() < 1e-12);
+    }
+    Ok(())
+}
+
+#[test]
 fn deterministic_variance_and_absorbing_zero_have_independent_prices() {
     let engine = AnalyticHestonEuropeanEngine::new(HestonIntegrationSettings {
         max_evaluations: 1,

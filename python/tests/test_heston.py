@@ -127,6 +127,17 @@ def reference(parameters, instrument, tolerance, *, exp_sinh=False):
         return contract.NPV()
 
 
+def test_deterministic_variance_prices_survive_overflowing_discounted_legs():
+    parameters = model(risk_free_rate=-0.75, dividend_yield=-0.75, vol_of_vol=0)
+    snapshot = context(parameters, spot_price=1e308)
+    expected = (1e308 * math.erf(0.1 / math.sqrt(2))) * math.exp(0.75)
+    engine = AnalyticHestonEuropeanEngine()
+    for kind in ("call", "put"):
+        assert engine.price(
+            option(option_type=kind, strike=1e308), snapshot
+        ) == pytest.approx(expected, rel=1e-12)
+
+
 def test_subnormal_reversion_preserves_long_run_variance_growth(subtests):
     kappa, theta, v0 = math.ulp(0.0), 1e308, 1e-20
     parameters = model(
