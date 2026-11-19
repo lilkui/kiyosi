@@ -837,3 +837,38 @@ fn tiny_positive_volatility_preserves_exact_quoted_moneyness() -> Result<()> {
     );
     Ok(())
 }
+
+#[test]
+fn automatic_grid_resolves_a_short_dated_digital() -> Result<()> {
+    let (start, _) = dates();
+    let end = start.add_micros(3_600_000_000)?;
+    let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.2, 1.0, start, end)?;
+    let context = market(100.0, 0.03, 0.01, 0.08);
+    let expected = AnalyticDigitalEngine.price(&option, &context)?;
+    let actual = FiniteDifferenceDigitalEngine::default().price(&option, &context)?;
+    assert!((actual - expected).abs() < 1e-5, "{actual} vs {expected}");
+    Ok(())
+}
+
+#[test]
+fn automatic_digital_vega_stays_stable_across_cell_width() -> Result<()> {
+    let (start, end) = dates();
+    let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 1.0, start, end)?;
+    let context = market(100.2, 0.0, 0.0, 0.005);
+    let request = GreeksRequest::new([Greek::Vega]);
+    let shifts = NumericalShiftSettings {
+        volatility_shift: Some(1e-5),
+        ..Default::default()
+    };
+    let expected = AnalyticDigitalEngine
+        .price_with_greeks_with_settings(&option, &context, request, shifts)?
+        .require(Greek::Vega)?;
+    let actual = FiniteDifferenceDigitalEngine::default()
+        .price_with_greeks_with_settings(&option, &context, request, shifts)?
+        .require(Greek::Vega)?;
+    assert!(
+        (actual / expected - 1.0).abs() < 1e-3,
+        "{actual} vs {expected}"
+    );
+    Ok(())
+}

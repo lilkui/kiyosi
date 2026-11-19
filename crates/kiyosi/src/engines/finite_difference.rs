@@ -346,11 +346,11 @@ fn solve_model<D: Diffusion>(
         spot.max(payoff.strike),
     )?;
     if !payoff.is_american()
-        && (!payoff.is_digital() || D::LOCAL)
         && concentrate
         && settings.scheme != FiniteDifferenceScheme::ExplicitEuler
     {
-        let scale = payoff.strike * (0.1 * diffusion.sigma(0.0, spot) * time.sqrt()).max(1e-4);
+        let width = diffusion.sigma(0.0, spot) * time.sqrt();
+        let scale = payoff.strike * (0.1 * width).max(1e-4);
         if scale > 0.0 && scale.is_finite() {
             grid::concentrate(&mut space, vec![payoff.strike], scale)?;
         }
@@ -1164,8 +1164,8 @@ impl FiniteDifferenceDigitalEngine {
     ///
     /// Rejects nonconstant rate curves before life validation, including at expiry.
     /// Accepts BSM or local volatility, with cell-averaged digital payoffs in both models.
-    /// Local-volatility automatic domains concentrate nodes around the strike for
-    /// non-explicit schemes. BSM and explicit upper boundaries retain uniform spot grids.
+    /// Automatic domains concentrate nodes around the strike for non-explicit
+    /// schemes. Explicit upper boundaries use uniform spot grids.
     /// See [`FiniteDifferenceVanillaEngine::price_with_greeks`] for context construction.
     ///
     /// # Errors

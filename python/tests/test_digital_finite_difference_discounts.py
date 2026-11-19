@@ -75,3 +75,46 @@ def test_finite_difference_digital_preserves_scaled_discounts(direction, sign):
         math.exp(math.log(payout) + 710) * 0.5 * math.erfc(sign * 0.1 / math.sqrt(2))
     )
     assert math.isclose(engine.price(option, context), expected, rel_tol=0.006)
+
+
+def test_automatic_grid_resolves_a_short_dated_digital():
+    start, end = datetime(2025, 1, 1), datetime(2025, 1, 1, 1)
+    option = CashOrNothingOption(
+        option_type="call",
+        strike=100.2,
+        payout=1,
+        effective_time=start,
+        expiry_time=end,
+    )
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.03, dividend_yield=0.01, volatility=0.08
+        ),
+        spot_price=100,
+        valuation_time=start,
+    )
+    expected = pricing.AnalyticDigitalEngine().price(option, context)
+    assert pricing.FiniteDifferenceDigitalEngine().price(
+        option, context
+    ) == pytest.approx(expected, abs=1e-5)
+
+
+def test_automatic_digital_vega_stays_stable_across_cell_width():
+    start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+    option = CashOrNothingOption(
+        option_type="call", strike=100, payout=1, effective_time=start, expiry_time=end
+    )
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=0.005
+        ),
+        spot_price=100.2,
+        valuation_time=start,
+    )
+    expected = pricing.AnalyticDigitalEngine().price_with_greeks(
+        option, context, "vega", volatility_shift=1e-5
+    )
+    actual = pricing.FiniteDifferenceDigitalEngine().price_with_greeks(
+        option, context, "vega", volatility_shift=1e-5
+    )
+    assert actual.vega == pytest.approx(expected.vega, rel=1e-3)
