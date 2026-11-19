@@ -14,6 +14,7 @@ from run import (
     build,
     command,
     fingerprint,
+    measure,
     rust_build_command,
     write_report,
 )
@@ -22,6 +23,30 @@ RUNNER = Path(__file__).with_name("run.py")
 
 
 class CommandTests(unittest.TestCase):
+    def test_native_timeout_is_reported_as_a_case_failure(self):
+        case = {
+            "id": "fixture",
+            "family": "european_bsm",
+            "inputs": {},
+            "profiles": {"kiyosi": {}, "quantlib": {}},
+            "error_budget": 0.01,
+        }
+        reference = {"value": 10, "uncertainty": 0}
+        executables = {"kiyosi": Path("rust"), "quantlib": Path("cpp")}
+        info = {backend: {"families": ["european_bsm"]} for backend in executables}
+
+        def stall(argv, *, timeout, **kwargs):
+            self.assertGreater(timeout, 0)
+            raise subprocess.TimeoutExpired(argv, timeout)
+
+        with patch("run.subprocess.run", side_effect=stall):
+            row = measure(
+                case, reference, executables, SimpleNamespace(price_only=True), info
+            )
+        self.assertEqual(row["status"], "failed")
+        self.assertIsNone(row["ratio"])
+        self.assertIn("timed out", row["error"])
+
     def test_rust_executable_override_requires_no_build(self):
         with tempfile.TemporaryDirectory() as directory:
             report = Path(directory) / "report.json"

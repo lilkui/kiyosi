@@ -23,6 +23,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 RUST_EXECUTABLE = ROOT / "target/release/quantlib_bench"
 BACKENDS = ("kiyosi", "quantlib")
+NATIVE_TIMEOUT_SECONDS = 120
 
 
 def write_report(path, report):
@@ -42,12 +43,16 @@ def write_report(path, report):
             temporary.unlink(missing_ok=True)
 
 
-def command(argv, *, cwd=ROOT):
+def command(argv, *, cwd=ROOT, timeout=None):
     """Run a command and return stdout with useful failure diagnostics."""
     try:
         result = subprocess.run(
-            argv, cwd=cwd, text=True, capture_output=True, check=True
+            argv, cwd=cwd, text=True, capture_output=True, check=True, timeout=timeout
         )
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError(
+            f"{argv[0]} timed out after {error.timeout:g} seconds"
+        ) from error
     except FileNotFoundError as error:
         raise RuntimeError(f"missing executable: {argv[0]}") from error
     except subprocess.CalledProcessError as error:
@@ -217,7 +222,8 @@ def native(executable, case, backend, iterations):
         )
     result = json.loads(
         command(
-            [str(executable), *(f"{key}={value}" for key, value in parameters.items())]
+            [str(executable), *(f"{key}={value}" for key, value in parameters.items())],
+            timeout=NATIVE_TIMEOUT_SECONDS,
         ),
         parse_constant=reject_constant,
         parse_float=finite_float,
@@ -614,7 +620,7 @@ def main(argv=None):
         }
         info = {
             backend: json.loads(
-                command([str(executable), "--info"]),
+                command([str(executable), "--info"], timeout=NATIVE_TIMEOUT_SECONDS),
                 parse_constant=reject_constant,
                 parse_float=finite_float,
             )
