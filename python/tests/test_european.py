@@ -3,7 +3,7 @@
 import math
 import numbers
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from fractions import Fraction
 
 import pytest
@@ -12,8 +12,9 @@ from kiyosi.instruments import EuropeanOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
+    RateTermStructure,
 )
-from kiyosi.pricing import AnalyticEuropeanEngine
+from kiyosi.pricing import AnalyticEuropeanEngine, FiniteDifferenceVanillaEngine
 from support.assertions import assert_decimal_equal
 
 
@@ -258,3 +259,28 @@ def test_extreme_numerical_regressions(make_context, subtests):
             make_option(option_type="put"), make_context(model_parameters=model)
         )
     assert type(error.value) is ComputationFailureError
+
+
+def test_analytic_european_supports_curve_knots_that_collapse_on_a_grid():
+    start, knot, end = datetime(2025, 1, 1), datetime(2500, 1, 1), datetime(2500, 1, 2)
+    curve = RateTermStructure(
+        reference_time=start,
+        times=[knot, knot + timedelta(microseconds=1), end],
+        factors=[1.0] * 3,
+    )
+    option = make_option(effective_time=start, expiry_time=end)
+    engine = AnalyticEuropeanEngine()
+    for volatility in (0.0, 0.2):
+        model = BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=volatility
+        )
+        flat = PricingContext(
+            model_parameters=model, spot_price=110, valuation_time=start
+        )
+        curved = flat.replace(model_parameters=model.replace(risk_free_rate=curve))
+        assert engine.price(option, curved) == pytest.approx(
+            engine.price(option, flat), rel=0, abs=1e-12
+        )
+        if volatility > 0:
+            with pytest.raises(ComputationFailureError, match="curve knots"):
+                FiniteDifferenceVanillaEngine().price(option, curved)

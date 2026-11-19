@@ -12,7 +12,7 @@ analytic_engine!(
     AnalyticEuropeanEngine,
     PyRef<'_, EuropeanOption>,
     with_contract,
-    |_option, _context| crate::engines::ShortPricing::ScalarHorizon,
+    |_option, _context| crate::engines::ShortPricing::Scalar,
     [
         ///
         /// Notes

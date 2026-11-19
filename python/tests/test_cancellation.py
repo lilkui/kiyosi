@@ -76,14 +76,10 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                             factors = [exp(-0.05 * j / (365 * 86400)) for j in range(1, count + 1)]
                             curve = m.RateTermStructure(reference_time=start,
                                 times=[*times, end], factors=[*factors, exp(-0.05)])
-                            context = context.replace(model_parameters=model.replace(
-                                risk_free_rate=curve, volatility=0.2 if case in ("geometric_asian", "analytic_solver") else 0))
-                            if case == "geometric_asian":
-                                option = i.GeometricAveragePriceOption(option_type="call", strike=100,
-                                    effective_time=start, averaging_start_time=start, expiry_time=end)
-                                engine = p.AnalyticGeometricAveragePriceEngine()
-                            else:
-                                engine = p.AnalyticEuropeanEngine()
+                            context = context.replace(model_parameters=model.replace(risk_free_rate=curve))
+                            option = i.GeometricAveragePriceOption(option_type="call", strike=100,
+                                effective_time=start, averaging_start_time=start, expiry_time=end)
+                            engine = p.AnalyticGeometricAveragePriceEngine()
                         else:
                             context = context.replace(model_parameters=m.HestonParameters(
                                 risk_free_rate=0.05, dividend_yield=0.02, initial_variance=0.04,
@@ -119,7 +115,6 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                             elif case == "numerical_greeks":
                                 p.numerical_greeks(engine, option, context, "all")
                             elif case == "analytic_solver":
-                                # Zero volatility scans the curve, keeping the solve active until SIGINT.
                                 p.implied_volatility(engine, option, context, 10,
                                     lower_bound=0, upper_bound=1)
                             else:

@@ -51,30 +51,29 @@ pub(super) fn vanilla(
     let model = context.model_parameters();
     let start = context.valuation_time();
     let end = option.expiry_time();
+    let spot = context.spot_price();
+    if payoff.is_american() {
+        let risk = Curve::new(model.risk_free_curve(), start, end)?;
+        let dividend = Curve::new(model.dividend_curve(), start, end)?;
+        return exercise_value(payoff, spot, 0.0, start.years_until(end), &risk, &dividend);
+    }
+    context.validate_curve_coverage(end)?;
+    let risk_log = model.risk_free_curve().log_factor(start, end)?;
+    let dividend_log = model.dividend_curve().log_factor(start, end)?;
+    let carry = dividend_log - risk_log;
     if payoff.is_digital() {
-        context.validate_curve_horizon(end)?;
-        let r = model.risk_free_curve().log_factor(start, end)?;
-        let q = model.dividend_curve().log_factor(start, end)?;
         let forward = quoted_spot_distance(context, end, payoff.strike)
-            .unwrap_or_else(|| log_ratio(context.spot_price(), payoff.strike) + (q - r));
+            .unwrap_or_else(|| log_ratio(spot, payoff.strike) + carry);
         return checked(if payoff.sign * forward <= 0.0 {
             0.0
         } else if let Some(payout) = payoff.payout() {
-            scaled_cash(payout, r)
+            scaled_cash(payout, risk_log)
         } else {
-            scaled_cash(context.spot_price(), q)
+            scaled_cash(spot, dividend_log)
         });
     }
-    let risk = Curve::new(model.risk_free_curve(), start, end)?;
-    let dividend = Curve::new(model.dividend_curve(), start, end)?;
-    if !payoff.is_american()
-        && context.quoted_spot_cmp(end, context.spot_price(), payoff.strike)
-            == Some(std::cmp::Ordering::Equal)
-    {
-        return Ok(0.0);
-    }
-    let time = start.years_until(end);
-    exercise_value(payoff, context.spot_price(), 0.0, time, &risk, &dividend)
+    let moneyness = context.log_forward_moneyness(end, payoff.strike, carry);
+    discounted_intrinsic(payoff, spot, dividend_log, risk_log, moneyness)
 }
 
 pub(crate) fn american_exercise_boundary(
@@ -98,6 +97,40 @@ pub(crate) fn american_exercise_boundary(
     Ok(scaled_cash(option.strike(), -carry))
 }
 
+fn discounted_intrinsic(
+    payoff: Payoff,
+    spot: f64,
+    dividend_log: f64,
+    risk_log: f64,
+    moneyness: f64,
+) -> Result<f64> {
+    let price = if spot == 0.0 {
+        if payoff.sign < 0.0 {
+            scaled_cash(payoff.strike, risk_log)
+        } else {
+            0.0
+        }
+    } else if payoff.strike == 0.0 {
+        if payoff.sign > 0.0 {
+            scaled_cash(spot, dividend_log)
+        } else {
+            0.0
+        }
+    } else {
+        if moneyness.is_nan() {
+            return Err(invalid());
+        }
+        if payoff.sign * moneyness <= 0.0 {
+            0.0
+        } else if payoff.sign > 0.0 {
+            scaled_cash(spot, dividend_log + (-(-moneyness).exp_m1()).ln())
+        } else {
+            scaled_cash(payoff.strike, risk_log + (-moneyness.exp_m1()).ln())
+        }
+    };
+    checked_with_scale(price, 0.0)
+}
+
 // Discounted deterministic intrinsic values also supply the far-asset asymptote.
 #[expect(
     clippy::float_cmp,
@@ -111,33 +144,14 @@ pub(super) fn exercise_value(
     risk: &Curve,
     dividend: &Curve,
 ) -> Result<f64> {
-    let value = |dividend_log: f64, risk_log: f64| {
-        let price = if spot == 0.0 {
-            if payoff.sign < 0.0 {
-                scaled_cash(payoff.strike, risk_log)
-            } else {
-                0.0
-            }
-        } else if payoff.strike == 0.0 {
-            if payoff.sign > 0.0 {
-                scaled_cash(spot, dividend_log)
-            } else {
-                0.0
-            }
-        } else {
-            let m = log_ratio(spot, payoff.strike) + (dividend_log - risk_log);
-            if m.is_nan() {
-                return Err(invalid());
-            }
-            if payoff.sign * m <= 0.0 {
-                0.0
-            } else if payoff.sign > 0.0 {
-                scaled_cash(spot, dividend_log + (-(-m).exp_m1()).ln())
-            } else {
-                scaled_cash(payoff.strike, risk_log + (-m.exp_m1()).ln())
-            }
-        };
-        checked_with_scale(price, 0.0)
+    let value = |dividend_log, risk_log| {
+        discounted_intrinsic(
+            payoff,
+            spot,
+            dividend_log,
+            risk_log,
+            log_ratio(spot, payoff.strike) + (dividend_log - risk_log),
+        )
     };
     if !payoff.is_american() || start >= end {
         return value(dividend.log_factor(start, end), risk.log_factor(start, end));

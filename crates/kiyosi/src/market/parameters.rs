@@ -467,6 +467,13 @@ impl PricingContext {
     pub(crate) fn bsm_parameters(&self) -> Result<&BlackScholesMertonParameters> {
         self.model_parameters.as_bsm()
     }
+    pub(crate) fn validate_curve_coverage(&self, expiry: Timestamp) -> Result<()> {
+        self.model_parameters
+            .risk_free_curve()
+            .validate_time(expiry)?;
+        self.model_parameters.dividend_curve().validate_time(expiry)
+    }
+
     pub(crate) fn validate_curve_horizon(&self, expiry: Timestamp) -> Result<()> {
         self.model_parameters
             .risk_free_curve()

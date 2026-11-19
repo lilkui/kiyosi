@@ -412,8 +412,8 @@ def test_microsecond_intervals_remain_distinct_far_from_reference():
         effective_time=origin,
         expiry_time=second,
     )
-    assert_rejection(
-        ComputationFailureError, engine.price, distant_option, distant_context
+    assert engine.price(distant_option, distant_context) == pytest.approx(
+        100 - math.exp(-1), rel=0, abs=1e-12
     )
 
 

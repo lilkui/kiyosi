@@ -1,6 +1,7 @@
 use kiyosi::{
-    AnalyticEuropeanEngine, BlackScholesMertonParameters, Date, Error, EuropeanOption, OptionType,
-    PricingContext, Timestamp,
+    AnalyticEuropeanEngine, BlackScholesMertonParameters, Date, Error, EuropeanOption,
+    FiniteDifferenceVanillaEngine, OptionType, PricingContext, PricingEngine, RateTermStructure,
+    Result, Timestamp,
 };
 
 #[test]
@@ -294,4 +295,34 @@ fn european_replacements_validate_and_preserve_originals() {
     }
     assert_eq!(original.strike(), 100.0);
     assert_eq!(original.option_type(), OptionType::Call);
+}
+
+#[test]
+fn analytic_european_supports_curve_knots_that_collapse_on_a_grid() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let knot = Date::new(2500, 1, 1)?.start_of_day();
+    let end = knot.add_days(1)?;
+    let curve = RateTermStructure::new(start, vec![knot, knot.add_micros(1)?, end], vec![1.0; 3])?;
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    for volatility in [0.0, 0.2] {
+        let flat = PricingContext::new(
+            BlackScholesMertonParameters::new(0.0, 0.0, volatility)?,
+            110.0,
+            start,
+        )?;
+        let curved = PricingContext::new(
+            BlackScholesMertonParameters::new(curve.clone(), 0.0, volatility)?,
+            110.0,
+            start,
+        )?;
+        let expected = AnalyticEuropeanEngine.price(&option, &flat)?;
+        assert!((AnalyticEuropeanEngine.price(&option, &curved)? - expected).abs() < 1e-12);
+        if volatility > 0.0 {
+            assert!(matches!(
+                FiniteDifferenceVanillaEngine::default().price(&option, &curved),
+                Err(Error::ComputationFailure(_))
+            ));
+        }
+    }
+    Ok(())
 }

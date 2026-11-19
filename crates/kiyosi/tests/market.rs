@@ -400,9 +400,9 @@ fn flat_and_parallel_shifted_curves_preserve_coverage_and_ownership() {
 }
 
 #[test]
-fn distant_microsecond_nodes_remain_distinct_and_pricing_rejects_unresolved_horizons() {
+fn analytic_pricing_integrates_distant_microsecond_curve_nodes() {
     use kiyosi::{
-        AnalyticEuropeanEngine, BlackScholesMertonParameters, Error, EuropeanOption, OptionType,
+        AnalyticEuropeanEngine, BlackScholesMertonParameters, EuropeanOption, OptionType,
         PricingContext,
     };
     let origin = at(1, 1, 1);
@@ -437,10 +437,8 @@ fn distant_microsecond_nodes_remain_distinct_and_pricing_rejects_unresolved_hori
     )
     .unwrap();
     let call = EuropeanOption::new(OptionType::Call, 100_f64.exp(), origin, second).unwrap();
-    assert!(matches!(
-        AnalyticEuropeanEngine.price(&call, &context).unwrap_err(),
-        Error::ComputationFailure(_)
-    ));
+    let expected = 100.0 - (-1.0_f64).exp();
+    assert!((AnalyticEuropeanEngine.price(&call, &context).unwrap() - expected).abs() < 1e-12);
 }
 
 #[test]

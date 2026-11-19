@@ -200,7 +200,7 @@ const SHORT_CURVE_NODES: usize = 1024;
 pub(crate) enum ShortPricing {
     Never,
     WholeCurves,
-    ScalarHorizon,
+    Scalar,
 }
 
 impl From<bool> for ShortPricing {
@@ -218,26 +218,20 @@ impl ShortPricing {
         self,
         request: impl PricingRequest<R>,
         context: &kiyosi::PricingContext,
-        expiry: kiyosi::Timestamp,
     ) -> bool {
-        let model = context.model_parameters();
-        let curves = [
-            model.risk_free_curve().nodes(),
-            model.dividend_curve().nodes(),
-        ];
-        let curve_nodes = curves[0].len().max(curves[1].len());
-        if request.is_short(
-            self != Self::Never && curve_nodes <= SHORT_CURVE_NODES,
-            curve_nodes,
-        ) {
+        if self == Self::Scalar && request.is_scalar_price() {
             return true;
         }
-        self == Self::ScalarHorizon
-            && request.is_scalar_price()
-            && curves.into_iter().all(|nodes| {
-                let past = nodes.partition_point(|&node| node <= context.valuation_time());
-                nodes[past..].partition_point(|&node| node <= expiry) <= SHORT_CURVE_NODES
-            })
+        let model = context.model_parameters();
+        let curve_nodes = model
+            .risk_free_curve()
+            .nodes()
+            .len()
+            .max(model.dividend_curve().nodes().len());
+        request.is_short(
+            self != Self::Never && curve_nodes <= SHORT_CURVE_NODES,
+            curve_nodes,
+        )
     }
 }
 
@@ -251,7 +245,7 @@ pub(crate) fn evaluate<I: kiyosi::OptionContract + Sync, R: Send>(
 ) -> PyResult<R> {
     let context = &context.0;
     let operation = || request.evaluate(engine, instrument, context);
-    let result = if short_pricing.allows_inline(request, context, instrument.expiry_time()) {
+    let result = if short_pricing.allows_inline(request, context) {
         py.check_signals()?;
         let result = operation();
         py.check_signals()?;
@@ -431,36 +425,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn scalar_horizon_limits_inline_work_to_remaining_curve_knots() -> kiyosi::Result<()> {
+    fn analytic_scalar_price_is_inline_with_dense_curves() -> kiyosi::Result<()> {
         let start = kiyosi::Date::new(2025, 1, 1)?.start_of_day();
-        let times = (0..=1024)
+        let times = (1..=1025)
             .map(|day| start.add_days(day))
             .collect::<kiyosi::Result<Vec<_>>>()?;
-        let curve = kiyosi::RateTermStructure::new(
-            start.add_days(-1)?,
-            times.clone(),
-            vec![1.0; times.len()],
-        )?;
+        let factors = vec![1.0; times.len()];
+        let curve = kiyosi::RateTermStructure::new(start, times, factors)?;
         let model = kiyosi::BlackScholesMertonParameters::new(curve, 0.0, 0.2)?;
-        let context = kiyosi::PricingContext::new(model, 100.0, times[1023])?;
-        let horizon = ShortPricing::ScalarHorizon;
-        assert!(horizon.allows_inline(ScalarRequest::Price, &context, times[1024]));
-        assert!(!ShortPricing::WholeCurves.allows_inline(
-            ScalarRequest::Price,
-            &context,
-            times[1024],
-        ));
+        let context = kiyosi::PricingContext::new(model, 100.0, start)?;
+        assert!(ShortPricing::Scalar.allows_inline(ScalarRequest::Price, &context));
+        assert!(!ShortPricing::WholeCurves.allows_inline(ScalarRequest::Price, &context));
         let greeks = NativeGreeksRequest {
             request: kiyosi::GreeksRequest::all(),
             settings: Default::default(),
         };
-        assert!(!horizon.allows_inline(greeks, &context, times[1024]));
-        let earlier = context.replace(kiyosi::PricingContextChanges {
-            valuation_time: Some(start.add_days(-1)?),
-            ..Default::default()
-        })?;
-        assert!(horizon.allows_inline(ScalarRequest::Price, &earlier, times[1023]));
-        assert!(!horizon.allows_inline(ScalarRequest::Price, &earlier, times[1024]));
+        assert!(!ShortPricing::Scalar.allows_inline(greeks, &context));
         Ok(())
     }
 

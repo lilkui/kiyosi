@@ -151,7 +151,7 @@ impl AnalyticDigitalEngine {
                 context,
             )?);
         }
-        context.validate_curve_horizon(expiry)?;
+        context.validate_curve_coverage(expiry)?;
         let risk_log = model.risk_free_curve().log_factor(valuation, expiry)?;
         let dividend_log = model.dividend_curve().log_factor(valuation, expiry)?;
         let root = time.sqrt();

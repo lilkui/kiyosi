@@ -156,8 +156,7 @@ impl AnalyticHestonEuropeanEngine {
         validate_life(option, context)?;
         let start = context.valuation_time();
         let end = option.expiry_time();
-        model.risk_free_curve().validate_horizon(start, end)?;
-        model.dividend_curve().validate_horizon(start, end)?;
+        context.validate_curve_coverage(end)?;
         let spot = context.spot_price();
         let strike = option.strike();
         let sign = if option.option_type() == OptionType::Call {
