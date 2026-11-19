@@ -86,18 +86,19 @@ impl AnalyticGeometricAveragePriceEngine {
         let sigma = model.volatility();
         let mut times = vec![valuation, start.max(valuation), expiry];
         for curve in [model.risk_free_curve(), model.dividend_curve()] {
-            times.extend(
-                curve
-                    .nodes()
-                    .iter()
-                    .copied()
-                    .filter(|t| *t > valuation && *t < expiry),
-            );
+            let remaining = curve.nodes_after(valuation);
+            let active = remaining.partition_point(|&time| time < expiry);
+            for chunk in remaining[..active].chunks(1024) {
+                crate::cancellation::check()?;
+                times.extend_from_slice(chunk);
+            }
         }
         times.sort_unstable();
+        crate::cancellation::check()?;
         times.dedup();
         let mut carry = 0.0;
         for pair in times.windows(2) {
+            crate::cancellation::check()?;
             let from = pair[0];
             let to = pair[1];
             let interval = -model.risk_free_curve().log_factor(from, to)?

@@ -556,11 +556,15 @@ impl RateTermStructure {
         self.validate_time(end)?;
         let mut previous = 0.0;
         let mut previous_time = valuation;
-        for &node in self
+        for (index, &node) in self
             .nodes_after(valuation)
             .iter()
             .take_while(|&&node| node <= end)
+            .enumerate()
         {
+            if index % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
             let time = valuation.years_until(node);
             if time <= previous {
                 return Err(Error::ComputationFailure(
@@ -587,5 +591,29 @@ fn node_factor(log: f64) -> Result<f64> {
         Err(Error::ComputationFailure(
             "curve node factor cannot be represented".into(),
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{CancellationToken, Date};
+
+    #[test]
+    fn curve_horizon_scan_observes_active_cancellation() -> Result<()> {
+        let start = Date::new(2025, 1, 1)?.start_of_day();
+        let end = start.add_days(365)?;
+        let curve = RateTermStructure::new(start, vec![end], vec![0.95])?;
+        let token = CancellationToken::default();
+        let interrupted = token.run(|| {
+            token.cancel();
+            let error = curve.validate_horizon(start, end);
+            assert!(matches!(&error, Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted));
+            error
+        });
+        assert!(
+            matches!(interrupted, Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted)
+        );
+        Ok(())
     }
 }

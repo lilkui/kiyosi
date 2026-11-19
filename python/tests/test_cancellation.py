@@ -20,6 +20,7 @@ import pytest
         "fd_solution_solve",
         "fd_solution_batch",
         "custom_handler",
+        "geometric_asian",
         "analytic_greeks",
         "numerical_greeks",
         "analytic_solver",
@@ -69,15 +70,20 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                             spots = [100.0] * 2_000_000
                         elif case == "quadrature":
                             engine = p.QuadratureVanillaEngine(asset_step_count=100_000_000)
-                        elif case in ("analytic_greeks", "numerical_greeks", "analytic_solver"):
+                        elif case in ("geometric_asian", "analytic_greeks", "numerical_greeks", "analytic_solver"):
                             count = 1_000_000
                             times = [start + timedelta(seconds=j) for j in range(1, count + 1)]
                             factors = [exp(-0.05 * j / (365 * 86400)) for j in range(1, count + 1)]
                             curve = m.RateTermStructure(reference_time=start,
                                 times=[*times, end], factors=[*factors, exp(-0.05)])
                             context = context.replace(model_parameters=model.replace(
-                                risk_free_rate=curve, volatility=0 if case != "analytic_solver" else 0.2))
-                            engine = p.AnalyticEuropeanEngine()
+                                risk_free_rate=curve, volatility=0.2 if case in ("geometric_asian", "analytic_solver") else 0))
+                            if case == "geometric_asian":
+                                option = i.GeometricAveragePriceOption(option_type="call", strike=100,
+                                    effective_time=start, averaging_start_time=start, expiry_time=end)
+                                engine = p.AnalyticGeometricAveragePriceEngine()
+                            else:
+                                engine = p.AnalyticEuropeanEngine()
                         else:
                             context = context.replace(model_parameters=m.HestonParameters(
                                 risk_free_rate=0.05, dividend_yield=0.02, initial_variance=0.04,
@@ -92,7 +98,7 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                                 raise StopCalculation("requested stop")
                             signal.signal(signal.SIGINT, stop)
                         expected = StopCalculation if case == "custom_handler" else KeyboardInterrupt
-                        delay = 0.001 if case in ("analytic_greeks", "numerical_greeks", "analytic_solver") else 0.05
+                        delay = 0.001 if case in ("geometric_asian", "analytic_greeks", "numerical_greeks", "analytic_solver") else 0.05
                         ready = threading.Event()
                         def send_interrupt():
                             ready.wait()
