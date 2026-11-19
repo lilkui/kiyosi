@@ -673,23 +673,20 @@ pub(super) fn autocallable_through<T: AutocallableTerms>(
         let (carry, log_discount) = forward_to(time)?;
         let initial = context.spot_price();
         let spot = spot_after_carry(initial, carry)?;
-        let compare = |level| {
-            context
-                .quoted_spot_cmp(time, initial, level)
-                .unwrap_or_else(|| spot.total_cmp(&level))
-        };
+        let compare = |level| context.forward_spot_cmp(time, initial, level, carry);
         let below_knock_in = || {
             note.view()
                 .knock_in
-                .is_some_and(|ki| compare(ki.level).is_lt())
+                .is_some_and(|ki| compare(ki.level).is_some_and(std::cmp::Ordering::is_lt))
         };
         if daily_fixing {
             state.knocked_in |= below_knock_in();
         }
         if let Some(record) = record {
             next += 1;
-            let coupon = note.observation_coupon(record, |level| compare(level).is_ge());
-            if record.has_knock_out() && compare(record.knock_out_level()).is_ge() {
+            let at_or_above = |level| compare(level).is_some_and(std::cmp::Ordering::is_ge);
+            let coupon = note.observation_coupon(record, at_or_above);
+            if record.has_knock_out() && at_or_above(record.knock_out_level()) {
                 state.settlement = Some(finite(
                     state.coupon
                         + scaled_signed_cash(note.knock_out_payment(record) + coupon, log_discount),
@@ -736,14 +733,11 @@ pub(super) fn accumulator_through(
         let spot = spot_after_carry(initial, carry)?;
         let knocked_out = option.observes_knock_out(time)
             && context
-                .quoted_spot_cmp(time, initial, option.knock_out_level())
-                .map_or_else(
-                    || option.is_knock_out(spot),
-                    |ordering| match option.option_type() {
-                        crate::OptionType::Call => ordering.is_ge(),
-                        crate::OptionType::Put => ordering.is_le(),
-                    },
-                );
+                .forward_spot_cmp(time, initial, option.knock_out_level(), carry)
+                .is_some_and(|ordering| match option.option_type() {
+                    crate::OptionType::Call => ordering.is_ge(),
+                    crate::OptionType::Put => ordering.is_le(),
+                });
         if !knocked_out && option.accumulates_at(time, option.calendar()) {
             let distance = quoted_spot_distance(context, time, option.strike())
                 .unwrap_or(strike_distance + carry);

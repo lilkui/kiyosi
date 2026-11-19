@@ -111,6 +111,51 @@ def test_structured_knock_out_uses_exact_quoted_forward():
             )
 
 
+def test_structured_knock_out_preserves_a_forward_just_below_the_barrier():
+    start = datetime(2025, 1, 1)
+    fixing = start + timedelta(days=365)
+    end = fixing + timedelta(days=365)
+    spot = 97.0445533548508
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.03, dividend_yield=0, volatility=0
+        ),
+        spot_price=spot,
+        valuation_time=start,
+    )
+    terms = {
+        "calendar": all_days_calendar(),
+        "effective_time": start,
+        "expiry_time": end,
+    }
+    note = ins.BinarySnowballOption(
+        **terms,
+        maturity_coupon_rate=0.12,
+        autocall_observations=[
+            ins.AutocallableObservation.snowball(fixing, 100, coupon_rate=0.2)
+        ],
+    )
+    accumulator = ins.Accumulator(
+        **terms,
+        strike=90,
+        knock_out_level=100,
+        daily_quantity=1,
+        acceleration_factor=1,
+        observation_clock_time=clock_time(),
+        knock_out_observation_times=[fixing],
+    )
+    discount = math.exp(-0.06)
+    for engine, option, expected in (
+        (pricing.QuadratureAutocallableEngine(), note, 1.24 * discount),
+        (
+            pricing.QuadratureAccumulatorEngine(),
+            accumulator,
+            731 * (spot - 90 * discount),
+        ),
+    ):
+        assert engine.price(option, context) == pytest.approx(expected, rel=1e-12)
+
+
 def test_scheduled_touch_preserves_the_exact_final_curve_quote():
     start = datetime(2025, 1, 1)
     dates = [start + timedelta(days=days) for days in (30, 61, 365)]

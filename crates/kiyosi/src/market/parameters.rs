@@ -453,14 +453,27 @@ impl PricingContext {
             .unwrap_or_else(|| crate::numerics::log_ratio(self.spot_price, strike) + log_carry)
     }
 
+    pub(crate) fn forward_spot_cmp(
+        &self,
+        time: Timestamp,
+        spot: f64,
+        level: f64,
+        carry: f64,
+    ) -> Option<Ordering> {
+        self.quoted_spot_cmp(time, spot, level).or_else(|| {
+            if spot > 0.0 && level > 0.0 {
+                (crate::numerics::log_ratio(spot, level) + carry).partial_cmp(&0.0)
+            } else {
+                spot.partial_cmp(&level)
+            }
+        })
+    }
+
     pub(crate) fn forward_crosses(&self, time: Timestamp, level: f64, radius: f64) -> bool {
         self.forward_carry(time).is_ok_and(|carry| {
             let lower = (self.spot_price - radius).max(0.0);
             let upper = self.spot_price + radius;
-            let compare = |spot| {
-                self.quoted_spot_cmp(time, spot, level)
-                    .or_else(|| crate::numerics::scaled_cash(spot, carry).partial_cmp(&level))
-            };
+            let compare = |spot| self.forward_spot_cmp(time, spot, level, carry);
             compare(lower).is_some_and(Ordering::is_le)
                 && compare(upper).is_some_and(Ordering::is_ge)
         })

@@ -110,6 +110,38 @@ fn structured_knock_out_uses_exact_quoted_forward() -> Result<()> {
 }
 
 #[test]
+fn structured_knock_out_preserves_a_forward_just_below_the_barrier() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let fixing = start.add_days(365)?;
+    let end = fixing.add_days(365)?;
+    let calendar = TradingCalendar::all_days();
+    let spot = 97.044_553_354_850_8;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.03, 0.0, 0.0)?,
+        spot,
+        start,
+    )?;
+    let note = BinarySnowballOption::new(BinarySnowballTerms::new(
+        0.12,
+        start,
+        end,
+        vec![AutocallableObservation::snowball(fixing, 100.0, 0.2)?],
+        calendar.clone(),
+    ))?;
+    let accumulator = Accumulator::new(AccumulatorTerms {
+        calendar,
+        knock_out_observation_times: Some(vec![fixing]),
+        ..AccumulatorTerms::new(90.0, 100.0, 1.0, 1.0, start, end, start.time_of_day())
+    })?;
+    let discount = (-0.06_f64).exp();
+    let note_price = QuadratureAutocallableEngine::default().price(&note, &context)?;
+    let accumulator_price = QuadratureAccumulatorEngine::default().price(&accumulator, &context)?;
+    assert!((note_price - 1.24 * discount).abs() < 1e-12, "{note_price}");
+    assert!((accumulator_price - 731.0 * (spot - 90.0 * discount)).abs() < 1e-10);
+    Ok(())
+}
+
+#[test]
 fn scheduled_touch_preserves_the_exact_final_curve_quote() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = start.add_days(365)?;

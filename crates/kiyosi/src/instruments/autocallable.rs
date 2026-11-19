@@ -1335,10 +1335,9 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
                         }
                         let spot = context.spot_price();
                         knocked_in = context.forward_carry(time).is_ok_and(|carry| {
-                            context.quoted_spot_cmp(time, spot, ki.level).map_or_else(
-                                || crate::numerics::scaled_cash(spot, carry) < ki.level,
-                                std::cmp::Ordering::is_lt,
-                            )
+                            context
+                                .forward_spot_cmp(time, spot, ki.level, carry)
+                                .is_some_and(std::cmp::Ordering::is_lt)
                         });
                     }
                     if let Redemption::Downside(d) = ki.redemption {
