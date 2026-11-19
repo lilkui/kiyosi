@@ -17,6 +17,22 @@ fn market(spot: f64, rate: f64, dividend: f64, volatility: f64) -> PricingContex
 }
 
 #[test]
+fn low_volatility_preserves_nearby_quoted_forward_moneyness() -> Result<()> {
+    let (start, end) = dates();
+    let risk = RateTermStructure::new(start, vec![end], vec![0.9])?;
+    let dividend = RateTermStructure::new(start, vec![end], vec![1.01])?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(risk, dividend, 1e-17)?,
+        89.108_910_891_089_11,
+        start,
+    )?;
+    let call = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 100.0, start, end)?;
+    // BSM reference using the exact binary64 quotes and high-precision arithmetic.
+    assert!((AnalyticDigitalEngine.price(&call, &context)? - 28.325_637_390_317_11).abs() < 1e-12);
+    Ok(())
+}
+
+#[test]
 fn deterministic_cash_call_excludes_strike_at_intraday_curve_node() -> Result<()> {
     let start = Date::new(2025, 1, 2)?.start_of_day();
     let expiry = Timestamp::new(start.date(), 2, 39, 0, 0)?;

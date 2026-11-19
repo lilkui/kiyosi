@@ -96,33 +96,65 @@ pub(crate) fn log_ratio(numerator: f64, denominator: f64) -> f64 {
     clippy::cast_possible_wrap,
     reason = "Exponent and shift fields fit in i32; narrowing extracts the low product limb."
 )]
-pub(crate) fn compare_positive_products(left: [f64; 3], right: [f64; 3]) -> std::cmp::Ordering {
+fn positive_product_key(factors: [f64; 3]) -> (i32, u128, u64) {
     const FRACTION_BITS: u32 = f64::MANTISSA_DIGITS - 1;
-    let key = |factors: [f64; 3]| {
-        let parts = factors.map(|value| {
-            debug_assert!(value.is_finite() && value > 0.0, "invalid factor {value}");
-            let bits = value.to_bits();
-            let exponent = (bits >> FRACTION_BITS) as i32;
-            let fraction = bits & ((1_u64 << FRACTION_BITS) - 1);
-            let significand = fraction | (u64::from(exponent != 0) << FRACTION_BITS);
-            let shift = significand.leading_zeros() - (u64::BITS - f64::MANTISSA_DIGITS);
-            (exponent.max(1) - shift as i32, significand << shift)
-        });
-        let [(a_power, a), (b_power, b), (c_power, c)] = parts;
-        // Three binary64 significands need at most 159 bits.
-        let ab = u128::from(a) * u128::from(b);
-        let low_with_carry = u128::from(ab as u64) * u128::from(c);
-        let high = (ab >> u64::BITS) * u128::from(c) + (low_with_carry >> u64::BITS);
-        let low = low_with_carry as u64;
-        // Align the leading bits before comparing the exponent and the two limbs.
-        let shift = high.leading_zeros() - (u128::BITS + u64::BITS - 3 * f64::MANTISSA_DIGITS);
-        (
-            a_power + b_power + c_power - shift as i32,
-            (high << shift) | ((u128::from(low) << shift) >> u64::BITS),
-            low << shift,
-        )
+    let parts = factors.map(|value| {
+        debug_assert!(value.is_finite() && value > 0.0, "invalid factor {value}");
+        let bits = value.to_bits();
+        let exponent = (bits >> FRACTION_BITS) as i32;
+        let fraction = bits & ((1_u64 << FRACTION_BITS) - 1);
+        let significand = fraction | (u64::from(exponent != 0) << FRACTION_BITS);
+        let shift = significand.leading_zeros() - (u64::BITS - f64::MANTISSA_DIGITS);
+        (exponent.max(1) - shift as i32, significand << shift)
+    });
+    let [(a_power, a), (b_power, b), (c_power, c)] = parts;
+    // Three binary64 significands need at most 159 bits.
+    let ab = u128::from(a) * u128::from(b);
+    let low_with_carry = u128::from(ab as u64) * u128::from(c);
+    let high = (ab >> u64::BITS) * u128::from(c) + (low_with_carry >> u64::BITS);
+    let low = low_with_carry as u64;
+    // Align the leading bits before comparing the exponent and the two limbs.
+    let shift = high.leading_zeros() - (u128::BITS + u64::BITS - 3 * f64::MANTISSA_DIGITS);
+    (
+        a_power + b_power + c_power - shift as i32,
+        (high << shift) | ((u128::from(low) << shift) >> u64::BITS),
+        low << shift,
+    )
+}
+
+pub(crate) fn compare_positive_products(left: [f64; 3], right: [f64; 3]) -> std::cmp::Ordering {
+    positive_product_key(left).cmp(&positive_product_key(right))
+}
+
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "Convert to floating point only after subtracting the exact integers."
+)]
+pub(crate) fn nearby_product_log_ratio(left: [f64; 3], right: [f64; 3]) -> Option<f64> {
+    let (left_power, left_high, left_low) = positive_product_key(left);
+    let (right_power, right_high, right_low) = positive_product_key(right);
+    if left_power.abs_diff(right_power) > 1 {
+        return None;
+    }
+    let align = |shift: bool, high, low| {
+        if shift {
+            (high << 1 | u128::from(low >> 63), low << 1)
+        } else {
+            (high, low)
+        }
     };
-    key(left).cmp(&key(right))
+    let left = align(left_power > right_power, left_high, left_low);
+    let right = align(right_power > left_power, right_high, right_low);
+    let (larger, smaller, sign) = if left < right {
+        (right, left, -1.0)
+    } else {
+        (left, right, 1.0)
+    };
+    let (low, borrow) = larger.1.overflowing_sub(smaller.1);
+    let high = larger.0 - smaller.0 - u128::from(borrow);
+    // The two limbs are in units of 2^64 and 1 respectively.
+    let magnitude = |high: u128, low: u64| high as f64 + low as f64 / (1_u128 << u64::BITS) as f64;
+    Some((sign * magnitude(high, low) / magnitude(right.0, right.1)).ln_1p())
 }
 
 pub(crate) fn standardize(value: f64, volatility: f64, root: f64) -> f64 {

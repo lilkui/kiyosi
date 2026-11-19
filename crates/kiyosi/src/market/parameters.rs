@@ -416,6 +416,16 @@ impl PricingContext {
         spot: f64,
         level: f64,
     ) -> Option<Ordering> {
+        let (left, right) = self.quoted_spot_products(time, spot, level)?;
+        Some(crate::numerics::compare_positive_products(left, right))
+    }
+
+    fn quoted_spot_products(
+        &self,
+        time: Timestamp,
+        spot: f64,
+        level: f64,
+    ) -> Option<([f64; 3], [f64; 3])> {
         if spot <= 0.0 || level <= 0.0 || !spot.is_finite() || !level.is_finite() {
             return None;
         }
@@ -426,7 +436,7 @@ impl PricingContext {
         let [dividend_start, dividend_end] = model
             .dividend_curve()
             .unshifted_factor_quotes(self.valuation_time, time)?;
-        Some(crate::numerics::compare_positive_products(
+        Some((
             [spot, dividend_end, risk_start],
             [level, risk_end, dividend_start],
         ))
@@ -438,11 +448,9 @@ impl PricingContext {
         strike: f64,
         log_carry: f64,
     ) -> f64 {
-        if self.quoted_spot_cmp(time, self.spot_price, strike) == Some(Ordering::Equal) {
-            0.0
-        } else {
-            crate::numerics::log_ratio(self.spot_price, strike) + log_carry
-        }
+        self.quoted_spot_products(time, self.spot_price, strike)
+            .and_then(|(left, right)| crate::numerics::nearby_product_log_ratio(left, right))
+            .unwrap_or_else(|| crate::numerics::log_ratio(self.spot_price, strike) + log_carry)
     }
 
     pub(crate) fn forward_crosses(&self, time: Timestamp, level: f64, radius: f64) -> bool {

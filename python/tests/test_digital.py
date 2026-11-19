@@ -30,6 +30,38 @@ from kiyosi.pricing import (
 from support.assertions import assert_rejection
 from support.terminal import assert_terminal_greeks
 
+
+def test_low_volatility_preserves_nearby_quoted_forward_moneyness():
+    start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+    spot, strike, risk, dividend, volatility = 89.10891089108911, 100, 0.9, 1.01, 1e-17
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=RateTermStructure(
+                reference_time=start, times=[end], factors=[risk]
+            ),
+            dividend_yield=RateTermStructure(
+                reference_time=start, times=[end], factors=[dividend]
+            ),
+            volatility=volatility,
+        ),
+        spot_price=spot,
+        valuation_time=start,
+    )
+    option = CashOrNothingOption(
+        option_type="call",
+        strike=strike,
+        payout=100,
+        effective_time=start,
+        expiry_time=end,
+    )
+    ratio = Fraction(spot) * Fraction(dividend) / (strike * Fraction(risk))
+    d2 = math.log1p(float(ratio - 1)) / volatility - 0.5 * volatility
+    expected = 50 * risk * math.erfc(-d2 / math.sqrt(2))
+    assert AnalyticDigitalEngine().price(option, context) == pytest.approx(
+        expected, rel=0, abs=1e-12
+    )
+
+
 GREEKS = (
     "delta",
     "gamma",
