@@ -1,7 +1,7 @@
 import math
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from functools import partial
 
 import pytest
@@ -13,8 +13,10 @@ from kiyosi import (
     UnsupportedOperationError,
     pricing,
 )
-from kiyosi.instruments import EuropeanOption
+from kiyosi.instruments import Accumulator, EuropeanOption
 from kiyosi.market import (
+    BlackScholesMertonParameters,
+    PricingContext,
     RateTermStructure,
     all_days_calendar,
     custom_calendar,
@@ -24,6 +26,56 @@ from kiyosi.pricing import numerical_greeks
 from support.assertions import assert_rejection
 from support.terminal import assert_terminal_greeks
 from test_accumulator import START, contract, market, terminal_reference
+
+
+def test_weekend_accumulator_knock_out_precedes_stochastic_pricing():
+    start = datetime(2026, 11, 14)
+    option = Accumulator(
+        strike=100,
+        knock_out_level=105,
+        daily_quantity=1,
+        acceleration_factor=1,
+        effective_time=start,
+        expiry_time=start + timedelta(days=2, hours=12),
+        observation_clock_time=time(10),
+        knock_out_observation_times=[start + timedelta(hours=15)],
+        calendar=all_days_calendar(),
+    )
+    model = BlackScholesMertonParameters(
+        risk_free_rate=0,
+        dividend_yield=0,
+        volatility=0.2,
+        variance_time_convention="business",
+        calendar=weekdays_calendar(),
+    )
+    context = PricingContext(
+        model_parameters=model, spot_price=105, valuation_time=start
+    )
+    engine = pricing.FiniteDifferenceAccumulatorEngine()
+    saved = engine.solve(option, context, spot_range=(104, 106))
+    # A survivor buys three units. Knock-out settles the single Saturday purchase.
+    for spot, expected, tolerance in (
+        (104.99, 14.97, 1e-6),
+        (105, 5, 1e-12),
+        (105.01, 5.01, 1e-12),
+    ):
+        assert engine.price(option, context.replace(spot_price=spot)) == pytest.approx(
+            expected, rel=0, abs=tolerance
+        )
+        assert saved.price(spot) == pytest.approx(expected, rel=0, abs=tolerance)
+    for result in (
+        engine.price_with_greeks(option, context, ["delta", "gamma"]),
+        saved.price_with_greeks(105, ["delta", "gamma"]),
+    ):
+        assert result.status("delta") == result.status("gamma") == "undefined"
+    settled = pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=1).solve(
+        option, context, spot_range=(105, 106)
+    )
+    assert settled.price_many([105, 106]) == (5, 6)
+    with pytest.raises(UnsupportedOperationError, match="volatility does not affect"):
+        pricing.implied_volatility(
+            engine, option, context, 5, lower_bound=0.1, upper_bound=0.3
+        )
 
 
 def test_accumulator_work_limit_counts_both_rollback_layers():

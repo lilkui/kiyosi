@@ -4,13 +4,14 @@ use super::{
     PricingResult, Result, SpatialGrid, analysis, diffusion, diffusion_upper, local_volatility,
     validate_work,
 };
-use crate::Accumulator;
+use crate::{Accumulator, Timestamp, engines::deterministic};
 
 impl FiniteDifferenceAccumulatorEngine {
     /// Prices outstanding units and future trading-date purchases, settling at knock-out or expiry.
     ///
-    /// Applies a current contractual event exactly once, with inclusive knock-out and
-    /// direction-dependent acceleration. Supports flat and nonconstant rate curves.
+    /// Applies current events and events before variance resumes on the deterministic
+    /// spot path, with inclusive knock-out and direction-dependent acceleration.
+    /// Supports flat and nonconstant rate curves.
     /// Accepts BSM or local volatility; surface coverage is required only for
     /// remaining stochastic evolution, after immediate settlement is resolved.
     /// See [`Self::price`] for an example.
@@ -82,6 +83,19 @@ impl PricingEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         local_volatility::validate_model(context)
     }
+    fn volatility_affects_price(&self, option: &Accumulator, context: &PricingContext) -> bool {
+        option.volatility_affects_price(context)
+            && !context
+                .model_parameters()
+                .variance_time_convention()
+                .variance_start(context.valuation_time(), option.expiry_time())
+                .is_ok_and(|start| {
+                    start > context.valuation_time()
+                        && deterministic::accumulator_through(option, context, start)
+                            .is_ok_and(|(_, settlement)| settlement.is_some())
+                })
+    }
+
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
     }
@@ -123,35 +137,51 @@ fn native(
     shifts: NumericalShiftSettings,
 ) -> Result<(PricingResult, Option<f64>)> {
     let request = local_volatility::validate_request(context, request)?;
-    if crate::engines::deterministic::enabled_until(context, option.expiry_time())? {
-        return Ok((
-            PricingResult::new(crate::engines::deterministic::accumulator(option, context)?)?,
-            None,
-        ));
-    }
-    diffusion::with_diffusion!(context, |diffusion| {
-        native_with_diffusion(option, context, settings, request, shifts, diffusion)
-    })
+    option.validate_pricing(context)?;
+    let start = context.deterministic_until(option.expiry_time())?;
+    let mut upper = None;
+    let result = evaluate_after_observations(
+        option,
+        context,
+        start,
+        request,
+        shifts,
+        |rolled, quantity, request, shifts| {
+            let grid = diffusion::with_diffusion!(rolled, |diffusion| {
+                solve_grid(option, rolled, settings, diffusion)
+            })?;
+            upper = Some(grid.space.upper);
+            grid.evaluate(option, rolled, quantity, request, shifts)
+        },
+    )?;
+    Ok((result, upper))
 }
 
-fn native_with_diffusion<D: Diffusion>(
+fn evaluate_after_observations(
     option: &Accumulator,
     context: &PricingContext,
-    settings: FiniteDifferenceSettings,
+    start: Timestamp,
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
-    diffusion: D,
-) -> Result<(PricingResult, Option<f64>)> {
-    option.validate_pricing(context)?;
-    let (_, settlement) = option.initial(context);
+    evaluate: impl FnOnce(
+        &PricingContext,
+        f64,
+        GreeksRequest,
+        NumericalShiftSettings,
+    ) -> Result<PricingResult>,
+) -> Result<PricingResult> {
+    let (quantity, settlement) = deterministic::accumulator_through(option, context, start)?;
     if let Some(value) = settlement {
-        return Ok((PricingResult::new(value)?, None));
+        return PricingResult::new(value);
     }
-    let saved = solve_grid(option, context, settings, diffusion)?;
-    Ok((
-        saved.evaluate(option, context, request, shifts)?,
-        Some(saved.space.upper),
-    ))
+    super::barrier::evaluate_after_prefix(
+        context,
+        start,
+        request,
+        shifts,
+        |radius| option.at_spot_discontinuity(context, radius),
+        |rolled, request, shifts| evaluate(rolled, quantity, request, shifts),
+    )
 }
 
 fn solve_grid<D: Diffusion>(
@@ -302,13 +332,10 @@ impl AccumulatorGrid {
         &self,
         option: &Accumulator,
         context: &PricingContext,
+        quantity: f64,
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        let (quantity, settlement) = option.initial(context);
-        if let Some(value) = settlement {
-            return PricingResult::new(value);
-        }
         let Self {
             space,
             layers,
@@ -328,7 +355,7 @@ impl AccumulatorGrid {
         let value = sample(spot);
         let mut result = PricingResult::new(value[0])?;
         let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
-        if !option.at_spot_discontinuity(context, h) {
+        if request != GreeksRequest::new([]) && !option.at_spot_discontinuity(context, h) {
             result.set(request, Greek::Delta, value[1])?;
             result.set(request, Greek::Gamma, value[2])?;
             if request.has(Greek::Speed) && h > 0.0 && spot > h && spot + h < upper {
@@ -345,6 +372,7 @@ impl AccumulatorGrid {
 
 #[derive(PartialEq)]
 struct AccumulatorState {
+    start: Timestamp,
     grid: Option<AccumulatorGrid>,
 }
 impl super::solution::Backend<Accumulator> for AccumulatorState {
@@ -355,16 +383,19 @@ impl super::solution::Backend<Accumulator> for AccumulatorState {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        if let Some(grid) = &self.grid {
-            return grid.evaluate(option, context, request, shifts);
-        }
-        if crate::engines::deterministic::enabled_until(context, option.expiry_time())? {
-            return PricingResult::new(crate::engines::deterministic::accumulator(
-                option, context,
-            )?);
-        }
-        let (_, value) = option.initial(context);
-        PricingResult::new(value.ok_or_else(super::unstable)?)
+        evaluate_after_observations(
+            option,
+            context,
+            self.start,
+            request,
+            shifts,
+            |rolled, quantity, request, shifts| {
+                self.grid
+                    .as_ref()
+                    .ok_or_else(super::unstable)?
+                    .evaluate(option, rolled, quantity, request, shifts)
+            },
+        )
     }
 }
 impl super::FiniteDifferenceEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
@@ -379,27 +410,32 @@ impl super::FiniteDifferenceEngine<Accumulator> for FiniteDifferenceAccumulatorE
         crate::cancellation::check()?;
         let anchor = super::solution::at_spot(context, *range.end())?;
         option.validate_pricing(&anchor)?;
+        let start = anchor.deterministic_until(option.expiry_time())?;
         let points = super::solution::probes(&range, [option.strike(), option.knock_out_level()]);
         let mut pending = false;
         for spot in points {
             let probe = super::solution::at_spot(context, spot)?;
-            option.validate_pricing(&probe)?;
-            pending |= option.initial(&probe).1.is_none();
+            if deterministic::accumulator_through(option, &probe, start)?
+                .1
+                .is_none()
+            {
+                pending = true;
+                break;
+            }
         }
-        let grid = if pending
-            && !crate::engines::deterministic::enabled_until(context, option.expiry_time())?
-        {
-            let anchor = &anchor;
-            Some(diffusion::with_diffusion!(anchor, |diffusion| solve_grid(
+        let grid = if pending {
+            let (rolled, _, _) = deterministic::continuation_context(&anchor, start)?;
+            let rolled = rolled.as_ref();
+            Some(diffusion::with_diffusion!(rolled, |diffusion| solve_grid(
                 option,
-                anchor,
+                rolled,
                 self.settings,
                 diffusion
             ))?)
         } else {
             None
         };
-        let state = AccumulatorState { grid };
+        let state = AccumulatorState { start, grid };
         super::solution::Backend::evaluate(
             &state,
             option,

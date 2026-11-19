@@ -329,19 +329,34 @@ impl Accumulator {
         &self,
         context: &PricingContext,
     ) -> Result<Vec<Timestamp>> {
+        self.future_observation_times_through(context, self.expiry_time())
+    }
+
+    pub(crate) fn future_observation_times_through(
+        &self,
+        context: &PricingContext,
+        end: Timestamp,
+    ) -> Result<Vec<Timestamp>> {
+        let valuation = context.valuation_time();
+        if end <= valuation {
+            return Ok(Vec::new());
+        }
+        let start = valuation.max(self.effective_time());
         let mut times = ObservationSchedule::daily_times(
-            context
-                .valuation_time()
-                .max(self.effective_time())
-                .min(self.expiry_time()),
-            self.expiry_time(),
+            start.min(end),
+            end,
             self.calendar(),
-            context.valuation_time() < self.effective_time(),
+            valuation < self.effective_time() && start <= end,
             self.observation_clock_time(),
         )?;
-        times.extend(self.knock_out_observation_times().unwrap_or(&[]));
-        times.push(self.expiry_time());
-        times.retain(|&time| time > context.valuation_time());
+        if let Some(explicit) = self.knock_out_observation_times() {
+            let first = explicit.partition_point(|&time| time <= valuation);
+            let last = explicit.partition_point(|&time| time <= end);
+            times.extend_from_slice(&explicit[first..last]);
+        }
+        if self.expiry_time() == end {
+            times.push(end);
+        }
         times.sort_unstable();
         times.dedup();
         Ok(times)
@@ -506,20 +521,27 @@ impl OptionContract for Accumulator {
             return false;
         }
         if context
-            .model_parameters()
-            .as_bsm()
-            .is_ok_and(|model| model.volatility() == 0.0)
-            && self.future_observation_times(context).is_ok_and(|times| {
-                times
-                    .into_iter()
-                    .take_while(|_| crate::cancellation::check().is_ok())
-                    .any(|time| {
-                        self.observes_knock_out(time)
-                            && context.forward_crosses(time, self.knock_out_level(), radius)
-                            || self.acceleration_factor() != 1.0
-                                && self.accumulates_at(time, self.calendar())
-                                && context.forward_crosses(time, self.strike(), radius)
-                    })
+            .deterministic_until(self.expiry_time())
+            .is_ok_and(|end| {
+                end > context.valuation_time()
+                    && self
+                        .future_observation_times_through(context, end)
+                        .is_ok_and(|times| {
+                            times
+                                .into_iter()
+                                .take_while(|_| crate::cancellation::check().is_ok())
+                                .any(|time| {
+                                    self.observes_knock_out(time)
+                                        && context.forward_crosses(
+                                            time,
+                                            self.knock_out_level(),
+                                            radius,
+                                        )
+                                        || self.acceleration_factor() != 1.0
+                                            && self.accumulates_at(time, self.calendar())
+                                            && context.forward_crosses(time, self.strike(), radius)
+                                })
+                        })
             })
         {
             return true;

@@ -711,18 +711,31 @@ pub(super) fn autocallable_through<T: AutocallableTerms>(
 
 pub(super) fn accumulator(option: &Accumulator, context: &PricingContext) -> Result<f64> {
     option.validate_pricing(context)?;
+    accumulator_through(option, context, option.expiry_time())?
+        .1
+        .ok_or_else(invalid)
+}
+
+pub(super) fn accumulator_through(
+    option: &Accumulator,
+    context: &PricingContext,
+    end: Timestamp,
+) -> Result<(f64, Option<f64>)> {
     let (mut quantity, settlement) = option.initial(context);
     if let Some(value) = settlement {
-        return finite(value);
+        return Ok((quantity, Some(finite(value)?)));
+    }
+    if end == context.valuation_time() {
+        return Ok((quantity, None));
     }
     let initial = context.spot_price();
     let strike_distance = log_ratio(initial, option.strike());
     let mut forward_to = forward_factors(context);
-    for time in option.future_observation_times(context)? {
+    for time in option.future_observation_times_through(context, end)? {
         let (carry, log_discount) = forward_to(time)?;
         let spot = spot_after_carry(initial, carry)?;
-        let knocked_out = || {
-            context
+        let knocked_out = option.observes_knock_out(time)
+            && context
                 .quoted_spot_cmp(time, initial, option.knock_out_level())
                 .map_or_else(
                     || option.is_knock_out(spot),
@@ -730,29 +743,22 @@ pub(super) fn accumulator(option: &Accumulator, context: &PricingContext) -> Res
                         crate::OptionType::Call => ordering.is_ge(),
                         crate::OptionType::Put => ordering.is_le(),
                     },
-                )
-        };
-        if option.observes_knock_out(time) && knocked_out() {
-            return finite(discounted_product(
-                quantity,
-                option.unit_payoff(spot),
-                log_discount,
-            ));
-        }
-        if option.accumulates_at(time, option.calendar()) {
+                );
+        if !knocked_out && option.accumulates_at(time, option.calendar()) {
             let distance = quoted_spot_distance(context, time, option.strike())
                 .unwrap_or(strike_distance + carry);
             quantity += option.purchase_from_strike_distance(distance);
         }
-        if time == option.expiry_time() {
-            return finite(discounted_product(
+        if knocked_out || time == option.expiry_time() {
+            let value = finite(discounted_product(
                 quantity,
                 option.unit_payoff(spot),
                 log_discount,
-            ));
+            ))?;
+            return Ok((quantity, Some(value)));
         }
     }
-    Err(invalid())
+    Ok((quantity, None))
 }
 
 pub(super) fn average(

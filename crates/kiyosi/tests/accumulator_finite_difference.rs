@@ -21,6 +21,71 @@ fn market(spot: f64, at: Timestamp) -> PricingContext {
 }
 
 #[test]
+fn weekend_accumulator_knock_out_precedes_stochastic_pricing() -> Result<()> {
+    let start = Date::new(2026, 11, 14)?.start_of_day();
+    let knock_out = start.date().at_time(TimeOfDay::new(15, 0, 0, 0)?);
+    let expiry = start
+        .add_days(2)?
+        .date()
+        .at_time(TimeOfDay::new(12, 0, 0, 0)?);
+    let option = Accumulator::new(AccumulatorTerms {
+        calendar: TradingCalendar::all_days(),
+        knock_out_observation_times: Some(vec![knock_out]),
+        ..AccumulatorTerms::new(
+            100.0,
+            105.0,
+            1.0,
+            1.0,
+            start,
+            expiry,
+            TimeOfDay::new(10, 0, 0, 0)?,
+        )
+    })?;
+    let model = BlackScholesMertonParameters::new_with_variance_time_convention(
+        0.0,
+        0.0,
+        0.2,
+        VarianceTimeConvention::Business(TradingCalendar::weekdays()),
+    )?;
+    let context = PricingContext::new(model, 105.0, start)?;
+    let engine = FiniteDifferenceAccumulatorEngine::default();
+    let saved = engine.solve(&option, &context, 104.0..=106.0)?;
+    for (spot, expected, tolerance) in [
+        (104.99, 14.97, 1e-6),
+        (105.0, 5.0, 1e-12),
+        (105.01, 5.01, 1e-12),
+    ] {
+        let market = context.replace(PricingContextChanges {
+            spot_price: Some(spot),
+            ..Default::default()
+        })?;
+        assert!(
+            (engine.price(&option, &market)? - expected).abs() < tolerance,
+            "scalar spot {spot}"
+        );
+        assert!(
+            (saved.price(spot)? - expected).abs() < tolerance,
+            "saved spot {spot}"
+        );
+    }
+    let greeks = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
+    for result in [
+        engine.price_with_greeks(&option, &context, greeks)?,
+        saved.price_with_greeks(105.0, greeks, None)?,
+    ] {
+        assert_eq!(result.status(Greek::Delta), GreekStatus::Undefined);
+        assert_eq!(result.status(Greek::Gamma), GreekStatus::Undefined);
+    }
+    let settled = FiniteDifferenceAccumulatorEngine::new(FiniteDifferenceSettings {
+        asset_upper_boundary: Some(1.0),
+        ..Default::default()
+    })?
+    .solve(&option, &context, 105.0..=106.0)?;
+    assert_eq!(settled.price_many(&[105.0, 106.0])?, vec![5.0, 6.0]);
+    Ok(())
+}
+
+#[test]
 fn accumulator_work_limit_counts_both_rollback_layers() -> Result<()> {
     let start = day(1, 1);
     let end = start.add_days(365)?;
