@@ -152,6 +152,7 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
         "curve_new",
         "curve_factors",
         "curve_shift",
+        "heston_saved",
         "surface",
     ),
 )
@@ -165,11 +166,13 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 import sys
                 import threading
                 from datetime import datetime, time, timedelta
-                from kiyosi.instruments import RangeAccrualOption
+                from kiyosi.instruments import AmericanOption, RangeAccrualOption
                 from kiyosi.market import (
-                    LocalVolatilitySurface, RateTermStructure, all_days_calendar,
-                    fixed_interval_schedule, weekdays_calendar,
+                    HestonParameters, LocalVolatilitySurface, PricingContext,
+                    RateTermStructure, all_days_calendar, fixed_interval_schedule,
+                    weekdays_calendar,
                 )
+                from kiyosi.pricing import FiniteDifferenceHestonVanillaEngine
 
                 start_time = datetime(1, 1, 1)
                 short_end = datetime(1, 1, 3)
@@ -215,6 +218,29 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                         factors=[1.0] * count,
                     )
                     operation = lambda: curve.shifted(0.01)
+                elif case == "heston_saved":
+                    count = 86_400
+                    end = start_time + timedelta(days=1)
+                    curve = RateTermStructure(
+                        reference_time=start_time,
+                        times=(start_time + timedelta(seconds=i) for i in range(1, count + 1)),
+                        factors=[1.0] * count,
+                    )
+                    model = HestonParameters(
+                        risk_free_rate=curve, dividend_yield=0, initial_variance=0,
+                        long_run_variance=0, mean_reversion_speed=1.5, vol_of_vol=0.3,
+                        correlation=-0.7,
+                    )
+                    context = PricingContext(
+                        model_parameters=model, valuation_time=start_time, spot_price=100,
+                    )
+                    option = AmericanOption(
+                        option_type="put", strike=100, effective_time=start_time, expiry_time=end,
+                    )
+                    saved = FiniteDifferenceHestonVanillaEngine().solve(
+                        option, context, spot_range=(80, 120),
+                    )
+                    operation = lambda: saved.price_many([90.0] * 32)
                 elif case == "surface":
                     times = tuple(start_time + timedelta(days=i) for i in range(1024))
                     spots = tuple(map(float, range(1, 1025)))
@@ -279,6 +305,8 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                     assert shifted.parallel_shift == 0.01
                     assert shifted.factor(start_time, shifted.max_time) < 1.0
                     assert curve.parallel_shift == 0.0
+                elif case == "heston_saved":
+                    assert all(abs(value - 10.0) < 1e-12 for value in operation())
                 elif case == "surface":
                     surface = operation()
                     assert surface.volatility(times[100], 50.5) == 0.2

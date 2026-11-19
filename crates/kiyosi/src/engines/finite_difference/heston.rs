@@ -4,7 +4,7 @@ use super::{
     time_to_expiry, unstable, validate_work,
 };
 use crate::engines::analytic::heston::integrated_variance;
-use crate::engines::deterministic::exercise_value;
+use crate::engines::deterministic::{AmericanExercise, exercise_value};
 use crate::numerics::{checked_with_scale, scaled_cash};
 use crate::{
     AmericanOption, EuropeanOption, GreeksRequest, HestonParameters, OptionContract,
@@ -284,9 +284,17 @@ fn prepare(
     let start = context.valuation_time();
     let end = option.expiry_time();
     context.validate_curve_coverage(end)?;
+    if time == 0.0 {
+        return Ok(HestonState::Expiry(payoff));
+    }
     let absorbing = model.initial_variance() == 0.0
         && (model.mean_reversion_speed() == 0.0 || model.long_run_variance() == 0.0);
-    if time == 0.0 || absorbing {
+    if absorbing {
+        if payoff.is_american() {
+            return Ok(HestonState::Exercise(AmericanExercise::new(
+                payoff, context, end,
+            )?));
+        }
         let risk = Curve::new(model.risk_free_curve(), start, end)?;
         let dividend = Curve::new(model.dividend_curve(), start, end)?;
         return Ok(HestonState::Direct {
@@ -514,6 +522,8 @@ fn prepare(
 
 #[derive(PartialEq)]
 enum HestonState {
+    Expiry(Payoff),
+    Exercise(AmericanExercise),
     Direct {
         payoff: Payoff,
         time: f64,
@@ -529,20 +539,14 @@ enum HestonState {
 impl HestonState {
     fn price(&self, spot: f64) -> Result<f64> {
         match self {
+            Self::Expiry(payoff) => Ok(payoff.value(spot)),
+            Self::Exercise(exercise) => exercise.price(spot),
             Self::Direct {
                 payoff,
                 time,
                 risk,
                 dividend,
-            } => {
-                if *time == 0.0 {
-                    return Ok(payoff.value(spot));
-                }
-                checked_with_scale(
-                    exercise_value(*payoff, spot, 0.0, *time, risk, dividend)?,
-                    payoff.strike.max(spot),
-                )
-            }
+            } => exercise_value(*payoff, spot, 0.0, *time, risk, dividend),
             Self::Grid {
                 scale,
                 asset,
@@ -558,6 +562,14 @@ impl HestonState {
     }
 }
 impl<I> super::solution::Backend<I> for HestonState {
+    fn deterministic_exercise(&self) -> Option<(f64, usize)> {
+        if let Self::Exercise(exercise) = self {
+            Some(exercise.metadata())
+        } else {
+            None
+        }
+    }
+
     fn evaluate(
         &self,
         _: &I,

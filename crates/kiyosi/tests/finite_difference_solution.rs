@@ -368,6 +368,36 @@ fn saved_deterministic_american_uses_dense_exercise_intervals() -> Result<()> {
 }
 
 #[test]
+fn saved_absorbing_heston_american_reports_its_exercise_intervals() -> Result<()> {
+    let start = dates().0;
+    let end = start.add_days(1200)?;
+    let times = (1..=1200)
+        .map(|day| start.add_days(day))
+        .collect::<Result<Vec<_>>>()?;
+    let curve = RateTermStructure::new(start, times, vec![1.0; 1200])?;
+    let model = HestonParameters::new(HestonParameterInputs {
+        risk_free_rate: curve.into(),
+        dividend_yield: 0.0.into(),
+        initial_variance: 0.0,
+        long_run_variance: 0.0,
+        mean_reversion_speed: 1.5,
+        vol_of_vol: 0.3,
+        correlation: -0.7,
+    })?;
+    let context = PricingContext::new(model, 100.0, start)?;
+    let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let engine = FiniteDifferenceHestonVanillaEngine::default();
+    let solution = engine.solve(&option, &context, 80.0..=120.0)?;
+    assert_eq!(solution.exercise_intervals(), 1200);
+    let values = solution.price_many(&[90.0, 110.0, 90.0])?;
+    for (value, expected) in values.into_iter().zip([10.0, 0.0, 10.0]) {
+        close(value, expected, 1e-12);
+    }
+    assert_eq!(solution.supported(), GreeksRequest::new([]));
+    Ok(())
+}
+
+#[test]
 fn expiry_deterministic_and_cancelled_queries_keep_their_contracts() {
     let expiry = market(100.0)
         .replace(PricingContextChanges {
