@@ -768,6 +768,10 @@ class RateTermStructure:
         ------
         InvalidInputError
             If the shift or resulting rates are non-finite.
+
+        Notes
+        -----
+        Shifting a large node curve releases the GIL and polls Python signals.
         """
 
 class BlackScholesMertonParameters:

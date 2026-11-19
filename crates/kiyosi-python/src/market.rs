@@ -421,8 +421,16 @@ impl RateTermStructure {
     /// InvalidInputError
     ///     If the shift or resulting rates are non-finite.
     ///
-    fn shifted(&self, shift: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self(domain(self.0.shifted(real(shift)?))?))
+    /// Notes
+    /// -----
+    /// Shifting a large node curve releases the GIL and polls Python signals.
+    ///
+    fn shifted(&self, py: Python<'_>, shift: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let shift = real(shift)?;
+        crate::calendar::run_date_scan(py, self.0.base_factors().len() as u64, || {
+            self.0.shifted(shift)
+        })
+        .map(Self)
     }
 }
 

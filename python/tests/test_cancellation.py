@@ -144,7 +144,7 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
 
 
 @pytest.mark.parametrize(
-    "case", ("schedule", "range_new", "range_replace", "curve_factors")
+    "case", ("schedule", "range_new", "range_replace", "curve_factors", "curve_shift")
 )
 def test_large_market_operations_release_gil_and_propagate_signals(case):
     result = subprocess.run(
@@ -155,7 +155,7 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 import signal
                 import sys
                 import threading
-                from datetime import datetime, time
+                from datetime import datetime, time, timedelta
                 from kiyosi.instruments import RangeAccrualOption
                 from kiyosi.market import (
                     RateTermStructure, all_days_calendar, fixed_interval_schedule, weekdays_calendar,
@@ -186,6 +186,15 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                         calendar=weekdays_calendar(),
                     )
                     operation = lambda: curve.factors
+                elif case == "curve_shift":
+                    count = 250_000
+                    curve = RateTermStructure(
+                        reference_time=start_time,
+                        times=(start_time + timedelta(seconds=offset)
+                               for offset in range(1, count + 1)),
+                        factors=[1.0] * count,
+                    )
+                    operation = lambda: curve.shifted(0.01)
                 else:
                     operation = operations[case]
 
@@ -236,6 +245,11 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                     factors = curve.factors
                     assert len(factors) > 1_000_000
                     assert 1.0 > factors[0] > factors[-1] > 0.0
+                elif case == "curve_shift":
+                    shifted = operation()
+                    assert shifted.parallel_shift == 0.01
+                    assert shifted.factor(start_time, shifted.max_time) < 1.0
+                    assert curve.parallel_shift == 0.0
                 """),
             case,
         ],

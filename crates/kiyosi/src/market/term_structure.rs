@@ -526,6 +526,8 @@ impl RateTermStructure {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for non-finite shifts or resulting rates.
+    /// Cancellation during node validation returns [`Error::Io`] with
+    /// [`std::io::ErrorKind::Interrupted`].
     ///
     /// # Examples
     ///
@@ -551,8 +553,11 @@ impl RateTermStructure {
         } else {
             copy.spread += shift;
             finite(copy.spread, false, "parallel_shift")?;
-            for rate in self.forwards.iter() {
-                finite(rate + copy.spread, false, "forward_rate")?;
+            for rates in self.forwards.chunks(1024) {
+                crate::cancellation::check()?;
+                for rate in rates {
+                    finite(rate + copy.spread, false, "forward_rate")?;
+                }
             }
         }
         Ok(copy)
@@ -610,6 +615,30 @@ fn node_factor(index: usize, log: f64) -> Result<f64> {
 mod tests {
     use super::*;
     use crate::{CancellationToken, Date};
+
+    #[test]
+    fn node_curve_shifts_observe_active_cancellation() -> Result<()> {
+        let start = Date::new(2025, 1, 1)?.start_of_day();
+        let times = (1..=2048)
+            .map(|offset| start.add_micros(offset * 1_000_000))
+            .collect::<Result<Vec<_>>>()?;
+        let curve = RateTermStructure::new(start, times, vec![1.0; 2048])?;
+        let token = CancellationToken::default();
+        assert!(matches!(
+            token.run(|| {
+                token.cancel();
+                assert!(matches!(
+                    curve.shifted(0.01),
+                    Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted
+                ));
+                Ok(())
+            }),
+            Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted
+        ));
+        assert_eq!(curve.parallel_shift(), 0.0);
+        assert_eq!(curve.shifted(0.01)?.parallel_shift(), 0.01);
+        Ok(())
+    }
 
     #[test]
     fn curve_factor_reads_observe_active_cancellation() -> Result<()> {
