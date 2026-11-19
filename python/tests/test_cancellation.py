@@ -149,6 +149,7 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
         "schedule",
         "range_new",
         "range_replace",
+        "curve_new",
         "curve_factors",
         "curve_shift",
         "surface",
@@ -189,7 +190,17 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                     "range_replace": lambda: original.replace(expiry_time=long_end),
                 }
                 case = sys.argv[1]
-                if case == "curve_factors":
+                if case == "curve_new":
+                    count = 250_000
+                    times = fixed_interval_schedule(
+                        start_time=start_time, end_time=start_time + timedelta(days=count),
+                        interval_days=1, observation_clock_time=time(), calendar=calendar,
+                    )
+                    factors = [0.99] * count
+                    operation = lambda: RateTermStructure(
+                        reference_time=start_time, times=times, factors=factors,
+                    )
+                elif case == "curve_factors":
                     curve = RateTermStructure.bounded_flat(
                         0.01, reference_time=start_time, max_time=long_end,
                         calendar=weekdays_calendar(),
@@ -255,7 +266,11 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 assert replacement.observation_schedule.times == tuple(
                     datetime(1, 1, day) for day in (2, 3, 4)
                 )
-                if case == "curve_factors":
+                if case == "curve_new":
+                    created = operation()
+                    assert created.max_time == times[-1]
+                    assert abs(created.factor(start_time, created.max_time) - factors[-1]) < 1e-15
+                elif case == "curve_factors":
                     factors = curve.factors
                     assert len(factors) > 1_000_000
                     assert 1.0 > factors[0] > factors[-1] > 0.0

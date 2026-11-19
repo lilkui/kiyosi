@@ -206,6 +206,7 @@ impl RateTermStructure {
     ///
     /// Returns [`Error::InvalidInput`] for empty or mismatched sequences,
     /// unordered nodes, nonpositive or non-finite factors or non-finite forwards.
+    /// Cancellation returns [`Error::Io`] with [`std::io::ErrorKind::Interrupted`].
     ///
     /// # Examples
     ///
@@ -231,7 +232,10 @@ impl RateTermStructure {
         let mut previous = reference;
         let mut previous_factor = 1.0;
         let mut forwards = Vec::with_capacity(nodes.len());
-        for (&node, &factor) in nodes.iter().zip(&factors) {
+        for (index, (&node, &factor)) in nodes.iter().zip(&factors).enumerate() {
+            if index % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
             if node <= previous {
                 return Err(Error::InvalidInput(
                     "curve nodes must increase after the reference".into(),
@@ -615,6 +619,26 @@ fn node_factor(index: usize, log: f64) -> Result<f64> {
 mod tests {
     use super::*;
     use crate::{CancellationToken, Date};
+
+    #[test]
+    fn curve_node_construction_checks_cancellation() -> Result<()> {
+        let start = Date::new(2025, 1, 1)?.start_of_day();
+        let end = start.add_days(365)?;
+        let token = CancellationToken::default();
+        assert!(matches!(
+            token.run(|| {
+                token.cancel();
+                let curve = RateTermStructure::new(start, vec![end], vec![0.95]);
+                assert!(matches!(
+                    &curve,
+                    Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted
+                ));
+                curve
+            }),
+            Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted
+        ));
+        Ok(())
+    }
 
     #[test]
     fn node_curve_shifts_observe_active_cancellation() -> Result<()> {

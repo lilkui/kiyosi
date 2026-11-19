@@ -153,6 +153,8 @@ pub(crate) fn updated_variance_time_convention(
 /// Uses Actual/365 Fixed by default. Factor nodes interpolate log-linearly.
 /// A bounded flat quote can accrue on a calendar. Dated curves reject times
 /// outside their coverage. Negative rates are allowed.
+/// Constructing a large node curve releases the GIL and polls Python signals
+/// during core validation.
 ///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
@@ -167,6 +169,7 @@ impl RateTermStructure {
     #[new]
     #[pyo3(signature = (*, reference_time, times, factors))]
     fn new(
+        py: Python<'_>,
         reference_time: &Bound<'_, PyAny>,
         times: &Bound<'_, PyAny>,
         factors: &Bound<'_, PyAny>,
@@ -174,9 +177,10 @@ impl RateTermStructure {
         let reference = timestamp(reference_time)?;
         let nodes = crate::conversions::timestamps(times)?;
         let factors = crate::conversions::reals(factors)?;
-        Ok(Self(domain(kiyosi::RateTermStructure::new(
-            reference, nodes, factors,
-        ))?))
+        crate::calendar::run_date_scan(py, nodes.len() as u64, || {
+            kiyosi::RateTermStructure::new(reference, nodes, factors)
+        })
+        .map(Self)
     }
     /// Create a continuously compounded flat rate curve.
     ///

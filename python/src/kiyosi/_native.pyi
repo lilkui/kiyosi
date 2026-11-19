@@ -566,6 +566,8 @@ class RateTermStructure:
     Uses Actual/365 Fixed by default. Factor nodes interpolate log-linearly.
     A bounded flat quote can accrue on a calendar. Dated curves reject times
     outside their coverage. Negative rates are allowed.
+    Constructing a large node curve releases the GIL and polls Python signals
+    during core validation.
     """
 
     def __init__(
