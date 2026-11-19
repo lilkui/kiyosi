@@ -1,6 +1,6 @@
 use super::{
-    Curve, FiniteDifferenceSettings, PricingContext, Result, SpatialGrid, Stepper, TimeGrid,
-    local_volatility, validate_work, validate_workspace,
+    Curve, FiniteDifferenceScheme, FiniteDifferenceSettings, PricingContext, Result, SpatialGrid,
+    Stepper, TimeGrid, local_volatility, validate_work, validate_workspace,
 };
 use crate::{Error, LocalVolatilitySurface, Timestamp};
 
@@ -203,16 +203,22 @@ pub(super) fn time_grid(
         );
     }
     let asset_steps = u64::from(settings.asset_step_count.unsigned_abs());
-    let grid = TimeGrid::with_events(
+    TimeGrid::with_events(
         time,
         settings.time_step_count,
         risk,
         dividend,
         &knots,
-        |steps| validate_workspace(asset_steps + 1, steps),
-    )?;
-    validate_work(asset_steps, grid.widths.len() as u64)?;
-    Ok(grid)
+        |steps| {
+            validate_workspace(asset_steps + 1, steps)?;
+            let startup = if settings.scheme == FiniteDifferenceScheme::Rannacher {
+                steps.min(2)
+            } else {
+                0
+            };
+            validate_work(asset_steps, steps + startup)
+        },
+    )
 }
 
 pub(super) fn observation_times(

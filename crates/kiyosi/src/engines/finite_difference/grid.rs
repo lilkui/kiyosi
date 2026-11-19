@@ -546,7 +546,7 @@ impl TimeGrid {
         risk: &Curve,
         dividend: &Curve,
         observations: &[f64],
-        validate_workspace: impl Fn(u64) -> Result<()>,
+        validate_intervals: impl Fn(u64) -> Result<()>,
     ) -> Result<Self> {
         crate::cancellation::check()?;
         let mut events: Vec<_> = risk.ends().chain(dividend.ends()).collect();
@@ -573,14 +573,14 @@ impl TimeGrid {
         };
         let event_intervals = events.len() - 1;
         let mut intervals = event_intervals + steps.unsigned_abs() as usize - 1;
-        if validate_workspace(intervals as u64).is_err() {
+        if validate_intervals(intervals as u64).is_err() {
             // Only count the exact grid near the limit, where events may replace uniform nodes.
             intervals = event_intervals;
-            validate_workspace(intervals as u64)?;
+            validate_intervals(intervals as u64)?;
             for node in uniform_nodes() {
                 if node?.is_some() {
                     intervals += 1;
-                    validate_workspace(intervals as u64)?;
+                    validate_intervals(intervals as u64)?;
                 }
             }
         }

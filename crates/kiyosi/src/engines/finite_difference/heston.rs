@@ -335,7 +335,7 @@ fn prepare(
     };
     let steps = u64::try_from(settings.time_step_count).map_err(|_| unstable())?;
     // Reserve for the live operator, rollback buffers, axes and time grid.
-    let validate_workspace = |time_steps| {
+    let validate_grid = |time_steps| {
         if (assets * rows)
             .saturating_mul(BYTES_PER_GRID_POINT)
             .saturating_add(time_steps * BYTES_PER_TIME_STEP)
@@ -345,19 +345,17 @@ fn prepare(
                 "Heston finite-difference workspace exceeds 1 GiB; reduce grid step counts",
             ));
         }
-        Ok(())
+        validate_work(assets * rows, time_steps)
     };
-    validate_workspace(steps)?;
-    validate_work(assets * rows, steps)?;
+    validate_grid(steps)?;
     let times = TimeGrid::with_events(
         time,
         settings.time_step_count,
         &risk,
         &dividend,
         &[],
-        validate_workspace,
+        validate_grid,
     )?;
-    validate_work(assets * rows, times.widths.len() as u64)?;
     if payoff.is_american() {
         let knots = risk.ends().len() + dividend.ends().len() - 2;
         if knots.saturating_mul(times.widths.len()) > 25_000_000 {
