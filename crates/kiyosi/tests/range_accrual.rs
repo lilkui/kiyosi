@@ -1138,3 +1138,28 @@ fn unresolvable_curve_knots_fail_before_pricing_future_observations() {
         );
     }
 }
+
+#[test]
+fn adjacent_range_bounds_keep_positive_probability_away_from_spot() -> Result<()> {
+    let start = day(1);
+    let end = start.add_days(365)?;
+    let lower = 100.0_f64;
+    let upper = libm::nextafter(lower, f64::INFINITY);
+    let mut terms =
+        RangeAccrualTerms::new(1e12, 0.1, lower, upper, start, end, start.time_of_day());
+    terms.calendar = TradingCalendar::new(move |date| date == end.date(), 365)?;
+    let option = RangeAccrualOption::new(terms)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.5)?,
+        30.0,
+        start,
+    )?;
+    let z = ((lower / 30.0).ln() + 0.095) / 0.5;
+    let width = ((upper - lower) / lower).ln_1p() / 0.5;
+    // The density is constant to floating-point precision across this interval.
+    let expected = 1e11 * (-0.05_f64).exp() * width * (-0.5 * z * z).exp()
+        / (2.0 * std::f64::consts::PI).sqrt();
+    let price = AnalyticRangeAccrualEngine.price(&option, &context)?;
+    assert!((price / expected - 1.0).abs() < 1e-12);
+    Ok(())
+}

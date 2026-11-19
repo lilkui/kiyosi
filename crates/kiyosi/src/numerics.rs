@@ -221,21 +221,8 @@ pub(crate) fn log_interval_mass(lower: f64, upper: f64) -> f64 {
     if upper == INF {
         return log_normal_cdf(-lower);
     }
-    let center = lower.midpoint(upper);
-    let half = 0.5 * (upper - lower);
-    if center.abs() * half + 0.5 * half * half < 0.25 {
-        let mut integral = 0.0;
-        let mut previous = 0.0;
-        let mut term = 1.0;
-        for order in 0..24 {
-            if order % 2 == 0 {
-                integral += 2.0 * term / f64::from(order + 1);
-            }
-            let next = (-center * half * term - half * half * previous) / f64::from(order + 1);
-            previous = term;
-            term = next;
-        }
-        return -0.5 * center * center + LOG_DENSITY + half.ln() + integral.ln();
+    if let Some(mass) = log_narrow_interval_mass(lower.midpoint(upper), upper - lower) {
+        return mass;
     }
     let high = if lower >= 0.0 {
         log_normal_cdf(-lower)
@@ -248,6 +235,25 @@ pub(crate) fn log_interval_mass(lower: f64, upper: f64) -> f64 {
         log_normal_cdf(lower)
     };
     log_difference(high, low)
+}
+
+pub(crate) fn log_narrow_interval_mass(center: f64, width: f64) -> Option<f64> {
+    let half = 0.5 * width;
+    if center.abs() * half + 0.5 * half * half < 0.25 {
+        let mut integral = 0.0;
+        let mut previous = 0.0;
+        let mut term = 1.0;
+        for order in 0..24 {
+            if order % 2 == 0 {
+                integral += 2.0 * term / f64::from(order + 1);
+            }
+            let next = (-center * half * term - half * half * previous) / f64::from(order + 1);
+            previous = term;
+            term = next;
+        }
+        return Some(-0.5 * center * center + LOG_DENSITY + width.ln() + (0.5 * integral).ln());
+    }
+    None
 }
 
 pub(crate) fn log_difference(high: f64, low: f64) -> f64 {

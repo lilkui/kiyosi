@@ -940,3 +940,34 @@ def test_event_availability_and_shift_validation():
     )
     with pytest.raises(TypeError):
         AnalyticRangeAccrualEngine(unknown=1)
+
+
+def test_adjacent_range_bounds_keep_positive_probability_away_from_spot():
+    start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+    lower = 100.0
+    upper = math.nextafter(lower, math.inf)
+    calendar = custom_calendar(
+        base=all_days_calendar(),
+        closed_dates=[start.date() + timedelta(days=offset) for offset in range(365)],
+    )
+    option = RangeAccrualOption(
+        notional=1e12,
+        annual_coupon_rate=0.1,
+        lower_bound=lower,
+        upper_bound=upper,
+        effective_time=start,
+        expiry_time=end,
+        observation_clock_time=time(),
+        calendar=calendar,
+    )
+    model = BlackScholesMertonParameters(
+        risk_free_rate=0.05, dividend_yield=0.02, volatility=0.5
+    )
+    context = PricingContext(
+        model_parameters=model, spot_price=30, valuation_time=start
+    )
+    z = (math.log(lower / 30) + 0.095) / 0.5
+    width = math.log1p((upper - lower) / lower) / 0.5
+    expected = 1e11 * math.exp(-0.05 - 0.5 * z * z) * width / math.sqrt(2 * math.pi)
+    price = AnalyticRangeAccrualEngine().price(option, context)
+    assert price == pytest.approx(expected, rel=1e-12, abs=0)

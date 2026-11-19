@@ -1,5 +1,7 @@
 use crate::RangeAccrualOption;
-use crate::numerics::{Sum, checked, log_interval_mass, log_ratio, scaled_cash, standardize};
+use crate::numerics::{
+    Sum, checked, log_interval_mass, log_narrow_interval_mass, log_ratio, scaled_cash, standardize,
+};
 use crate::{Error, PricingContext, PricingEngine, Result};
 
 /// Prices range coupons by summing exact BSM marginal probabilities with deterministic curves.
@@ -98,13 +100,17 @@ impl AnalyticRangeAccrualEngine {
                 .dividend_curve()
                 .validate_horizon(valuation, dates[dates.len() - 1])?;
         }
-        // Anchor at spot to keep adjacent floating-point price bounds distinct.
         let lower = if option.lower_bound() == 0.0 {
             f64::NEG_INFINITY
         } else {
             log_ratio(option.lower_bound(), context.spot_price())
         };
         let upper = log_ratio(option.upper_bound(), context.spot_price());
+        let log_width = if option.lower_bound() > 0.0 {
+            log_ratio(option.upper_bound(), option.lower_bound())
+        } else {
+            f64::INFINITY
+        };
         let mut value = Sum::default();
         value.add(scaled_cash(hits, scale));
         let mut forward_to = crate::engines::deterministic::forward_factors(context);
@@ -131,10 +137,13 @@ impl AnalyticRangeAccrualEngine {
                 }
                 continue;
             }
-            let probability = log_interval_mass(
-                standardize(lower - drift, volatility, root),
-                standardize(upper - drift, volatility, root),
-            );
+            let start = standardize(lower - drift, volatility, root);
+            // Preserve the width even when the standardized endpoints round together.
+            let width = standardize(log_width, volatility, root);
+            let probability =
+                log_narrow_interval_mass(start + 0.5 * width, width).unwrap_or_else(|| {
+                    log_interval_mass(start, standardize(upper - drift, volatility, root))
+                });
             value.add((scale + probability).exp());
         }
         checked(value.total())
