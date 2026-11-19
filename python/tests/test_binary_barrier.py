@@ -81,6 +81,28 @@ def make_context(
     )
 
 
+@pytest.mark.parametrize("signed_drift", [0, -1, 1, -12])
+def test_no_touch_preserves_survival_at_adjacent_barriers(signed_drift):
+    rate = 0.03125 - signed_drift * 0.25
+    barrier = math.nextafter(100, math.inf)
+    contract = make_touch(barrier_type="up_and_out", barrier_level=barrier, payout=1e16)
+    price = AnalyticBinaryBarrierEngine().price(
+        contract, make_context(rate=rate, dividend=0, sigma=0.25)
+    )
+    distance = math.log1p((barrier - 100) / 100) / 0.25
+    normal_density = math.exp(-0.5 * signed_drift**2) / math.sqrt(2 * math.pi)
+    normal_mass = 0.5 * math.erfc(-signed_drift / math.sqrt(2))
+    # At this gap, the linear limit is accurate to rounding precision.
+    expected = (
+        1e16
+        * math.exp(-rate)
+        * 2
+        * distance
+        * (normal_density + signed_drift * normal_mass)
+    )
+    assert price == pytest.approx(expected, abs=0, rel=2e-11)
+
+
 def test_strict_history_current_and_paid_cash_and_asset_settlement():
     engine = AnalyticBinaryBarrierEngine()
     for payoff_type in ("cash", "asset"):

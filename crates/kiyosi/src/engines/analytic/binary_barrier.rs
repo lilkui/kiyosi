@@ -1,6 +1,9 @@
 use crate::engines::analytic::barrier::{analytic_log_shift, barrier_terms, hit_value};
 use crate::instruments::monitoring::validate_life;
-use crate::numerics::{checked, log_ratio, scaled_cash, scaled_cdf};
+use crate::numerics::{
+    checked, log_difference, log_normal_cdf, log_normal_tail, log_ratio, scaled_cash, scaled_cdf,
+    standardize,
+};
 use crate::{
     AnalyticDigitalEngine, DigitalOption, OptionType, PricingContext, PricingEngine, Result,
 };
@@ -157,6 +160,20 @@ impl Contract<'_> {
         let asset = self.payout.is_none();
         let amount = self.payout.unwrap_or(spot);
         let discount = -if asset { dividend } else { rate } * t;
+        if direction.is_none() && !knock_in {
+            let root = t.sqrt();
+            let signed_drift = eta
+                * (standardize(carry * t, sigma, root) + if asset { 0.5 } else { -0.5 } * width);
+            let distance = ratio.abs();
+            let standardized = standardize(distance, sigma, root);
+            if standardized.is_finite() && signed_drift.is_finite() {
+                let log_distance = distance.ln() - sigma.ln() - root.ln();
+                return checked(scaled_cash(
+                    amount,
+                    discount + log_survival(standardized, log_distance, signed_drift),
+                ));
+            }
+        }
         let payoff_shift = if asset { 0.0 } else { width };
         let f1 = || scaled_cdf(amount, discount, phi * x1 - phi * payoff_shift);
         let f2 = || scaled_cdf(amount, discount, phi * x2 - phi * payoff_shift);
@@ -188,6 +205,44 @@ impl Contract<'_> {
         };
         crate::numerics::checked_with_scale(value, scaled_cash(amount, discount))
     }
+}
+
+fn log_survival(distance: f64, log_distance: f64, drift: f64) -> f64 {
+    let density = -0.5 * drift * drift - 0.5 * (2.0 * std::f64::consts::PI).ln();
+    if distance * (1.0 + drift.max(0.0)) <= 1e-6 {
+        // The reflected-density difference is proportional to sinh(distance * y).
+        // Its linear term preserves the gap when the two CDF arguments round together.
+        let first_moment = if drift < -10.0 {
+            let inverse_square = (1.0 / drift) / drift;
+            let mut term = 1.0;
+            let mut sum = 1.0;
+            for order in 1..=20 {
+                term *= -f64::from(2 * order + 1) * inverse_square;
+                sum += term;
+            }
+            density - 2.0 * (-drift).ln() + sum.ln()
+        } else if drift < 0.0 {
+            log_difference(density, (-drift).ln() + log_normal_cdf(drift))
+        } else {
+            (density.exp() + drift * log_normal_cdf(drift).exp()).ln()
+        };
+        return first_moment + std::f64::consts::LN_2 + log_distance
+            - drift * distance
+            - 0.5 * distance * distance;
+    }
+    let upper = drift + distance;
+    let lower = drift - distance;
+    if upper < -10.0 {
+        // Both reflected tails have the same Gaussian exponent.
+        return -0.5 * upper * upper
+            + log_difference(log_normal_tail(upper, 0.0), log_normal_tail(lower, 0.0));
+    }
+    let reflected = if lower < -10.0 {
+        log_normal_tail(lower, -0.5 * upper * upper)
+    } else {
+        -2.0 * (drift * distance) + log_normal_cdf(lower)
+    };
+    log_difference(log_normal_cdf(upper), reflected)
 }
 
 macro_rules! pricing_engine {

@@ -23,6 +23,44 @@ fn market(spot: f64, time: Timestamp) -> PricingContext {
 }
 
 #[test]
+fn no_touch_preserves_survival_at_adjacent_barriers() -> Result<()> {
+    let start = day(2025, 1, 1);
+    let end = day(2026, 1, 1);
+    let sigma = 0.25;
+    let spot = 1e16_f64;
+    for (barrier, kind) in [
+        (libm::nextafter(spot, f64::INFINITY), BarrierType::UpAndOut),
+        (libm::nextafter(spot, 0.0), BarrierType::DownAndOut),
+    ] {
+        let relative = ((barrier - spot) / spot).ln_1p().abs();
+        let survival = libm::erf(relative / (sigma * std::f64::consts::SQRT_2));
+        let terms = TouchOptionTerms::new(start, end, barrier, kind);
+        for (contract, rate) in [
+            (TouchOption::cash(terms.clone(), spot)?, 0.03125_f64),
+            (TouchOption::asset(terms.clone())?, -0.03125),
+        ] {
+            let context = PricingContext::new(
+                BlackScholesMertonParameters::new(rate, 0.0, sigma)?,
+                spot,
+                start,
+            )?;
+            let discount = if contract.payout().is_some() {
+                (-rate).exp()
+            } else {
+                1.0
+            };
+            let expected = spot * discount * survival;
+            let price = AnalyticBinaryBarrierEngine.price(&contract, &context)?;
+            assert!(
+                (price / expected - 1.0).abs() < 1e-12,
+                "{price} vs {expected}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn binary_branches_preserve_in_out_parity() {
     let engine = AnalyticBinaryBarrierEngine;
     for direction in [OptionType::Call, OptionType::Put] {
