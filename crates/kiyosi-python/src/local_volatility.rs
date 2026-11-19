@@ -1,4 +1,4 @@
-use crate::conversions::{python_timestamps, real, reals, timestamp, timestamps};
+use crate::conversions::{collect_values, python_timestamps, real, reals, timestamp, timestamps};
 use crate::error::domain;
 use crate::market::{rate, rate_properties};
 use pyo3::prelude::*;
@@ -28,6 +28,8 @@ use pyo3::types::PyTuple;
 /// constant. Inputs are copied. Properties return owned copies; spot changes
 /// and time rolls never translate the surface. Native conversion errors reject
 /// booleans, dates, timezone-aware datetimes and invalid iterable elements.
+/// Construction polls Python signals. Large tables release the GIL during
+/// native validation and copying.
 ///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
@@ -45,19 +47,23 @@ impl LocalVolatilitySurface {
     #[new]
     #[pyo3(signature = (*, times, spots, values))]
     fn new(
+        py: Python<'_>,
         times: &Bound<'_, PyAny>,
         spots: &Bound<'_, PyAny>,
         values: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
         let times = timestamps(times)?;
         let spots = reals(spots)?;
-        let values = values
-            .try_iter()?
-            .map(|row| reals(&row?))
-            .collect::<PyResult<Vec<_>>>()?;
-        Ok(Self(domain(kiyosi::LocalVolatilitySurface::new(
-            times, spots, values,
-        ))?))
+        let values = collect_values(values, reals)?;
+        let large = times.len().max(spots.len()).max(values.len()) > 1024
+            || values.iter().map(Vec::len).sum::<usize>() > 1024;
+        let build = || kiyosi::LocalVolatilitySurface::new(times, spots, values);
+        let surface = if large {
+            crate::cancellation::run(py, build)?
+        } else {
+            build()
+        };
+        domain(surface).map(Self)
     }
     /// Return copied absolute time nodes as datetimes.
     #[getter]

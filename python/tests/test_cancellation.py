@@ -144,7 +144,15 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
 
 
 @pytest.mark.parametrize(
-    "case", ("schedule", "range_new", "range_replace", "curve_factors", "curve_shift")
+    "case",
+    (
+        "schedule",
+        "range_new",
+        "range_replace",
+        "curve_factors",
+        "curve_shift",
+        "surface",
+    ),
 )
 def test_large_market_operations_release_gil_and_propagate_signals(case):
     result = subprocess.run(
@@ -158,7 +166,8 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 from datetime import datetime, time, timedelta
                 from kiyosi.instruments import RangeAccrualOption
                 from kiyosi.market import (
-                    RateTermStructure, all_days_calendar, fixed_interval_schedule, weekdays_calendar,
+                    LocalVolatilitySurface, RateTermStructure, all_days_calendar,
+                    fixed_interval_schedule, weekdays_calendar,
                 )
 
                 start_time = datetime(1, 1, 1)
@@ -195,6 +204,11 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                         factors=[1.0] * count,
                     )
                     operation = lambda: curve.shifted(0.01)
+                elif case == "surface":
+                    times = tuple(start_time + timedelta(days=i) for i in range(1024))
+                    spots = tuple(map(float, range(1, 1025)))
+                    rows = ((0.2,) * len(spots),) * len(times)
+                    operation = lambda: LocalVolatilitySurface(times=times, spots=spots, values=rows)
                 else:
                     operation = operations[case]
 
@@ -250,6 +264,9 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                     assert shifted.parallel_shift == 0.01
                     assert shifted.factor(start_time, shifted.max_time) < 1.0
                     assert curve.parallel_shift == 0.0
+                elif case == "surface":
+                    surface = operation()
+                    assert surface.volatility(times[100], 50.5) == 0.2
                 """),
             case,
         ],

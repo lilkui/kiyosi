@@ -1082,6 +1082,8 @@ class LocalVolatilitySurface:
     constant. Inputs are copied. Properties return owned copies; spot changes
     and time rolls never translate the surface. Native conversion errors reject
     booleans, dates, timezone-aware datetimes and invalid iterable elements.
+    Construction polls Python signals. Large tables release the GIL during
+    native validation and copying.
     """
 
     def __init__(

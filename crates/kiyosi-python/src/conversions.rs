@@ -142,7 +142,24 @@ pub(crate) fn optional_real(value: &Bound<'_, PyAny>) -> PyResult<Option<f64>> {
 }
 
 pub(crate) fn reals(value: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
-    value.try_iter()?.map(|item| real(&item?)).collect()
+    collect_values(value, real)
+}
+
+pub(crate) fn collect_values<T>(
+    value: &Bound<'_, PyAny>,
+    convert: impl Fn(&Bound<'_, PyAny>) -> PyResult<T>,
+) -> PyResult<Vec<T>> {
+    value
+        .try_iter()?
+        .enumerate()
+        .map(|(index, item)| {
+            let item = item?;
+            if index % 1024 == 0 {
+                value.py().check_signals()?;
+            }
+            convert(&item)
+        })
+        .collect()
 }
 
 pub(crate) fn direction_name(value: kiyosi::OptionType) -> &'static str {
@@ -248,7 +265,7 @@ pub(crate) fn timestamps(value: &Bound<'_, PyAny>) -> PyResult<Vec<kiyosi::Times
     if let Ok(schedule) = value.extract::<PyRef<'_, crate::schedule::ObservationSchedule>>() {
         return Ok(schedule.0.times().to_vec());
     }
-    value.try_iter()?.map(|item| timestamp(&item?)).collect()
+    collect_values(value, timestamp)
 }
 
 pub(crate) fn clock_time(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::TimeOfDay> {

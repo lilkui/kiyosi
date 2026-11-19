@@ -1,7 +1,19 @@
 use crate::VarianceTimeConvention;
 use std::sync::Arc;
 
-use crate::{Error, Rate, RateTermStructure, Result, Timestamp, error::finite};
+use crate::{Error, Rate, RateTermStructure, Result, Timestamp, cancellation, error::finite};
+
+fn has_unordered_pair<T: PartialOrd>(nodes: &[T]) -> Result<bool> {
+    for (index, pair) in nodes.windows(2).enumerate() {
+        if index % 1024 == 0 {
+            cancellation::check()?;
+        }
+        if pair[0] >= pair[1] {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
 
 /// Owns a local-volatility table in absolute time and spot coordinates.
 ///
@@ -27,6 +39,7 @@ impl LocalVolatilitySurface {
     /// Returns [`Error::InvalidInput`] for fewer than two nodes on either axis,
     /// unordered or numerically indistinguishable time nodes, a nonrectangular
     /// table, or nonpositive or non-finite prices or volatilities.
+    /// Cancellation returns [`Error::Io`] with [`std::io::ErrorKind::Interrupted`].
     /// No partially validated value is returned.
     ///
     /// # Examples
@@ -42,46 +55,71 @@ impl LocalVolatilitySurface {
     /// # Ok(()) }
     /// ```
     pub fn new(times: Vec<Timestamp>, spots: Vec<f64>, values: Vec<Vec<f64>>) -> Result<Self> {
-        if times.len() < 2 || times.windows(2).any(|p| p[0] >= p[1]) {
+        if times.len() < 2 || has_unordered_pair(&times)? {
             return Err(Error::InvalidInput(
                 "times must contain at least two strictly increasing nodes".into(),
             ));
         }
-        if spots.len() < 2 || spots.windows(2).any(|p| p[0] >= p[1]) {
+        if spots.len() < 2 || has_unordered_pair(&spots)? {
             return Err(Error::InvalidInput(
                 "spots must contain at least two strictly increasing nodes".into(),
             ));
         }
-        for &spot in &spots {
-            finite(spot, true, "spots")?;
+        for chunk in spots.chunks(1024) {
+            cancellation::check()?;
+            for &spot in chunk {
+                finite(spot, true, "spots")?;
+            }
         }
-        if values.len() != times.len() || values.iter().any(|row| row.len() != spots.len()) {
+        if values.len() != times.len() {
             return Err(Error::InvalidInput(
                 "values shape must match times and spots".into(),
             ));
         }
+        for rows in values.chunks(1024) {
+            cancellation::check()?;
+            if rows.iter().any(|row| row.len() != spots.len()) {
+                return Err(Error::InvalidInput(
+                    "values shape must match times and spots".into(),
+                ));
+            }
+        }
+        let mut maximum: f64 = 0.0;
         for (row, values) in values.iter().enumerate() {
             for (column, &value) in values.iter().enumerate() {
+                if column % 1024 == 0 {
+                    cancellation::check()?;
+                }
                 if !value.is_finite() || value <= 0.0 {
                     return Err(Error::InvalidInput(
                         format!("values[{row}][{column}] must be finite and positive").into(),
                     ));
                 }
+                maximum = maximum.max(value);
             }
         }
-        let years: Vec<_> = times.iter().map(|&t| times[0].years_until(t)).collect();
-        if years.windows(2).any(|p| p[0] >= p[1]) {
+        let mut years = Vec::with_capacity(times.len());
+        for chunk in times.chunks(1024) {
+            cancellation::check()?;
+            years.extend(chunk.iter().map(|&t| times[0].years_until(t)));
+        }
+        if has_unordered_pair(&years)? {
             return Err(Error::InvalidInput(
                 "times collapse in floating-point year fractions".into(),
             ));
         }
-        let values: Vec<_> = values.into_iter().flatten().collect();
-        let maximum = values.iter().copied().fold(0.0, f64::max);
+        let mut table = Vec::with_capacity(times.len() * spots.len());
+        for row in values {
+            for chunk in row.chunks(1024) {
+                cancellation::check()?;
+                table.extend_from_slice(chunk);
+            }
+        }
         Ok(Self {
             times: times.into(),
             years: years.into(),
             spots: spots.into(),
-            values: values.into(),
+            values: table.into(),
             maximum,
         })
     }
