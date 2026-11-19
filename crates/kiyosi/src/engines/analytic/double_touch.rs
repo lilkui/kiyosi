@@ -90,7 +90,6 @@ impl AnalyticDoubleTouchEngine {
                 "analytic double-touch pricing requires continuous monitoring".into(),
             ));
         }
-        context.validate_curve_horizon(option.expiry_time())?;
         let density = AbsorbingDistribution::new(
             option.lower_barrier(),
             option.upper_barrier(),
