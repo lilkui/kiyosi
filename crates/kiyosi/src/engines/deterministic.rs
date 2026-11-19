@@ -744,12 +744,27 @@ pub(super) fn accumulator_through(
             quantity += option.purchase_from_strike_distance(distance);
         }
         if knocked_out || time == option.expiry_time() {
-            let value = finite(discounted_product(
-                quantity,
-                option.unit_payoff(spot),
-                log_discount,
-            ))?;
-            return Ok((quantity, Some(value)));
+            let strike = option.strike();
+            let distance = context.log_forward_moneyness(time, strike, carry);
+            let unchanged_spot = carry == 0.0
+                && context
+                    .quoted_spot_cmp(time, 1.0, 1.0)
+                    .is_none_or(std::cmp::Ordering::is_eq);
+            let value = if !unchanged_spot && distance.abs() < 0.5 {
+                let difference = match option.option_type() {
+                    crate::OptionType::Call => distance.exp_m1(),
+                    crate::OptionType::Put => -distance.exp_m1(),
+                };
+                let unit_payoff = strike * difference;
+                if unit_payoff.is_normal() {
+                    discounted_product(quantity, unit_payoff, log_discount)
+                } else {
+                    discounted_product(quantity, difference, strike.ln() + log_discount)
+                }
+            } else {
+                discounted_product(quantity, option.unit_payoff(spot), log_discount)
+            };
+            return Ok((quantity, Some(finite(value)?)));
         }
     }
     Ok((quantity, None))

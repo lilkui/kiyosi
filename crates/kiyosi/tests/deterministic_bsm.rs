@@ -1160,6 +1160,41 @@ fn quoted_fixings_use_exact_payoff_boundaries() -> Result<()> {
 }
 
 #[test]
+fn accumulator_settlement_preserves_the_quoted_strike_difference() -> Result<()> {
+    let start = Timestamp::new(Date::new(2025, 1, 1)?, 12, 0, 0, 0)?;
+    let end = start.add_days(365)?;
+    let factor = 0.999_389_648_437_5;
+    let strike = 100.0;
+    let curve = RateTermStructure::new(start, vec![end], vec![factor])?;
+    let model = BlackScholesMertonParameters::new(curve, 0.0, 0.0)?;
+    let option = Accumulator::new(AccumulatorTerms {
+        calendar: TradingCalendar::all_days(),
+        knock_out_observation_times: Some(vec![]),
+        ..AccumulatorTerms::new(
+            strike,
+            200.0,
+            1e14,
+            1.0,
+            start,
+            end,
+            TimeOfDay::new(0, 0, 0, 0)?,
+        )
+    })?;
+    let at_strike = strike * factor;
+    for spot in [
+        libm::nextafter(at_strike, 0.0),
+        at_strike,
+        libm::nextafter(at_strike, f64::INFINITY),
+    ] {
+        let context = PricingContext::new(model.clone(), spot, start)?;
+        let expected = 365.0 * 1e14 * (spot - at_strike);
+        let price = QuadratureAccumulatorEngine::default().price(&option, &context)?;
+        assert!((price - expected).abs() < 1e-10, "{price} != {expected}");
+    }
+    Ok(())
+}
+
+#[test]
 fn accumulator_discounts_large_settlement_before_rounding() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = start.add_days(365)?;

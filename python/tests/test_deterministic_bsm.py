@@ -156,6 +156,41 @@ def test_structured_knock_out_preserves_a_forward_just_below_the_barrier():
         assert engine.price(option, context) == pytest.approx(expected, rel=1e-12)
 
 
+def test_accumulator_settlement_preserves_the_quoted_strike_difference():
+    start = datetime(2025, 1, 1, 12)
+    end = start + timedelta(days=365)
+    factor = 0.9993896484375
+    curve = RateTermStructure(reference_time=start, times=[end], factors=[factor])
+    model = BlackScholesMertonParameters(
+        risk_free_rate=curve, dividend_yield=0, volatility=0
+    )
+    option = ins.Accumulator(
+        calendar=all_days_calendar(),
+        strike=100,
+        knock_out_level=200,
+        daily_quantity=1e14,
+        acceleration_factor=1,
+        effective_time=start,
+        expiry_time=end,
+        observation_clock_time=clock_time(),
+        knock_out_observation_times=[],
+    )
+    at_strike = 100 * factor
+    engine = pricing.QuadratureAccumulatorEngine()
+    for spot in (
+        math.nextafter(at_strike, 0),
+        at_strike,
+        math.nextafter(at_strike, math.inf),
+    ):
+        context = PricingContext(
+            model_parameters=model, spot_price=spot, valuation_time=start
+        )
+        expected = 365 * 1e14 * (spot - at_strike)
+        assert engine.price(option, context) == pytest.approx(
+            expected, rel=0, abs=1e-10
+        )
+
+
 def test_scheduled_touch_preserves_the_exact_final_curve_quote():
     start = datetime(2025, 1, 1)
     dates = [start + timedelta(days=days) for days in (30, 61, 365)]
