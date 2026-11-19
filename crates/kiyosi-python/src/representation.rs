@@ -40,7 +40,12 @@ pub(crate) fn curve(py: Python<'_>, value: &kiyosi::RateTermStructure) -> PyResu
             calendar(py, accrual_calendar)?
         ));
     }
-    if let Some(rate) = value.exact_flat_rate().filter(|_| value.nodes().is_empty()) {
+    if let Some(rate) = value
+        .nodes()
+        .is_empty()
+        .then(|| value.exact_flat_rate())
+        .flatten()
+    {
         if let Some(end) = value.max_time() {
             return Ok(format!(
                 "RateTermStructure.bounded_flat(rate={rate:?}, reference_time={reference}, max_time={})",
