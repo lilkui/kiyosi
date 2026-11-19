@@ -13,6 +13,7 @@ from unittest.mock import patch
 from run import (
     RUST_EXECUTABLE,
     build,
+    build_evidence_path,
     command,
     fingerprint,
     measure,
@@ -75,14 +76,12 @@ class CommandTests(unittest.TestCase):
             self.assertEqual(data["cases"][0]["status"], "prerequisite_failed")
             self.assertEqual(data["error"], "--rust-executable requires --no-build")
 
-    def test_build_uses_cargo_reported_artifact_for_evidence(self):
+    def test_build_records_evidence_per_executable(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             rust = root / "custom" / "release" / "quantlib_bench"
             rust.parent.mkdir(parents=True)
             rust.write_bytes(b"rust artifact")
-            quantlib = root / "quantlib"
-            quantlib.write_bytes(b"quantlib artifact")
             cargo_output = json.dumps(
                 {
                     "reason": "compiler-artifact",
@@ -94,24 +93,31 @@ class CommandTests(unittest.TestCase):
                 quantlib_config="quantlib-config",
                 cxx="c++",
                 cxxflags="",
-                quantlib_executable=quantlib,
             )
-            with (
-                patch("run.HERE", root),
-                patch(
-                    "run.source_state",
-                    return_value={"revision": "build-revision", "dirty_state": ""},
-                ),
-                patch(
-                    "run.command", side_effect=["1.44", "", "", cargo_output, "", "c++"]
-                ),
-            ):
-                executable, evidence = build(args)
-            self.assertEqual(executable, rust)
-            self.assertEqual(evidence["executables"]["kiyosi"], fingerprint(rust))
-            self.assertEqual(
-                evidence["source"], {"revision": "build-revision", "dirty_state": ""}
-            )
+            for name in ("quantlib", "custom-quantlib"):
+                binary = root / name
+                binary.write_bytes(name.encode())
+                args.quantlib_executable = binary
+                source = {"revision": name, "dirty_state": ""}
+                with (
+                    patch("run.HERE", root),
+                    patch("run.source_state", return_value=source),
+                    patch(
+                        "run.command",
+                        side_effect=["1.44", "", "", cargo_output, "", "c++"],
+                    ),
+                ):
+                    executable, evidence = build(args)
+                self.assertEqual(executable, rust)
+                self.assertEqual(evidence["executables"]["kiyosi"], fingerprint(rust))
+                self.assertEqual(evidence["source"], source)
+            for name in ("quantlib", "custom-quantlib"):
+                binary = root / name
+                recorded = json.loads(build_evidence_path(binary).read_text())
+                self.assertEqual(recorded["source"]["revision"], name)
+                self.assertEqual(
+                    recorded["executables"]["quantlib"], fingerprint(binary)
+                )
 
     def test_missing_native_executable_writes_failed_report(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -351,8 +357,7 @@ class ReportTests(unittest.TestCase):
             report = root / "report.json"
             runner = [str(RUNNER)]
             if build_source is not None:
-                (root / "build").mkdir()
-                (root / "build" / "build.json").write_text(
+                build_evidence_path(native).write_text(
                     json.dumps(
                         {
                             "source": build_source,
@@ -366,12 +371,9 @@ class ReportTests(unittest.TestCase):
                     "-c",
                     (
                         "import run, sys\n"
-                        "from pathlib import Path\n"
-                        "run.HERE = Path(sys.argv.pop(1))\n"
                         "run.source_state = lambda: {'revision': 'checkout-revision', 'dirty_state': ''}\n"
                         "raise SystemExit(run.main())"
                     ),
-                    str(root),
                 ]
             result = subprocess.run(
                 [

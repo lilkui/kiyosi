@@ -8,6 +8,7 @@ from run import (
     HERE,
     RUST_EXECUTABLE,
     accuracy,
+    build_evidence_path,
     command,
     load_entries,
     native,
@@ -45,7 +46,9 @@ def main():
         "kiyosi": RUST_EXECUTABLE,
         "quantlib": HERE / "build/quantlib_bench",
     }
-    build_evidence = json.loads((HERE / "build/build.json").read_text())
+    build_evidence = json.loads(
+        build_evidence_path(executables["quantlib"]).read_text()
+    )
     libraries = {
         backend: json.loads(command([str(binary), "--info"]))
         for backend, binary in executables.items()

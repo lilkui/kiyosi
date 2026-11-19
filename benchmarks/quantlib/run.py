@@ -103,6 +103,10 @@ def fingerprint(path):
     }
 
 
+def build_evidence_path(executable):
+    return executable.with_name(f"{executable.name}.build.json")
+
+
 def load_entries(path):
     """Load unique scenario/reference IDs from one file or sorted fragments."""
     entries = {}
@@ -193,8 +197,7 @@ def build(args):
         "rustflags": os.environ.get("RUSTFLAGS", "unset"),
         "cxx_version": command([*shlex.split(args.cxx), "--version"]),
     }
-    (HERE / "build").mkdir(exist_ok=True)
-    (HERE / "build/build.json").write_text(json.dumps(evidence, indent=2) + "\n")
+    write_report(build_evidence_path(args.quantlib_executable), evidence)
     return rust_executable, evidence
 
 
@@ -607,7 +610,7 @@ def main(argv=None):
         references = load_entries(args.references)
         if args.no_build:
             rust_executable = args.rust_executable or RUST_EXECUTABLE
-            build_file = HERE / "build/build.json"
+            build_file = build_evidence_path(args.quantlib_executable)
             report["build"] = (
                 json.loads(
                     build_file.read_text(),
