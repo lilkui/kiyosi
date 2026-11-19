@@ -191,9 +191,7 @@ fn solve_grid<D: Diffusion>(
     diffusion: D,
 ) -> Result<AccumulatorGrid> {
     let expiry = option.expiry_time();
-    let model = context.model_parameters();
-    let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
-    let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
+    let (risk, dividend) = diffusion::rate_curves(context, expiry, settings)?;
     let upper = match settings.asset_upper_boundary {
         Some(value) => value,
         None => default_upper(option, context, &risk, &dividend)?,

@@ -3,7 +3,7 @@ use crate::numerics::{scaled_cash as scaled, weighted_cdf};
 use crate::{
     AmericanOption, DigitalOption, Error, EuropeanOption, Greek, GreeksRequest,
     NumericalShiftSettings, OptionContract, OptionType, PricingContext, PricingEngine,
-    PricingResult, Result, engines::analytic::european::black_scholes_arguments,
+    PricingResult, Result, Timestamp, engines::analytic::european::black_scholes_arguments,
 };
 
 mod accumulator;
@@ -95,7 +95,7 @@ impl FiniteDifferenceSettings {
     /// Returns [`Error::InvalidInput`] for fewer than three asset intervals,
     /// fewer than one time interval, an estimated grid workspace above 1 GiB, more than
     /// one billion spatial intervals times time intervals, or an invalid explicit boundary.
-    /// Pricing includes event and curve steps in the workspace estimate and
+    /// Pricing includes curve buffers and event steps in the workspace estimate and
     /// damping half-steps in the work limit. It also checks domain coverage
     /// and scheme stability.
     ///
@@ -118,6 +118,7 @@ impl FiniteDifferenceSettings {
         validate_workspace(
             u64::from(self.asset_step_count.unsigned_abs()) + 1,
             u64::from(self.time_step_count.unsigned_abs()),
+            0,
         )?;
         validate_work(
             u64::from(self.asset_step_count.unsigned_abs()),
@@ -130,17 +131,44 @@ impl FiniteDifferenceSettings {
     }
 }
 
-fn validate_workspace(asset_nodes: u64, time_steps: u64) -> Result<()> {
-    const WORKSPACE_BUDGET: u64 = 1 << 30;
+const WORKSPACE_BUDGET: u64 = 1 << 30;
+
+fn validate_workspace(asset_nodes: u64, time_steps: u64, curve_bytes: u64) -> Result<()> {
     // Allow for rollback layers, interpolation buffers and the spatial axis as well as the stepper.
     const BYTES_PER_ASSET_NODE: u64 = Stepper::PEAK_BYTES_PER_NODE + 72;
     const BYTES_PER_TIME_STEP: u64 = 24;
-    if asset_nodes * BYTES_PER_ASSET_NODE + time_steps * BYTES_PER_TIME_STEP > WORKSPACE_BUDGET {
+    if (asset_nodes * BYTES_PER_ASSET_NODE + time_steps * BYTES_PER_TIME_STEP)
+        .saturating_add(curve_bytes)
+        > WORKSPACE_BUDGET
+    {
         return Err(invalid_grid(
             "finite-difference workspace exceeds 1 GiB; reduce grid step counts",
         ));
     }
     Ok(())
+}
+
+fn prepare_rate_curves(
+    context: &PricingContext,
+    horizon: Timestamp,
+    validate_grid: impl FnOnce(u64, u64) -> Result<()>,
+) -> Result<(Curve, Curve)> {
+    context.validate_curve_coverage(horizon)?;
+    crate::cancellation::check()?;
+    let model = context.model_parameters();
+    let (risk, dividend) = (model.risk_free_curve(), model.dividend_curve());
+    let start = context.valuation_time();
+    let [risk_count, dividend_count] =
+        [risk, dividend].map(|curve| Curve::interval_count(curve, start, horizon));
+    // Each curve's interior knots must appear even when the two curves share knots.
+    validate_grid(
+        risk_count.max(dividend_count),
+        Curve::bytes_for_intervals(risk_count + dividend_count),
+    )?;
+    Ok((
+        Curve::new(risk, start, horizon)?,
+        Curve::new(dividend, start, horizon)?,
+    ))
 }
 
 fn validate_work(spatial_steps: u64, time_steps: u64) -> Result<()> {
@@ -326,8 +354,7 @@ fn solve_model<D: Diffusion>(
     let spot = context.spot_price();
     let model = context.model_parameters();
     let expiry = option.expiry_time();
-    let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
-    let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
+    let (risk, dividend) = diffusion::rate_curves(context, expiry, settings)?;
     let upper = match settings.asset_upper_boundary {
         Some(upper) => upper,
         None if D::LOCAL => {

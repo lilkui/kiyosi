@@ -1,6 +1,6 @@
 use super::{
     Curve, FiniteDifferenceScheme, FiniteDifferenceSettings, PricingContext, Result, SpatialGrid,
-    Stepper, TimeGrid, local_volatility, validate_work, validate_workspace,
+    Stepper, TimeGrid, local_volatility, prepare_rate_curves, validate_work, validate_workspace,
 };
 use crate::{Error, LocalVolatilitySurface, Timestamp};
 
@@ -172,6 +172,28 @@ impl<D: Diffusion> Diffusion for BusinessDiffusion<'_, D> {
     }
 }
 
+pub(super) fn rate_curves(
+    context: &PricingContext,
+    horizon: Timestamp,
+    settings: FiniteDifferenceSettings,
+) -> Result<(Curve, Curve)> {
+    prepare_rate_curves(context, horizon, |steps, curve_bytes| {
+        let steps = steps.max(u64::from(settings.time_step_count.unsigned_abs()));
+        validate_grid(settings, steps, curve_bytes)
+    })
+}
+
+fn validate_grid(settings: FiniteDifferenceSettings, steps: u64, curve_bytes: u64) -> Result<()> {
+    let assets = u64::from(settings.asset_step_count.unsigned_abs());
+    validate_workspace(assets + 1, steps, curve_bytes)?;
+    let startup = if settings.scheme == FiniteDifferenceScheme::Rannacher {
+        steps.min(2)
+    } else {
+        0
+    };
+    validate_work(assets, steps + startup)
+}
+
 pub(super) fn time_grid(
     context: &PricingContext,
     horizon: Timestamp,
@@ -202,22 +224,14 @@ pub(super) fn time_grid(
                 .map(|&t| start.years_until(t)),
         );
     }
-    let asset_steps = u64::from(settings.asset_step_count.unsigned_abs());
+    let curve_bytes = risk.workspace_bytes() + dividend.workspace_bytes();
     TimeGrid::with_events(
         time,
         settings.time_step_count,
         risk,
         dividend,
         &knots,
-        |steps| {
-            validate_workspace(asset_steps + 1, steps)?;
-            let startup = if settings.scheme == FiniteDifferenceScheme::Rannacher {
-                steps.min(2)
-            } else {
-                0
-            };
-            validate_work(asset_steps, steps + startup)
-        },
+        |steps| validate_grid(settings, steps, curve_bytes),
     )
 }
 

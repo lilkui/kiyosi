@@ -337,6 +337,30 @@ fn grid_workspace_includes_off_grid_curve_knots() -> Result<()> {
 }
 
 #[test]
+fn grid_workspace_counts_pricing_curves_even_when_knots_align() -> Result<()> {
+    let (start, end) = dates();
+    let knot = start.add_days(60)?.add_micros(72_000_000_000)?;
+    let curve = RateTermStructure::new(start, vec![knot, end], vec![0.999, 0.95])?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(curve, 0.0, 0.2)?,
+        100.0,
+        start,
+    )?;
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let engine = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 3_532_044,
+        time_step_count: 6,
+        scheme: FiniteDifferenceScheme::ExplicitEuler,
+        ..Default::default()
+    })?;
+    assert!(matches!(
+        engine.price(&option, &context),
+        Err(Error::InvalidInput(message)) if message.contains("workspace")
+    ));
+    Ok(())
+}
+
+#[test]
 fn settings_validate_without_allocating_within_the_workspace_bound() {
     let defaults = FiniteDifferenceSettings::default();
     assert_eq!(

@@ -1,5 +1,5 @@
 use super::{
-    Curve, Diffusion, FiniteDifferenceBarrierEngine, FiniteDifferenceDoubleBarrierEngine,
+    Diffusion, FiniteDifferenceBarrierEngine, FiniteDifferenceDoubleBarrierEngine,
     FiniteDifferenceSettings, Greek, GreeksRequest, NumericalShiftSettings, OptionContract,
     OptionType, Payoff, PricingContext, PricingEngine, PricingResult, Result, SpatialGrid,
     diffusion, diffusion_upper, grid::project_in_spot, local_volatility, payoff::boundary_value,
@@ -464,10 +464,8 @@ fn solve_grid<D: Diffusion>(
     let terms = option.monitoring();
     let upper_barrier = option.upper_barrier();
     let time = context.valuation_time().years_until(option.expiry_time());
-    let model = context.model_parameters();
     let expiry = option.expiry_time();
-    let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
-    let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
+    let (risk, dividend) = diffusion::rate_curves(context, expiry, settings)?;
     let upper = if let Some(upper) = settings.asset_upper_boundary {
         upper
     } else {

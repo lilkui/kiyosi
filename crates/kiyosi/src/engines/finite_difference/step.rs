@@ -94,6 +94,7 @@ pub(super) fn march_with_continuation<D: Diffusion>(
     validate_workspace(
         (values.len() + continuation.len()) as u64,
         grid.widths.len() as u64,
+        risk.workspace_bytes() + dividend.workspace_bytes(),
     )?;
     validate_work(
         (space.count + full_space.count) as u64,

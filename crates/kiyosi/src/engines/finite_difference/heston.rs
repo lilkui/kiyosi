@@ -1,6 +1,7 @@
 use super::grid::{SpatialGrid, TimeGrid, concentrate};
 use super::{
-    Curve, FiniteDifferenceSettings, Payoff, invalid_grid, time_to_expiry, unstable, validate_work,
+    Curve, FiniteDifferenceSettings, Payoff, WORKSPACE_BUDGET, invalid_grid, prepare_rate_curves,
+    time_to_expiry, unstable, validate_work,
 };
 use crate::engines::analytic::heston::integrated_variance;
 use crate::engines::deterministic::exercise_value;
@@ -276,16 +277,18 @@ fn prepare(
     mut payoff: Payoff,
     settings: HestonFiniteDifferenceSettings,
 ) -> Result<HestonState> {
-    const WORKSPACE_BUDGET: u64 = 1 << 30;
     const BYTES_PER_GRID_POINT: u64 = 128;
     const BYTES_PER_TIME_STEP: u64 = 24;
     let model = context.model_parameters().as_heston()?;
     let time = time_to_expiry(option, context)?;
     let start = context.valuation_time();
     let end = option.expiry_time();
-    let risk = Curve::new(model.risk_free_curve(), start, end)?;
-    let dividend = Curve::new(model.dividend_curve(), start, end)?;
-    if time == 0.0 {
+    context.validate_curve_coverage(end)?;
+    let absorbing = model.initial_variance() == 0.0
+        && (model.mean_reversion_speed() == 0.0 || model.long_run_variance() == 0.0);
+    if time == 0.0 || absorbing {
+        let risk = Curve::new(model.risk_free_curve(), start, end)?;
+        let dividend = Curve::new(model.dividend_curve(), start, end)?;
         return Ok(HestonState::Direct {
             payoff,
             time,
@@ -294,16 +297,6 @@ fn prepare(
         });
     }
     let scale = payoff.strike.max(context.spot_price());
-    if model.initial_variance() == 0.0
-        && (model.mean_reversion_speed() == 0.0 || model.long_run_variance() == 0.0)
-    {
-        return Ok(HestonState::Direct {
-            payoff,
-            time,
-            risk,
-            dividend,
-        });
-    }
     let spot = context.spot_price() / scale;
     payoff.strike /= scale;
     if spot == 0.0 || payoff.strike == 0.0 {
@@ -313,14 +306,6 @@ fn prepare(
     if !integrated.is_finite() || integrated < 0.0 {
         return Err(unstable());
     }
-    let mut drift: f64 = 0.0;
-    for t in risk.ends().chain(dividend.ends()) {
-        drift = drift.max(dividend.log_factor(0.0, t) - risk.log_factor(0.0, t));
-    }
-    let upper = settings.asset_upper_boundary.map_or_else(
-        || (drift + 6.0 * integrated.sqrt()).exp().max(4.0),
-        |x| x / scale,
-    );
     if settings.asset_upper_boundary.is_some_and(|x| x <= scale) {
         return Err(invalid_grid(
             "Heston asset boundary must exceed spot and strike",
@@ -335,10 +320,11 @@ fn prepare(
     };
     let steps = u64::try_from(settings.time_step_count).map_err(|_| unstable())?;
     // Reserve for the live operator, rollback buffers, axes and time grid.
-    let validate_grid = |time_steps| {
+    let validate_grid = |time_steps, curve_bytes| {
         if (assets * rows)
             .saturating_mul(BYTES_PER_GRID_POINT)
             .saturating_add(time_steps * BYTES_PER_TIME_STEP)
+            .saturating_add(curve_bytes)
             > WORKSPACE_BUDGET
         {
             return Err(invalid_grid(
@@ -347,14 +333,26 @@ fn prepare(
         }
         validate_work(assets * rows, time_steps)
     };
-    validate_grid(steps)?;
+    let (risk, dividend) = prepare_rate_curves(context, end, |knots, bytes| {
+        validate_grid(steps.max(knots), bytes)
+    })?;
+    let mut drift: f64 = 0.0;
+    for t in risk.ends().chain(dividend.ends()) {
+        crate::cancellation::check()?;
+        drift = drift.max(dividend.log_factor(0.0, t) - risk.log_factor(0.0, t));
+    }
+    let upper = settings.asset_upper_boundary.map_or_else(
+        || (drift + 6.0 * integrated.sqrt()).exp().max(4.0),
+        |x| x / scale,
+    );
+    let curve_bytes = risk.workspace_bytes() + dividend.workspace_bytes();
     let times = TimeGrid::with_events(
         time,
         settings.time_step_count,
         &risk,
         &dividend,
         &[],
-        validate_grid,
+        |steps| validate_grid(steps, curve_bytes),
     )?;
     if payoff.is_american() {
         let knots = risk.ends().len() + dividend.ends().len() - 2;

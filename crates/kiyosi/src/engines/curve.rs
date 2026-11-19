@@ -28,6 +28,33 @@ impl Segment {
 }
 
 impl Curve {
+    const BYTES_PER_INTERVAL: u64 = (size_of::<Segment>() + 2 * size_of::<f64>()) as u64;
+
+    fn interior_nodes(
+        curve: &crate::RateTermStructure,
+        valuation: crate::Timestamp,
+        expiry: crate::Timestamp,
+    ) -> &[crate::Timestamp] {
+        let nodes = curve.nodes_after(valuation);
+        &nodes[..nodes.partition_point(|&node| node < expiry)]
+    }
+
+    pub fn interval_count(
+        curve: &crate::RateTermStructure,
+        valuation: crate::Timestamp,
+        expiry: crate::Timestamp,
+    ) -> u64 {
+        Self::interior_nodes(curve, valuation, expiry).len() as u64 + 1
+    }
+
+    pub fn bytes_for_intervals(count: u64) -> u64 {
+        count.saturating_mul(Self::BYTES_PER_INTERVAL)
+    }
+
+    pub fn workspace_bytes(&self) -> u64 {
+        Self::bytes_for_intervals(self.segments.len() as u64)
+    }
+
     pub fn ends(&self) -> impl ExactSizeIterator<Item = f64> + '_ {
         self.segments.iter().map(|segment| segment.end)
     }
@@ -48,33 +75,35 @@ impl Curve {
         expiry: crate::Timestamp,
     ) -> Result<Self> {
         curve.validate_horizon(valuation, expiry)?;
-        let mut segments = Vec::new();
+        crate::cancellation::check()?;
+        let nodes = Self::interior_nodes(curve, valuation, expiry);
+        let count = nodes.len() + 1;
+        let mut segments = Vec::with_capacity(count);
+        let mut from_start = Vec::with_capacity(count);
         let mut previous = valuation;
-        for end in curve
-            .nodes_after(valuation)
-            .iter()
-            .copied()
-            .take_while(|&t| t < expiry)
-            .chain([expiry])
-        {
-            segments.push(Segment {
+        let mut log = 0.0;
+        for (index, end) in nodes.iter().copied().chain([expiry]).enumerate() {
+            if index % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
+            let segment = Segment {
                 start: valuation.years_until(previous),
                 end: valuation.years_until(end),
                 // Keep the segment width independent of rounding in the absolute coordinates.
                 width: previous.years_until(end),
                 rate: curve.forward_rate(previous)?,
-            });
-            previous = end;
-        }
-        let mut from_start = Vec::with_capacity(segments.len());
-        let mut log = 0.0;
-        for segment in &segments {
+            };
             from_start.push(log);
             log -= segment.rate * segment.width;
+            segments.push(segment);
+            previous = end;
         }
-        let mut to_end = vec![0.0; segments.len()];
+        let mut to_end = vec![0.0; count];
         log = 0.0;
-        for index in (0..segments.len()).rev() {
+        for index in (0..count).rev() {
+            if index % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
             to_end[index] = log;
             log -= segments[index].rate * segments[index].width;
         }

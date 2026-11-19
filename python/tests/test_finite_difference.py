@@ -74,6 +74,23 @@ def test_grid_workspace_includes_off_grid_curve_knots():
         engine.price(option, context)
 
 
+def test_grid_workspace_counts_pricing_curves_even_when_knots_align():
+    curve = RateTermStructure(
+        reference_time=START,
+        times=[START + timedelta(days=60, hours=20), END],
+        factors=[0.999, 0.95],
+    )
+    context = market(spot=100, rate=curve, dividend=0, sigma=0.2)
+    option = EuropeanOption(
+        option_type="call", strike=100, effective_time=START, expiry_time=END
+    )
+    engine = FiniteDifferenceVanillaEngine(
+        asset_step_count=3_532_044, time_step_count=6, scheme="explicit_euler"
+    )
+    with pytest.raises(InvalidInputError, match="workspace"):
+        engine.price(option, context)
+
+
 def test_american_upper_boundary_includes_intermediate_exercise():
     exercise = START + timedelta(days=182)
     dividend = RateTermStructure(

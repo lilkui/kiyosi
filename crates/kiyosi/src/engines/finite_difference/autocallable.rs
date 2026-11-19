@@ -1,5 +1,5 @@
 use super::{
-    Curve, Diffusion, FiniteDifferenceAutocallableEngine, FiniteDifferenceScheme,
+    Diffusion, FiniteDifferenceAutocallableEngine, FiniteDifferenceScheme,
     FiniteDifferenceSettings, Greek, GreeksRequest, NumericalShiftSettings, OptionContract,
     PricingContext, PricingEngine, PricingResult, Result, SpatialGrid, TimeGrid, analysis,
     diffusion, diffusion_upper,
@@ -203,11 +203,9 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
     let t = note.view();
     let daily = t.daily_knock_in();
     let layered = daily && !starting_knocked && note.knock_in_affects_payoff();
-    let model = context.model_parameters();
     let expiry = note.expiry_time();
     let time = context.valuation_time().years_until(expiry);
-    let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
-    let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
+    let (risk, dividend) = diffusion::rate_curves(context, expiry, settings)?;
     let event_times =
         crate::instruments::autocallable::pricing::future_event_times(note, context, daily)?;
     let mut observations: Vec<_> = note
@@ -260,6 +258,7 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
         validate_workspace(
             u64::from(settings.asset_step_count.unsigned_abs()) + 1,
             (grid.widths.len() - intervals + near_steps) as u64,
+            risk.workspace_bytes() + dividend.workspace_bytes(),
         )?;
         let mut times: Vec<_> = (0..near_steps)
             .map(|i| nearest * i as f64 / near_steps as f64)

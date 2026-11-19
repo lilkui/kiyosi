@@ -221,9 +221,7 @@ fn solve_grid<D: Diffusion>(
         expiry
     };
     let time = context.valuation_time().years_until(horizon);
-    let model = context.model_parameters();
-    let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), horizon)?;
-    let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), horizon)?;
+    let (risk, dividend) = diffusion::rate_curves(context, horizon, settings)?;
     let upper = if let Some(upper) = settings.asset_upper_boundary {
         upper
     } else {
