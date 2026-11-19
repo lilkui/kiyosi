@@ -228,6 +228,31 @@ fn implied_volatility_rejects_closed_horizon() -> Result<()> {
 }
 
 #[test]
+fn closed_weekend_needs_no_surface_coverage_at_expiry() -> Result<()> {
+    let start = instant(2026, 11, 14, 0);
+    let expiry = start.add_days(1)?;
+    let surface = LocalVolatilitySurface::new(
+        vec![start, instant(2026, 11, 14, 12)],
+        vec![80.0, 120.0],
+        vec![vec![0.2; 2]; 2],
+    )?;
+    let model = LocalVolatilityParameters::new_with_variance_time_convention(
+        0.0,
+        0.0,
+        surface,
+        VarianceTimeConvention::Business(TradingCalendar::weekdays()),
+    )?;
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, expiry)?;
+    let context = PricingContext::new(model, 110.0, start)?;
+    let engine = FiniteDifferenceVanillaEngine::default();
+    assert!((engine.price(&option, &context)? - 10.0).abs() < 1e-12);
+    let solution = engine.solve(&option, &context, 90.0..=120.0)?;
+    assert!((solution.price(110.0)? - 10.0).abs() < 1e-12);
+    assert_eq!(solution.price(90.0)?, 0.0);
+    Ok(())
+}
+
+#[test]
 fn changing_local_volatility_preserves_natural_dates_and_business_variance() {
     let start = instant(2026, 11, 13, 12);
     let end = start.add_days(3).unwrap();

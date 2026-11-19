@@ -30,14 +30,7 @@ pub(crate) fn enabled_until(context: &PricingContext, end: Timestamp) -> Result<
         return Ok(false);
     }
     let clock = context.model_parameters().variance_time_convention();
-    let stopped =
-        clock.calendar().is_some() && clock.year_fraction(context.valuation_time(), end)? == 0.0;
-    if stopped {
-        if let ModelParameters::LocalVolatility(model) = context.model_parameters() {
-            model.surface().validate_time(end)?;
-        }
-    }
-    Ok(stopped)
+    Ok(clock.calendar().is_some() && clock.variance_start(context.valuation_time(), end)? == end)
 }
 
 fn invalid() -> Error {

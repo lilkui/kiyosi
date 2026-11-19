@@ -487,6 +487,24 @@ def test_closed_prefix_pays_coupon_and_knock_out_exactly(kind):
     assert saved.price(110) == pytest.approx(1.03 * discount, abs=1e-12)
 
 
+def test_closed_weekend_needs_no_surface_coverage_at_expiry():
+    start = datetime(2026, 11, 14)
+    model = local(
+        start,
+        start + timedelta(hours=12),
+        risk_free_rate=0,
+        dividend_yield=0,
+        variance_time_convention="business",
+        calendar=weekdays_calendar(),
+    )
+    option = european(start, start + timedelta(days=1))
+    market = context(model, start, 110)
+    engine = fd()
+    assert engine.price(option, market) == pytest.approx(10, abs=1e-12)
+    solution = engine.solve(option, market, spot_range=(90, 120))
+    assert solution.price_many([90, 110]) == pytest.approx((0, 10), abs=1e-12)
+
+
 def test_closed_prefix_prices_fixed_cashflows_without_surface_at_reopen():
     from test_phoenix import contract
 
