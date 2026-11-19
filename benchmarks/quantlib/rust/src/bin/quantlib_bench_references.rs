@@ -31,7 +31,7 @@ fn main() -> kiyosi::Result<()> {
             asset_upper_boundary: Some(upper),
         })?;
         println!(
-            "{{\"space\":{space},\"time\":{time},\"upper\":{upper},\"price\":{:.17}}}",
+            "{{\"space\":{space},\"time\":{time},\"upper\":{upper},\"price\":{:e}}}",
             engine.price(&option, &context)?
         );
     }

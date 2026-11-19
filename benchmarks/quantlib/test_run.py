@@ -173,6 +173,25 @@ class NativeRustTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("unknown", result.stderr)
 
+    def test_native_json_preserves_small_prices(self):
+        result = command(
+            [
+                str(self.executable),
+                "family=european_bsm",
+                "iterations=1",
+                "option=call",
+                "valuation=2025-01-01",
+                "expiry=2026-01-01",
+                "spot=1e-18",
+                "strike=1e-18",
+                "rate=0",
+                "dividend=0",
+                "volatility=0.2",
+            ]
+        )
+        expected = 7.965567455405801e-20
+        self.assertAlmostEqual(json.loads(result)["price"] / expected, 1.0, places=14)
+
 
 class ReportWriteTests(unittest.TestCase):
     def setUp(self):

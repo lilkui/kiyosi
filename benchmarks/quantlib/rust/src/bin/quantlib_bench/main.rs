@@ -67,7 +67,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         return Err("nonfinite native price".into());
     }
     println!(
-        "{{\"price\":{result:.17},\"elapsed_ns\":{elapsed},\"iterations\":{iterations},\"warmup_iterations\":3}}"
+        "{{\"price\":{result:e},\"elapsed_ns\":{elapsed},\"iterations\":{iterations},\"warmup_iterations\":3}}"
     );
     Ok(())
 }
