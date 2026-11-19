@@ -50,6 +50,26 @@ def make_context(base_parameters):
     return create
 
 
+def test_tiny_volatility_preserves_quoted_intrinsic_value(make_context):
+    for direction, factor in (
+        ("call", 0.9090909090909091),
+        ("put", 0.9090909090909092),
+    ):
+        option = make_option(option_type=direction, strike=110)
+        curve = RateTermStructure(
+            reference_time=option.effective_time,
+            times=[option.expiry_time],
+            factors=[factor],
+        )
+        model = BlackScholesMertonParameters(
+            risk_free_rate=curve, dividend_yield=0, volatility=1e-22
+        )
+        expected = float(abs(100 - 110 * Fraction(factor)))
+        assert AnalyticEuropeanEngine().price(
+            option, make_context(model_parameters=model)
+        ) == pytest.approx(expected, rel=1e-12, abs=0)
+
+
 @pytest.mark.parametrize(
     "direction,expected", (("call", 9.227005508154036), ("put", 6.330080627549918))
 )

@@ -5,6 +5,24 @@ use kiyosi::{
 };
 
 #[test]
+fn tiny_volatility_preserves_quoted_intrinsic_value() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_days(365)?;
+    for (direction, factor) in [
+        (OptionType::Call, 0.909_090_909_090_909_1),
+        (OptionType::Put, 0.909_090_909_090_909_2),
+    ] {
+        let option = EuropeanOption::new(direction, 110.0, start, end)?;
+        let curve = RateTermStructure::new(start, vec![end], vec![factor])?;
+        let model = BlackScholesMertonParameters::new(curve, 0.0, 1e-22)?;
+        let context = PricingContext::new(model, 100.0, start)?;
+        let expected = 110.0_f64.mul_add(factor, -100.0).abs();
+        assert!((AnalyticEuropeanEngine.price(&option, &context)? / expected - 1.0).abs() < 1e-12);
+    }
+    Ok(())
+}
+
+#[test]
 fn european_call_and_put_match_independent_bsm_prices() {
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();

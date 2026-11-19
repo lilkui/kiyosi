@@ -1,4 +1,6 @@
-use crate::numerics::{log_difference, log_normal_cdf, standardize, weighted_cdf};
+use crate::numerics::{
+    discounted_product, log_difference, log_normal_cdf, standardize, weighted_cdf,
+};
 use std::f64::consts::PI;
 
 use crate::{
@@ -302,24 +304,40 @@ pub(crate) fn lognormal_price(
     }
     let (d1, d2) = black_scholes_arguments(log_moneyness, volatility, root_time);
     let standardized = standardize(log_moneyness, volatility, root_time);
-    let value = if width < 1e-5 && standardized.is_finite() && sign * standardized <= -10.0 {
+    let value = if width < 1e-5 && standardized.abs() >= 10.0 {
+        // Put-call parity preserves intrinsic value when both in-the-money legs round alike.
+        let intrinsic = if sign * log_moneyness > 0.0 {
+            let (amount, discount) = if sign > 0.0 {
+                (spot, asset_log)
+            } else {
+                (strike, risk_log)
+            };
+            discounted_product(amount, -(-sign * log_moneyness).exp_m1(), discount)
+        } else {
+            0.0
+        };
         // Expand both tail legs together to avoid cancellation at tiny positive volatility.
         let distance = standardized.abs();
-        let inverse_square = (1.0 / distance) / distance;
-        let mut term = 1.0;
-        let mut sum = 1.0;
-        let mut correction = -3.0;
-        for order in 1..=20 {
-            term *= -f64::from(2 * order + 1) * inverse_square;
-            sum += term;
-            correction -= f64::from(2 * order + 3) * term;
-        }
-        (spot.ln() + asset_log - 0.5 * standardized * width + volatility.ln() + root_time.ln()
-            - 0.5 * distance * distance
-            - 0.5 * (2.0 * PI).ln()
-            - 2.0 * distance.ln()
-            + (sum + width * width * correction / 24.0).ln())
-        .exp()
+        let time_value = if distance.is_infinite() {
+            0.0
+        } else {
+            let inverse_square = (1.0 / distance) / distance;
+            let mut term = 1.0;
+            let mut sum = 1.0;
+            let mut correction = -3.0;
+            for order in 1..=20 {
+                term *= -f64::from(2 * order + 1) * inverse_square;
+                sum += term;
+                correction -= f64::from(2 * order + 3) * term;
+            }
+            (spot.ln() + asset_log - 0.5 * standardized * width + volatility.ln() + root_time.ln()
+                - 0.5 * distance * distance
+                - 0.5 * (2.0 * PI).ln()
+                - 2.0 * distance.ln()
+                + (sum + width * width * correction / 24.0).ln())
+            .exp()
+        };
+        intrinsic + time_value
     } else if width < 1e-5 && standardized.abs() < 10.0 {
         let squared = standardized * standardized;
         let time_value = volatility.ln() + root_time.ln() - 0.5 * squared - 0.5 * (2.0 * PI).ln()
