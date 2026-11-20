@@ -413,6 +413,35 @@ fn deterministic_american_exercise_tie_has_undefined_spot_greeks() -> Result<()>
         close(result.require(Greek::Delta)?, delta, 1e-9);
         close(result.require(Greek::Gamma)?, 0.0, 1e-8);
     }
+    let spot = 149.5;
+    let context = context.replace(PricingContextChanges {
+        spot_price: Some(spot),
+        ..Default::default()
+    })?;
+    for result in [
+        engine.price_with_greeks_with_settings(
+            &option,
+            &context,
+            request,
+            NumericalShiftSettings {
+                spot_shift: Some(1.0),
+                ..Default::default()
+            },
+        )?,
+        solution.price_with_greeks(spot, request, Some(1.0))?,
+    ] {
+        close(result.price(), 49.515_625, 1e-12);
+        assert_eq!(result.status(Greek::Delta), GreekStatus::StencilUnavailable);
+        assert_eq!(result.status(Greek::Gamma), GreekStatus::StencilUnavailable);
+    }
+    let smooth = PricingContext::new(
+        BlackScholesMertonParameters::new(0.1, 0.05, 0.0)?,
+        200.0 * (-0.025_f64).exp(),
+        start,
+    )?;
+    let result = engine.price_with_greeks(&option, &smooth, request)?;
+    close(result.require(Greek::Delta)?, (-0.025_f64).exp(), 1e-9);
+    close(result.require(Greek::Gamma)?, 0.005, 1e-8);
     Ok(())
 }
 

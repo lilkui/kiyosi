@@ -388,6 +388,15 @@ def test_deterministic_american_exercise_tie_has_undefined_spot_greeks():
         result = solution.price_with_greeks(spot, greeks)
         assert result.delta == pytest.approx(delta, rel=0, abs=1e-9)
         assert result.gamma == pytest.approx(0, rel=0, abs=1e-8)
+    for result in (
+        engine.price_with_greeks(
+            instrument, market.replace(spot_price=149.5), greeks, spot_shift=1
+        ),
+        solution.price_with_greeks(149.5, greeks, spot_shift=1),
+    ):
+        assert result.price == pytest.approx(49.515625, rel=0, abs=1e-12)
+        assert result.status("delta") == "stencil_unavailable"
+        assert result.status("gamma") == "stencil_unavailable"
 
 
 def test_expiry_deterministic_and_settlement_paths_ignore_unused_grid_bounds():

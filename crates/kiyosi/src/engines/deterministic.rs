@@ -157,17 +157,59 @@ impl AmericanExercise {
         if spot - radius <= self.boundary && self.boundary <= spot + radius {
             return Ok(true);
         }
-        let mut best = 0.0;
-        let mut best_log_delta = 0.0;
+        if radius == 0.0 {
+            return self.exercise_at(context).map(|(_, _, tied)| tied);
+        }
+        let at_spot = |spot| {
+            context.replace(PricingContextChanges {
+                spot_price: Some(spot),
+                ..Default::default()
+            })
+        };
+        let (low_time, low_delta, low_tied) = self.exercise_at(&at_spot(spot - radius)?)?;
+        let (high_time, high_delta, high_tied) = self.exercise_at(&at_spot(spot + radius)?)?;
+        if low_tied || high_tied {
+            return Ok(true);
+        }
+        if !distinct_exercise_slopes(low_delta, high_delta) {
+            return Ok(false);
+        }
+        let (from, to) = (low_time.min(high_time), low_time.max(high_time));
+        let middle = from.midpoint(to);
+        let r = self.risk.rate(middle);
+        let q = self.dividend.rate(middle);
+        // A stationary optimum can move smoothly inside a single rate interval.
+        // Across different intervals the stencil can mix distinct exercise branches.
+        if !stationary_exercise_maximum(self.payoff, r, q)
+            || self.risk.ends_between(from, to).next().is_some()
+            || self.dividend.ends_between(from, to).next().is_some()
+        {
+            return Ok(true);
+        }
+        // With monotone dividend discounts, exercise times outside this interval
+        // cannot have slopes between the two winners and take over inside the bump.
+        let mut start = 0.0;
+        for end in self.dividend.ends() {
+            crate::cancellation::check()?;
+            if q.signum() * self.dividend.rate(start) < 0.0 {
+                return Ok(true);
+            }
+            start = end;
+        }
+        Ok(false)
+    }
+
+    fn exercise_at(&self, context: &PricingContext) -> Result<(f64, f64, bool)> {
+        let (mut best, mut best_time, mut best_log_delta) = (0.0, 0.0, 0.0);
         let mut alternative = 0.0;
-        let mut observe = |value, log_delta: f64| {
-            let distinct = (log_delta - best_log_delta).abs()
-                > 4.0 * f64::EPSILON * log_delta.abs().max(best_log_delta.abs()).max(1.0);
+        let mut observe = |value, log_delta, time| {
+            let distinct = distinct_exercise_slopes(log_delta, best_log_delta);
             if value > best {
                 if distinct {
                     alternative = best;
                 }
                 best = value;
+                best_time = time;
                 best_log_delta = log_delta;
             } else if distinct {
                 alternative = f64::max(alternative, value);
@@ -182,8 +224,20 @@ impl AmericanExercise {
             &self.times,
             Some(&mut observe),
         )?;
-        Ok(alternative > 0.0 && price - alternative <= 4.0 * f64::EPSILON * price)
+        let tied = alternative > 0.0 && price - alternative <= 4.0 * f64::EPSILON * price;
+        Ok((best_time, best_log_delta, tied))
     }
+}
+
+fn distinct_exercise_slopes(left: f64, right: f64) -> bool {
+    (left - right).abs() > 4.0 * f64::EPSILON * left.abs().max(right.abs()).max(1.0)
+}
+
+fn stationary_exercise_maximum(payoff: Payoff, r: f64, q: f64) -> bool {
+    r != 0.0
+        && q != 0.0
+        && r.signum() * q.signum() > 0.0
+        && payoff.sign * r.signum() * (q - r) < 0.0
 }
 
 fn market_exercise_times(context: &PricingContext, expiry: Timestamp) -> Vec<Timestamp> {
@@ -212,7 +266,7 @@ fn market_exercise_value(
     risk: &Curve,
     dividend: &Curve,
     times: &[Timestamp],
-    observe: Option<&mut dyn FnMut(f64, f64)>,
+    observe: Option<&mut dyn FnMut(f64, f64, f64)>,
 ) -> Result<f64> {
     let start = context.valuation_time();
     let spot = context.spot_price();
@@ -322,7 +376,7 @@ fn exercise_value_on_knots(
     end: f64,
     [risk, dividend]: [&Curve; 2],
     knots: impl Iterator<Item = (f64, Option<f64>)>,
-    mut observe: Option<&mut dyn FnMut(f64, f64)>,
+    mut observe: Option<&mut dyn FnMut(f64, f64, f64)>,
 ) -> Result<f64> {
     let moneyness = |dividend_log, risk_log, quoted: Option<f64>| {
         quoted.unwrap_or_else(|| log_ratio(spot, payoff.strike) + (dividend_log - risk_log))
@@ -352,7 +406,7 @@ fn exercise_value_on_knots(
             moneyness(0.0, 0.0, None),
         ) <= 0.0
         {
-            observe(best, 0.0);
+            observe(best, 0.0, start);
         }
     }
     let mut a = start;
@@ -375,8 +429,8 @@ fn exercise_value_on_knots(
                     discounted_intrinsic(payoff, spot, d, r_log, moneyness(d, r_log, None))?;
                 best = best.max(value);
                 if let Some(observe) = &mut observe {
-                    if payoff.sign * r.signum() * (q - r) < 0.0 {
-                        observe(value, d);
+                    if stationary_exercise_maximum(payoff, r, q) {
+                        observe(value, d, t);
                     }
                 }
             }
@@ -392,7 +446,7 @@ fn exercise_value_on_knots(
             if time_slope(r, q, forward) >= 0.0
                 && (b >= end || time_slope(risk.rate(b), dividend.rate(b), forward) <= 0.0)
             {
-                observe(value, d);
+                observe(value, d, b);
             }
         }
         a = b;
