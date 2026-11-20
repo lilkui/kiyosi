@@ -19,7 +19,7 @@ times = monthly_schedule(
     observation_clock_time=time(15),
 )
 
-# 波动率使用交易时间；利率和连续股息率仍使用自然时间。
+# 波动率使用交易时间，利率和连续股息率使用自然时间。
 context = PricingContext(
     model_parameters=BlackScholesMertonParameters(
         risk_free_rate=0.02,
@@ -50,7 +50,7 @@ standard = standard_phoenix(
 assert standard.coupon_times == tuple(times)
 assert standard.knock_out_times == tuple(times)[2:]
 
-# 通用合约可独立修改敲出列表，派息列表保留原样；4 月 15 日只观察敲出。
+# 敲出与派息使用独立的观察列表。4 月 15 日只观察敲出。
 custom = standard.replace(
     knock_out_observations=[KnockOutObservation(datetime(2025, 4, 15, 15), 103)],
 )

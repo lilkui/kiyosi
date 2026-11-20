@@ -52,7 +52,7 @@ pub(crate) fn expiry_greeks(
             .into_iter()
             .filter(|&greek| result.requested().has(greek) && result.supported().has(greek)),
     );
-    // Terminal payments no longer depend on volatility or discount rates.
+    // Terminal payments are independent of volatility and discount rates.
     for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
         result.set(request, greek, 0.0)?;
     }
@@ -137,7 +137,7 @@ pub(crate) fn expiry_greeks(
 /// Volatility and rates use decimals; valuation time uses Actual/365 Fixed years.
 /// Dividend rho shifts the dividend curve in parallel using `settings.rate_shift`.
 /// [`crate::EuropeanOption`], [`crate::DigitalOption`] and [`crate::AmericanOption`] expose their inclusive
-/// life through [`OptionContract`]; engine/instrument support remains type checked.
+/// life through [`OptionContract`]. Rust checks engine and instrument compatibility at compile time.
 ///
 /// # Errors
 ///

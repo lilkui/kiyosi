@@ -5126,5 +5126,5 @@
       "calibration_seed": 11729
     }
   },
-  "selection_rule": "Smallest tested pricing path count passing all ensemble and unchanged timing-seed gates; 50 exercise intervals and 32768 QuantLib calibration paths independently refined"
+  "selection_rule": "Select the smallest tested pricing path count that passes the ensemble and timing-seed gates. Independent refinements select 50 exercise intervals and 32768 QuantLib calibration paths."
 }

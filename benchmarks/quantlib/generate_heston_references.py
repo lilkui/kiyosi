@@ -191,8 +191,8 @@ def main():
     (HERE / "references/heston.json").write_text(
         json.dumps({"schema_version": 1, "cases": references}, indent=2) + "\n"
     )
-    # The existing correctness oracle is regenerated from the same fresh 1.44
-    # joint grids; its uncertainty keeps its original joint-grid convention.
+    # The Python test fixture uses the same QuantLib 1.44 joint grids and
+    # estimates its uncertainty from joint-grid extrapolation.
     fixture = {
         "quantlib_version": "1.44",
         "scheme": "Hundsdorfer-Verwer with American payoff projection",

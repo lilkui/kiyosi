@@ -47,10 +47,10 @@ fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<i32>> {
 /// Observe trading times in (effective_time, expiry_time]. Bounds are
 /// inclusive. Settlement may fall on a closed date without adding an
 /// observation. Payment is notional times annual coupon times Actual/365 Fixed
-/// life times the fraction of observations inside the range. Payment is at
-/// expiry; a completed observation schedule still has a discounted future
-/// payment. Long schedule builds release the GIL and poll Python signals during
-/// construction and replacement.
+/// life times the fraction of observations inside the range. Payment occurs at
+/// expiry and is discounted to the valuation time, including when the
+/// observation schedule is complete. Long schedule builds release the GIL and
+/// poll Python signals during construction and replacement.
 ///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]

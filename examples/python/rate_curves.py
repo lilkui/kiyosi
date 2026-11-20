@@ -34,7 +34,7 @@ option = EuropeanOption(
 engine = AnalyticEuropeanEngine()
 base_price = engine.price(option, context)
 
-# 平行上移 10 bp，返回新曲线；原曲线和原市场快照可继续用于基准估值。
+# 基准估值使用原市场快照，情景估值使用平行上移 10 bp 的曲线。
 shifted = curve.shifted(0.001)
 scenario = context.replace(model_parameters=model.replace(risk_free_rate=shifted))
 print(f"基准价格：{base_price:.6f}")

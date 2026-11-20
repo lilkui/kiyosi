@@ -46,7 +46,7 @@ python3 benchmarks/quantlib/run.py
 
 ## 解读结果
 
-两端的价格均须满足 `abs(price - reference) + reference_uncertainty <= error_budget`。蒙特卡洛用例还会跨验证种子检查经验误差、偏差与离散度。门限未通过时跳过计时；未通过行的比值为 `null`，并使命令以失败状态退出。每次原生定价批次最多运行 120 秒，超时记为用例失败。单个用例失败后，其余已请求的用例仍会继续运行。
+两端的价格均须满足 `abs(price - reference) + reference_uncertainty <= error_budget`。蒙特卡洛用例还会跨验证种子检查经验误差、偏差与离散度。门限未通过时跳过计时；未通过行的比值为 `null`，并使命令以失败状态退出。每次原生定价批次最多运行 120 秒，超时记为用例失败。用例独立运行，单个失败不影响其余用例的执行。
 
 计时基于预先构造的合约、定价上下文、模型与引擎，交替采集 15 组双后端样本。每次请求都会重新计算最新价格；后端固有的额外开销（包括 QuantLib 的敏感度与样本方差计算）均保留在计时范围内。比值定义为 `Q/K`，大于 1 表示 Kiyosi 延迟更低。JSON 报告完整保留原始样本、后端参数配置、参考值证据、覆盖情况以及机器与构建元数据。请在空闲机器上运行测量；结果仅适用于所记录的场景与参数配置。
 
@@ -71,10 +71,10 @@ KIYOSI_QUANTLIB_LIVE=1 python3 -m unittest discover -s benchmarks/quantlib -p 't
 
 场景输入、误差预算与后端参数配置位于 `cases/*.json`；参考值、不确定度与来源信息位于 `references/*.json`；离线收敛证据位于 `calibration/*.json` 和 `heston_calibration.json`。修改场景时，请遵循[参考值与校准流程](methodology.md#维护)。
 
-比较 FD 调用策略与核心精度时，基线程序须为 release 构建、支持 `upper=automatic`，且普通欧式与连续单障碍的均匀网格终端收益按节点取值：
+比较 FD 调用策略与求解器精度时，基线程序须为 release 构建、支持 `upper=automatic`，且普通欧式与连续单障碍的均匀网格终端收益按节点取值：
 
 ```sh
-python3 benchmarks/quantlib/compare_fd_accuracy.py --baseline-executable /path/to/fd-before-core
+python3 benchmarks/quantlib/compare_fd_accuracy.py --baseline-executable /path/to/reference-quantlib_bench
 ```
 
 输出默认为 `calibration/fd_accuracy.json`；用 `--report` 指定复测文件。验收规则与校准探针见[有限差分说明](methodology.md#有限差分)。

@@ -1038,8 +1038,8 @@ engine_settings!(
     ///
     /// Returns spline delta/gamma and fixed-grid speed, completing other Greeks numerically.
     ///
-    /// Local-volatility results provide delta and gamma; other requested Greeks remain
-    /// absent. Bumped contexts share the central spatial domain.
+    /// Local-volatility results provide delta and gamma only. Bumped contexts
+    /// share the central spatial domain.
     /// At expiry, supported Greeks are exact payoff derivatives away from the strike;
     /// spot Greeks are undefined at the strike and time Greeks are absent.
     /// Uses [`NumericalShiftSettings`] for bumps; unavailable stencils leave Greeks absent.

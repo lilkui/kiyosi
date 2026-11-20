@@ -10,7 +10,7 @@ use crate::{Timestamp, TurnbullWakemanArithmeticAveragePriceEngine};
 /// Prices geometric and arithmetic continuous averages using CPU Monte Carlo.
 ///
 /// Geometric averages and single fixings sample their exact distribution in one
-/// dimension. Arithmetic averages retain trapezoidal integration with the first
+/// dimension. Arithmetic averages use trapezoidal integration with the first
 /// interval integrated conditionally; forward starts sample a separate lead interval.
 /// Sampling, exact path counts, thread caps and reproducibility follow
 /// [`crate::MonteCarloVanillaEngine`]. Shared and distinct engines support concurrent
@@ -659,7 +659,7 @@ impl ArithmeticParameters {
                 weighted_normals += fraction * normal_sum;
             }
             if growth > 600.0 || log_sum != f64::NEG_INFINITY {
-                // Above exp(600), unit offsets no longer affect floating-point sums.
+                // Above exp(600), unit offsets fall below floating-point precision.
                 if log_sum == f64::NEG_INFINITY {
                     log_sum = (1.0 - 0.5 / f64::from(self.step_count) + relative_sum).ln();
                 }

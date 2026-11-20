@@ -66,7 +66,7 @@ def configure_monte_carlo_pool(*, max_workers: SupportsIndex) -> None:
     the configured cap is valid; failed configuration leaves it unchanged.
     Engine max_active_workers caps active work per request within this pool.
     Use multiprocessing's spawn start method if the parent has already run
-    parallel Monte Carlo. A forked child can still price with a serial engine.
+    parallel Monte Carlo. Serial engines support pricing in a forked child.
     """
 
 def implied_snowball_coupon(
@@ -5803,10 +5803,10 @@ class RangeAccrualOption:
     Observe trading times in (effective_time, expiry_time]. Bounds are
     inclusive. Settlement may fall on a closed date without adding an
     observation. Payment is notional times annual coupon times Actual/365 Fixed
-    life times the fraction of observations inside the range. Payment is at
-    expiry; a completed observation schedule still has a discounted future
-    payment. Long schedule builds release the GIL and poll Python signals during
-    construction and replacement.
+    life times the fraction of observations inside the range. Payment occurs at
+    expiry and is discounted to the valuation time, including when the
+    observation schedule is complete. Long schedule builds release the GIL and
+    poll Python signals during construction and replacement.
     """
 
     @property

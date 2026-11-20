@@ -58,7 +58,7 @@ macro_rules! with_barrier {
 /// the configured cap is valid; failed configuration leaves it unchanged.
 /// Engine max_active_workers caps active work per request within this pool.
 /// Use multiprocessing's spawn start method if the parent has already run
-/// parallel Monte Carlo. A forked child can still price with a serial engine.
+/// parallel Monte Carlo. Serial engines support pricing in a forked child.
 ///
 #[pyfunction]
 #[pyo3(signature = (*, max_workers))]

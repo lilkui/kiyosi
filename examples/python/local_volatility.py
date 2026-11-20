@@ -40,7 +40,7 @@ print(f"价格：{result.price:.6f}")
 print(f"delta：{result.require('delta'):.6f}，gamma：{result.require('gamma'):.6f}")
 print(f"vega：{result.vega}，状态：{result.status('vega')}")
 
-# 更改现货价格时，曲面的绝对价格节点保持不变，不随新现货价格平移。
+# 现货情景使用固定在绝对价格节点上的局部波动率曲面。
 scenario = context.replace(spot_price=105)
 print(f"现货升至 105：{engine.price(option, scenario):.6f}")
 

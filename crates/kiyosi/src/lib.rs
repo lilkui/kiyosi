@@ -57,7 +57,7 @@
 //! `replace` validates terms and history together, preserving omitted fields and
 //! the original contract. Retained history is neither cleared nor reconstructed
 //! when terms change. Numerical time sensitivities hold supplied history fixed;
-//! observation boundaries still determine whether a time stencil is available.
+//! observation boundaries determine whether a time stencil is available.
 //!
 //! ```rust
 //! use kiyosi::*;

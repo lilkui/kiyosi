@@ -4,7 +4,7 @@ use std::{borrow::Cow, fmt, io};
 ///
 /// Variants identify failures that callers can handle differently; diagnostic
 /// messages are for humans. Errors own their data and are `Send + Sync`.
-/// Native I/O causes remain available through [`Self::Io`] and
+/// Native I/O causes are available through [`Self::Io`] and
 /// [`std::error::Error::source`]. Internal panics and allocator failures retain
 /// their native behavior.
 ///
@@ -90,7 +90,7 @@ impl From<io::Error> for Error {
 
 /// Represents a value, a domain rejection or a reported operational failure.
 ///
-/// Native I/O details remain available through [`Error::Io`] and the standard
+/// Native I/O details are available through [`Error::Io`] and the standard
 /// error source. This alias does not guarantee recovery from allocator failures
 /// or internal panics. See [`crate::MonteCarloVanillaEngine::price`] for an example.
 pub type Result<T> = std::result::Result<T, Error>;

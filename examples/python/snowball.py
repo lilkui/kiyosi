@@ -31,14 +31,14 @@ note = standard_snowball(
     expiry_time=end,
 )
 
-# 同时修改观察票息和到期票息；原合约仍保持 12%。
+# 独立报价合约的观察票息和到期票息均为 15%。原合约的两类票息均为 12%。
 edited = note.with_coupon(
     first_observation_coupon=0.15, quote_convention="shift_maturity_coupon"
 )
 assert all(abs(coupon - 0.15) < 1e-14 for coupon in edited.knock_out_coupon_rates)
 assert abs(edited.maturity_coupon_rate - 0.15) < 1e-14
 
-# 波动率使用交易时间；利率和连续股息率仍使用自然时间。
+# 波动率使用交易时间，利率和连续股息率使用自然时间。
 context = PricingContext(
     model_parameters=BlackScholesMertonParameters(
         risk_free_rate=0.02,

@@ -41,7 +41,7 @@ BSM 与给定局部波动率用例涵盖欧式/美式香草期权、现金/资�
 普通欧式和连续单障碍普通期权在行权价折点沿对数现货做终端收益单元平均，包含局部波动率敲入的香草延续价值。
 BSM 普通欧式自动网格以扣除确定性持有成本后的行权价加密节点，回推完成后再应用股息贴现。
 
-`calibration/fd_bsm.json` 与 `calibration/fd_local_vol.json` 记录 `selected` 主配置和 `explicit_boundary` 显式上界对照。`domain_constant_spacing` 扩大上界并以整数区间数保持近似相同的平均 `Δln S`。例如下障碍 80 的 `[80,400]`、800 区间扩展为 `[80,600]`、1002 区间。若节点在合约价位附近加密，局部间距仍会随域改变。
+`calibration/fd_bsm.json` 与 `calibration/fd_local_vol.json` 记录 `selected` 主配置和 `explicit_boundary` 显式上界对照。`domain_constant_spacing` 扩大上界并以整数区间数保持近似相同的平均 `Δln S`。例如下障碍 80 的 `[80,400]`、800 区间扩展为 `[80,600]`、1002 区间。合约价位附近加密的节点间距取决于求解域。
 
 局部波动率敲入另有 `continuation_constant_spacing` 探针，用于控制全域延续价值网格的平均对数步长。两个网格共用区间数，因此扩域会同时影响另一网格的空间误差。
 
@@ -67,7 +67,7 @@ Kiyosi 有限差分采用改进 Craig–Sneyd ADI 格式与 Ikonen–Toivanen �
 
 欧式与障碍用例要求绝对误差加参考值不确定度不超过 `0.10`、RMSE 不超过 `0.05`、有符号偏差绝对值不超过 `0.025`、样本标准差不超过 `0.05`。参考值复用独立的 Decimal BSM 公式与吸收密度公式。路径数与时间步数的收敛结果随逐种子结果记录在 `calibration/monte_carlo.json` 中。
 
-Kiyosi 使用 PCG32/Box–Muller 与条件桥存续概率；QuantLib 使用 MT/逆正态抽样，并用固定种子为 5 的独立 MT 随机流抽样障碍穿越。两端的障碍协议均拒绝主种子 5，以避免随机流耦合。最初使用种子 1 至 32 发生冲突的证据保留在 `calibration/monte_carlo_seed_collision.json` 中；替代种子公式在查看其输出前即已确定。路径数均指物理路径数。
+Kiyosi 使用 PCG32/Box–Muller 与条件桥存续概率；QuantLib 使用 MT/逆正态抽样，并用固定种子为 5 的独立 MT 随机流抽样障碍穿越。两端的障碍协议均拒绝主种子 5，以避免随机流耦合。`calibration/monte_carlo_seed_collision.json` 记录使用种子 1 至 32 验证随机流耦合的证据。验证种子在检查验证结果前确定。路径数均指物理路径数。
 
 ### 美式最小二乘蒙特卡洛
 

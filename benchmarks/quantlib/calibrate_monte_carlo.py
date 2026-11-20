@@ -89,7 +89,7 @@ def main():
                     "schema_version": 1,
                     "build_evidence": build_evidence,
                     "libraries": libraries,
-                    "validation_seed_policy": "1009+97*i, i0..31; fixed before observing replacement ensemble; timing1729 unchanged",
+                    "validation_seed_policy": "Validation uses 1009 + 97*i for i=0..31, set before inspecting results. Timing uses seed 1729.",
                     "prior_collision_evidence": "monte_carlo_seed_collision.json",
                     "protocol": "methodology.md#monte-carlo; budget and seeds declared before profile selection",
                     "references": references,
@@ -122,7 +122,7 @@ def main():
         for case in load_entries(HERE / "cases/monte_carlo.json").values()
     }
     document["selection_rule"] = (
-        "Smallest tested path count satisfying ensemble and unchanged timing-seed gates; one barrier interval"
+        "Select the smallest tested path count that passes the ensemble and timing-seed gates. Barrier pricing uses one interval."
     )
     output.write_text(json.dumps(document, indent=2, allow_nan=False) + "\n")
 

@@ -13928,10 +13928,10 @@
       32
     ],
     "timing_seed": 1729,
-    "finding": "Gaussian seed5 duplicates hardcoded auxiliary crossing MT seed5; dependent streams bias one-step barrier pricing. Complete original32-seed sweeps retained; no seed omitted.",
-    "replacement_policy": "1009+97*i for i0..31; fixed for everycase before observing anyreplacement output; unchanged budgets and timingseed",
-    "native_build": "Captured before benchmark rejects seed5; build evidence identifies original artifact.",
-    "reproduction": "Original seed5 observations require removing the benchmark-only rejection; stock QuantLib1.44 engine is unchanged."
+    "finding": "Gaussian seed 5 duplicates the auxiliary Mersenne Twister crossing seed, which biases one-step barrier pricing. The sweeps cover all 32 seeds.",
+    "replacement_policy": "Validation uses 1009 + 97*i for i=0..31 in every case, set before inspecting validation results. Both seed sets use the same case error budgets and timing seed 1729.",
+    "native_build": "The build evidence identifies the adapter that accepts seed 5 for this sweep.",
+    "reproduction": "Reproduce the seed 5 observations with an adapter that accepts seed 5 and a stock QuantLib 1.44 engine."
   },
   "build_evidence": {
     "rust_command": [

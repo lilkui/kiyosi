@@ -1,4 +1,4 @@
-"""Measure FD call-policy and core changes separately against a saved baseline."""
+"""Compare FD pricing accuracy and latency across grid policies and builds."""
 
 import argparse
 import copy
@@ -14,7 +14,7 @@ HERE = Path(__file__).resolve().parent
 
 
 def main():
-    """Retain paired samples, original budgets and a five-percent latency check."""
+    """Record paired samples and check case error budgets and a 5% latency tolerance."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--baseline-executable", type=Path, required=True)
     parser.add_argument(
@@ -68,7 +68,7 @@ def main():
                 ("core_selected", selected, selected, updated),
             ]:
                 probe = copy.deepcopy(case)
-                # Reuse the existing paired runner with two Kiyosi executables.
+                # Both runner slots use Kiyosi executables for these comparisons.
                 probe["profiles"] = {"kiyosi": before, "quantlib": after}
                 measurement = run.measure(
                     probe,

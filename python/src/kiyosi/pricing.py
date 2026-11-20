@@ -10,7 +10,7 @@ Engines with configurable constructor fields support ``replace(**changes)`` to
 create a validated engine while preserving omitted controls.
 
 ``price_with_greeks`` requires a Greek name, an iterable of names, or ``"all"``.
-An empty iterable requests price only. Unsupported measures remain absent with
+An empty iterable requests price only. Unsupported measures are absent with
 status ``"unsupported"``, including requests with no supported measures.
 ``PricingResult`` documents units;
 ``result.status`` explains missing measures, and ``result.require`` rejects them.

@@ -1,4 +1,4 @@
-"""Spot defaults remain explicit and replayable for Monte Carlo barrier Greeks."""
+"""Spot shift defaults and replayability for Monte Carlo barrier Greeks."""
 
 import inspect
 from datetime import datetime, timedelta

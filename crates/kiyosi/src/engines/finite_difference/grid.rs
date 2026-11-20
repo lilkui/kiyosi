@@ -293,7 +293,7 @@ impl SpatialGrid {
             }
             carry = carry.max((risk.rate(at) - dividend.rate(at)).abs());
         }
-        // A single cell across a diffusion width or drift layer still smears the payoff.
+        // A single cell across a diffusion width or drift layer smears the payoff.
         let resolved_width = 8.0 * self.spacing;
         let mut scale = f64::INFINITY;
         let mut resolve_strike = false;

@@ -111,8 +111,8 @@ def main():
 
     document["selected_profiles"] = case["profiles"]
     document["selection_rule"] = (
-        "Smallest tested pricing path count passing all ensemble and unchanged timing-seed gates; "
-        "50 exercise intervals and 32768 QuantLib calibration paths independently refined"
+        "Select the smallest tested pricing path count that passes the ensemble and timing-seed gates. "
+        "Independent refinements select 50 exercise intervals and 32768 QuantLib calibration paths."
     )
     output.write_text(json.dumps(document, indent=2, allow_nan=False) + "\n")
     reference["provenance"]["lsm_refinement"] = {

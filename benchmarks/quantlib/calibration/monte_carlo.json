@@ -14042,7 +14042,7 @@
       ]
     }
   },
-  "validation_seed_policy": "1009+97*i, i0..31; fixed before observing replacement ensemble; timing1729 unchanged",
+  "validation_seed_policy": "Validation uses 1009 + 97*i for i=0..31, set before inspecting results. Timing uses seed 1729.",
   "prior_collision_evidence": "monte_carlo_seed_collision.json",
   "selected_profiles": {
     "mc-european-call": {
@@ -14120,5 +14120,5 @@
       }
     }
   },
-  "selection_rule": "Smallest tested path count satisfying ensemble and unchanged timing-seed gates; one barrier interval"
+  "selection_rule": "Select the smallest tested path count that passes the ensemble and timing-seed gates. Barrier pricing uses one interval."
 }

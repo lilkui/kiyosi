@@ -173,7 +173,7 @@ fn sparse_and_rank_deficient_paths_preserve_exercise_and_currency_scaling() {
             }
         }
     }
-    // The constant fit must still exercise when future continuation is lower.
+    // The constant fit selects exercise when intrinsic value exceeds continuation.
     for direction in [OptionType::Call, OptionType::Put] {
         let (rate, dividend, spot) = if direction == OptionType::Call {
             (-0.1, 0.0, 200.0)

@@ -80,7 +80,7 @@ impl Greek {
 ///
 /// Select measures explicitly with [`Self::new`] or [`Self::all`].
 /// Empty requests select price only, leaving every sensitivity unrequested.
-/// Unsupported measures remain absent with [`GreekStatus::Unsupported`], including
+/// Unsupported measures are absent with [`GreekStatus::Unsupported`], including
 /// requests with no engine/model-supported measure. Use [`PricingResult::require`]
 /// to reject a measure unavailable in the result.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -594,7 +594,7 @@ pub trait PricingEngine<I = EuropeanOption> {
 
     /// Returns native sensitivities with explicit request-level numerical controls.
     ///
-    /// Built-in overrides retain native estimators and apply request-level shifts to numerical
+    /// Built-in overrides use native estimators and apply request-level shifts to numerical
     /// fallbacks, event checks and terminal stencils. Purely analytic measures ignore
     /// the validated controls. Custom estimators override this hook; [`Self::price_with_greeks`]
     /// supplies shared defaults through a generic engine or trait object.
@@ -699,7 +699,7 @@ pub trait PricingEngine<I = EuropeanOption> {
     ///
     /// Deterministic engines accept the default. Monte Carlo engines require a
     /// configured seed; call their `with_resolved_seed` method before solving and
-    /// retain the returned engine for repricing. Numerical Greeks may still resolve
+    /// retain the returned engine for repricing. Numerical Greeks may resolve
     /// a request-local seed. See [`crate::implied_volatility`] for solver usage.
     ///
     /// # Errors

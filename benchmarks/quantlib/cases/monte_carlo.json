@@ -90,7 +90,7 @@
         "quantlib_brownian_bridge_path_construction": false,
         "exact_terminal_steps": 1
       },
-      "validation_seed_policy": "1009+97*i, i=0..31; fixed before replacement-ensemble outputs; avoids structural crossing RNG seed5 coupling; initial1..32 evidence retained in calibration/monte_carlo_seed_collision.json",
+      "validation_seed_policy": "Validation uses 1009 + 97*i for i=0..31, set before inspecting results. This excludes seed 5, which couples the QuantLib barrier random streams. See calibration/monte_carlo_seed_collision.json for the seed 1 through 32 sweep.",
       "quantlib_engine": "MCEuropeanEngine"
     },
     {
@@ -182,7 +182,7 @@
         "quantlib_brownian_bridge_path_construction": false,
         "exact_terminal_steps": 1
       },
-      "validation_seed_policy": "1009+97*i, i=0..31; fixed before replacement-ensemble outputs; avoids structural crossing RNG seed5 coupling; initial1..32 evidence retained in calibration/monte_carlo_seed_collision.json",
+      "validation_seed_policy": "Validation uses 1009 + 97*i for i=0..31, set before inspecting results. This excludes seed 5, which couples the QuantLib barrier random streams. See calibration/monte_carlo_seed_collision.json for the seed 1 through 32 sweep.",
       "quantlib_engine": "MCEuropeanEngine"
     },
     {
@@ -283,7 +283,7 @@
           "quantlib": "sampled_bridge_crossing; withBias(false)"
         }
       },
-      "validation_seed_policy": "1009+97*i, i=0..31; fixed before replacement-ensemble outputs; avoids structural crossing RNG seed5 coupling; initial1..32 evidence retained in calibration/monte_carlo_seed_collision.json",
+      "validation_seed_policy": "Validation uses 1009 + 97*i for i=0..31, set before inspecting results. This excludes seed 5, which couples the QuantLib barrier random streams. See calibration/monte_carlo_seed_collision.json for the seed 1 through 32 sweep.",
       "quantlib_engine": "MCBarrierEngine"
     },
     {
@@ -384,7 +384,7 @@
           "quantlib": "sampled_bridge_crossing; withBias(false)"
         }
       },
-      "validation_seed_policy": "1009+97*i, i=0..31; fixed before replacement-ensemble outputs; avoids structural crossing RNG seed5 coupling; initial1..32 evidence retained in calibration/monte_carlo_seed_collision.json",
+      "validation_seed_policy": "Validation uses 1009 + 97*i for i=0..31, set before inspecting results. This excludes seed 5, which couples the QuantLib barrier random streams. See calibration/monte_carlo_seed_collision.json for the seed 1 through 32 sweep.",
       "quantlib_engine": "MCBarrierEngine"
     }
   ]
