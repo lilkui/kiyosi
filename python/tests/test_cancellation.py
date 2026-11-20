@@ -9,6 +9,40 @@ import pytest
 
 
 @pytest.mark.skipif(not hasattr(signal, "setitimer"), reason="requires an OS alarm")
+def test_surface_value_export_polls_signals_before_returning_the_tuple():
+    from datetime import datetime, timedelta
+
+    from kiyosi.market import LocalVolatilitySurface
+
+    start = datetime(2025, 1, 1)
+    size = 2048
+    surface = LocalVolatilitySurface(
+        times=[start + timedelta(seconds=i) for i in range(size)],
+        spots=range(1, size + 1),
+        values=[(0.2,) * size] * size,
+    )
+
+    class StopExport(Exception):
+        pass
+
+    def stop(*_):
+        raise StopExport
+
+    original_handler = signal.signal(signal.SIGALRM, stop)
+    exported = None
+    try:
+        with pytest.raises(StopExport):
+            signal.setitimer(signal.ITIMER_REAL, 0.005)
+            exported = surface.values
+            signal.setitimer(signal.ITIMER_REAL, 0)
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, original_handler)
+    assert exported is None
+    assert surface.volatility(start, 1) == 0.2
+
+
+@pytest.mark.skipif(not hasattr(signal, "setitimer"), reason="requires an OS alarm")
 def test_timestamp_export_polls_signals_before_returning_the_tuple():
     from datetime import datetime, time, timedelta
 

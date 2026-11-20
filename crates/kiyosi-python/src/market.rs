@@ -1,4 +1,6 @@
-use crate::conversions::{python_date, python_timestamp, python_timestamps, real, timestamp};
+use crate::conversions::{
+    python_date, python_timestamp, python_timestamps, python_tuple, real, timestamp,
+};
 use crate::error::domain;
 use pyo3::prelude::*;
 use pyo3::types::{PyDate, PyTuple};
@@ -317,7 +319,7 @@ impl RateTermStructure {
         } else {
             self.0.factors()
         };
-        PyTuple::new(py, domain(factors)?)
+        python_tuple(py, domain(factors)?, Ok)
     }
     /// Return original node factors without parallel shifts.
     ///
@@ -327,7 +329,7 @@ impl RateTermStructure {
     ///
     #[getter]
     fn base_factors<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-        PyTuple::new(py, self.0.base_factors())
+        python_tuple(py, self.0.base_factors(), Ok)
     }
     /// Return the accumulated node-curve parallel shift in decimal units.
     ///

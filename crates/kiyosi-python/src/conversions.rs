@@ -1,4 +1,5 @@
 use crate::error::domain;
+use pyo3::IntoPyObjectExt;
 use pyo3::exceptions::{PyOverflowError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{
@@ -365,17 +366,36 @@ pub(crate) fn python_timestamps<'py>(
     py: Python<'py>,
     times: &[kiyosi::Timestamp],
 ) -> PyResult<Bound<'py, PyTuple>> {
+    python_tuple(py, times.iter().copied(), |time| python_timestamp(py, time))
+}
+
+// Pass conversion errors through PyTuple::new so it can discard a partial tuple.
+struct TupleItem<T>(PyResult<T>);
+
+impl<'py, T: IntoPyObject<'py>> IntoPyObject<'py> for TupleItem<T> {
+    type Target = PyAny;
+    type Output = Bound<'py, PyAny>;
+    type Error = PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> PyResult<Self::Output> {
+        self.0?.into_bound_py_any(py)
+    }
+}
+
+pub(crate) fn python_tuple<'py, T, U: IntoPyObject<'py>>(
+    py: Python<'py>,
+    values: impl IntoIterator<Item = T, IntoIter: ExactSizeIterator>,
+    mut convert: impl FnMut(T) -> PyResult<U>,
+) -> PyResult<Bound<'py, PyTuple>> {
     PyTuple::new(
         py,
-        times
-            .iter()
-            .enumerate()
-            .map(|(index, &time)| {
-                if index % 1024 == 0 {
-                    py.check_signals()?;
-                }
-                python_timestamp(py, time)
-            })
-            .collect::<PyResult<Vec<_>>>()?,
+        values.into_iter().enumerate().map(|(index, value)| {
+            let converted = if index % 1024 == 0 {
+                py.check_signals().and_then(|()| convert(value))
+            } else {
+                convert(value)
+            };
+            TupleItem(converted)
+        }),
     )
 }

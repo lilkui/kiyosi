@@ -1,4 +1,6 @@
-use crate::conversions::{collect_values, python_timestamps, real, reals, timestamp, timestamps};
+use crate::conversions::{
+    collect_values, python_timestamps, python_tuple, real, reals, timestamp, timestamps,
+};
 use crate::error::domain;
 use crate::market::{rate, rate_properties};
 use pyo3::prelude::*;
@@ -73,7 +75,7 @@ impl LocalVolatilitySurface {
     /// Return copied absolute price nodes.
     #[getter]
     fn spots<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-        PyTuple::new(py, self.0.spots())
+        python_tuple(py, self.0.spots(), Ok)
     }
     /// Return copied volatility rows, indexed by time then price.
     #[getter]
@@ -82,7 +84,7 @@ impl LocalVolatilitySurface {
             py,
             self.0
                 .values()
-                .map(|row| PyTuple::new(py, row))
+                .map(|row| python_tuple(py, row, Ok))
                 .collect::<PyResult<Vec<_>>>()?,
         )
     }

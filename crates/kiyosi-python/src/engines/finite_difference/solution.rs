@@ -1,6 +1,6 @@
 use std::ops::RangeInclusive;
 
-use crate::conversions::{python_timestamp, real, reals};
+use crate::conversions::{python_timestamp, python_tuple, real, reals};
 use crate::engines::NativeGreeksRequest;
 use crate::error::domain;
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyTuple};
@@ -144,7 +144,7 @@ impl FiniteDifferenceSolution {
         #[pyo3(from_py_with = reals)] spot_prices: Vec<f64>,
     ) -> PyResult<Bound<'py, PyTuple>> {
         let values = self.evaluate(py, spot_prices.len(), || self.0.price_many(&spot_prices))?;
-        PyTuple::new(py, values)
+        python_tuple(py, values, Ok)
     }
 
     /// Evaluate saved price and requested spot Greeks.
@@ -234,10 +234,6 @@ impl FiniteDifferenceSolution {
             self.0
                 .price_many_with_greeks(&spots, request.request, request.settings.spot_shift)
         })?;
-        let objects = values
-            .into_iter()
-            .map(|value| Py::new(py, crate::risk::PricingResult(value)))
-            .collect::<PyResult<Vec<_>>>()?;
-        PyTuple::new(py, objects)
+        python_tuple(py, values, |value| Ok(crate::risk::PricingResult(value)))
     }
 }

@@ -1,6 +1,6 @@
 use crate::calendar::TradingCalendar;
 use crate::conversions::{
-    integer_usize, python_timestamp, real, reals, supplied, timestamp, timestamps,
+    integer_usize, python_timestamp, python_tuple, real, reals, supplied, timestamp, timestamps,
 };
 use crate::error::domain;
 use pyo3::exceptions::{PyTypeError, PyValueError};
@@ -84,27 +84,25 @@ macro_rules! snowball_properties {
             /// Knock-in monitoring is available through knock_in_observation_schedule.
             #[getter]
             fn autocall_observations<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-                PyTuple::new(py, self.0.autocall_observations().iter().copied().map(AutocallableObservation))
+                python_tuple(py, self.0.autocall_observations(), |&r| Ok(AutocallableObservation(r)))
             },
             /// Return a copy of the contractual knock-out and coupon observation times.
             ///
             /// Excludes independently scheduled knock-in monitoring.
             #[getter]
             fn autocall_times<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-                PyTuple::new(py, self.0.autocall_observations().iter()
-                    .map(|r| python_timestamp(py, r.time()))
-                    .collect::<PyResult<Vec<_>>>()?)
+                python_tuple(py, self.0.autocall_observations(), |r| python_timestamp(py, r.time()))
             },
             /// Return copied knock-out thresholds in observation order.
             #[getter]
             fn knock_out_levels<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-                PyTuple::new(py, self.0.autocall_observations().iter().map(|r| r.knock_out_level()))
+                python_tuple(py, self.0.autocall_observations(), |r| Ok(r.knock_out_level()))
             },
 
             /// Return copied annual knock-out coupons in observation order.
             #[getter]
             fn knock_out_coupon_rates<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-                PyTuple::new(py, self.0.autocall_observations().iter().map(|r| r.coupon_rate().unwrap_or_default()))
+                python_tuple(py, self.0.autocall_observations(), |r| Ok(r.coupon_rate().unwrap_or_default()))
             },
             /// Return finite annual maturity coupon rate in decimal units.
             #[getter]
@@ -1523,7 +1521,7 @@ autocallable_properties! {
     /// Return copied Phoenix coupon thresholds in observation order.
     #[getter]
     fn coupon_barrier_levels<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-        PyTuple::new(py, self.0.coupon_observations().iter().map(kiyosi::CouponObservation::coupon_barrier_level))
+        python_tuple(py, self.0.coupon_observations(), |r| Ok(r.coupon_barrier_level()))
     },
     /// Return the finite signed coupon proportion per qualifying observation.
     #[getter]
@@ -1557,27 +1555,27 @@ autocallable_properties! {
     },    /// Return owned copies of the knock-out observations.
     #[getter]
     fn knock_out_observations<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-        PyTuple::new(py, self.0.knock_out_observations().iter().copied().map(KnockOutObservation))
+        python_tuple(py, self.0.knock_out_observations(), |&r| Ok(KnockOutObservation(r)))
     },
     /// Return copied exact knock-out observation times.
     #[getter]
     fn knock_out_times<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-        PyTuple::new(py, self.0.knock_out_observations().iter().map(|record| python_timestamp(py, record.time())).collect::<PyResult<Vec<_>>>()?)
+        python_tuple(py, self.0.knock_out_observations(), |r| python_timestamp(py, r.time()))
     },
     /// Return owned copies of the coupon observations.
     #[getter]
     fn coupon_observations<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-        PyTuple::new(py, self.0.coupon_observations().iter().copied().map(CouponObservation))
+        python_tuple(py, self.0.coupon_observations(), |&r| Ok(CouponObservation(r)))
     },
     /// Return copied exact coupon observation times.
     #[getter]
     fn coupon_times<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-        PyTuple::new(py, self.0.coupon_observations().iter().map(|record| python_timestamp(py, record.time())).collect::<PyResult<Vec<_>>>()?)
+        python_tuple(py, self.0.coupon_observations(), |r| python_timestamp(py, r.time()))
     },
     /// Return copied knock-out thresholds in knock-out observation order.
     #[getter]
     fn knock_out_levels<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-        PyTuple::new(py, self.0.knock_out_observations().iter().map(kiyosi::KnockOutObservation::knock_out_level))
+        python_tuple(py, self.0.knock_out_observations(), |r| Ok(r.knock_out_level()))
     },
     fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
         let value = slf.borrow();
