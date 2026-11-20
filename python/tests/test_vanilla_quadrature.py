@@ -164,15 +164,11 @@ def test_time_space_and_extent_converge_separately():
     }
     with ql.SavedSettings():
         reference = american.measure(inputs, "price")
-    for coarse, fine in (
-        ((128, 800, 8), (768, 800, 8)),
-        ((768, 25, 8), (768, 800, 8)),
-        ((768, 800, 1), (768, 800, 8)),
-    ):
+    fine_error = abs(price(768, 800, 8) - reference)
+    assert fine_error < 0.01
+    for coarse in ((128, 800, 8), (768, 25, 8), (768, 800, 1)):
         coarse_error = abs(price(*coarse) - reference)
-        fine_error = abs(price(*fine) - reference)
         assert fine_error < coarse_error
-        assert fine_error < 0.01
     european = contract(EuropeanOption)
     assert pricing.QuadratureVanillaEngine(time_step_count=1).price(
         european, context

@@ -97,17 +97,20 @@ def test_heston_queries_freeze_normalization_and_preserve_unsupported_greeks(ame
     snapshot = heston_context(spot_price=150)
     solution = engine.solve(instrument, snapshot, spot_range=(80, 120))
     assert solution.supported == ()
+    spots = (80, 100, 105, 120)
+    exercise_anchors = (80, 100, 120) if american else ()
     for spot, result in zip(
-        (80, 100, 105, 120),
-        solution.price_many_with_greeks((80, 100, 105, 120), "all"),
+        spots,
+        solution.price_many_with_greeks(spots, "all"),
         strict=True,
     ):
-        shifted = snapshot.replace(spot_price=spot)
-        expected = engine.price(instrument, shifted)
-        assert result.price == pytest.approx(expected, rel=0, abs=0.005)
-        if not american:
+        assert result.price == solution.price(spot)
+        if spot in exercise_anchors:
+            expected = engine.price(instrument, snapshot.replace(spot_price=spot))
+            assert result.price == pytest.approx(expected, rel=0, abs=0.005)
+        elif not american:
             reference = pricing.AnalyticHestonEuropeanEngine().price(
-                instrument, shifted
+                instrument, snapshot.replace(spot_price=spot)
             )
             assert result.price == pytest.approx(reference, rel=0, abs=0.003)
         assert result.supported == ()

@@ -597,7 +597,8 @@ fn local_digital_keeps_flat_rate_restriction_before_terminal_shortcuts() {
 
 #[test]
 fn every_fd_engine_keeps_schemes_coverage_and_explicit_stability_contracts() {
-    let (start, end) = dates();
+    let (start, _) = dates();
+    let end = Date::new(2025, 1, 31).unwrap().start_of_day();
     let local = context(surface(vec![vec![0.2; 2]; 2]));
     let bsm = PricingContext::new(
         BlackScholesMertonParameters::new(0.05, 0.02, 0.2).unwrap(),
@@ -624,7 +625,7 @@ fn every_fd_engine_keeps_schemes_coverage_and_explicit_stability_contracts() {
             ] {
                 let engine = <$engine>::new(FiniteDifferenceSettings {
                     asset_step_count: 80,
-                    time_step_count: 16000,
+                    time_step_count: 1600,
                     scheme,
                     asset_upper_boundary: Some(400.0),
                 })

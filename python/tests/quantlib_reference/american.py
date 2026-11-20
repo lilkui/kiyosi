@@ -1,8 +1,15 @@
-"""American contract references from refined QuantLib finite differences."""
+"""American contract references from refined QuantLib finite differences.
 
+Run `PYTHONPATH=python/tests python -m quantlib_reference.american` and replace
+american.json with its output to refresh the frozen reference values.
+"""
+
+import json
 import math
 from datetime import date
 from functools import lru_cache
+
+import QuantLib as ql
 
 from . import oracle as g
 
@@ -115,3 +122,20 @@ def reference(inputs, measures):
             f"unstable American final refinement: inputs={inputs}",
         )
     return outputs, metadata
+
+
+if __name__ == "__main__":
+    g.require_version()
+    fixture = json.loads((g.DATA_DIR / "american.json").read_text(encoding="utf-8"))
+    fixture["quantlib_version"] = ql.__version__
+    with ql.SavedSettings():
+        for scenario in fixture["scenarios"]:
+            measures = (
+                g.MEASURES if scenario["wrapper"] else ("price", "delta", "gamma")
+            )
+            outputs, metadata = reference(scenario["inputs"], measures)
+            scenario["outputs"] = outputs
+            scenario["uncertainty"] = {
+                name: metadata[f"uncertainty_{name}"] for name in outputs
+            }
+    print(json.dumps(fixture, indent=2, allow_nan=False))

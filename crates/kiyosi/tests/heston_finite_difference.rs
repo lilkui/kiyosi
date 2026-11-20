@@ -196,38 +196,38 @@ fn heston_grid_rejects_oversized_rollback_before_pricing() {
 }
 
 #[test]
-fn european_defaults_match_independent_references_and_parity() {
+fn vanilla_defaults_match_independent_references_and_exercise_bounds() {
     let (start, end) = dates();
     let engine = FiniteDifferenceHestonVanillaEngine::default();
-    // QuantLib 1.43 Gatheral/Lobatto, stable between 1e-10 and 1e-12 tolerances.
-    for (xi, reference) in [(0.3, 9.011_278_407_541_74), (0.9, 7.783_760_588_260_141)] {
+    // QuantLib Gatheral/Lobatto European references and an HV American put reference.
+    for (xi, european_reference, american_put_reference) in [
+        (0.3, 9.011_278_407_541_74, Some(6.450_555_006_874_128)),
+        (0.9, 7.783_760_588_260_141, None),
+    ] {
         let ctx = context(xi, -0.7);
         let call = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
         let put = EuropeanOption::new(OptionType::Put, 100.0, start, end).unwrap();
-        let actual = engine.price(&call, &ctx).unwrap();
-        assert!((actual - reference).abs() <= 0.001 + 1e-4 * reference);
+        let call_price = engine.price(&call, &ctx).unwrap();
+        let put_price = engine.price(&put, &ctx).unwrap();
+        assert!((call_price - european_reference).abs() <= 0.001 + 1e-4 * european_reference);
         let parity = 100.0 * ((-0.02_f64).exp() - (-0.05_f64).exp());
-        assert!((actual - engine.price(&put, &ctx).unwrap() - parity).abs() < 2e-4);
+        assert!((call_price - put_price - parity).abs() < 2e-4);
+        if let Some(reference) = american_put_reference {
+            let call = AmericanOption::new(OptionType::Call, 100.0, start, end).unwrap();
+            let put = AmericanOption::new(OptionType::Put, 100.0, start, end).unwrap();
+            let american_call = engine.price(&call, &ctx).unwrap();
+            let american_put = engine.price(&put, &ctx).unwrap();
+            assert!(american_call >= call_price - 1e-8);
+            assert!(american_put >= put_price - 1e-8);
+            assert!((american_put - reference).abs() < 0.001 + 1e-4 * reference);
+        }
     }
 }
 
 #[test]
-fn american_prices_match_reference_and_exercise_bounds() {
+fn american_call_is_worth_intrinsic_value_in_the_exercise_region() {
     let (start, end) = dates();
     let engine = FiniteDifferenceHestonVanillaEngine::default();
-    for direction in [OptionType::Call, OptionType::Put] {
-        let european = EuropeanOption::new(direction, 100.0, start, end).unwrap();
-        let american = AmericanOption::new(direction, 100.0, start, end).unwrap();
-        let euro = engine.price(&european, &context(0.3, -0.7)).unwrap();
-        let price = engine.price(&american, &context(0.3, -0.7)).unwrap();
-        assert!(price >= euro - 1e-8);
-        assert!(price >= 0.0);
-        if direction == OptionType::Put {
-            // Shared QuantLib 1.43 HV reference and provenance in heston_finite_difference.json.
-            let reference = 6.450_555_006_874_128;
-            assert!((price - reference).abs() < 0.001 + 1e-4 * reference);
-        }
-    }
     let call = AmericanOption::new(OptionType::Call, 100.0, start, end).unwrap();
     let model = HestonParameters::new(kiyosi::HestonParameterInputs {
         risk_free_rate: 0.03.into(),
@@ -510,7 +510,14 @@ fn settings_and_unsupported_sensitivities_have_structured_errors() {
     }
     let (start, end) = dates();
     let option = EuropeanOption::new(OptionType::Put, 100.0, start, end).unwrap();
-    let result = FiniteDifferenceHestonVanillaEngine::default()
+    let engine = FiniteDifferenceHestonVanillaEngine::new(HestonFiniteDifferenceSettings {
+        asset_step_count: 100,
+        variance_step_count: 25,
+        time_step_count: 50,
+        ..Default::default()
+    })
+    .unwrap();
+    let result = engine
         .price_with_greeks(&option, &context(0.3, -0.7), GreeksRequest::new([]))
         .unwrap();
     assert_eq!(result.status(Greek::Delta), GreekStatus::NotRequested);

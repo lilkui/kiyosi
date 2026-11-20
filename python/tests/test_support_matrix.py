@@ -373,6 +373,10 @@ def test_empty_requests_price_before_expiry_and_validate_controls(
                     if name == "MonteCarloVanillaEngine"
                     else engine.replace(path_count=32, seed=42)
                 )
+            elif name == "FiniteDifferenceHestonVanillaEngine":
+                engine = engine.replace(
+                    asset_step_count=100, variance_step_count=25, time_step_count=50
+                )
             with subtests.test(instrument=type(instrument).__name__, engine=name):
                 result = engine.price_with_greeks(instrument, context, [])
                 assert result.price == engine.price(instrument, context)

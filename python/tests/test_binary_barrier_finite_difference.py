@@ -464,18 +464,13 @@ def test_existing_independent_quantlib_price_scenarios(subtests, quantlib_settin
                 dividend=inputs["dividend"],
                 sigma=inputs["volatility"],
             )
-            assert engine.price(option, ctx) == pytest.approx(
-                reference.measure(inputs, "price"),
-                rel=0,
-                abs=reference.barrier.FD["price"],
-            )
-
             if (
                 inputs["spot"],
                 inputs["strike"],
                 (option.expiry_time - ctx.valuation_time).days,
             ) == (100, 100, 365):
                 result = engine.price_with_greeks(option, ctx, greeks="all")
+                price = result.price
                 for greek in (
                     "delta",
                     "gamma",
@@ -493,6 +488,13 @@ def test_existing_independent_quantlib_price_scenarios(subtests, quantlib_settin
                         rel=0,
                         abs=reference.barrier.FD[greek],
                     ), f"{identifier}: {greek}"
+            else:
+                price = engine.price(option, ctx)
+            assert price == pytest.approx(
+                reference.measure(inputs, "price"),
+                rel=0,
+                abs=reference.barrier.FD["price"],
+            )
 
 
 def two_fixing_price(

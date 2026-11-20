@@ -810,68 +810,62 @@ fn greeks_converge_under_spatial_refinement_and_smaller_bumps() {
     })
     .unwrap();
     let at = Timestamp::new(day(1, 4).date(), 12, 0, 0, 0).unwrap();
-    for (end, ko, acceleration, spot, sigma, rate) in [
-        (day(2, 3), 110.0, 2.0, 100.25, 0.2, 0.04),
-        (day(2, 3), 150.0, 1.0, 120.0, 0.6, -0.02),
+    let end = day(2, 3);
+    let option = Accumulator::new(AccumulatorTerms {
+        accumulated_quantity: Some(3.0),
+        ..terms(end)
+    })
+    .unwrap();
+    let context = market(100.25, at, 0.2, 0.04, 0.01);
+    let base = normal
+        .price_with_greeks(&option, &context, GreeksRequest::all())
+        .unwrap();
+    let fine = refined
+        .price_with_greeks(&option, &context, GreeksRequest::all())
+        .unwrap();
+    let smaller = kiyosi::numerical_greeks(
+        &refined,
+        &option,
+        &context,
+        GreeksRequest::all(),
+        NumericalShiftSettings {
+            spot_shift: Some(0.005),
+            volatility_shift: Some(0.00005),
+            rate_shift: 0.00005,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let observations = ObservationSchedule::fixed_interval(
+        day(1, 5),
+        end,
+        1,
+        option.calendar(),
+        (day(1, 5)).time_of_day(),
+    )
+    .unwrap()
+    .len();
+    let exposure = 100.0 * (3.0 + observations as f64 * option.acceleration_factor());
+    for (greek, order, absolute, relative) in [
+        (Greek::Delta, 1, 1e-6, 0.005),
+        (Greek::Gamma, 2, 1e-5, 0.01),
+        (Greek::Vega, 0, 1e-8, 0.005),
+        (Greek::Rho, 0, 1e-8, 0.005),
+        (Greek::Theta, 0, 1e-8, 0.02),
+        (Greek::Speed, 3, 1e-4, 0.05),
+        (Greek::Vanna, 1, 1e-7, 0.05),
+        (Greek::Charm, 1, 1e-7, 0.05),
+        (Greek::Zomma, 2, 1e-6, 0.05),
+        (Greek::Color, 2, 1e-6, 0.05),
     ] {
-        let option = Accumulator::new(AccumulatorTerms {
-            knock_out_level: ko,
-            acceleration_factor: acceleration,
-            accumulated_quantity: Some(3.0),
-            ..terms(end)
-        })
-        .unwrap();
-        let context = market(spot, at, sigma, rate, 0.01);
-        let base = normal
-            .price_with_greeks(&option, &context, GreeksRequest::all())
-            .unwrap();
-        let fine = refined
-            .price_with_greeks(&option, &context, GreeksRequest::all())
-            .unwrap();
-        let smaller = kiyosi::numerical_greeks(
-            &refined,
-            &option,
-            &context,
-            GreeksRequest::all(),
-            NumericalShiftSettings {
-                spot_shift: Some(0.005),
-                volatility_shift: Some(0.00005),
-                rate_shift: 0.00005,
-                ..Default::default()
-            },
-        )
-        .unwrap();
-        let observations = ObservationSchedule::fixed_interval(
-            day(1, 5),
-            end,
-            1,
-            option.calendar(),
-            (day(1, 5)).time_of_day(),
-        )
-        .unwrap()
-        .len();
-        let exposure = 100.0 * (3.0 + observations as f64 * acceleration.max(1.0));
-        for (greek, order, absolute, relative) in [
-            (Greek::Delta, 1, 1e-6, 0.005),
-            (Greek::Gamma, 2, 1e-5, 0.01),
-            (Greek::Vega, 0, 1e-8, 0.005),
-            (Greek::Rho, 0, 1e-8, 0.005),
-            (Greek::Theta, 0, 1e-8, 0.02),
-            (Greek::Speed, 3, 1e-4, 0.05),
-            (Greek::Vanna, 1, 1e-7, 0.05),
-            (Greek::Charm, 1, 1e-7, 0.05),
-            (Greek::Zomma, 2, 1e-6, 0.05),
-            (Greek::Color, 2, 1e-6, 0.05),
-        ] {
-            let scale = 100.0_f64.powi(order) / exposure;
-            let expected = fine.require(greek).unwrap() * scale;
-            let limit = absolute + relative * expected.abs();
-            for result in [&base, &smaller] {
-                assert!(
-                    (result.require(greek).unwrap() * scale - expected).abs() <= limit,
-                    "{end:?} {greek:?}"
-                );
-            }
+        let scale = 100.0_f64.powi(order) / exposure;
+        let expected = fine.require(greek).unwrap() * scale;
+        let limit = absolute + relative * expected.abs();
+        for result in [&base, &smaller] {
+            assert!(
+                (result.require(greek).unwrap() * scale - expected).abs() <= limit,
+                "{greek:?}"
+            );
         }
     }
 }

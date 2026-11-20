@@ -13,7 +13,17 @@
         "valuation": "2025-01-06",
         "expiry_time": "2025-02-05"
       },
-      "wrapper": false
+      "wrapper": false,
+      "outputs": {
+        "price": 0.012515095121607695,
+        "delta": 0.00581648788600922,
+        "gamma": 0.002403765560788023
+      },
+      "uncertainty": {
+        "price": 3.94920540641025e-07,
+        "delta": 0.00014224856182762455,
+        "gamma": 1.999737069613948e-05
+      }
     },
     {
       "case_id": "ql-american-call-100-365d",
@@ -28,7 +38,33 @@
         "valuation": "2025-01-06",
         "expiry_time": "2026-01-06"
       },
-      "wrapper": true
+      "wrapper": true,
+      "outputs": {
+        "price": 13.151145321426904,
+        "delta": 0.5927495759456354,
+        "gamma": 0.012760703343511537,
+        "speed": -0.00023390706089525433,
+        "theta": -6.994524836735323,
+        "charm": -0.04192533364303752,
+        "color": 0.006906748294736999,
+        "vega": 38.282089942271554,
+        "vanna": 0.06379878666068484,
+        "zomma": -0.043069143949654456,
+        "rho": 46.123779203782966
+      },
+      "uncertainty": {
+        "price": 2.410753421244749e-05,
+        "delta": 3.898318898687414e-05,
+        "gamma": 6.291225567167658e-07,
+        "speed": 1.1905492022963593e-07,
+        "theta": 1.7406376509043753e-05,
+        "charm": 4.1553830265605995e-07,
+        "color": 9.350323598722454e-08,
+        "vega": 9.909762876958439e-05,
+        "vanna": 1.7230825821723528e-05,
+        "zomma": 5.483040337518619e-06,
+        "rho": 0.00013686554822811559
+      }
     },
     {
       "case_id": "ql-american-call-120-730d",
@@ -43,7 +79,17 @@
         "valuation": "2025-01-06",
         "expiry_time": "2027-01-06"
       },
-      "wrapper": false
+      "wrapper": false,
+      "outputs": {
+        "price": 24.98944821333869,
+        "delta": 0.7027334137135884,
+        "gamma": 0.00949086017826556
+      },
+      "uncertainty": {
+        "price": 0.0007247517242667811,
+        "delta": 1.5223506846462342e-05,
+        "gamma": 1.1309955450823639e-07
+      }
     },
     {
       "case_id": "ql-american-put-120-30d",
@@ -58,7 +104,17 @@
         "valuation": "2025-01-06",
         "expiry_time": "2025-02-05"
       },
-      "wrapper": false
+      "wrapper": false,
+      "outputs": {
+        "price": 0.05321043747844741,
+        "delta": -0.0142286610139598,
+        "gamma": 0.0035082892042252786
+      },
+      "uncertainty": {
+        "price": 3.166442892749144e-07,
+        "delta": 0.00012926147880914542,
+        "gamma": 1.2043732668035392e-05
+      }
     },
     {
       "case_id": "ql-american-put-100-365d",
@@ -73,7 +129,33 @@
         "valuation": "2025-01-06",
         "expiry_time": "2026-01-06"
       },
-      "wrapper": true
+      "wrapper": true,
+      "outputs": {
+        "price": 10.539136140731017,
+        "delta": -0.4151634182651936,
+        "gamma": 0.01377402712810315,
+        "speed": -0.0002910444249187884,
+        "theta": -4.531107523670657,
+        "charm": -0.03845924627392874,
+        "color": 0.006554351217553664,
+        "vega": 38.38057886666668,
+        "vanna": 0.12363441096562011,
+        "zomma": -0.049615892887896244,
+        "rho": -38.577982294242474
+      },
+      "uncertainty": {
+        "price": 0.0001652658532425022,
+        "delta": 4.850641559900337e-05,
+        "gamma": 3.6108197064635417e-07,
+        "speed": 9.652444081173495e-08,
+        "theta": 0.00016023373402340724,
+        "charm": 1.8396612205817675e-06,
+        "color": 9.07142973325531e-08,
+        "vega": 0.00017696689491941697,
+        "vanna": 1.1516709086389909e-05,
+        "zomma": 7.439080583530877e-06,
+        "rho": 0.0039538067131417165
+      }
     },
     {
       "case_id": "ql-american-put-80-730d",
@@ -88,7 +170,17 @@
         "valuation": "2025-01-06",
         "expiry_time": "2027-01-06"
       },
-      "wrapper": false
+      "wrapper": false,
+      "outputs": {
+        "price": 24.036954626590596,
+        "delta": -0.6313881836211169,
+        "gamma": 0.014828077876122179
+      },
+      "uncertainty": {
+        "price": 0.00042183307334653364,
+        "delta": 4.3838437300602884e-05,
+        "gamma": 1.7837228127003113e-07
+      }
     },
     {
       "case_id": "ql-american-call-immediate",
@@ -103,7 +195,17 @@
         "valuation": "2025-01-06",
         "expiry_time": "2026-01-06"
       },
-      "wrapper": false
+      "wrapper": false,
+      "outputs": {
+        "price": 49.99999999999994,
+        "delta": 0.999999999999615,
+        "gamma": 7.000163072411346e-11
+      },
+      "uncertainty": {
+        "price": 3.765876499528531e-13,
+        "delta": 8.737011114590132e-12,
+        "gamma": 1.1248165871317421e-10
+      }
     },
     {
       "case_id": "ql-american-put-immediate",
@@ -118,7 +220,17 @@
         "valuation": "2025-01-06",
         "expiry_time": "2026-01-06"
       },
-      "wrapper": false
+      "wrapper": false,
+      "outputs": {
+        "price": 50.00000000000001,
+        "delta": -1.0000000000003753,
+        "gamma": 1.7816227568800968e-10
+      },
+      "uncertainty": {
+        "price": 2.1316282072803006e-14,
+        "delta": 3.022693206844451e-12,
+        "gamma": 3.405421438174017e-10
+      }
     },
     {
       "case_id": "ql-american-put-90-1d",
@@ -133,7 +245,17 @@
         "valuation": "2025-01-06",
         "expiry_time": "2025-01-07"
       },
-      "wrapper": false
+      "wrapper": false,
+      "outputs": {
+        "price": 10.000000000000005,
+        "delta": -1.0000000000010683,
+        "gamma": 3.397366527471245e-10
+      },
+      "uncertainty": {
+        "price": 1.7763568394002505e-15,
+        "delta": 1.0691447727140257e-12,
+        "gamma": 3.398148124480581e-10
+      }
     },
     {
       "case_id": "ql-american-call-exercise-start",
@@ -148,7 +270,17 @@
         "valuation": "2025-01-06",
         "expiry_time": "2026-01-06"
       },
-      "wrapper": false
+      "wrapper": false,
+      "outputs": {
+        "price": 13.151145321426904,
+        "delta": 0.5927495759456354,
+        "gamma": 0.012760703343511537
+      },
+      "uncertainty": {
+        "price": 2.410753421244749e-05,
+        "delta": 3.898318898687414e-05,
+        "gamma": 6.291225567167658e-07
+      }
     }
   ],
   "profiles": [
@@ -159,8 +291,8 @@
         "volatility_shift": 0.002
       },
       "settings": {
-        "asset_step_count": 768,
-        "time_step_count": 800,
+        "asset_step_count": 384,
+        "time_step_count": 400,
         "integration_standard_deviations": 10.0
       },
       "tolerances": {
@@ -200,13 +332,13 @@
       },
       "tolerances": {
         "price": 0.15,
-        "speed": 1e-7,
+        "speed": 1e-07,
         "theta": 0.01095,
-        "charm": 0.0000365,
-        "color": 0.00000365,
+        "charm": 3.65e-05,
+        "color": 3.65e-06,
         "vega": 0.0001,
-        "vanna": 0.00001,
-        "zomma": 0.00001,
+        "vanna": 1e-05,
+        "zomma": 1e-05,
         "rho": 0.0001
       },
       "numerical_tolerances": {
@@ -287,5 +419,6 @@
       "zomma": 0.05,
       "rho": 2
     }
-  }
+  },
+  "quantlib_version": "1.44"
 }

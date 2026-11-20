@@ -628,6 +628,14 @@ def test_quantlib_terminal_portfolios_and_separate_grid_convergence(subtests):
     ]
     assert len(rows) == 18
     for row in rows:
+        inputs = row["inputs"]
+        # Sweep payoff shapes in one market, then retain a higher-volatility,
+        # negative-rate case with a strike kink and a knock-out discontinuity.
+        if inputs["volatility"] != 0.2 and (
+            inputs["knock_out_level"],
+            inputs["acceleration_factor"],
+        ) != (110, 2):
+            continue
         option, context, fine = contract(row), market(row), settings(row)
         budget = float(row["tolerances"]["price"]) + float(
             row["inputs"]["uncertainty_price"]

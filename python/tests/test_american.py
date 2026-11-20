@@ -8,7 +8,6 @@ from fractions import Fraction
 from functools import partial
 
 import pytest
-import QuantLib as ql
 from kiyosi import (
     ComputationFailureError,
     InvalidInputError,
@@ -487,8 +486,7 @@ AMERICAN_REFERENCE = oracle.load_fixture("american.json")
 @pytest.mark.parametrize(
     "scenario", AMERICAN_REFERENCE["scenarios"], ids=lambda row: row["case_id"]
 )
-def test_american_engines_match_live_quantlib(scenario, make_market, subtests):
-    oracle.require_version()
+def test_american_engines_match_refined_quantlib(scenario, make_market, subtests):
     inputs = scenario["inputs"]
     option = AmericanOption(
         option_type=inputs["option"],
@@ -504,8 +502,13 @@ def test_american_engines_match_live_quantlib(scenario, make_market, subtests):
         datetime.fromisoformat(inputs["valuation"]),
     )
     measures = oracle.MEASURES if scenario["wrapper"] else ("price", "delta", "gamma")
-    with ql.SavedSettings():
-        reference, metadata = american.reference(inputs, measures)
+    reference = scenario["outputs"]
+    uncertainty = scenario["uncertainty"]
+    assert (
+        reference.keys()
+        == uncertainty.keys()
+        == set(measures) - american.exclusions(inputs).keys()
+    )
     names = sorted(reference.keys() - {"price"})
     for profile in AMERICAN_REFERENCE["profiles"]:
         engine_name = profile["engine"]
@@ -542,6 +545,6 @@ def test_american_engines_match_live_quantlib(scenario, make_market, subtests):
                         if native and name in ("price", "delta", "gamma")
                         else "numerical_tolerances"
                     )
-                    tolerance = profile[budget][name] + metadata[f"uncertainty_{name}"]
+                    tolerance = profile[budget][name] + uncertainty[name]
                 with subtests.test(measure=name):
                     assert value == pytest.approx(reference[name], rel=0, abs=tolerance)
