@@ -116,7 +116,7 @@ def main():
                 }
             )
         )
-    # Separate dimensions, plus changed automatic mesher bounds through v refinement.
+    # Refine each dimension independently, including automatic mesher bounds that depend on v.
     for t, x, v in ((1600, 800, 400), (800, 1600, 400), (800, 800, 800)):
         probe(
             {
@@ -129,8 +129,7 @@ def main():
         )
     american_evidence = evidence[american_start:]
     extrapolates = [2 * b - a for a, b in itertools.pairwise(raw)]
-    # Include independent dimension corrections, rather than just relabeling the
-    # old cached joint-grid extrapolate as a total uncertainty estimate.
+    # Combine joint-grid extrapolation with independent dimension refinements.
     corrections = [record["price"] - raw[1] for record in american_evidence[3:]]
     independent_extrapolate = raw[1] + 2 * sum(corrections)
     uncertainty = max(

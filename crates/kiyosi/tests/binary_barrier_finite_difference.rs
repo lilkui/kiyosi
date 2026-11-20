@@ -501,7 +501,7 @@ fn grids_schedules_and_validation_fail_before_mutating_inputs() {
 
 #[test]
 fn two_fixing_cash_asset_and_settlement_prices_match_independent_integrals() {
-    // Conditional lognormal integration from the Python public API regression.
+    // Conditional lognormal integration reference.
     for (inside, outside, level, references) in [
         (
             BarrierType::DownAndIn,

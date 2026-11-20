@@ -293,7 +293,7 @@ def test_independent_quantlib_terminal_portfolios(subtests):
 
 
 def test_zero_lower_strike_affine_tail_and_negative_price():
-    # High-volatility affine-tail portfolio regression.
+    # High-volatility affine-tail portfolio.
     import QuantLib as ql
 
     end = datetime(2026, 1, 1)
