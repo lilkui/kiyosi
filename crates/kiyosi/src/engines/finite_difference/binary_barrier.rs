@@ -1,10 +1,9 @@
 use super::barrier::{evaluate_after_prefix, uses_local_diffusion};
 use super::{
     Curve, Diffusion, FiniteDifferenceBinaryBarrierEngine, FiniteDifferenceDoubleTouchEngine,
-    FiniteDifferenceSettings, Greek, GreeksRequest, NumericalShiftSettings, OptionType, Payoff,
-    PricingContext, PricingEngine, PricingResult, Result, SpatialGrid, TimeGrid, diffusion,
-    diffusion_upper, local_volatility, payoff::boundary_value, scaled, step, unstable,
-    validate_work,
+    FiniteDifferenceSettings, Greek, GreeksRequest, NumericalShiftSettings, Payoff, PricingContext,
+    PricingEngine, PricingResult, Result, SpatialGrid, TimeGrid, diffusion, diffusion_upper,
+    local_volatility, payoff::boundary_value, scaled, step, unstable, validate_work,
 };
 use crate::Timestamp;
 use crate::engines::deterministic::{self, continuation_context};
@@ -167,7 +166,11 @@ fn native(
         |radius| contract.spot_discontinuity(context, radius),
         |context, request, shifts| {
             let grid = diffusion::with_diffusion!(context, |diffusion| solve_grid(
-                contract, context, settings, diffusion
+                contract,
+                context,
+                settings,
+                diffusion,
+                context.spot_price()
             ))?;
             grid.evaluate(contract, context, request, shifts)
         },
@@ -201,6 +204,7 @@ fn solve_grid<D: Diffusion>(
     context: &PricingContext,
     settings: FiniteDifferenceSettings,
     diffusion: D,
+    minimum_spot: f64,
 ) -> Result<BinaryGrid> {
     let option = contract.monitoring;
     let expiry = option.expiry_time();
@@ -243,32 +247,48 @@ fn solve_grid<D: Diffusion>(
             upper
         }
     };
-    let mut space = SpatialGrid::new(
-        settings,
-        upper,
-        0.0,
-        spot.max(
-            contract
-                .digital
-                .map_or(option.barrier_level(), DigitalOption::strike),
-        )
-        .max(upper_barrier.unwrap_or(option.barrier_level())),
-    )?;
+    let strike = contract
+        .digital
+        .map_or(option.barrier_level(), DigitalOption::strike);
+    if upper
+        <= spot
+            .max(strike)
+            .max(upper_barrier.unwrap_or(option.barrier_level()))
+    {
+        return Err(super::invalid_grid(
+            "finite-difference upper bound must exceed spot and contract levels",
+        ));
+    }
+    let width = super::diffusion_log_width(context, horizon, &risk, &dividend)?;
+    let full_lower = super::grid::spot_floor(
+        minimum_spot,
+        strike.min(option.barrier_level()),
+        (1.5 * width).max(std::f64::consts::LN_2),
+    );
     let up = option.barrier_type().is_up();
-    if !scheduled {
-        space.uniform_domain(
-            if up { 0.0 } else { option.barrier_level() },
-            upper_barrier.unwrap_or(if up { option.barrier_level() } else { upper }),
+    let lower = if !scheduled && (!up || upper_barrier.is_some()) {
+        option.barrier_level()
+    } else {
+        full_lower
+    };
+    let grid_upper = if scheduled {
+        upper
+    } else {
+        upper_barrier.unwrap_or(if up { option.barrier_level() } else { upper })
+    };
+    let mut space = SpatialGrid::new(
+        settings.asset_step_count,
+        [lower, grid_upper],
+        option.barrier_level(),
+    )?;
+    if !scheduled && settings.scheme != super::FiniteDifferenceScheme::ExplicitEuler {
+        space.resolve_barriers(
+            [Some(option.barrier_level()), upper_barrier],
+            contract.digital.map(DigitalOption::strike),
+            time,
+            [&risk, &dividend],
+            |level| diffusion.sigma(0.0, level),
         )?;
-        if settings.scheme != super::FiniteDifferenceScheme::ExplicitEuler {
-            space.resolve_barriers(
-                [Some(option.barrier_level()), upper_barrier],
-                contract.digital.map(DigitalOption::strike),
-                time,
-                [&risk, &dividend],
-                |level| diffusion.sigma(0.0, level),
-            )?;
-        }
     }
     let observations =
         diffusion::observation_times(context.valuation_time(), expiry, option.observation_times())?;
@@ -287,14 +307,7 @@ fn solve_grid<D: Diffusion>(
     }
     let theta = settings.scheme.theta();
     if !D::LOCAL {
-        grid.validate_stability(
-            &space,
-            diffusion.sigma(0.0, 0.0),
-            theta,
-            scheduled,
-            &risk,
-            &dividend,
-        )?;
+        grid.validate_stability(&space, diffusion.sigma(0.0, 0.0), theta, &risk, &dividend)?;
     }
     let knocked = |asset| {
         upper_barrier.is_some_and(|upper| asset >= upper)
@@ -318,25 +331,6 @@ fn solve_grid<D: Diffusion>(
         }
         let log = discount(current, time);
         if let Some(digital) = contract.digital {
-            let sign = if digital.option_type() == OptionType::Call {
-                1.0
-            } else {
-                -1.0
-            };
-            if asset == 0.0 {
-                return if sign < 0.0 {
-                    scaled(contract.payout.unwrap_or(0.0), log)
-                } else {
-                    0.0
-                };
-            }
-            if D::LOCAL {
-                return if sign > 0.0 {
-                    scaled(contract.payout.unwrap_or(asset), log)
-                } else {
-                    0.0
-                };
-            }
             boundary_value(
                 Payoff::digital(digital),
                 asset,
@@ -344,7 +338,7 @@ fn solve_grid<D: Diffusion>(
                     risk.log_factor(current, time),
                     dividend.log_factor(current, time),
                 ],
-                diffusion.sigma(0.0, 0.0),
+                diffusion,
                 tau,
             )
         } else {
@@ -406,7 +400,7 @@ fn solve_grid<D: Diffusion>(
     let march = |events: bool| -> Result<Vec<f64>> {
         let values: Vec<_> = (0..=space.count)
             .map(|i| {
-                super::grid::project_in_spot(&space, &breaks, i, |asset| {
+                super::grid::project_payoff(&space, &breaks, i, |asset| {
                     if !events {
                         terminal(asset)
                     } else if (!scheduled || observations.last() == Some(&time)) && knocked(asset) {
@@ -443,7 +437,7 @@ fn solve_grid<D: Diffusion>(
             diffusion,
             [&risk, &dividend],
             &observations,
-            upper,
+            [full_lower, upper],
         )?
     } else {
         march(true)?
@@ -510,7 +504,7 @@ fn local_digital_knock_in<D: Diffusion>(
     diffusion: D,
     [risk, dividend]: [&Curve; 2],
     observations: &[f64],
-    upper: f64,
+    bounds: [f64; 2],
 ) -> Result<Vec<f64>> {
     let digital = contract.digital.ok_or_else(unstable)?;
     let payoff = Payoff::digital(digital);
@@ -519,7 +513,7 @@ fn local_digital_knock_in<D: Diffusion>(
     let level = contract.monitoring.barrier_level();
     let full = SpatialGrid::knock_in_continuation(
         settings,
-        upper,
+        bounds,
         digital.strike(),
         diffusion.sigma(0.0, digital.strike()) * time.sqrt(),
     )?;
@@ -533,12 +527,12 @@ fn local_digital_knock_in<D: Diffusion>(
     let breaks = [level, digital.strike()];
     let continuation = (0..=full.count)
         .map(|i| {
-            super::grid::project_in_spot(&full, &[digital.strike()], i, |asset| payoff.value(asset))
+            super::grid::project_payoff(&full, &[digital.strike()], i, |asset| payoff.value(asset))
         })
         .collect();
     let values = (0..=space.count)
         .map(|i| {
-            super::grid::project_in_spot(space, &breaks, i, |asset| {
+            super::grid::project_payoff(space, &breaks, i, |asset| {
                 if (!scheduled || observations.last() == Some(&time)) && knocked(asset) {
                     payoff.value(asset)
                 } else {
@@ -548,16 +542,18 @@ fn local_digital_knock_in<D: Diffusion>(
         })
         .collect();
     let full_edges = |current| {
-        let discount = if contract.payout.is_some() {
-            risk.log_factor(current, time)
-        } else {
-            dividend.log_factor(current, time)
-        };
-        if digital.option_type() == OptionType::Call {
-            [0.0, scaled(contract.payout.unwrap_or(upper), discount)]
-        } else {
-            [scaled(contract.payout.unwrap_or(0.0), discount), 0.0]
-        }
+        bounds.map(|asset| {
+            boundary_value(
+                payoff,
+                asset,
+                [
+                    risk.log_factor(current, time),
+                    dividend.log_factor(current, time),
+                ],
+                diffusion,
+                time - current,
+            )
+        })
     };
     let edges = |current, continuation: &[f64]| {
         let remaining = !scheduled || observations.last().is_some_and(|&event| event >= current);
@@ -734,6 +730,7 @@ fn prepare_solution<I: BinaryInstrument + Clone + PartialEq + Send + Sync + 'sta
             &anchor,
             settings,
             false,
+            *range.start(),
         )?)
     } else {
         None
@@ -751,10 +748,14 @@ fn prepare_solution<I: BinaryInstrument + Clone + PartialEq + Send + Sync + 'sta
             {
                 settings.asset_upper_boundary = None;
             }
-            let (rolled, _, _) = continuation_context(&anchor, end)?;
+            let (rolled, carry, _) = continuation_context(&anchor, end)?;
             let rolled = rolled.as_ref();
             Some(diffusion::with_diffusion!(rolled, |diffusion| solve_grid(
-                &contract, rolled, settings, diffusion
+                &contract,
+                rolled,
+                settings,
+                diffusion,
+                scaled(*range.start(), carry)
             ))?)
         }
     } else {

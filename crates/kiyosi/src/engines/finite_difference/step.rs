@@ -34,7 +34,7 @@ pub(super) fn march<D: Diffusion>(
                     &values,
                     &mut next,
                     space,
-                    [middle, 0.0],
+                    middle,
                     key,
                     boundaries,
                 )?;
@@ -125,6 +125,7 @@ pub(super) fn march_with_continuation<D: Diffusion>(
     observe: impl Fn(&mut [f64], &[f64], f64),
 ) -> Result<Vec<f64>> {
     validate_workspace(
+        scheme,
         (values.len() + continuation.len()) as u64,
         grid.widths.len() as u64,
         risk.workspace_bytes() + dividend.workspace_bytes(),
@@ -150,7 +151,7 @@ pub(super) fn march_with_continuation<D: Diffusion>(
                     &continuation,
                     &mut next_continuation,
                     full_space,
-                    [middle, 0.0],
+                    middle,
                     key,
                     boundaries,
                 )?;
@@ -159,7 +160,7 @@ pub(super) fn march_with_continuation<D: Diffusion>(
                     &values,
                     &mut next,
                     space,
-                    [middle, 0.0],
+                    middle,
                     key,
                     edges(current, &next_continuation),
                 )?;

@@ -61,7 +61,7 @@ def test_terminal_averaging_converges_against_analytic_prices_and_greeks(
             scheme=scheme,
             asset_upper_boundary=440,
         ).price_with_greeks(option, context, ["delta", "gamma"])
-        for nodes in (400, 1600)
+        for nodes in (200, 1600)
     ]
     coarse, fine = results
     assert abs(coarse.price - expected) < 0.01

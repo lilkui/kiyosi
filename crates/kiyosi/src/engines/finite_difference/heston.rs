@@ -1,7 +1,7 @@
-use super::grid::{SpatialGrid, TimeGrid, concentrate};
+use super::grid::{SpatialGrid, Spline, TimeGrid, concentrate, project_payoff, spot_floor};
 use super::{
-    FiniteDifferenceSettings, Payoff, WORKSPACE_BUDGET, invalid_grid, prepare_rate_curves,
-    time_to_expiry, unstable, validate_work,
+    Payoff, WORKSPACE_BUDGET, invalid_grid, prepare_rate_curves, time_to_expiry, unstable,
+    validate_work,
 };
 use crate::engines::analytic::heston::integrated_variance;
 use crate::engines::deterministic::{self, AmericanExercise, exercise_value};
@@ -79,6 +79,7 @@ impl HestonFiniteDifferenceSettings {
 
 /// Prices European and American vanilla options under the Heston model.
 ///
+/// The asset grid uses log spot and an automatically selected positive lower boundary.
 /// Uses the modified Craig-Sneyd (MCS) alternating direction implicit (ADI)
 /// scheme with a fixed splitting parameter of 1/3, nine-point mixed derivatives,
 /// nonuniform price/variance grids and Ikonen-Toivanen American splitting.
@@ -235,31 +236,27 @@ fn variance_at(model: &HestonParameters, time: f64) -> f64 {
     model.initial_variance() * (-x).exp() + growth
 }
 
-fn space(count: i32, upper: f64, level: f64, scale: f64, levels: Vec<f64>) -> Result<SpatialGrid> {
-    let mut grid = SpatialGrid::new(
-        FiniteDifferenceSettings {
-            asset_step_count: count,
-            ..Default::default()
-        },
-        upper,
-        scale,
-        level,
-    )
-    .map_err(|_| unstable())?;
-    concentrate(&mut grid, levels, scale).map_err(|_| unstable())?;
-    // Materialize coordinates once: ADI revisits each node many times.
-    if grid.nodes.is_empty() {
-        grid.nodes = (0..=grid.count).map(|i| grid.asset(i)).collect();
+fn variance_nodes(count: i32, upper: f64, initial: f64, scale: f64) -> Result<Vec<f64>> {
+    if !upper.is_finite() || upper <= initial {
+        return Err(unstable());
     }
-    if grid.count < 3
-        || grid
-            .nodes
-            .windows(2)
-            .any(|w| !w[1].is_finite() || w[1] <= w[0])
+    let end = (upper / scale).asinh();
+    let spacing = end / f64::from(count);
+    let mut nodes = Vec::new();
+    for i in 0..count {
+        if i % 1024 == 0 {
+            crate::cancellation::check()?;
+        }
+        nodes.push(scale * (spacing * f64::from(i)).sinh());
+    }
+    nodes.push(upper);
+    if nodes
+        .windows(2)
+        .any(|pair| !pair[0].is_finite() || pair[0] >= pair[1])
     {
         return Err(unstable());
     }
-    Ok(grid)
+    Ok(nodes)
 }
 
 fn price(
@@ -268,7 +265,7 @@ fn price(
     payoff: Payoff,
     settings: HestonFiniteDifferenceSettings,
 ) -> Result<f64> {
-    prepare(option, context, payoff, settings)?.price(option, context)
+    prepare(option, context, payoff, settings, context.spot_price())?.price(option, context)
 }
 
 fn prepare(
@@ -276,11 +273,12 @@ fn prepare(
     context: &PricingContext,
     mut payoff: Payoff,
     settings: HestonFiniteDifferenceSettings,
+    minimum_spot: f64,
 ) -> Result<HestonState> {
     // Live values, multiplier, operator coefficients and both ADI stages.
     const BYTES_PER_GRID_POINT: u64 = 112;
     // Axis coordinates, derivative coefficients, and terminal and intrinsic payoffs.
-    const BYTES_PER_AXIS_NODE: u64 = 56;
+    const BYTES_PER_AXIS_NODE: u64 = 96;
     const BYTES_PER_SOLVE_NODE: u64 = 32;
     const BYTES_PER_TIME_STEP: u64 = 24;
     let model = context.model_parameters().as_heston()?;
@@ -302,9 +300,9 @@ fn prepare(
         return Ok(HestonState::Direct(payoff));
     }
     let scale = payoff.strike.max(context.spot_price());
-    let spot = context.spot_price() / scale;
+    let minimum_spot = minimum_spot / scale;
     payoff.strike /= scale;
-    if spot == 0.0 || payoff.strike == 0.0 {
+    if minimum_spot == 0.0 || payoff.strike == 0.0 {
         return Err(unstable());
     }
     let integrated = integrated_variance(model, time);
@@ -344,9 +342,12 @@ fn prepare(
         validate_grid(steps.max(knots), bytes)
     })?;
     let mut drift: f64 = 0.0;
+    let mut lower_drift: f64 = 0.0;
     for t in risk.ends().chain(dividend.ends()) {
         crate::cancellation::check()?;
-        drift = drift.max(dividend.log_factor(0.0, t) - risk.log_factor(0.0, t));
+        let carry = dividend.log_factor(0.0, t) - risk.log_factor(0.0, t);
+        drift = drift.max(carry);
+        lower_drift = lower_drift.max(-carry);
     }
     let upper = settings.asset_upper_boundary.map_or_else(
         || (drift + 6.0 * integrated.sqrt()).exp().max(4.0),
@@ -363,30 +364,31 @@ fn prepare(
     )?;
     if payoff.is_american() {
         let knots = risk.ends().len() + dividend.ends().len() - 2;
-        if knots.saturating_mul(times.widths.len()) > 25_000_000 {
+        if knots.saturating_mul(times.widths.len()).saturating_mul(2) > 25_000_000 {
             return Err(invalid_grid(
                 "American Heston exercise boundary exceeds 25 million curve-knot visits; reduce time steps or curve nodes",
             ));
         }
     }
-    let mut asset_scale = 0.1 * spot.max(payoff.strike);
-    let width = payoff.strike * integrated.sqrt();
-    let mut levels = vec![payoff.strike];
-    if width < upper / f64::from(settings.asset_step_count) {
-        // Resolve the payoff kink and its drifted location when diffusion is narrow.
-        asset_scale = asset_scale.min(width).max(f64::EPSILON.sqrt());
-        levels.push(scaled_cash(
-            payoff.strike,
-            risk.log_factor(0.0, time) - dividend.log_factor(0.0, time),
-        ));
+    let width = integrated.sqrt();
+    let tail_width = width.max(0.35 * model.vol_of_vol() * time);
+    let lower = spot_floor(
+        minimum_spot,
+        payoff.strike,
+        lower_drift + 0.5 * integrated + 6.0 * tail_width,
+    );
+    let mut asset = SpatialGrid::new(settings.asset_step_count, [lower, upper], payoff.strike)?;
+    let carry = dividend.log_factor(0.0, time) - risk.log_factor(0.0, time);
+    if width > 0.0 && width < 0.04 && carry.abs() > 4.0 * width {
+        asset.resolve_drift_band(payoff.strike, carry, width)?;
+    } else {
+        let asset_scale = if width < 0.04 {
+            (0.3 * width).max(f64::EPSILON)
+        } else {
+            0.06
+        };
+        concentrate(&mut asset, vec![payoff.strike], asset_scale)?;
     }
-    let asset = space(
-        settings.asset_step_count,
-        upper,
-        spot.max(payoff.strike),
-        asset_scale,
-        levels,
-    )?;
     let mut valuation_row = 0;
     let variance = if deterministic {
         None
@@ -406,55 +408,41 @@ fn prepare(
         } else {
             -(-2.0 * kappa * time).exp_m1() / kappa / 2.0
         };
-        let upper = settings.variance_upper_boundary.unwrap_or_else(|| {
-            (mean + 8.0 * model.vol_of_vol() * (mean * horizon).sqrt()).max(0.25)
-        });
-        let mut grid = space(
+        let spread = model.vol_of_vol() * (mean * horizon).sqrt();
+        let upper = settings
+            .variance_upper_boundary
+            .unwrap_or_else(|| (mean + 8.0 * spread).max(0.25));
+        let variance_scale = (0.1 * mean).max(0.05 * spread);
+        let mut nodes = variance_nodes(
             settings.variance_step_count,
             upper,
             model.initial_variance(),
-            (0.1 * mean).max(0.0001),
-            Vec::new(),
+            variance_scale.max(0.0001),
         )?;
         if model.initial_variance() > 0.0 {
-            valuation_row = (1..grid.count)
+            valuation_row = (1..nodes.len() - 1)
                 .min_by(|&a, &b| {
-                    (grid.nodes[a] - model.initial_variance())
+                    (nodes[a] - model.initial_variance())
                         .abs()
-                        .total_cmp(&(grid.nodes[b] - model.initial_variance()).abs())
+                        .total_cmp(&(nodes[b] - model.initial_variance()).abs())
                 })
                 .ok_or_else(unstable)?;
-            grid.nodes[valuation_row] = model.initial_variance();
+            nodes[valuation_row] = model.initial_variance();
         }
-        Some(grid)
+        Some(nodes)
     };
     let nx = asset.count + 1;
-    let rows = variance.as_ref().map_or(1, |v| v.count + 1);
+    let rows = variance.as_ref().map_or(1, Vec::len);
     let length = nx
         .checked_mul(rows)
         .filter(|&n| n <= isize::MAX as usize / size_of::<[f64; 3]>())
         .ok_or_else(unstable)?;
-    let mut terminal = Vec::with_capacity(nx);
-    for (i, &s) in asset.nodes.iter().enumerate() {
-        let mut value = payoff.value(s);
-        if i > 0 && i + 1 < nx {
-            let a = asset.nodes[i - 1].midpoint(s);
-            let b = s.midpoint(asset.nodes[i + 1]);
-            if a < payoff.strike && payoff.strike < b {
-                let h = if payoff.sign > 0.0 {
-                    b - payoff.strike
-                } else {
-                    payoff.strike - a
-                };
-                value = 0.5 * h * (h / (b - a));
-            }
-        }
-        terminal.push(value);
-    }
+    let terminal: Vec<_> = (0..nx)
+        .map(|i| project_payoff(&asset, &[payoff.strike], i, |s| payoff.value(s)))
+        .collect();
     let mut values: Vec<_> = (0..length).map(|k| terminal[k % nx]).collect();
-    let intrinsic: Vec<_> = asset.nodes.iter().map(|&s| payoff.value(s)).collect();
+    let intrinsic: Vec<_> = (0..nx).map(|i| payoff.value(asset.asset(i))).collect();
     let mut multiplier = vec![0.0; length];
-    let mut put_discount = 0.0_f64;
     for step in (0..times.widths.len()).rev() {
         crate::cancellation::check()?;
         let a = times.times[step];
@@ -463,23 +451,16 @@ fn prepare(
         let middle = a.midpoint(b);
         let rate = risk.rate(middle);
         let q = dividend.rate(middle);
-        let low = if payoff.is_american() && payoff.sign < 0.0 {
-            // Spot stays at zero. Exercise immediately or discount the best later payment.
-            put_discount = (risk.log_factor(a, b) + put_discount).max(0.0);
-            scaled_cash(payoff.strike, put_discount)
-        } else {
-            exercise_value(payoff, 0.0, a, time, &risk, &dividend)?
-        };
         let edges = [
-            low,
+            exercise_value(payoff, lower, a, time, &risk, &dividend)?,
             exercise_value(payoff, upper, a, time, &risk, &dividend)?,
         ];
         if edges.iter().any(|x| !x.is_finite()) {
             return Err(unstable());
         }
         let op = Operator::new(
-            &asset.nodes,
-            variance.as_ref().map(|v| v.nodes.as_slice()),
+            &asset,
+            variance.as_deref(),
             model,
             if deterministic {
                 variance_at(model, middle)
@@ -518,14 +499,16 @@ fn prepare(
         }
         values = predictor;
     }
+    let spline = asset.spline(if variance.is_some() {
+        values[valuation_row * nx..][..nx].to_vec()
+    } else {
+        values
+    });
     Ok(HestonState::Grid {
         scale,
         asset,
-        values: if variance.is_some() {
-            values[valuation_row * nx..][..nx].to_vec()
-        } else {
-            values
-        },
+        payoff,
+        spline,
     })
 }
 
@@ -537,7 +520,8 @@ enum HestonState {
     Grid {
         scale: f64,
         asset: SpatialGrid,
-        values: Vec<f64>,
+        payoff: Payoff,
+        spline: Spline,
     },
 }
 impl HestonState {
@@ -550,13 +534,23 @@ impl HestonState {
             Self::Grid {
                 scale,
                 asset,
-                values,
+                payoff,
+                spline,
             } => {
                 let spot = spot / scale;
                 if spot == 0.0 {
                     return Err(unstable());
                 }
-                checked_with_scale(scale * asset.linear(values, spot), *scale)
+                let mut price = asset.sample(spline, spot)[0];
+                if payoff.is_american() {
+                    let exercise = payoff.value(spot);
+                    price = if asset.exercise_cell(spline, spot, |s| payoff.value(s)) {
+                        exercise
+                    } else {
+                        price.max(exercise)
+                    };
+                }
+                checked_with_scale(scale * price, *scale)
             }
         }
     }
@@ -598,6 +592,7 @@ macro_rules! heston_solution {
                     &anchor,
                     Payoff::vanilla(option.option_type(), option.strike(), $american),
                     self.settings,
+                    *range.start(),
                 )?;
                 let low = super::solution::at_spot(context, *range.start())?;
                 state.price(option, &low)?;
@@ -655,13 +650,14 @@ struct Operator {
 
 impl Operator {
     fn new(
-        s: &[f64],
+        asset_grid: &SpatialGrid,
         v: Option<&[f64]>,
         model: &HestonParameters,
         deterministic: f64,
         rate: f64,
         q: f64,
     ) -> Result<Self> {
+        let s = &asset_grid.nodes;
         let nx = s.len();
         let rows = v.map_or(1, <[f64]>::len);
         let mut op = Self {
@@ -694,15 +690,11 @@ impl Operator {
             } else {
                 op.variance[j] = [0.0, -rate / 2.0, 0.0];
             }
-            for (i, &spot) in s.iter().enumerate().take(nx - 1).skip(1) {
-                op.asset[j * nx + i] = directional(
-                    s,
-                    i,
-                    0.5 * variance * spot * spot,
-                    (rate - q) * spot,
-                    rate / 2.0,
-                );
-                op.mixed[j * nx + i] = model.correlation() * model.vol_of_vol() * variance * spot;
+            for i in 1..nx - 1 {
+                let mut row = asset_grid.coefficients(i, rate, q, variance.sqrt());
+                row[1] += rate / 2.0;
+                op.asset[j * nx + i] = row;
+                op.mixed[j * nx + i] = model.correlation() * model.vol_of_vol() * variance;
             }
         }
         if op

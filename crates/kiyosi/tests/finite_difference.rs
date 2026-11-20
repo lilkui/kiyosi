@@ -495,17 +495,32 @@ fn standard_crank_nicolson_matches_one_undamped_step_with_payoff_averaging() {
         asset_step_count: 3,
         time_step_count: 1,
         scheme: FiniteDifferenceScheme::CrankNicolson,
-        asset_upper_boundary: Some(300.0),
+        asset_upper_boundary: Some(200.0),
     };
     let actual = FiniteDifferenceVanillaEngine::new(settings)
         .unwrap()
         .price(&option, &context)
         .unwrap();
     let high = AnalyticEuropeanEngine
-        .price(&option, &market(300.0, 0.0, 0.0, 0.2))
+        .price(&option, &market(200.0, 0.0, 0.0, 0.2))
         .unwrap();
-    // The strike cell averages to h/8=12.5; solve [1.02, -0.01; -0.04, 1.08].
-    let expected = (1.08 * 13.25 + 0.01 * (100.5 + 0.04 * high)) / (1.02 * 1.08 - 0.0004);
+    // The log-spaced nodes are 25, 50, 100 and 200. Integrate the positive
+    // half of the strike cell by two-point Gauss quadrature, then solve the
+    // two interior equations with the fitted log diffusion stencil.
+    let h = std::f64::consts::LN_2;
+    let middle = h / 4.0;
+    let offset = middle / 3.0_f64.sqrt();
+    let terminal = 25.0 * ((middle - offset).exp_m1() + (middle + offset).exp_m1());
+    let down = 0.04 / h;
+    let up = 0.5 * down;
+    let diagonal = 1.0 + down.midpoint(up);
+    let low = AnalyticEuropeanEngine
+        .price(&option, &market(25.0, 0.0, 0.0, 0.2))
+        .unwrap();
+    let first = (down * low).midpoint(up * terminal);
+    let second = (2.0 - diagonal) * terminal + 0.5 * up * (100.0 + high);
+    let expected =
+        (diagonal * second + 0.5 * down * first) / (diagonal * diagonal - 0.25 * down * up);
     assert!((actual - expected).abs() < 1e-12);
     let damped = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
         scheme: FiniteDifferenceScheme::Rannacher,
@@ -608,6 +623,7 @@ fn schemes_track_prices_and_stability_includes_drift() {
     let option = EuropeanOption::new(OptionType::Put, 100.0, start, end).unwrap();
     let unstable = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
         asset_step_count: 200,
+        time_step_count: 20,
         scheme: FiniteDifferenceScheme::ExplicitEuler,
         ..Default::default()
     })

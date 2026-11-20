@@ -2755,7 +2755,8 @@ class _FiniteDifferenceMethods[Instrument](_PricingMethods[Instrument]):
         Notes
         -----
         Current observations are evaluated per queried spot. Numerical domains
-        cover the interval; active explicit engine bounds must provide coverage.
+        use log spot and cover the states that need rollback. Active explicit
+        engine bounds must provide coverage.
         Some products prepare several state layers or continuation components.
         Accuracy requires grid and truncation convergence checks. Long work
         releases the GIL; cancellation returns no partial solution.
@@ -3233,6 +3234,7 @@ class FiniteDifferenceHestonVanillaEngine(
 
     Notes
     -----
+    The asset grid uses log spot and an automatically selected positive lower boundary.
     Uses the modified Craig-Sneyd (MCS) alternating direction implicit (ADI)
     scheme on nonuniform grids, with Ikonen-Toivanen splitting for American
     exercise. Supports HestonParameters and EuropeanOption/AmericanOption,
@@ -3496,11 +3498,8 @@ class FiniteDifferenceVanillaEngine(
     coverage follows required future discounting. Automatic local-volatility
     domains require convergence checks.
 
-    With automatic domains and non-explicit schemes, European BSM grids
-    under Actual/365 Fixed remove deterministic carry and concentrate
-    around the carry-adjusted strike when it fits the domain.
-    American grids with automatic domains and non-explicit schemes concentrate
-    around the strike.
+    The grid uses log spot and an automatically selected positive lower boundary.
+    Automatic domains with non-explicit schemes concentrate nodes around the strike.
     """
 
 class FiniteDifferenceDigitalEngine(
@@ -3556,8 +3555,8 @@ class FiniteDifferenceDigitalEngine(
     coverage follows required future discounting. Automatic local-volatility
     domains require convergence checks.
 
-    Automatic domains with non-explicit schemes remove deterministic carry
-    and concentrate nodes around the adjusted strike when it fits the domain.
+    The grid uses log spot and an automatically selected positive lower boundary.
+    Automatic domains with non-explicit schemes concentrate nodes around the strike.
     """
 
 class _MonteCarloMethods[Instrument, StatisticsInstrument](_PricingMethods[Instrument]):

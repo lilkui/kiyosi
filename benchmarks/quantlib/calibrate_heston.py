@@ -7,11 +7,32 @@ reference refinements and automatic mesh bounds live in references/heston.json.
 
 import copy
 import json
+import math
+from datetime import date
 from pathlib import Path
 
 import run
 
 HERE = Path(__file__).resolve().parent
+
+
+def asset_lower(inputs):
+    """Return the lower spot in a flat-curve Heston calibration scenario."""
+    years = (
+        date.fromisoformat(inputs["expiry"]) - date.fromisoformat(inputs["valuation"])
+    ).days / 365
+    v0 = inputs["initial_variance"]
+    theta = inputs["long_run_variance"]
+    kappa = inputs["mean_reversion_speed"]
+    decay = -math.expm1(-kappa * years) / kappa if kappa else years
+    variance = theta * years + (v0 - theta) * decay
+    carry = (inputs["rate"] - inputs["dividend"]) * years
+    width = max(math.sqrt(variance), 0.35 * inputs["vol_of_vol"] * years)
+    margin = max(1e-3, max(0, -carry) + 0.5 * variance + 6 * width)
+    return min(
+        inputs["strike"] * math.exp(-margin),
+        inputs["spot"] * math.exp(-0.25 * margin),
+    )
 
 
 def main():
@@ -21,9 +42,10 @@ def main():
     records = []
     for case in cases.values():
         if case["family"] != "heston_analytic":
+            lower = asset_lower(case["inputs"])
             case["domains"] = {
                 "kiyosi": {
-                    "asset": [0, case["profiles"]["kiyosi"]["asset_upper"]],
+                    "asset": [lower, case["profiles"]["kiyosi"]["asset_upper"]],
                     "variance": [0, case["profiles"]["kiyosi"]["variance_upper"]],
                 }
             }
@@ -47,12 +69,22 @@ def main():
                     )
                 )
             elif backend == "kiyosi":
+                profile = case["profiles"]["kiyosi"]
+                lower = case["domains"]["kiyosi"]["asset"][0]
+                expanded_steps = round(
+                    profile["asset_steps"]
+                    * math.log(800 / lower)
+                    / math.log(profile["asset_upper"] / lower)
+                )
                 variants.extend(
                     [
                         ("asset_refinement", {"asset_steps": 400}),
                         ("variance_refinement", {"variance_steps": 100}),
                         ("time_refinement", {"time_steps": 400}),
-                        ("asset_domain", {"asset_upper": 800, "asset_steps": 400}),
+                        (
+                            "asset_domain",
+                            {"asset_upper": 800, "asset_steps": expanded_steps},
+                        ),
                         (
                             "variance_domain",
                             {"variance_upper": 1.2, "variance_steps": 100},

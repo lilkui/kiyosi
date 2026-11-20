@@ -2,6 +2,8 @@
 
 import copy
 import json
+import math
+from datetime import date
 from pathlib import Path
 
 import run
@@ -10,42 +12,58 @@ HERE = Path(__file__).resolve().parent
 
 
 def domain_probes(case):
-    """Build uniform-domain probes for barrier and continuation grid spacing.
-
-    Parameters
-    ----------
-    case : dict
-        Native benchmark case with its Kiyosi profile and product inputs.
-
-    Returns
-    -------
-    dict
-        Profile overrides preserving spacing in the named grid, relative to
-        the explicit uniform baseline.
-    """
+    """Expand the upper bound at approximately constant mean log spacing."""
     profile = case["profiles"]["kiyosi"]
     upper = profile["upper"] if profile["upper"] != "automatic" else 400
-    lower, end, expanded_end = 0, upper, 600
     inputs = case["inputs"]
-    if "barrier" in inputs:
-        if inputs["barrier_type"].startswith("down"):
-            lower = inputs["barrier"]
-        else:
-            end = expanded_end = inputs["barrier"]
-    count = profile["space"] * (expanded_end - lower) / (end - lower)
-    assert count.is_integer(), (case["id"], count)
+    years = (
+        date.fromisoformat(inputs["expiry"]) - date.fromisoformat(inputs["valuation"])
+    ).days / 365
+    local = case["family"] == "fd_local_vol"
+    sigma = (
+        max(
+            value
+            for key, value in inputs.items()
+            if key.startswith(("surface_start_", "surface_end_"))
+        )
+        if local
+        else inputs["volatility"]
+    )
+    spot = inputs["spot"]
+    barrier = inputs.get("barrier")
+    strike = inputs.get("strike", barrier)
+    direction = inputs.get("barrier_type", "")
+    drift = (inputs["rate"] - inputs["dividend"] - sigma**2 / 2) * years
+    margin = 1.5 * (4 * sigma * math.sqrt(years) + abs(drift))
+    if barrier is None:
+        # One-dimensional vanilla and digital engines use the same explicit domain policy.
+        margin = math.log(4) if not local and margin < 2.5 else max(margin, math.log(4))
+        level = strike
+    else:
+        margin = max(margin, math.log(2))
+        level = min(strike, barrier)
+    full_lower = min(level * math.exp(-margin), spot * math.exp(-0.25 * margin))
+    expanded_upper = 600
+
+    def expanded_steps(lower, old_end, new_end):
+        return round(
+            profile["space"] * math.log(new_end / lower) / math.log(old_end / lower)
+        )
+
+    lower = barrier if direction.startswith("down") else full_lower
+    end = barrier if direction.startswith("up") else upper
+    expanded_end = barrier if direction.startswith("up") else expanded_upper
     probes = {
-        "explicit_uniform": {"upper": upper},
-        "domain_constant_spacing": {"upper": 600, "space": int(count)},
+        "explicit_boundary": {"upper": upper},
+        "domain_constant_spacing": {
+            "upper": expanded_upper,
+            "space": expanded_steps(lower, end, expanded_end),
+        },
     }
-    if case.get("family") == "fd_local_vol" and inputs.get("barrier_type", "").endswith(
-        "in"
-    ):
-        full_count = profile["space"] * 600 / upper
-        assert full_count.is_integer(), (case["id"], full_count)
+    if local and direction.endswith("in"):
         probes["continuation_constant_spacing"] = {
-            "upper": 600,
-            "space": int(full_count),
+            "upper": expanded_upper,
+            "space": expanded_steps(full_lower, upper, expanded_upper),
         }
     return probes
 
@@ -62,7 +80,7 @@ def main():
         "schema_version": 1,
         "budgets_declared_before_profile_selection": 0.003,
         "quantlib_domain": "native automatic mesher, no public independent boundary control; Rust upper-bound enlargement supplies independent domain evidence",
-        "kiyosi_domain": "domain_constant_spacing is compared with explicit_uniform; selected automatic meshes have a different node distribution",
+        "kiyosi_domain": "domain_constant_spacing expands explicit_boundary at constant mean log spacing, up to rounding. Concentrated meshes may vary locally",
         "cases": [],
     }
     for case in cases.values():

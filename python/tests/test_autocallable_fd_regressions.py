@@ -1031,7 +1031,7 @@ def test_protected_snowball_uses_observation_paths_with_stochastic_knock_out(sub
             )
     explicit = pricing.FiniteDifferenceAutocallableEngine(
         asset_step_count=80,
-        time_step_count=200,
+        time_step_count=20,
         scheme="explicit_euler",
         asset_upper_boundary=400,
     )

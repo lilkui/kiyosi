@@ -148,7 +148,7 @@ fn native(
         shifts,
         |rolled, quantity, request, shifts| {
             let grid = diffusion::with_diffusion!(rolled, |diffusion| {
-                solve_grid(option, rolled, settings, diffusion)
+                solve_grid(option, rolled, settings, diffusion, rolled.spot_price())
             })?;
             upper = Some(grid.space.upper);
             grid.evaluate(option, rolled, quantity, request, shifts)
@@ -189,6 +189,7 @@ fn solve_grid<D: Diffusion>(
     context: &PricingContext,
     settings: FiniteDifferenceSettings,
     diffusion: D,
+    minimum_spot: f64,
 ) -> Result<AccumulatorGrid> {
     let expiry = option.expiry_time();
     let (risk, dividend) = diffusion::rate_curves(context, expiry, settings)?;
@@ -196,15 +197,28 @@ fn solve_grid<D: Diffusion>(
         Some(value) => value,
         None => default_upper(option, context, &risk, &dividend)?,
     };
-    let space = SpatialGrid::new(
-        settings,
-        upper,
-        0.0,
-        context
-            .spot_price()
-            .max(option.strike())
-            .max(option.knock_out_level()),
-    )?;
+    let spot = context.spot_price();
+    if upper <= spot.max(option.strike()).max(option.knock_out_level()) {
+        return Err(super::invalid_grid(
+            "finite-difference upper bound must exceed spot and contract levels",
+        ));
+    }
+    let width = super::diffusion_log_width(context, expiry, &risk, &dividend)?;
+    let lower = super::grid::spot_floor(
+        minimum_spot,
+        option.strike().min(option.knock_out_level()),
+        (1.5 * width).max(std::f64::consts::LN_2),
+    );
+    let mut space = SpatialGrid::new(settings.asset_step_count, [lower, upper], option.strike())?;
+    let horizon_width = diffusion.sigma(0.0, option.strike())
+        * (context.valuation_time().years_until(expiry) * diffusion.variance_rate(0.0)).sqrt();
+    if settings.scheme != super::FiniteDifferenceScheme::ExplicitEuler && horizon_width < 0.04 {
+        super::grid::concentrate(
+            &mut space,
+            vec![option.strike(), option.knock_out_level()],
+            (0.1 * horizon_width).max(1e-4),
+        )?;
+    }
     let dates = option.future_observation_times(context)?;
     let trading = diffusion::observation_times(context.valuation_time(), expiry, &dates)?;
     let grid = diffusion::time_grid(context, expiry, settings, &risk, &dividend, &trading)?;
@@ -218,7 +232,6 @@ fn solve_grid<D: Diffusion>(
             &space,
             diffusion.sigma(0.0, 0.0),
             settings.scheme.theta(),
-            true,
             &risk,
             &dividend,
         )?;
@@ -263,18 +276,14 @@ fn solve_grid<D: Diffusion>(
             let q = dividend.rate(middle);
             for layer in 0..count {
                 let values = &layers[layer];
-                let slope = (values[space.count] - values[space.count - 1]) / space.spacing;
-                let intercept = values[space.count] - slope * upper;
-                let boundaries = [
-                    values[0] * (-rate * dt).exp(),
-                    slope * upper * (-q * dt).exp() + intercept * (-rate * dt).exp(),
-                ];
+                let boundaries =
+                    space.discount_affine_edges(values, (-rate * dt).exp(), (-q * dt).exp());
                 diffusion.advance(
                     &mut stepper,
                     values,
                     &mut next[layer],
                     &space,
-                    [middle, 0.0],
+                    middle,
                     [dt, weight, rate, q],
                     boundaries,
                 )?;
@@ -339,7 +348,7 @@ impl AccumulatorGrid {
         if request != GreeksRequest::new([]) && !option.at_spot_discontinuity(context, h) {
             result.set(request, Greek::Delta, value[1])?;
             result.set(request, Greek::Gamma, value[2])?;
-            if request.has(Greek::Speed) && h > 0.0 && spot > h && spot + h < upper {
+            if request.has(Greek::Speed) && h > 0.0 && spot - h > space.lower && spot + h < upper {
                 let up = sample(spot + h);
                 let down = sample(spot - h);
                 PricingResult::new(up[0])?;
@@ -418,13 +427,14 @@ impl super::FiniteDifferenceEngine<Accumulator> for FiniteDifferenceAccumulatorE
             }
         }
         let grid = if pending {
-            let (rolled, _, _) = deterministic::continuation_context(&anchor, start)?;
+            let (rolled, carry, _) = deterministic::continuation_context(&anchor, start)?;
             let rolled = rolled.as_ref();
             Some(diffusion::with_diffusion!(rolled, |diffusion| solve_grid(
                 option,
                 rolled,
                 self.settings,
-                diffusion
+                diffusion,
+                super::scaled(*range.start(), carry)
             ))?)
         } else {
             None

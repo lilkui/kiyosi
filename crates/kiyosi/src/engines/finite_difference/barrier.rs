@@ -2,7 +2,7 @@ use super::{
     Diffusion, FiniteDifferenceBarrierEngine, FiniteDifferenceDoubleBarrierEngine,
     FiniteDifferenceSettings, Greek, GreeksRequest, NumericalShiftSettings, OptionContract,
     OptionType, Payoff, PricingContext, PricingEngine, PricingResult, Result, SpatialGrid,
-    diffusion, diffusion_upper, grid::project_in_spot, local_volatility, payoff::boundary_value,
+    diffusion, diffusion_upper, grid::project_payoff, local_volatility, payoff::boundary_value,
     scaled, step, validate_work,
 };
 use crate::engines::analytic::barrier::resolved_price;
@@ -327,7 +327,11 @@ fn native_barrier(
         |radius| option.at_spot_discontinuity(context, radius),
         |context, request, shifts| {
             let grid = diffusion::with_diffusion!(context, |diffusion| solve_grid(
-                option, context, settings, diffusion
+                option,
+                context,
+                settings,
+                diffusion,
+                context.spot_price()
             ))?;
             grid.evaluate(option, context, request, shifts)
         },
@@ -460,6 +464,7 @@ fn solve_grid<D: Diffusion>(
     context: &PricingContext,
     settings: FiniteDifferenceSettings,
     volatility: D,
+    minimum_spot: f64,
 ) -> Result<BarrierGrid> {
     let terms = option.monitoring();
     let upper_barrier = option.upper_barrier();
@@ -482,35 +487,54 @@ fn solve_grid<D: Diffusion>(
             default
         }
     };
-    let mut space = SpatialGrid::new(
-        settings,
-        upper,
-        0.0,
-        context
-            .spot_price()
-            .max(terms.strike())
-            .max(upper_barrier.unwrap_or(terms.barrier_level())),
-    )?;
     let scheduled = terms.observation_mode() == ObservationMode::Scheduled;
     let up = terms.barrier_type().is_up();
-    if !scheduled {
-        if let Some(upper) = upper_barrier {
-            space.uniform_domain(terms.barrier_level(), upper)?;
-        } else {
-            space.uniform_domain(
-                if up { 0.0 } else { terms.barrier_level() },
-                if up { terms.barrier_level() } else { upper },
-            )?;
-        }
-        if settings.scheme != super::FiniteDifferenceScheme::ExplicitEuler {
-            space.resolve_barriers(
-                [Some(terms.barrier_level()), upper_barrier],
-                Some(terms.strike()),
-                time,
-                [&risk, &dividend],
-                |level| volatility.sigma(0.0, level),
-            )?;
-        }
+    if upper
+        <= context
+            .spot_price()
+            .max(terms.strike())
+            .max(upper_barrier.unwrap_or(terms.barrier_level()))
+    {
+        return Err(super::invalid_grid(
+            "finite-difference upper bound must exceed spot and contract levels",
+        ));
+    }
+    let width = super::diffusion_log_width(context, expiry, &risk, &dividend)?;
+    let full_lower = super::grid::spot_floor(
+        minimum_spot,
+        terms.strike().min(terms.barrier_level()),
+        (1.5 * width).max(std::f64::consts::LN_2),
+    );
+    let lower = if !scheduled && (!up || upper_barrier.is_some()) {
+        terms.barrier_level()
+    } else {
+        full_lower
+    };
+    let grid_upper = if scheduled {
+        upper
+    } else {
+        upper_barrier.unwrap_or(if up { terms.barrier_level() } else { upper })
+    };
+    let mut space = SpatialGrid::new(
+        settings.asset_step_count,
+        [lower, grid_upper],
+        terms.barrier_level(),
+    )?;
+    if !scheduled && settings.scheme != super::FiniteDifferenceScheme::ExplicitEuler {
+        space.resolve_barriers(
+            [Some(terms.barrier_level()), upper_barrier],
+            Some(terms.strike()),
+            time,
+            [&risk, &dividend],
+            |level| volatility.sigma(0.0, level),
+        )?;
+    }
+    if !scheduled
+        && upper_barrier.is_none()
+        && space.is_uniform()
+        && settings.scheme != super::FiniteDifferenceScheme::ExplicitEuler
+    {
+        super::grid::concentrate(&mut space, vec![terms.strike()], 0.15)?;
     }
     let observations = diffusion::observation_times(
         context.valuation_time(),
@@ -533,14 +557,7 @@ fn solve_grid<D: Diffusion>(
     }
     let theta = settings.scheme.theta();
     if !D::LOCAL {
-        grid.validate_stability(
-            &space,
-            volatility.sigma(0.0, 0.0),
-            theta,
-            scheduled,
-            &risk,
-            &dividend,
-        )?;
+        grid.validate_stability(&space, volatility.sigma(0.0, 0.0), theta, &risk, &dividend)?;
     }
     let sign = if terms.option_type() == OptionType::Call {
         1.0
@@ -574,25 +591,11 @@ fn solve_grid<D: Diffusion>(
             if tau == 0.0 {
                 return payoff(asset);
             }
-            if asset == 0.0 {
-                return if sign > 0.0 {
-                    0.0
-                } else {
-                    scaled(terms.strike(), r)
-                };
-            }
-            if D::LOCAL {
-                return if sign > 0.0 {
-                    scaled(asset, q) - scaled(terms.strike(), r)
-                } else {
-                    0.0
-                };
-            }
             boundary_value(
                 Payoff::vanilla(terms.option_type(), terms.strike(), false),
                 asset,
                 [r, q],
-                volatility.sigma(0.0, 0.0),
+                volatility,
                 tau,
             )
         };
@@ -623,7 +626,7 @@ fn solve_grid<D: Diffusion>(
     let initial: Vec<_> = (0..=space.count)
         .map(|i| {
             if average_payoff {
-                project_in_spot(&space, &[terms.strike()], i, payoff)
+                project_payoff(&space, &[terms.strike()], i, payoff)
             } else {
                 payoff(space.asset(i))
             }
@@ -690,14 +693,14 @@ fn solve_grid<D: Diffusion>(
         // Evolve activation directly to avoid cancellation between independently meshed prices.
         let full_space = SpatialGrid::knock_in_continuation(
             settings,
-            upper,
+            [full_lower, upper],
             terms.strike(),
             volatility.sigma(0.0, terms.strike()) * time.sqrt(),
         )?;
         let continuation: Vec<_> = (0..=full_space.count)
             .map(|i| {
                 if average_payoff {
-                    project_in_spot(&full_space, &[terms.strike()], i, payoff)
+                    project_payoff(&full_space, &[terms.strike()], i, payoff)
                 } else {
                     payoff(full_space.asset(i))
                 }
@@ -736,15 +739,18 @@ fn solve_grid<D: Diffusion>(
             if scheduled { &observations } else { &[] },
             implicit_fallback,
             |current| {
-                let cash = scaled(terms.strike(), risk.log_factor(current, time));
-                if sign > 0.0 {
-                    [
-                        0.0,
-                        scaled(upper, dividend.log_factor(current, time)) - cash,
-                    ]
-                } else {
-                    [cash, 0.0]
-                }
+                [full_lower, upper].map(|asset| {
+                    boundary_value(
+                        Payoff::vanilla(terms.option_type(), terms.strike(), false),
+                        asset,
+                        [
+                            risk.log_factor(current, time),
+                            dividend.log_factor(current, time),
+                        ],
+                        volatility,
+                        time - current,
+                    )
+                })
             },
             |current, vanilla| {
                 let remaining =
@@ -810,11 +816,6 @@ impl BarrierGrid {
     }
 }
 
-#[expect(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    reason = "Barrier positions intentionally round and saturate to nonnegative indices before capping at the grid size."
-)]
 pub(super) fn project_event(
     space: &SpatialGrid,
     breaks: &[f64],
@@ -828,9 +829,9 @@ pub(super) fn project_event(
     let projected: Vec<_> = levels
         .iter()
         .map(|level| {
-            let cut = ((level / space.spacing).round() as usize).min(space.count);
+            let cut = space.nearest(*level);
             let value =
-                project_in_spot(space, breaks, cut, |asset| match (event(asset), additive) {
+                project_payoff(space, breaks, cut, |asset| match (event(asset), additive) {
                     (Some(value), true) => value - continuation(values, asset),
                     (Some(value), false) => value,
                     (None, true) => 0.0,
@@ -972,6 +973,7 @@ fn prepare_solution<I: Contract + Clone + PartialEq + Send + Sync + 'static>(
             &anchor,
             settings,
             false,
+            *range.start(),
         )?)
     } else {
         None
@@ -987,10 +989,14 @@ fn prepare_solution<I: Contract + Clone + PartialEq + Send + Sync + 'static>(
             {
                 settings.asset_upper_boundary = None;
             }
-            let (rolled, _, _) = continuation_context(&anchor, end)?;
+            let (rolled, carry, _) = continuation_context(&anchor, end)?;
             let rolled = rolled.as_ref();
             Some(diffusion::with_diffusion!(rolled, |diffusion| solve_grid(
-                option, rolled, settings, diffusion
+                option,
+                rolled,
+                settings,
+                diffusion,
+                scaled(*range.start(), carry)
             ))?)
         }
     } else {

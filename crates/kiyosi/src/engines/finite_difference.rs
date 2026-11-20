@@ -53,7 +53,7 @@ impl FiniteDifferenceScheme {
     }
 }
 
-/// Configures the spatial domain and time grid, validated at engine construction.
+/// Configures the log-spot domain and time grid, validated at engine construction.
 ///
 /// Grids are limited to 1 GiB of estimated workspace and one billion spatial intervals times time intervals.
 /// See [`FiniteDifferenceVanillaEngine::new`] for an example.
@@ -69,6 +69,7 @@ pub struct FiniteDifferenceSettings {
     /// Sets a finite positive upper spot boundary, or uses the contract's automatic domain.
     ///
     /// Pricing requires the boundary to exceed spot, strike and any barrier level.
+    /// The lower spot boundary is selected automatically.
     /// Automatic local-volatility domains use the maximum interpolated volatility
     /// over the remaining stochastic horizon.
     /// Explicit domains need convergence checks.
@@ -118,6 +119,7 @@ impl FiniteDifferenceSettings {
             return Err(invalid_grid("time_step_count must be positive"));
         }
         validate_workspace(
+            self.scheme,
             u64::from(self.asset_step_count.unsigned_abs()) + 1,
             u64::from(self.time_step_count.unsigned_abs()),
             0,
@@ -135,11 +137,21 @@ impl FiniteDifferenceSettings {
 
 const WORKSPACE_BUDGET: u64 = 1 << 30;
 
-fn validate_workspace(asset_nodes: u64, time_steps: u64, curve_bytes: u64) -> Result<()> {
-    // Allow for rollback layers, interpolation buffers and the spatial axis as well as the stepper.
-    const BYTES_PER_ASSET_NODE: u64 = Stepper::PEAK_BYTES_PER_NODE + 72;
+fn validate_workspace(
+    scheme: FiniteDifferenceScheme,
+    asset_nodes: u64,
+    time_steps: u64,
+    curve_bytes: u64,
+) -> Result<()> {
     const BYTES_PER_TIME_STEP: u64 = 24;
-    if (asset_nodes * BYTES_PER_ASSET_NODE + time_steps * BYTES_PER_TIME_STEP)
+    // Allow for rollback layers, interpolation buffers and the spatial axis as well as the stepper.
+    let bytes_per_asset_node = Stepper::PEAK_BYTES_PER_NODE
+        + if scheme == FiniteDifferenceScheme::ExplicitEuler {
+            72
+        } else {
+            112
+        };
+    if (asset_nodes * bytes_per_asset_node + time_steps * BYTES_PER_TIME_STEP)
         .saturating_add(curve_bytes)
         > WORKSPACE_BUDGET
     {
@@ -218,6 +230,20 @@ fn diffusion_upper(
     risk: &Curve,
     dividend: &Curve,
 ) -> Result<f64> {
+    let width = diffusion_log_width(context, horizon, risk, dividend)?;
+    Ok(if width <= 4.0_f64.ln() {
+        4.0 * relevant
+    } else {
+        (relevant.ln() + width).exp()
+    })
+}
+
+fn diffusion_log_width(
+    context: &PricingContext,
+    horizon: Timestamp,
+    risk: &Curve,
+    dividend: &Curve,
+) -> Result<f64> {
     let start = context.valuation_time();
     let time = start.years_until(horizon);
     let sigma = match context.model_parameters() {
@@ -267,20 +293,18 @@ fn diffusion_upper(
             .map_or(1.0, |calendar| {
                 (365.0 / f64::from(calendar.trading_days_per_year())).sqrt()
             });
-    let drift = risk
-        .ends()
-        .chain(dividend.ends())
-        .map(|end| {
-            (-risk.log_factor(0.0, end) + dividend.log_factor(0.0, end) - 0.5 * sigma * sigma * end)
-                .abs()
-        })
-        .fold(0.0, f64::max);
-    let width = 4.0 * sigma * time.sqrt() + drift;
-    Ok(if width <= 4.0_f64.ln() {
-        4.0 * relevant
-    } else {
-        (relevant.ln() + width).exp()
-    })
+    let mut drift: f64 = 0.0;
+    for (i, end) in risk.ends().chain(dividend.ends()).enumerate() {
+        if i % 1024 == 0 {
+            crate::cancellation::check()?;
+        }
+        drift = drift.max(
+            (-risk.log_factor(0.0, end) + dividend.log_factor(0.0, end)
+                - 0.5 * sigma * sigma * end)
+                .abs(),
+        );
+    }
+    Ok(4.0 * sigma * time.sqrt() + drift)
 }
 
 fn native(
@@ -335,94 +359,88 @@ fn native_model<D: Diffusion>(
             None,
         ));
     }
-    let saved = solve_model(option, payoff, context, settings, concentrate, diffusion)?;
+    let saved = solve_model(
+        option,
+        payoff,
+        context,
+        settings,
+        concentrate,
+        context.spot_price(),
+        diffusion,
+    )?;
     let result = saved.evaluate(context, request, shifts)?;
     Ok((result, Some(saved.grid.space.upper)))
 }
 
-#[expect(
-    clippy::float_cmp,
-    reason = "Exact weights select the digital carry correction."
-)]
 fn solve_model<D: Diffusion>(
     option: &impl OptionContract,
-    mut payoff: Payoff,
+    payoff: Payoff,
     context: &PricingContext,
     settings: FiniteDifferenceSettings,
     concentrate: bool,
+    minimum_spot: f64,
     diffusion: D,
 ) -> Result<VanillaGrid> {
     let time = time_to_expiry(option, context)?;
     let spot = context.spot_price();
     let model = context.model_parameters();
     let expiry = option.expiry_time();
-    let (market_risk, market_dividend) = diffusion::rate_curves(context, expiry, settings)?;
-    let automatic_concentration =
-        concentrate && settings.scheme != FiniteDifferenceScheme::ExplicitEuler;
+    let (risk, dividend) = diffusion::rate_curves(context, expiry, settings)?;
+    let log_width = diffusion_log_width(context, expiry, &risk, &dividend)?;
     let level = spot.max(payoff.strike);
-    let upper = match settings.asset_upper_boundary {
-        Some(upper) => upper,
-        None if D::LOCAL || payoff.is_american() => {
-            diffusion_upper(level, context, expiry, &market_risk, &market_dividend)?
-        }
-        None => 4.0 * level,
-    };
-    let mut risk = &market_risk;
-    let mut dividend = &market_dividend;
-    let mut digital_log_carry = 0.0;
-    if automatic_concentration && !payoff.is_american() && (!D::LOCAL || payoff.is_digital()) {
-        // Keep the fine cells near the payoff kink as the underlying drifts.
-        let log_carry = context.forward_carry(expiry)?;
-        let strike = scaled(payoff.strike, -log_carry);
-        if strike.is_normal() && strike < upper {
-            payoff.strike = strike;
-            if payoff.is_digital() {
-                digital_log_carry = log_carry;
-            }
-            // Cash digitals discount at the risk-free rate. Asset payoffs absorb
-            // the terminal carry and discount at the dividend yield instead.
-            if payoff.payout().is_some() {
-                dividend = risk;
-            } else {
-                risk = dividend;
-            }
-        }
-    }
-    let mut space = SpatialGrid::new(
-        settings,
-        upper,
+    let carry = dividend.log_factor(0.0, time) - risk.log_factor(0.0, time);
+    let width = diffusion.sigma(
+        0.0,
         if payoff.is_american() {
             payoff.strike
         } else {
-            0.0
-        },
-        level,
-    )?;
-    if automatic_concentration {
-        let sigma_spot = if payoff.is_american() {
-            payoff.strike
-        } else {
             spot
-        };
-        let width = diffusion.sigma(0.0, sigma_spot) * time.sqrt();
-        let minimum = if payoff.is_digital() {
-            1e-4
+        },
+    ) * time.sqrt();
+    let margin = 1.5 * log_width;
+    let narrow = width < 0.04;
+    let compact = concentrate && narrow && settings.scheme != FiniteDifferenceScheme::ExplicitEuler;
+    let domain_width = if compact {
+        margin.max(1e-3)
+    } else if !D::LOCAL && margin < 2.5 {
+        4.0_f64.ln()
+    } else {
+        margin.max(4.0_f64.ln())
+    };
+    let upper = settings.asset_upper_boundary.unwrap_or_else(|| {
+        if compact || D::LOCAL || payoff.is_american() {
+            scaled(level, domain_width)
         } else {
-            f64::EPSILON
-        };
-        let scale = payoff.strike * (0.1 * width).max(minimum);
-        if scale > 0.0 && scale.is_finite() {
+            4.0 * level
+        }
+    });
+    if upper <= level {
+        return Err(invalid_grid(
+            "finite-difference upper bound must exceed spot and strike",
+        ));
+    }
+    let lower = grid::spot_floor(minimum_spot, payoff.strike, domain_width);
+    let mut space = SpatialGrid::new(settings.asset_step_count, [lower, upper], payoff.strike)?;
+    if settings.scheme != FiniteDifferenceScheme::ExplicitEuler && settings.asset_step_count >= 16 {
+        if width > 0.0 && carry.abs() > 4.0 * width && narrow {
+            space.resolve_drift_band(payoff.strike, carry, width)?;
+        } else if narrow || concentrate || payoff.is_american() || !D::LOCAL {
+            let floor = if payoff.is_digital() {
+                1e-9
+            } else {
+                f64::EPSILON
+            };
+            let scale = (0.3 * width).max(floor);
             grid::concentrate(&mut space, vec![payoff.strike], scale)?;
         }
     }
-    let time_grid = diffusion::time_grid(
-        context,
-        expiry,
-        settings,
-        &market_risk,
-        &market_dividend,
-        &[],
-    )?;
+    let mut startup = Vec::new();
+    if narrow && carry.abs() > 4.0 * width && settings.scheme == FiniteDifferenceScheme::Rannacher {
+        // Shorten the damped steps so implicit advection adds less numerical variance.
+        let dt = time / f64::from(settings.time_step_count);
+        startup.extend([time - 0.25 * dt, time - 0.125 * dt]);
+    }
+    let time_grid = diffusion::time_grid(context, expiry, settings, &risk, &dividend, &startup)?;
     let rollback_steps = time_grid.rollback_steps(settings.scheme, &[])?;
     validate_work(space.count as u64, rollback_steps)?;
     let can_exercise = payoff.is_american()
@@ -433,125 +451,106 @@ fn solve_model<D: Diffusion>(
             || risk.rate(0.0) < 0.0);
     if can_exercise {
         let knots = (risk.ends().len() + dividend.ends().len() - 2) as u64;
-        if knots.saturating_mul(rollback_steps) > 25_000_000 {
+        if knots.saturating_mul(rollback_steps).saturating_mul(2) > 25_000_000 {
             return Err(invalid_grid(
                 "American exercise boundary exceeds 25 million curve-knot visits; reduce time steps or curve nodes",
             ));
         }
     }
     let theta = settings.scheme.theta();
-    if !D::LOCAL {
-        time_grid.validate_stability(
-            &space,
-            diffusion.sigma(0.0, 0.0),
-            theta,
-            !payoff.is_american(),
-            risk,
-            dividend,
-        )?;
+    if !D::LOCAL && !payoff.is_digital() {
+        time_grid.validate_stability(&space, diffusion.sigma(0.0, 0.0), theta, &risk, &dividend)?;
+    }
+    let is_cash_digital = payoff.payout().is_some();
+    let is_asset_digital = payoff.is_digital() && !is_cash_digital;
+    let discount = [risk.log_factor(0.0, time), dividend.log_factor(0.0, time)];
+    if payoff.is_digital()
+        && !D::LOCAL
+        && concentrate
+        && settings.scheme == FiniteDifferenceScheme::Rannacher
+        && carry.abs() > 32.0 * width
+    {
+        // The exact lognormal transition resolves narrow digital tails that
+        // a monotone spatial stencil would smear with one-sided drift.
+        let [r, q] = discount;
+        let normalized = if is_cash_digital {
+            [0.0, q - r]
+        } else {
+            [r - q, 0.0]
+        };
+        let values = (0..=space.count)
+            .map(|i| {
+                if i % 1024 == 0 {
+                    crate::cancellation::check()?;
+                }
+                let spot = space.asset(i);
+                let value = payoff::boundary_value(payoff, spot, normalized, diffusion, time);
+                Ok(if is_asset_digital {
+                    value / spot
+                } else {
+                    value
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        return Ok(VanillaGrid {
+            grid: solution::Grid::new(space, values),
+            payoff,
+            discount,
+            relative_upper_error: 0.0,
+        });
     }
     let mut old: Vec<_> = (0..=space.count)
-        .map(|i| {
-            if !space.nodes.is_empty() {
-                return grid::project_in_coordinates(&space, &[payoff.strike], i, |asset| {
-                    [payoff.value(asset), 0.0]
-                })[0];
-            }
-            let asset = space.asset(i);
-            if !payoff.is_digital() {
-                return if payoff.is_american() {
-                    payoff.value(asset)
-                } else {
-                    grid::project_in_spot(&space, &[payoff.strike], i, |s| payoff.value(s))
-                };
-            }
-            let low = asset - 0.5 * space.spacing;
-            let high = asset + 0.5 * space.spacing;
-            let left = if payoff.sign > 0.0 {
-                low.max(payoff.strike)
-            } else {
-                low
-            };
-            let right = if payoff.sign > 0.0 {
-                high
-            } else {
-                high.min(payoff.strike)
-            };
-            if left >= right {
-                0.0
-            } else {
-                (right - left) / space.spacing
-                    * payoff.payout().unwrap_or(f64::midpoint(left, right))
-            }
-        })
+        .map(|i| grid::project_payoff(&space, &[payoff.strike], i, |asset| payoff.value(asset)))
         .collect();
-    let exercise = if !can_exercise {
-        Vec::new()
-    } else if space.nodes.is_empty() {
-        old.clone()
-    } else {
+    let exercise = if can_exercise {
         (0..=space.count)
             .map(|i| payoff.value(space.asset(i)))
             .collect::<Vec<_>>()
+    } else {
+        Vec::new()
     };
     let mut next = vec![0.0; old.len()];
     let mut stepper = diffusion.stepper(space.count);
-    let mut previous_boundary_time = time;
-    let mut put_boundary = payoff.strike;
-    let mut log_carry_error = 0.0;
-    let mut valid_carry_error = true;
     let mut damping = 2;
     for step in (0..time_grid.widths.len()).rev() {
         crate::cancellation::check()?;
         for (current, dt, weight) in time_grid.substeps(step, settings.scheme, &mut damping) {
-            let carry = if payoff.payout().is_some() {
-                risk.rate(if D::LOCAL { current + 0.5 * dt } else { 0.0 })
-            } else {
-                dividend.rate(if D::LOCAL { current + 0.5 * dt } else { 0.0 })
-            };
-            if payoff.is_digital() && (weight == 1.0 || (weight == 0.5 && carry < 0.0)) {
-                let exponent = carry * dt;
-                let implicit = weight * exponent;
-                let explicit = -(1.0 - weight) * exponent;
-                if !exponent.is_finite() || implicit <= -1.0 || explicit <= -1.0 {
-                    valid_carry_error = false;
-                } else {
-                    log_carry_error += (exponent + explicit.ln_1p() - implicit.ln_1p()).max(0.0);
-                }
-            }
             let tau = time - current;
             let middle = current + 0.5 * dt;
-            let rate = risk.rate(middle);
-            let q = dividend.rate(middle);
-            let risk_log = risk.log_factor(time - tau, time);
-            let dividend_log = dividend.log_factor(time - tau, time);
-            let mut high =
-                payoff::boundary_value(payoff, upper, [risk_log, dividend_log], diffusion, tau);
-            if can_exercise {
-                high = high.max(crate::engines::deterministic::exercise_value(
-                    payoff, upper, current, time, risk, dividend,
-                )?);
+            let mut rate = risk.rate(middle);
+            let mut q = dividend.rate(middle);
+            let mut risk_log = risk.log_factor(current, time);
+            let mut dividend_log = dividend.log_factor(current, time);
+            // Factor out the known discount so time stepping preserves the digital payout cap.
+            if is_cash_digital {
+                q -= rate;
+                rate = 0.0;
+                dividend_log -= risk_log;
+                risk_log = 0.0;
+            } else if is_asset_digital {
+                rate -= q;
+                q = 0.0;
+                risk_log -= dividend_log;
+                dividend_log = 0.0;
             }
-            let low = if payoff.sign > 0.0 || (payoff.is_digital() && payoff.payout().is_none()) {
-                0.0
-            } else if payoff.is_american() {
-                put_boundary = payoff.strike.max(scaled(
-                    put_boundary,
-                    risk.log_factor(current, previous_boundary_time),
-                ));
-                previous_boundary_time = current;
-                put_boundary
-            } else {
-                scaled(payoff.payout().unwrap_or(payoff.strike), risk_log)
-            };
+            let mut edges = [lower, upper].map(|asset| {
+                payoff::boundary_value(payoff, asset, [risk_log, dividend_log], diffusion, tau)
+            });
+            if can_exercise {
+                for (edge, asset) in edges.iter_mut().zip([lower, upper]) {
+                    *edge = edge.max(crate::engines::deterministic::exercise_value(
+                        payoff, asset, current, time, &risk, &dividend,
+                    )?);
+                }
+            }
             diffusion.advance(
                 &mut stepper,
                 &old,
                 &mut next,
                 &space,
-                [middle, digital_log_carry * (middle / time)],
+                middle,
                 [dt, weight, rate, q],
-                [low, high],
+                edges,
             )?;
             if can_exercise {
                 for i in 1..space.count {
@@ -561,11 +560,11 @@ fn solve_model<D: Diffusion>(
             std::mem::swap(&mut old, &mut next);
         }
     }
-    let relative_carry_error = if valid_carry_error && log_carry_error.exp_m1().is_finite() {
-        log_carry_error.exp_m1()
-    } else {
-        0.0
-    };
+    if is_asset_digital {
+        for (i, value) in old.iter_mut().enumerate() {
+            *value /= space.asset(i);
+        }
+    }
     // Allow a few ulps per rollback, including up to two substeps per interval.
     #[expect(
         clippy::cast_precision_loss,
@@ -575,8 +574,8 @@ fn solve_model<D: Diffusion>(
     Ok(VanillaGrid {
         grid: solution::Grid::new(space, old),
         payoff,
-        discount: [risk.log_factor(0.0, time), dividend.log_factor(0.0, time)],
-        relative_upper_error: relative_carry_error + roundoff,
+        discount,
+        relative_upper_error: roundoff,
     })
 }
 
@@ -664,6 +663,7 @@ fn prepare_vanilla_state(
     context: &PricingContext,
     settings: FiniteDifferenceSettings,
     concentrate: bool,
+    minimum_spot: f64,
 ) -> Result<VanillaState> {
     local_volatility::validate_model(context)?;
     let time = time_to_expiry(option, context)?;
@@ -673,7 +673,15 @@ fn prepare_vanilla_state(
         None
     } else {
         Some(diffusion::with_diffusion!(context, |diffusion| {
-            solve_model(option, payoff, context, settings, concentrate, diffusion)
+            solve_model(
+                option,
+                payoff,
+                context,
+                settings,
+                concentrate,
+                minimum_spot,
+                diffusion,
+            )
         })?)
     };
     let exercise = if grid.is_none() && payoff.is_american() && time > 0.0 {
@@ -720,6 +728,7 @@ macro_rules! vanilla_solution {
                     &anchor,
                     self.settings,
                     self.settings.asset_upper_boundary.is_none(),
+                    *range.start(),
                 )?;
                 crate::cancellation::check()?;
                 Ok(FiniteDifferenceSolution::new(
@@ -758,7 +767,28 @@ impl VanillaGrid {
         let spot = context.spot_price();
         let payoff = self.payoff;
         let sample_at = |spot| -> Result<[f64; 3]> {
-            let [raw_price, delta, gamma] = self.grid.sample(spot);
+            let [raw_price, delta, gamma] = if payoff.is_digital() && payoff.payout().is_none() {
+                let [fraction, first, second] = self.grid.space.sample_log(&self.grid.spline, spot);
+                let discount = self.discount[1];
+                let scale = scaled(spot, discount);
+                let price = if scale.is_normal() {
+                    fraction * scale
+                } else {
+                    crate::numerics::scaled_signed_cash(fraction, spot.ln() + discount)
+                };
+                [
+                    price,
+                    crate::numerics::scaled_signed_cash(fraction + first, discount),
+                    crate::numerics::scaled_signed_cash((first + second) / spot, discount),
+                ]
+            } else {
+                let values = self.grid.sample(spot);
+                if payoff.is_digital() {
+                    values.map(|value| crate::numerics::scaled_signed_cash(value, self.discount[0]))
+                } else {
+                    values
+                }
+            };
             let price = payoff::checked_price(
                 payoff,
                 spot,
@@ -766,13 +796,19 @@ impl VanillaGrid {
                 self.discount,
                 self.relative_upper_error,
             )?;
-            if payoff.is_american() && payoff.value(spot) > raw_price {
+            if payoff.is_american()
+                && (payoff.value(spot) > raw_price
+                    || self
+                        .grid
+                        .space
+                        .exercise_cell(&self.grid.spline, spot, |s| payoff.value(s)))
+            {
                 let slope = if payoff.sign * (spot - payoff.strike) > 0.0 {
                     payoff.sign
                 } else {
                     0.0
                 };
-                Ok([price, slope, 0.0])
+                Ok([payoff.value(spot), slope, 0.0])
             } else {
                 Ok([price, delta, gamma])
             }
@@ -867,7 +903,14 @@ fn analysis<I: OptionContract>(
     shifts.validate()?;
     local_volatility::validate_request(context, request)?;
     let (result, upper) = native(option, context, settings, request, shifts)?;
-    settings.asset_upper_boundary = upper.or(settings.asset_upper_boundary);
+    if context
+        .model_parameters()
+        .variance_time_convention()
+        .calendar()
+        .is_none()
+    {
+        settings.asset_upper_boundary = upper.or(settings.asset_upper_boundary);
+    }
     complete_greeks(
         option,
         context,
@@ -971,10 +1014,9 @@ engine_settings!(
     /// use the surface maximum volatility and require domain convergence checks.
     /// Unsupported combinations return [`Error::UnsupportedOperation`], even at expiry.
     /// Accepts flat or nonconstant rate curves. Automatic domains concentrate nodes
-    /// around the strike for non-explicit schemes. Under Actual/365 Fixed BSM, European
-    /// grids also remove deterministic carry when the adjusted strike fits the domain.
-    /// Explicit upper boundaries use uniform European spot grids and American sinh grids.
-    /// European and concentrated American grids use cell-averaged terminal payoff kinks.
+    /// around the strike for non-explicit schemes. The grid uses log spot and an
+    /// automatically selected positive lower boundary. Terminal payoff kinks are
+    /// averaged in log spot.
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// ## Errors
@@ -1260,9 +1302,8 @@ impl FiniteDifferenceDigitalEngine {
     ///
     /// Rejects nonconstant rate curves before life validation, including at expiry.
     /// Accepts BSM or local volatility, with cell-averaged digital payoffs in both models.
-    /// Automatic domains with non-explicit schemes remove deterministic carry
-    /// and concentrate nodes around the adjusted strike when it fits the domain.
-    /// Explicit upper boundaries use uniform spot grids.
+    /// The grid uses log spot with an automatically selected positive lower boundary.
+    /// Automatic domains with non-explicit schemes concentrate nodes around the strike.
     /// See [`FiniteDifferenceVanillaEngine::price_with_greeks`] for context construction.
     ///
     /// # Errors

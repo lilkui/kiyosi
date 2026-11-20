@@ -569,7 +569,7 @@ def test_implied_volatility_and_solver_failures():
             )
             assert engine.price(option, context) == quote
     engine = FiniteDifferenceVanillaEngine(
-        scheme="explicit_euler", asset_step_count=80, time_step_count=500
+        scheme="explicit_euler", asset_step_count=80, time_step_count=50
     )
     option, context = contract(EuropeanOption), market()
     assert_rejection(

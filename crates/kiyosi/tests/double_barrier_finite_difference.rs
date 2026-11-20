@@ -332,17 +332,23 @@ fn scheduled_explicit_stability_preserves_the_uniform_grid_boundary() {
     let mut t = terms(DoubleBarrierType::KnockOut, OptionType::Call);
     t.observation_times = Some(vec![t.expiry_time]);
     let option = DoubleBarrierOption::new(t).unwrap();
-    let engine = FiniteDifferenceDoubleBarrierEngine::new(FiniteDifferenceSettings {
+    let settings = FiniteDifferenceSettings {
         asset_step_count: 200,
-        time_step_count: 1600,
+        time_step_count: 100,
         scheme: FiniteDifferenceScheme::ExplicitEuler,
         asset_upper_boundary: Some(400.0),
-    })
-    .unwrap();
+    };
+    let engine = FiniteDifferenceDoubleBarrierEngine::new(settings).unwrap();
     assert!(matches!(
         engine.price(&option, &market(100.0)).unwrap_err(),
         Error::InvalidInput(_)
     ));
+    let stable = FiniteDifferenceDoubleBarrierEngine::new(FiniteDifferenceSettings {
+        time_step_count: 800,
+        ..settings
+    })
+    .unwrap();
+    assert!(stable.price(&option, &market(100.0)).unwrap() > 0.0);
 }
 
 #[test]

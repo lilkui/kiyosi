@@ -29,6 +29,7 @@ use pyo3::prelude::*;
 ///
 /// Notes
 /// -----
+/// The asset grid uses log spot and an automatically selected positive lower boundary.
 /// Uses the modified Craig-Sneyd (MCS) alternating direction implicit (ADI)
 /// scheme on nonuniform grids, with Ikonen-Toivanen splitting for American
 /// exercise. Supports HestonParameters and EuropeanOption/AmericanOption,

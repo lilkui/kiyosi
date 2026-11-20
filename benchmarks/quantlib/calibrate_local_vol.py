@@ -21,8 +21,8 @@ def main():
     evidence = {
         "schema_version": 1,
         "declared_budget": 0.005,
-        "domain": "QuantLib automatic log mesher varied through mesher-only Black volatility; Rust domain_constant_spacing compared with explicit_uniform, separately from selected automatic meshes",
-        "knock_in_domain": "domain_constant_spacing preserves the barrier grid spacing; continuation_constant_spacing preserves full-domain continuation spacing. One shared space count cannot hold both spacings fixed during expansion; neither is an isolated two-grid domain probe",
+        "domain": "QuantLib automatic log mesher varied through mesher-only Black volatility; Rust domain_constant_spacing compared with explicit_boundary at constant mean log spacing, separately from selected automatic meshes",
+        "knock_in_domain": "domain_constant_spacing preserves the barrier grid's mean log spacing; continuation_constant_spacing preserves full-domain continuation mean log spacing. One shared space count cannot hold both spacings fixed during expansion; neither is an isolated two-grid domain probe",
         "cases": [],
         "surface_points": [],
     }
@@ -72,9 +72,15 @@ def main():
                             "reference_time_6400": {"space": 6400, "time": 6400},
                             "reference_space_12800": {"space": 12800, "time": 6400},
                             "reference_domain_600": {
-                                "space": 19200,
+                                **domain_probes(
+                                    {
+                                        **case,
+                                        "profiles": {
+                                            "kiyosi": {**profile, "space": 12800}
+                                        },
+                                    }
+                                )["domain_constant_spacing"],
                                 "time": 6400,
-                                "upper": 600,
                             },
                         }
                     )
@@ -86,9 +92,15 @@ def main():
                             "reference_time_3200": {"space": 3200, "time": 3200},
                             "reference_space_6400": {"space": 6400, "time": 3200},
                             "reference_domain_600": {
-                                "space": 9600,
+                                **domain_probes(
+                                    {
+                                        **case,
+                                        "profiles": {
+                                            "kiyosi": {**profile, "space": 6400}
+                                        },
+                                    }
+                                )["continuation_constant_spacing"],
                                 "time": 3200,
-                                "upper": 600,
                             },
                         }
                     )

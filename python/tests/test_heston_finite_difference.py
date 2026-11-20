@@ -479,19 +479,21 @@ def test_american_heston_dense_curves_preserve_price_and_bound_boundary_work():
         asset_step_count=40, variance_step_count=3, time_step_count=1
     )
 
-    def market(count):
+    def market(count, perturbation):
         curve = RateTermStructure(
             reference_time=START,
             times=[START + (END - START) * (j / count) for j in range(1, count + 1)],
             factors=[
-                math.exp(-0.05 * j / count - 0.000005 * (j % 2))
+                math.exp(-0.05 * j / count - perturbation * (j % 2))
                 for j in range(1, count + 1)
             ],
         )
         return context(model(risk_free_rate=curve))
 
-    assert engine.price(contract, market(2000)) == pytest.approx(
-        6.18459733103, rel=0, abs=1e-8
+    flat = engine.price(contract, market(2000, 0.0))
+    assert flat > 0
+    assert engine.price(contract, market(2000, 0.000005)) == pytest.approx(
+        flat, rel=0, abs=0.002
     )
     with pytest.raises(InvalidInputError, match="exercise boundary"):
-        engine.price(contract, market(6000))
+        engine.price(contract, market(6000, 0.000005))

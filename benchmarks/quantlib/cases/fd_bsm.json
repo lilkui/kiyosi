@@ -39,7 +39,7 @@
         "day_count": "Actual/365 Fixed",
         "rates": "continuously compounded",
         "workers": 1,
-        "kiyosi_grid": "automatic asset domain with strike-concentrated intervals and cell-averaged payoff; Rannacher first two intervals replaced by implicit half-steps",
+        "kiyosi_grid": "automatic log-spot domain with strike-concentrated intervals and cell-averaged payoff; Rannacher first two intervals replaced by implicit half-steps",
         "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
         "quantlib_extra_work": "native FD calculates sensitivities; retained in timing"
       }
@@ -82,7 +82,7 @@
         "day_count": "Actual/365 Fixed",
         "rates": "continuously compounded",
         "workers": 1,
-        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "kiyosi_grid": "log-spot intervals; Rannacher first two intervals replaced by implicit half-steps",
         "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
         "quantlib_extra_work": "native FD calculates sensitivities; retained in timing"
       }
@@ -126,7 +126,7 @@
         "day_count": "Actual/365 Fixed",
         "rates": "continuously compounded",
         "workers": 1,
-        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "kiyosi_grid": "log-spot intervals; Rannacher first two intervals replaced by implicit half-steps",
         "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
         "quantlib_extra_work": "native FD calculates sensitivities; retained in timing"
       }
@@ -169,7 +169,7 @@
         "day_count": "Actual/365 Fixed",
         "rates": "continuously compounded",
         "workers": 1,
-        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "kiyosi_grid": "log-spot intervals; Rannacher first two intervals replaced by implicit half-steps",
         "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
         "quantlib_extra_work": "native FD calculates sensitivities; retained in timing"
       }
@@ -213,7 +213,7 @@
         "day_count": "Actual/365 Fixed",
         "rates": "continuously compounded",
         "workers": 1,
-        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "kiyosi_grid": "log-spot intervals; Rannacher first two intervals replaced by implicit half-steps",
         "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
         "quantlib_extra_work": "native FD calculates sensitivities; retained in timing"
       }
@@ -259,7 +259,7 @@
         "day_count": "Actual/365 Fixed",
         "rates": "continuously compounded",
         "workers": 1,
-        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "kiyosi_grid": "log-spot intervals; Rannacher first two intervals replaced by implicit half-steps",
         "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
         "quantlib_extra_work": "native FD calculates sensitivities; retained in timing"
       }
@@ -304,7 +304,7 @@
         "day_count": "Actual/365 Fixed",
         "rates": "continuously compounded",
         "workers": 1,
-        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "kiyosi_grid": "log-spot intervals; Rannacher first two intervals replaced by implicit half-steps",
         "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
         "quantlib_extra_work": "native FD calculates sensitivities; retained in timing"
       }
@@ -349,7 +349,7 @@
         "day_count": "Actual/365 Fixed",
         "rates": "continuously compounded",
         "workers": 1,
-        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "kiyosi_grid": "log-spot intervals; Rannacher first two intervals replaced by implicit half-steps",
         "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
         "quantlib_extra_work": "native FD calculates sensitivities; retained in timing"
       }
@@ -393,7 +393,7 @@
         "day_count": "Actual/365 Fixed",
         "rates": "continuously compounded",
         "workers": 1,
-        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "kiyosi_grid": "log-spot intervals; Rannacher first two intervals replaced by implicit half-steps",
         "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
         "quantlib_extra_work": "native FD calculates sensitivities; retained in timing"
       }
@@ -438,7 +438,7 @@
         "day_count": "Actual/365 Fixed",
         "rates": "continuously compounded",
         "workers": 1,
-        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "kiyosi_grid": "log-spot intervals; Rannacher first two intervals replaced by implicit half-steps",
         "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
         "quantlib_extra_work": "native FD calculates sensitivities; retained in timing"
       }
@@ -482,7 +482,7 @@
         "day_count": "Actual/365 Fixed",
         "rates": "continuously compounded",
         "workers": 1,
-        "kiyosi_grid": "uniform asset intervals; Rannacher first two intervals replaced by implicit half-steps",
+        "kiyosi_grid": "log-spot intervals; Rannacher first two intervals replaced by implicit half-steps",
         "quantlib_grid": "automatic log-space mesher nodes; two damping steps; domains differ",
         "quantlib_extra_work": "native FD calculates sensitivities; retained in timing"
       }

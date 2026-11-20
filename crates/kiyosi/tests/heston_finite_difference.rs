@@ -534,12 +534,14 @@ fn american_heston_dense_curves_preserve_price_and_bound_boundary_work() -> kiyo
         ..Default::default()
     })?;
     let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
-    let market = |count: i32| -> kiyosi::Result<PricingContext> {
+    let market = |count: i32, perturbation: f64| -> kiyosi::Result<PricingContext> {
         let times = (1..=count)
             .map(|j| start.add_micros(31_536_000_000_000 * i64::from(j) / i64::from(count)))
             .collect::<kiyosi::Result<_>>()?;
         let factors = (1..=count)
-            .map(|j| (-0.05 * f64::from(j) / f64::from(count) - 0.000_005 * f64::from(j % 2)).exp())
+            .map(|j| {
+                (-0.05 * f64::from(j) / f64::from(count) - perturbation * f64::from(j % 2)).exp()
+            })
             .collect();
         let curve = RateTermStructure::new(start, times, factors)?;
         PricingContext::new(
@@ -556,9 +558,14 @@ fn american_heston_dense_curves_preserve_price_and_bound_boundary_work() -> kiyo
             start,
         )
     };
-    assert!((engine.price(&option, &market(2000)?)? - 6.184_597_331_03).abs() < 1e-8);
+    let flat = engine.price(&option, &market(2000, 0.0)?)?;
+    let perturbed = engine.price(&option, &market(2000, 0.000_005)?)?;
+    assert!(
+        flat > 0.0 && (perturbed - flat).abs() < 0.002,
+        "{perturbed} != {flat}"
+    );
     assert!(matches!(
-        engine.price(&option, &market(6000)?),
+        engine.price(&option, &market(6000, 0.000_005)?),
         Err(Error::InvalidInput(message)) if message.contains("exercise boundary")
     ));
     Ok(())

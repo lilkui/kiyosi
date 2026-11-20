@@ -322,7 +322,7 @@ def test_native_interpolation_mixed_greeks_and_event_availability():
     engine = pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=440)
     context = market(100.25, datetime(2025, 1, 4, 12))
     result = engine.price_with_greeks(option, context, greeks="all")
-    h = 0.01
+    h = 0.005
     high, low = (
         engine.price(
             option,
@@ -335,7 +335,7 @@ def test_native_interpolation_mixed_greeks_and_event_availability():
         (high - 2 * result.price + low) / h**2, rel=0, abs=1e-6
     )
     for greek, dependency, field, bump, scale in (
-        ("speed", "gamma", "spot_price", h, 1),
+        ("speed", "gamma", "spot_price", 0.01, 1),
         ("vanna", "delta", "volatility", 0.0001, 1),
         ("zomma", "gamma", "volatility", 0.0001, 1),
     ):

@@ -54,6 +54,63 @@ def context(kind="bsm", spot=150.0, valuation=START):
     )
 
 
+def test_log_grid_covers_low_saved_put_endpoint():
+    put = ins.EuropeanOption(
+        option_type="put", strike=100, effective_time=START, expiry_time=END
+    )
+    low = 0.0001
+    engine = pricing.FiniteDifferenceVanillaEngine()
+    solution = engine.solve(put, context(), spot_range=(low, 120.0))
+    expected = pricing.AnalyticEuropeanEngine().price(put, context(spot=low))
+    assert solution.price(low) == pytest.approx(expected, abs=0.001, rel=0)
+    assert engine.price(put, context(spot=low)) == pytest.approx(
+        expected, abs=0.001, rel=0
+    )
+    assert solution.price(120.0) < solution.price(low)
+
+
+def test_log_grid_keeps_continuous_barrier_equality():
+    barrier = 80.1
+    contract = ins.BarrierOption(
+        option_type="call",
+        strike=100,
+        effective_time=START,
+        expiry_time=END,
+        barrier_level=barrier,
+        barrier_type="down_and_out",
+        rebate=7.0,
+    )
+    below = math.nextafter(barrier, 0.0)
+    engine = pricing.FiniteDifferenceBarrierEngine()
+    solution = engine.solve(contract, context(), spot_range=(below, 100.0))
+    analytic = pricing.AnalyticBarrierEngine()
+    rebate = analytic.price(contract, context(spot=barrier))
+    assert solution.price(below) == pytest.approx(rebate, abs=1e-12, rel=0)
+    assert solution.price(barrier) == pytest.approx(rebate, abs=1e-12, rel=0)
+    above = barrier + 0.01
+    assert solution.price(above) == pytest.approx(
+        analytic.price(contract, context(spot=above)), abs=0.001, rel=0
+    )
+
+
+def test_log_grid_respects_discounted_asset_digital_cap_with_carry():
+    contract = ins.AssetOrNothingOption(
+        option_type="call", strike=100, effective_time=START, expiry_time=END
+    )
+    snapshot = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.11, dividend_yield=0.04, volatility=0.08
+        ),
+        spot_price=250,
+        valuation_time=START,
+    )
+    value = pricing.FiniteDifferenceDigitalEngine().price(contract, snapshot)
+    assert value <= 250 * math.exp(-0.04)
+    assert value == pytest.approx(
+        pricing.AnalyticDigitalEngine().price(contract, snapshot), abs=0.00001, rel=0
+    )
+
+
 @pytest.mark.parametrize("kind", ("bsm", "local", "deterministic"))
 @pytest.mark.parametrize(
     "instrument,name",

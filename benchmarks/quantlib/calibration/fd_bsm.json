@@ -2,7 +2,7 @@
   "schema_version": 1,
   "budgets_declared_before_profile_selection": 0.003,
   "quantlib_domain": "native automatic mesher, no public independent boundary control; Rust upper-bound enlargement supplies independent domain evidence",
-  "kiyosi_domain": "domain_constant_spacing is compared with explicit_uniform; selected automatic meshes have a different node distribution",
+  "kiyosi_domain": "domain_constant_spacing expands explicit_boundary at constant mean log spacing, up to rounding. Concentrated meshes may vary locally",
   "cases": [
     {
       "id": "fd-bsm-european-call",
@@ -16,9 +16,9 @@
               "scheme": "rannacher",
               "upper": "automatic"
             },
-            "price": 9.226922148720686,
-            "absolute_error": 8.335943336135188e-05,
-            "error_including_reference_uncertainty": 8.335943436135187e-05,
+            "price": 9.226956474027658,
+            "absolute_error": 4.903412638945781e-05,
+            "error_including_reference_uncertainty": 4.903412738945781e-05,
             "passed": true
           },
           "space": {
@@ -28,9 +28,9 @@
               "scheme": "rannacher",
               "upper": "automatic"
             },
-            "price": 9.226980627933203,
-            "absolute_error": 2.4880220843570555e-05,
-            "error_including_reference_uncertainty": 2.4880221843570555e-05,
+            "price": 9.226989209256976,
+            "absolute_error": 1.6298897071109764e-05,
+            "error_including_reference_uncertainty": 1.6298898071109763e-05,
             "passed": true
           },
           "time": {
@@ -40,33 +40,33 @@
               "scheme": "rannacher",
               "upper": "automatic"
             },
-            "price": 9.226926188909175,
-            "absolute_error": 7.931924487181163e-05,
-            "error_including_reference_uncertainty": 7.931924587181163e-05,
+            "price": 9.226960514235083,
+            "absolute_error": 4.499391896395366e-05,
+            "error_including_reference_uncertainty": 4.4993919963953664e-05,
             "passed": true
           },
-          "explicit_uniform": {
+          "explicit_boundary": {
             "profile": {
               "space": 800,
               "time": 400,
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 9.226992597211149,
-            "absolute_error": 1.291094289790351e-05,
-            "error_including_reference_uncertainty": 1.291094389790351e-05,
+            "price": 9.226956474027658,
+            "absolute_error": 4.903412638945781e-05,
+            "error_including_reference_uncertainty": 4.903412738945781e-05,
             "passed": true
           },
           "domain_constant_spacing": {
             "profile": {
-              "space": 1200,
+              "space": 917,
               "time": 400,
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 9.226992597211158,
-            "absolute_error": 1.2910942889021726e-05,
-            "error_including_reference_uncertainty": 1.2910943889021725e-05,
+            "price": 9.226964642528309,
+            "absolute_error": 4.0865625738462086e-05,
+            "error_including_reference_uncertainty": 4.086562673846209e-05,
             "passed": true
           }
         },
@@ -138,9 +138,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 6.659485075175704,
-            "absolute_error": 0.0011994707177516162,
-            "error_including_reference_uncertainty": 0.001249470717751616,
+            "price": 6.6595713566726396,
+            "absolute_error": 0.0011131892208160465,
+            "error_including_reference_uncertainty": 0.0011631892208160465,
             "passed": true
           },
           "space": {
@@ -150,9 +150,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 6.659568580331976,
-            "absolute_error": 0.001115965561479193,
-            "error_including_reference_uncertainty": 0.001165965561479193,
+            "price": 6.659606821054633,
+            "absolute_error": 0.0010777248388222915,
+            "error_including_reference_uncertainty": 0.0011277248388222914,
             "passed": true
           },
           "time": {
@@ -162,33 +162,33 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 6.660013402885364,
-            "absolute_error": 0.0006711430080912351,
-            "error_including_reference_uncertainty": 0.0007211430080912351,
+            "price": 6.660108288956363,
+            "absolute_error": 0.0005762569370926229,
+            "error_including_reference_uncertainty": 0.000626256937092623,
             "passed": true
           },
-          "explicit_uniform": {
+          "explicit_boundary": {
             "profile": {
               "space": 800,
               "time": 400,
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 6.659485075175704,
-            "absolute_error": 0.0011994707177516162,
-            "error_including_reference_uncertainty": 0.001249470717751616,
+            "price": 6.6595713566726396,
+            "absolute_error": 0.0011131892208160465,
+            "error_including_reference_uncertainty": 0.0011631892208160465,
             "passed": true
           },
           "domain_constant_spacing": {
             "profile": {
-              "space": 1200,
+              "space": 917,
               "time": 400,
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 6.659539875788108,
-            "absolute_error": 0.0011446701053472452,
-            "error_including_reference_uncertainty": 0.0011946701053472451,
+            "price": 6.659580145310324,
+            "absolute_error": 0.0011044005831317705,
+            "error_including_reference_uncertainty": 0.0011544005831317704,
             "passed": true
           }
         },
@@ -260,9 +260,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 4.945855427111908,
-            "absolute_error": 4.451657967319278e-05,
-            "error_including_reference_uncertainty": 4.451658067319278e-05,
+            "price": 4.945819685840061,
+            "absolute_error": 8.775307826169865e-06,
+            "error_including_reference_uncertainty": 8.775308826169864e-06,
             "passed": true
           },
           "space": {
@@ -272,9 +272,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 4.94582196348807,
-            "absolute_error": 1.1052955835033629e-05,
-            "error_including_reference_uncertainty": 1.1052956835033628e-05,
+            "price": 4.945813020858834,
+            "absolute_error": 2.1103265988031694e-06,
+            "error_including_reference_uncertainty": 2.1103275988031692e-06,
             "passed": true
           },
           "time": {
@@ -284,33 +284,33 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 4.945855500982792,
-            "absolute_error": 4.459045055682509e-05,
-            "error_including_reference_uncertainty": 4.459045155682509e-05,
+            "price": 4.945819769354042,
+            "absolute_error": 8.858821806789763e-06,
+            "error_including_reference_uncertainty": 8.858822806789762e-06,
             "passed": true
           },
-          "explicit_uniform": {
+          "explicit_boundary": {
             "profile": {
               "space": 800,
               "time": 400,
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 4.945855427111908,
-            "absolute_error": 4.451657967319278e-05,
-            "error_including_reference_uncertainty": 4.451658067319278e-05,
+            "price": 4.945819685840061,
+            "absolute_error": 8.775307826169865e-06,
+            "error_including_reference_uncertainty": 8.775308826169864e-06,
             "passed": true
           },
           "domain_constant_spacing": {
             "profile": {
-              "space": 1200,
+              "space": 917,
               "time": 400,
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 4.945855427111908,
-            "absolute_error": 4.451657967319278e-05,
-            "error_including_reference_uncertainty": 4.451658067319278e-05,
+            "price": 4.945818022700298,
+            "absolute_error": 7.112168062484159e-06,
+            "error_including_reference_uncertainty": 7.112169062484159e-06,
             "passed": true
           }
         },
@@ -382,9 +382,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 48.77324443072833,
-            "absolute_error": 0.0001419460291174346,
-            "error_including_reference_uncertainty": 0.0001419460301174346,
+            "price": 48.7734182642216,
+            "absolute_error": 3.188746414650723e-05,
+            "error_including_reference_uncertainty": 3.188746514650723e-05,
             "passed": true
           },
           "space": {
@@ -394,9 +394,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 48.77336594189964,
-            "absolute_error": 2.0434857809448204e-05,
-            "error_including_reference_uncertainty": 2.0434858809448203e-05,
+            "price": 48.77340867289958,
+            "absolute_error": 2.2296142127231633e-05,
+            "error_including_reference_uncertainty": 2.2296143127231632e-05,
             "passed": true
           },
           "time": {
@@ -406,33 +406,33 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 48.7732293843144,
-            "absolute_error": 0.00015699244305267257,
-            "error_including_reference_uncertainty": 0.00015699244405267257,
+            "price": 48.77340393931089,
+            "absolute_error": 1.756255343821067e-05,
+            "error_including_reference_uncertainty": 1.756255443821067e-05,
             "passed": true
           },
-          "explicit_uniform": {
+          "explicit_boundary": {
             "profile": {
               "space": 800,
               "time": 400,
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 48.77324443072833,
-            "absolute_error": 0.0001419460291174346,
-            "error_including_reference_uncertainty": 0.0001419460301174346,
+            "price": 48.7734182642216,
+            "absolute_error": 3.188746414650723e-05,
+            "error_including_reference_uncertainty": 3.188746514650723e-05,
             "passed": true
           },
           "domain_constant_spacing": {
             "profile": {
-              "space": 1200,
+              "space": 919,
               "time": 400,
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 48.77324443072833,
-            "absolute_error": 0.0001419460291174346,
-            "error_including_reference_uncertainty": 0.0001419460301174346,
+            "price": 48.77341585041751,
+            "absolute_error": 2.947366005656704e-05,
+            "error_including_reference_uncertainty": 2.947366105656704e-05,
             "passed": true
           }
         },
@@ -504,9 +504,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 9.133217765386828,
-            "absolute_error": 8.867111129262639e-05,
-            "error_including_reference_uncertainty": 8.867111229262639e-05,
+            "price": 9.133283228871738,
+            "absolute_error": 2.320762638241547e-05,
+            "error_including_reference_uncertainty": 2.320762738241547e-05,
             "passed": true
           },
           "space": {
@@ -516,9 +516,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 9.133278624820651,
-            "absolute_error": 2.7811677469458118e-05,
-            "error_including_reference_uncertainty": 2.7811678469458118e-05,
+            "price": 9.133294976769879,
+            "absolute_error": 1.1459728241902667e-05,
+            "error_including_reference_uncertainty": 1.1459729241902666e-05,
             "passed": true
           },
           "time": {
@@ -528,33 +528,33 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 9.133223408880394,
-            "absolute_error": 8.302761772682743e-05,
-            "error_including_reference_uncertainty": 8.302761872682743e-05,
+            "price": 9.133288872686496,
+            "absolute_error": 1.756381162465459e-05,
+            "error_including_reference_uncertainty": 1.756381262465459e-05,
             "passed": true
           },
-          "explicit_uniform": {
+          "explicit_boundary": {
             "profile": {
               "space": 800,
               "time": 400,
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 9.133217765386828,
-            "absolute_error": 8.867111129262639e-05,
-            "error_including_reference_uncertainty": 8.867111229262639e-05,
+            "price": 9.133283228871738,
+            "absolute_error": 2.320762638241547e-05,
+            "error_including_reference_uncertainty": 2.320762738241547e-05,
             "passed": true
           },
           "domain_constant_spacing": {
             "profile": {
-              "space": 1300,
+              "space": 1002,
               "time": 400,
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 9.133217765386828,
-            "absolute_error": 8.867111129262639e-05,
-            "error_including_reference_uncertainty": 8.867111229262639e-05,
+            "price": 9.133287600986117,
+            "absolute_error": 1.8835512003434474e-05,
+            "error_including_reference_uncertainty": 1.8835513003434473e-05,
             "passed": true
           }
         },
@@ -626,9 +626,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 4.8217651012204366,
-            "absolute_error": 3.572616581415389e-05,
-            "error_including_reference_uncertainty": 3.572616681415389e-05,
+            "price": 4.821786581489703,
+            "absolute_error": 1.4245896547748771e-05,
+            "error_including_reference_uncertainty": 1.424589754774877e-05,
             "passed": true
           },
           "space": {
@@ -638,9 +638,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 4.821791418092353,
-            "absolute_error": 9.409293897810755e-06,
-            "error_including_reference_uncertainty": 9.409294897810755e-06,
+            "price": 4.821797016040787,
+            "absolute_error": 3.8113454641219846e-06,
+            "error_including_reference_uncertainty": 3.8113464641219844e-06,
             "passed": true
           },
           "time": {
@@ -650,33 +650,33 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 4.821765576202221,
-            "absolute_error": 3.525118402958327e-05,
-            "error_including_reference_uncertainty": 3.5251185029583274e-05,
+            "price": 4.821787056571264,
+            "absolute_error": 1.3770814986990842e-05,
+            "error_including_reference_uncertainty": 1.3770815986990842e-05,
             "passed": true
           },
-          "explicit_uniform": {
+          "explicit_boundary": {
             "profile": {
               "space": 800,
               "time": 400,
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 4.8217651012204366,
-            "absolute_error": 3.572616581415389e-05,
-            "error_including_reference_uncertainty": 3.572616681415389e-05,
+            "price": 4.821786581489703,
+            "absolute_error": 1.4245896547748771e-05,
+            "error_including_reference_uncertainty": 1.424589754774877e-05,
             "passed": true
           },
           "domain_constant_spacing": {
             "profile": {
-              "space": 1300,
+              "space": 1002,
               "time": 400,
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 4.821765101220434,
-            "absolute_error": 3.572616581681842e-05,
-            "error_including_reference_uncertainty": 3.5726166816818425e-05,
+            "price": 4.821786317654796,
+            "absolute_error": 1.4509731454559471e-05,
+            "error_including_reference_uncertainty": 1.450973245455947e-05,
             "passed": true
           }
         },
@@ -748,9 +748,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 2.9495692791363415,
-            "absolute_error": 1.0410015972794895e-05,
-            "error_including_reference_uncertainty": 1.0410016972794894e-05,
+            "price": 2.949594495045813,
+            "absolute_error": 3.5625925444371376e-05,
+            "error_including_reference_uncertainty": 3.562592644437138e-05,
             "passed": true
           },
           "space": {
@@ -760,9 +760,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 2.949559395249775,
-            "absolute_error": 5.261294062641753e-07,
-            "error_including_reference_uncertainty": 5.261304062641753e-07,
+            "price": 2.949565699154177,
+            "absolute_error": 6.830033808302716e-06,
+            "error_including_reference_uncertainty": 6.830034808302716e-06,
             "passed": true
           },
           "time": {
@@ -772,21 +772,21 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 2.949571355420181,
-            "absolute_error": 1.2486299812319857e-05,
-            "error_including_reference_uncertainty": 1.2486300812319856e-05,
+            "price": 2.9495965712971666,
+            "absolute_error": 3.770217679788246e-05,
+            "error_including_reference_uncertainty": 3.770217779788246e-05,
             "passed": true
           },
-          "explicit_uniform": {
+          "explicit_boundary": {
             "profile": {
               "space": 800,
               "time": 400,
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 2.9495692791363415,
-            "absolute_error": 1.0410015972794895e-05,
-            "error_including_reference_uncertainty": 1.0410016972794894e-05,
+            "price": 2.949594495045813,
+            "absolute_error": 3.5625925444371376e-05,
+            "error_including_reference_uncertainty": 3.562592644437138e-05,
             "passed": true
           },
           "domain_constant_spacing": {
@@ -796,9 +796,9 @@
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 2.9495692791363415,
-            "absolute_error": 1.0410015972794895e-05,
-            "error_including_reference_uncertainty": 1.0410016972794894e-05,
+            "price": 2.949594495045813,
+            "absolute_error": 3.5625925444371376e-05,
+            "error_including_reference_uncertainty": 3.562592644437138e-05,
             "passed": true
           }
         },
@@ -870,9 +870,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 7.13400509948948,
-            "absolute_error": 8.333147467354252e-05,
-            "error_including_reference_uncertainty": 8.333147567354251e-05,
+            "price": 7.1340910925485606,
+            "absolute_error": 2.661584407093187e-06,
+            "error_including_reference_uncertainty": 2.661585407093187e-06,
             "passed": true
           },
           "space": {
@@ -882,9 +882,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 7.134071590143366,
-            "absolute_error": 1.6840820787678012e-05,
-            "error_including_reference_uncertainty": 1.6840821787678012e-05,
+            "price": 7.1340930833799305,
+            "absolute_error": 4.6524157770733154e-06,
+            "error_including_reference_uncertainty": 4.652416777073316e-06,
             "passed": true
           },
           "time": {
@@ -894,33 +894,33 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 7.1340011131166525,
-            "absolute_error": 8.731784750093396e-05,
-            "error_including_reference_uncertainty": 8.731784850093396e-05,
+            "price": 7.134087105713355,
+            "absolute_error": 1.3252507988781304e-06,
+            "error_including_reference_uncertainty": 1.3252517988781304e-06,
             "passed": true
           },
-          "explicit_uniform": {
+          "explicit_boundary": {
             "profile": {
               "space": 800,
               "time": 400,
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 7.13400509948948,
-            "absolute_error": 8.333147467354252e-05,
-            "error_including_reference_uncertainty": 8.333147567354251e-05,
+            "price": 7.1340910925485606,
+            "absolute_error": 2.661584407093187e-06,
+            "error_including_reference_uncertainty": 2.661585407093187e-06,
             "passed": true
           },
           "domain_constant_spacing": {
             "profile": {
-              "space": 1300,
+              "space": 1002,
               "time": 400,
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 7.134005099489482,
-            "absolute_error": 8.333147467176616e-05,
-            "error_including_reference_uncertainty": 8.333147567176616e-05,
+            "price": 7.134091094969174,
+            "absolute_error": 2.6640050201365284e-06,
+            "error_including_reference_uncertainty": 2.6640060201365282e-06,
             "passed": true
           }
         },
@@ -992,9 +992,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 54.140511850076514,
-            "absolute_error": 0.00014273438912937308,
-            "error_including_reference_uncertainty": 0.00014273439012937308,
+            "price": 54.1404700367736,
+            "absolute_error": 0.00010092108621506668,
+            "error_including_reference_uncertainty": 0.00010092108721506668,
             "passed": true
           },
           "space": {
@@ -1004,9 +1004,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 54.14046025650069,
-            "absolute_error": 9.114081330352519e-05,
-            "error_including_reference_uncertainty": 9.114081430352519e-05,
+            "price": 54.14044980399786,
+            "absolute_error": 8.068831047580716e-05,
+            "error_including_reference_uncertainty": 8.068831147580715e-05,
             "passed": true
           },
           "time": {
@@ -1016,21 +1016,21 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 54.140456392758125,
-            "absolute_error": 8.727707074029922e-05,
-            "error_including_reference_uncertainty": 8.727707174029922e-05,
+            "price": 54.14041457973027,
+            "absolute_error": 4.546404288419126e-05,
+            "error_including_reference_uncertainty": 4.546404388419126e-05,
             "passed": true
           },
-          "explicit_uniform": {
+          "explicit_boundary": {
             "profile": {
               "space": 800,
               "time": 400,
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 54.140511850076514,
-            "absolute_error": 0.00014273438912937308,
-            "error_including_reference_uncertainty": 0.00014273439012937308,
+            "price": 54.1404700367736,
+            "absolute_error": 0.00010092108621506668,
+            "error_including_reference_uncertainty": 0.00010092108721506668,
             "passed": true
           },
           "domain_constant_spacing": {
@@ -1040,9 +1040,9 @@
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 54.140511850076514,
-            "absolute_error": 0.00014273438912937308,
-            "error_including_reference_uncertainty": 0.00014273439012937308,
+            "price": 54.1404700367736,
+            "absolute_error": 0.00010092108621506668,
+            "error_including_reference_uncertainty": 0.00010092108721506668,
             "passed": true
           }
         },
@@ -1127,9 +1127,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 3.6939002989819447,
-            "absolute_error": 1.152162790196698e-05,
-            "error_including_reference_uncertainty": 1.152162890196698e-05,
+            "price": 3.693904008245268,
+            "absolute_error": 7.812364578807518e-06,
+            "error_including_reference_uncertainty": 7.812365578807517e-06,
             "passed": true
           },
           "space": {
@@ -1139,9 +1139,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 3.6939044132913716,
-            "absolute_error": 7.407318475038949e-06,
-            "error_including_reference_uncertainty": 7.407319475038949e-06,
+            "price": 3.6939053405998226,
+            "absolute_error": 6.4800100241235725e-06,
+            "error_including_reference_uncertainty": 6.480011024123573e-06,
             "passed": true
           },
           "time": {
@@ -1151,21 +1151,21 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 3.6939048258818716,
-            "absolute_error": 6.994727975051518e-06,
-            "error_including_reference_uncertainty": 6.994728975051518e-06,
+            "price": 3.693908535128669,
+            "absolute_error": 3.285481177783822e-06,
+            "error_including_reference_uncertainty": 3.285482177783822e-06,
             "passed": true
           },
-          "explicit_uniform": {
+          "explicit_boundary": {
             "profile": {
               "space": 800,
               "time": 400,
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 3.6939002989819447,
-            "absolute_error": 1.152162790196698e-05,
-            "error_including_reference_uncertainty": 1.152162890196698e-05,
+            "price": 3.693904008245268,
+            "absolute_error": 7.812364578807518e-06,
+            "error_including_reference_uncertainty": 7.812365578807517e-06,
             "passed": true
           },
           "domain_constant_spacing": {
@@ -1175,9 +1175,9 @@
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 3.6939002989819447,
-            "absolute_error": 1.152162790196698e-05,
-            "error_including_reference_uncertainty": 1.152162890196698e-05,
+            "price": 3.693904008245268,
+            "absolute_error": 7.812364578807518e-06,
+            "error_including_reference_uncertainty": 7.812365578807517e-06,
             "passed": true
           }
         },
@@ -1262,9 +1262,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 19.44998947121518,
-            "absolute_error": 0.0007727066540077487,
-            "error_including_reference_uncertainty": 0.0007727066550077487,
+            "price": 19.449212663846126,
+            "absolute_error": 4.100715045751713e-06,
+            "error_including_reference_uncertainty": 4.100716045751713e-06,
             "passed": true
           },
           "space": {
@@ -1274,9 +1274,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 19.449380022516305,
-            "absolute_error": 0.00016325795513338903,
-            "error_including_reference_uncertainty": 0.00016325795613338903,
+            "price": 19.44918585820684,
+            "absolute_error": 3.0906354332671526e-05,
+            "error_including_reference_uncertainty": 3.090635533267153e-05,
             "passed": true
           },
           "time": {
@@ -1286,33 +1286,33 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 19.450019346855715,
-            "absolute_error": 0.0008025822945434413,
-            "error_including_reference_uncertainty": 0.0008025822955434413,
+            "price": 19.449242543106205,
+            "absolute_error": 2.5778545033716682e-05,
+            "error_including_reference_uncertainty": 2.577854603371668e-05,
             "passed": true
           },
-          "explicit_uniform": {
+          "explicit_boundary": {
             "profile": {
               "space": 800,
               "time": 400,
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 19.44998947121518,
-            "absolute_error": 0.0007727066540077487,
-            "error_including_reference_uncertainty": 0.0007727066550077487,
+            "price": 19.449212663846126,
+            "absolute_error": 4.100715045751713e-06,
+            "error_including_reference_uncertainty": 4.100716045751713e-06,
             "passed": true
           },
           "domain_constant_spacing": {
             "profile": {
-              "space": 1300,
+              "space": 1002,
               "time": 400,
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 19.44998947121518,
-            "absolute_error": 0.0007727066540077487,
-            "error_including_reference_uncertainty": 0.0007727066550077487,
+            "price": 19.44921263116073,
+            "absolute_error": 4.1334004414750325e-06,
+            "error_including_reference_uncertainty": 4.133401441475033e-06,
             "passed": true
           }
         },

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import ClassVar
 
 from calibrate_fd import domain_probes
-from run import RUST_EXECUTABLE, command, rust_build_command
+from run import RUST_EXECUTABLE, command, load_entries, rust_build_command
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -192,41 +192,30 @@ class FiniteDifferenceTests(unittest.TestCase):
 
 
 class DomainProbeTests(unittest.TestCase):
-    def test_expansion_preserves_actual_uniform_spacing(self):
-        for inputs, upper, count in [
-            ({}, "automatic", 1200),
-            ({"barrier": 80, "barrier_type": "down_out"}, 400, 1300),
-            ({"barrier": 120, "barrier_type": "up_in"}, 400, 800),
+    def test_expansion_preserves_mean_log_spacing(self):
+        cases = load_entries(ROOT / "benchmarks/quantlib/cases/fd_bsm.json")
+        for case_id, expected_intervals in [
+            ("fd-bsm-european-call", 917),
+            ("fd-bsm-down-out-call", 1002),
+            ("fd-bsm-up-one-touch-cash-hit", 800),
         ]:
-            with self.subTest(inputs=inputs):
-                probes = domain_probes(
-                    {
-                        "id": "probe",
-                        "inputs": inputs,
-                        "profiles": {"kiyosi": {"space": 800, "upper": upper}},
-                    }
-                )
-                self.assertEqual(probes["explicit_uniform"], {"upper": 400})
+            with self.subTest(case_id=case_id):
+                probes = domain_probes(cases[case_id])
+                self.assertEqual(probes["explicit_boundary"], {"upper": 400})
                 self.assertEqual(
-                    probes["domain_constant_spacing"], {"upper": 600, "space": count}
+                    probes["domain_constant_spacing"],
+                    {"upper": 600, "space": expected_intervals},
                 )
 
     def test_local_knock_in_distinguishes_barrier_and_continuation_spacing(self):
-        for direction, barrier, count in [("up_in", 120, 800), ("down_in", 80, 1300)]:
-            with self.subTest(direction=direction):
-                probes = domain_probes(
-                    {
-                        "id": "probe",
-                        "family": "fd_local_vol",
-                        "inputs": {"barrier": barrier, "barrier_type": direction},
-                        "profiles": {"kiyosi": {"space": 800, "upper": 400}},
-                    }
-                )
-                self.assertEqual(probes["domain_constant_spacing"]["space"], count)
-                self.assertEqual(
-                    probes["continuation_constant_spacing"],
-                    {"upper": 600, "space": 1200},
-                )
+        cases = load_entries(ROOT / "benchmarks/quantlib/cases/fd_local_vol.json")
+        probes = domain_probes(cases["fd-local-vol-terminal-up-in-asset"])
+        self.assertEqual(
+            probes["domain_constant_spacing"], {"upper": 600, "space": 800}
+        )
+        self.assertEqual(
+            probes["continuation_constant_spacing"], {"upper": 600, "space": 892}
+        )
 
 
 @unittest.skipUnless(

@@ -20,48 +20,57 @@ def test_standard_cn_matches_one_undamped_step_with_payoff_averaging(subtests):
     context = PricingContext(
         model_parameters=parameters, spot_price=100, valuation_time=start
     )
-    upper_context = PricingContext(
-        model_parameters=parameters, spot_price=300, valuation_time=start
-    )
+    low_context = context.replace(spot_price=25)
+    upper_context = context.replace(spot_price=200)
+    h = math.log(2)
+    middle = h / 4
+    offset = middle / math.sqrt(3)
+    averaged_asset = 25 * (math.exp(middle - offset) + math.exp(middle + offset))
+    down = 0.04 / h
+    up = 0.5 * down
+    diagonal = 1 + (down + up) / 2
     terms = {
         "option_type": "call",
         "strike": 100,
         "effective_time": start,
         "expiry_time": end,
     }
-    for option, factory, analytic, rhs_low, rhs_high in (
+    for option, factory, analytic, terminal_strike, terminal_high in (
         (
             EuropeanOption(**terms),
             pricing.FiniteDifferenceVanillaEngine,
             pricing.AnalyticEuropeanEngine,
-            13.25,
-            100.5,
+            averaged_asset - 50,
+            100,
         ),
         (
             CashOrNothingOption(**terms, payout=10),
             pricing.FiniteDifferenceDigitalEngine,
             pricing.AnalyticDigitalEngine,
             5,
-            9.8,
+            10,
         ),
         (
             AssetOrNothingOption(**terms),
             pricing.FiniteDifferenceDigitalEngine,
             pricing.AnalyticDigitalEngine,
-            63.25,
-            198.5,
+            averaged_asset,
+            200,
         ),
     ):
         with subtests.test(option=type(option).__name__):
             settings = {
                 "asset_step_count": 3,
                 "time_step_count": 1,
-                "asset_upper_boundary": 300,
+                "asset_upper_boundary": 200,
             }
+            low = analytic().price(option, low_context)
             high = analytic().price(option, upper_context)
-            # Vanilla strike cell averages to h/8=12.5; include digital averages.
-            expected = (1.08 * rhs_low + 0.01 * (rhs_high + 0.04 * high)) / (
-                1.02 * 1.08 - 0.0004
+            # Two-node Crank–Nicolson system on the interior log grid at 50 and 100.
+            first = (down * low + up * terminal_strike) / 2
+            second = (2 - diagonal) * terminal_strike + up * (terminal_high + high) / 2
+            expected = (diagonal * second + down * first / 2) / (
+                diagonal**2 - down * up / 4
             )
             actual = factory(**settings, scheme="crank_nicolson").price(option, context)
             assert actual == pytest.approx(expected, rel=0, abs=1e-12)

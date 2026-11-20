@@ -1,46 +1,44 @@
+use crate::numerics::{log_ratio, scaled_cash};
+
 use super::{Curve, FiniteDifferenceScheme, FiniteDifferenceSettings, Result, invalid_grid};
 
-pub(super) fn project_in_coordinates(
+pub(super) fn project_in_coordinates<const N: usize>(
     space: &SpatialGrid,
     breaks: &[f64],
     index: usize,
-    value: impl Fn(f64) -> [f64; 2],
-) -> [f64; 2] {
-    let value_at = |x| value(space.asset_of_coordinate(x));
-    let center = space.coordinate(space.asset(index));
+    value: impl Fn(f64) -> [f64; N],
+) -> [f64; N] {
+    let center = space.nodes[index];
     if index == 0 || index == space.count {
-        return value_at(center);
+        return value(space.asset(index));
     }
     project_interval(
         [
-            space.coordinate(space.asset(index - 1)).midpoint(center),
+            space.nodes[index - 1].midpoint(center),
             center,
-            center.midpoint(space.coordinate(space.asset(index + 1))),
+            center.midpoint(space.nodes[index + 1]),
         ],
-        breaks.iter().map(|&b| space.coordinate(b)),
-        value_at,
+        breaks
+            .iter()
+            .filter(|&&b| b > 0.0)
+            .map(|&b| space.coordinate(b)),
+        |x| {
+            if x.to_bits() == center.to_bits() {
+                value(space.asset(index))
+            } else {
+                value(space.asset_of_coordinate(x))
+            }
+        },
     )
 }
 
-pub(super) fn project_in_spot(
+pub(super) fn project_payoff(
     space: &SpatialGrid,
     breaks: &[f64],
     index: usize,
     value: impl Fn(f64) -> f64,
 ) -> f64 {
-    let center = space.asset(index);
-    if index == 0 || index == space.count {
-        return value(center);
-    }
-    project_interval(
-        [
-            space.asset(index - 1).midpoint(center),
-            center,
-            space.asset(index + 1).midpoint(center),
-        ],
-        breaks.iter().copied(),
-        |spot| [value(spot)],
-    )[0]
+    project_in_coordinates(space, breaks, index, |spot| [value(spot)])[0]
 }
 
 fn project_interval<const N: usize>(
@@ -69,14 +67,68 @@ fn project_interval<const N: usize>(
     result
 }
 
+// Leave room for the lower tail even in the small-volatility limit.
+pub(super) fn spot_floor(spot: f64, level: f64, width: f64) -> f64 {
+    let margin = width.max(1e-3);
+    let wings = scaled_cash(level, -margin);
+    let query = scaled_cash(spot, -0.25 * margin);
+    wings.min(query).max(f64::from_bits(1))
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct SpatialGrid {
+    pub lower: f64,
     pub upper: f64,
     pub spacing: f64,
     pub count: usize,
-    pub scale: f64,
-    lower: f64,
     pub nodes: Vec<f64>,
+    reference: f64,
+    spots: Vec<f64>,
+    stencils: Vec<LogStencil>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct LogStencil {
+    left: f64,
+    right: f64,
+    down: f64,
+    up: f64,
+}
+
+impl LogStencil {
+    fn new(left: f64, right: f64) -> Self {
+        Self {
+            left,
+            right,
+            down: -(-left).exp_m1(),
+            up: right.exp_m1(),
+        }
+    }
+
+    fn coefficients(self, rate: f64, dividend: f64, sigma: f64) -> [f64; 3] {
+        let carry = rate - dividend;
+        let variance = sigma * sigma;
+        let drift = carry - 0.5 * variance;
+        let down_slope = self.down / self.left;
+        let up_slope = self.up / self.right;
+        let difference = up_slope - down_slope;
+        // Fit the log drift and discounted spot moments. Switch to one-sided drift
+        // when both moments would require a negative jump rate.
+        let (a, c) = if difference > 8.0 * f64::EPSILON && self.up.is_finite() {
+            let first =
+                (0.5 * variance * up_slope + carry * (1.0 - up_slope)) / difference / self.left;
+            let a = first.max(-carry / self.down).max(0.0);
+            (a, ((a * self.down + carry) / self.up).max(0.0))
+        } else {
+            let variance = variance.max((drift * self.right).max(-drift * self.left));
+            let width = self.left + self.right;
+            (
+                (variance - drift * self.right) / width / self.left,
+                (variance + drift * self.left) / width / self.right,
+            )
+        };
+        [a, -a - c - rate, c]
+    }
 }
 
 #[derive(PartialEq)]
@@ -84,74 +136,137 @@ pub(super) struct Spline {
     values: Vec<f64>,
     curvature: Vec<f64>,
     bounds: [f64; 2],
+    scale: f64,
 }
 
 impl SpatialGrid {
     pub fn knock_in_continuation(
         settings: FiniteDifferenceSettings,
-        upper: f64,
+        bounds: [f64; 2],
         strike: f64,
         diffusion_width: f64,
     ) -> Result<Self> {
-        let mut space = Self::new(settings, upper, 0.0, strike)?;
-        let scale = strike * (0.1 * diffusion_width).max(1e-4);
-        // A wide full domain can otherwise put the first interior node beyond the payoff kink.
-        if settings.scheme != FiniteDifferenceScheme::ExplicitEuler
-            && scale > 0.0
-            && space.spacing > scale
-        {
+        let mut space = Self::new(settings.asset_step_count, bounds, strike)?;
+        let scale = (0.1 * diffusion_width).max(1e-4);
+        if settings.scheme != FiniteDifferenceScheme::ExplicitEuler && space.spacing > scale {
             concentrate(&mut space, vec![strike], scale)?;
         }
         Ok(space)
     }
 
     #[expect(
-        clippy::cast_precision_loss,
         clippy::cast_sign_loss,
-        reason = "Validated positive i32 grid counts fit usize and are exactly representable in f64."
+        reason = "Validated positive i32 grid counts fit usize."
     )]
-    pub fn new(
-        settings: FiniteDifferenceSettings,
-        upper: f64,
-        scale: f64,
-        level: f64,
-    ) -> Result<Self> {
-        let mut grid = Self {
-            upper,
-            spacing: 0.0,
-            count: settings.asset_step_count as usize,
-            scale,
-            lower: 0.0,
-            nodes: Vec::new(),
-        };
-        grid.spacing = grid.coordinate(upper) / grid.count as f64;
-        if !upper.is_finite() || upper <= level || !grid.spacing.is_finite() || grid.spacing <= 0.0
-        {
-            return Err(invalid_grid(
-                "finite-difference boundary or spacing is invalid",
-            ));
+    pub fn new(count: i32, [lower, upper]: [f64; 2], reference: f64) -> Result<Self> {
+        if !lower.is_finite() || lower <= 0.0 || !upper.is_finite() || upper <= lower {
+            return Err(invalid_grid("finite-difference boundaries are invalid"));
         }
+        let reference = reference.clamp(lower, upper);
+        let low = log_ratio(lower, reference);
+        let high = log_ratio(upper, reference);
+        let spacing = (high - low) / f64::from(count);
+        if !spacing.is_finite() || spacing <= 0.0 {
+            return Err(invalid_grid("finite-difference spacing is invalid"));
+        }
+        let mut grid = Self {
+            lower,
+            upper,
+            spacing,
+            count: count as usize,
+            reference,
+            nodes: Vec::new(),
+            spots: Vec::new(),
+            stencils: Vec::new(),
+        };
+        let mut nodes = Vec::with_capacity(grid.count + 1);
+        for i in 0..count {
+            if i % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
+            nodes.push(low + spacing * f64::from(i));
+        }
+        nodes.push(high);
+        grid.set_nodes(nodes, &[], true)?;
         Ok(grid)
     }
 
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "Grid counts are bounded by validated i32 settings and fit exactly in f64."
-    )]
-    pub fn uniform_domain(&mut self, lower: f64, upper: f64) -> Result<()> {
-        self.lower = lower;
-        self.upper = upper;
-        self.spacing = (upper - lower) / self.count as f64;
-        let mut previous = lower;
-        for index in 1..=self.count {
-            let asset = self.asset(index);
-            if !asset.is_finite() || asset <= previous {
-                return Err(invalid_grid(
-                    "barrier grid nodes are not representably distinct",
-                ));
-            }
-            previous = asset;
+    pub fn resolve_drift_band(&mut self, strike: f64, carry: f64, width: f64) -> Result<()> {
+        let left = self.nodes[0];
+        let right = self.nodes[self.count];
+        let x = self.coordinate(strike);
+        let band = [
+            (x - carry.max(0.0) - 5.0 * width).max(left),
+            (x - carry.min(0.0) + 5.0 * width).min(right),
+        ];
+        if band[0] >= band[1] {
+            return Ok(());
         }
+        let tail = self.count.div_ceil(32);
+        let left_steps = if band[0] > left { tail } else { 0 };
+        let right_steps = if band[1] < right { tail } else { 0 };
+        let intervals = [
+            (left, band[0], left_steps),
+            (band[0], band[1], self.count - left_steps - right_steps),
+            (band[1], right, right_steps),
+        ];
+        let mut nodes = vec![left];
+        for (start, end, count) in intervals {
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "Counts are bounded by validated i32 settings."
+            )]
+            for i in 1..count {
+                if i % 1024 == 0 {
+                    crate::cancellation::check()?;
+                }
+                nodes.push((end - start).mul_add(i as f64 / count as f64, start));
+            }
+            if count > 0 {
+                nodes.push(end);
+            }
+        }
+        self.set_nodes(nodes, &[], false)
+    }
+
+    fn set_nodes(&mut self, nodes: Vec<f64>, anchors: &[(f64, f64)], uniform: bool) -> Result<()> {
+        let mut spots = Vec::with_capacity(nodes.len());
+        spots.push(self.lower);
+        for (i, &x) in nodes.iter().enumerate().take(nodes.len() - 1).skip(1) {
+            if i % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
+            let spot = anchors
+                .binary_search_by(|a| a.0.total_cmp(&x))
+                .map_or_else(|_| self.asset_of_coordinate(x), |index| anchors[index].1);
+            spots.push(spot);
+        }
+        spots.push(self.upper);
+        if nodes.len() < 4
+            || nodes.windows(2).any(|pair| pair[0] >= pair[1])
+            || spots
+                .windows(2)
+                .any(|pair| !pair[1].is_finite() || pair[0] >= pair[1])
+        {
+            return Err(invalid_grid(
+                "finite-difference grid nodes are not representably distinct",
+            ));
+        }
+        self.stencils = if uniform {
+            vec![LogStencil::new(self.spacing, self.spacing)]
+        } else {
+            let mut stencils = Vec::with_capacity(nodes.len() - 2);
+            for (i, cell) in nodes.windows(3).enumerate() {
+                if i % 1024 == 0 {
+                    crate::cancellation::check()?;
+                }
+                stencils.push(LogStencil::new(cell[1] - cell[0], cell[2] - cell[1]));
+            }
+            stencils
+        };
+        self.count = nodes.len() - 1;
+        self.nodes = nodes;
+        self.spots = spots;
         Ok(())
     }
 
@@ -184,8 +299,8 @@ impl SpatialGrid {
         let mut resolve_strike = false;
         for barrier in barriers.into_iter().flatten() {
             let sigma = volatility_at(barrier);
-            let layer = (sigma * sigma / carry) * barrier;
-            let width = (sigma * time.sqrt()) * barrier;
+            let layer = sigma * sigma / carry;
+            let width = sigma * time.sqrt();
             let narrow = width < resolved_width;
             if narrow || layer < resolved_width {
                 resolve_strike |= narrow;
@@ -201,7 +316,7 @@ impl SpatialGrid {
             if resolve_strike {
                 levels.extend(strike.filter(|&level| level > self.lower && level < self.upper));
             }
-            concentrate_levels(self, levels, scale.max(f64::EPSILON.sqrt() * self.upper))?;
+            concentrate_levels(self, levels, scale.max(f64::EPSILON.sqrt()))?;
         }
         Ok(())
     }
@@ -212,140 +327,128 @@ impl SpatialGrid {
     }
 
     pub fn coordinate(&self, asset: f64) -> f64 {
-        if self.scale == 0.0 {
-            return asset - self.lower;
-        }
-        let ratio = asset / self.scale;
-        if ratio.is_finite() {
-            ratio.asinh()
-        } else {
-            asset.ln() - self.scale.ln() + std::f64::consts::LN_2
-        }
+        log_ratio(asset, self.reference)
     }
 
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "Grid indices are bounded by validated i32 settings and fit exactly in f64."
-    )]
     pub fn asset(&self, index: usize) -> f64 {
-        if !self.nodes.is_empty() {
-            return self.nodes[index];
-        }
-        if index == self.count {
-            return self.upper;
-        }
-        self.asset_of_coordinate(self.spacing * index as f64)
+        self.spots[index]
     }
 
-    pub fn asset_of_coordinate(&self, x: f64) -> f64 {
-        if self.scale == 0.0 {
-            self.lower + x
-        } else if x > 700.0 {
-            (self.scale.ln() + x - std::f64::consts::LN_2).exp()
+    fn asset_of_coordinate(&self, x: f64) -> f64 {
+        if x.abs() < 0.5 {
+            self.reference.mul_add(x.exp_m1(), self.reference)
         } else {
-            self.scale * x.sinh()
+            scaled_cash(self.reference, x)
         }
     }
 
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "Grid indices are bounded by validated i32 settings and fit exactly in f64."
-    )]
     pub fn coefficients(&self, index: usize, rate: f64, dividend: f64, sigma: f64) -> [f64; 3] {
-        if !self.nodes.is_empty() {
-            let asset = self.nodes[index];
-            let left = asset - self.nodes[index - 1];
-            let right = self.nodes[index + 1] - asset;
-            let total = self.nodes[index + 1] - self.nodes[index - 1];
-            let drift = rate - dividend;
-            let variance = (sigma * sigma).max(if drift >= 0.0 {
-                drift * (right / asset)
-            } else {
-                -drift * (left / asset)
-            });
-            let a = (asset / left) * (variance * (asset / total) - drift * (right / total));
-            let c = (asset / right) * (variance * (asset / total) + drift * (left / total));
-            return [a, -a - c - rate, c];
-        }
-        let node = index as f64 + self.lower / self.spacing;
-        let (drift, scaled_sigma) = if self.scale == 0.0 {
-            ((rate - dividend) * node, sigma * node)
-        } else {
-            let tangent = (node * self.spacing).tanh();
-            (
-                ((rate - dividend) - 0.5 * sigma * sigma * tangent * tangent) * tangent
-                    / self.spacing,
-                sigma * tangent / self.spacing,
-            )
-        };
-        // One-sided drift preserves nonnegative off-diagonals at low volatility.
-        let diffusion = (0.5 * scaled_sigma * scaled_sigma).max(0.5 * drift.abs());
-        [
-            diffusion - 0.5 * drift,
-            -2.0 * diffusion - rate,
-            diffusion + 0.5 * drift,
-        ]
+        self.stencils[if self.is_uniform() { 0 } else { index - 1 }]
+            .coefficients(rate, dividend, sigma)
     }
 
-    #[expect(
-        clippy::cast_possible_truncation,
-        clippy::cast_precision_loss,
-        clippy::cast_sign_loss,
-        reason = "The floored index is clamped to the i32-bounded grid; its conversion to f64 is exact."
-    )]
+    pub fn is_uniform(&self) -> bool {
+        self.stencils.len() == 1
+    }
+
     fn locate(&self, spot: f64) -> (usize, f64) {
-        if !self.nodes.is_empty() {
-            let index = self
-                .nodes
-                .partition_point(|&n| n <= spot)
-                .saturating_sub(1)
-                .min(self.count - 1);
-            return (
-                index,
-                (spot - self.nodes[index]) / (self.nodes[index + 1] - self.nodes[index]),
-            );
-        }
-        let position = self.coordinate(spot) / self.spacing;
-        let index = position.floor().clamp(0.0, (self.count - 1) as f64) as usize;
-        (index, position - index as f64)
+        let index = self
+            .spots
+            .partition_point(|&node| node <= spot)
+            .saturating_sub(1)
+            .min(self.count - 1);
+        let weight = if spot.to_bits() == self.spots[index + 1].to_bits() {
+            1.0
+        } else if spot.to_bits() == self.spots[index].to_bits() {
+            0.0
+        } else {
+            (self.coordinate(spot) - self.nodes[index])
+                / (self.nodes[index + 1] - self.nodes[index])
+        };
+        (index, weight)
+    }
+
+    pub fn nearest(&self, spot: f64) -> usize {
+        let (index, weight) = self.locate(spot);
+        index + usize::from(weight >= 0.5)
+    }
+
+    pub fn exercise_cell(&self, spline: &Spline, spot: f64, payoff: impl Fn(f64) -> f64) -> bool {
+        let (i, _) = self.locate(spot);
+        [i, i + 1]
+            .into_iter()
+            .all(|j| spline.values[j].to_bits() == (payoff(self.asset(j)) / spline.scale).to_bits())
     }
 
     fn width(&self, index: usize) -> f64 {
-        if self.nodes.is_empty() {
-            1.0
-        } else {
-            (self.nodes[index + 1] - self.nodes[index]) / self.spacing
-        }
+        (self.nodes[index + 1] - self.nodes[index]) / self.spacing
     }
 
-    pub fn spline(&self, values: Vec<f64>) -> Spline {
-        let bounds = if self.nodes.is_empty() {
-            [f64::NEG_INFINITY, f64::INFINITY]
-        } else {
-            values
-                .iter()
-                .fold([f64::INFINITY, f64::NEG_INFINITY], |[lo, hi], &value| {
-                    [lo.min(value), hi.max(value)]
-                })
+    pub fn discount_affine_edges(&self, values: &[f64], cash: f64, asset: f64) -> [f64; 2] {
+        let edge = |outer: usize, inner: usize| {
+            let relative_change = (self.nodes[inner] - self.nodes[outer]).exp_m1();
+            values[outer] * cash
+                + (values[inner] - values[outer]) / relative_change * (asset - cash)
         };
+        [edge(0, 1), edge(self.count, self.count - 1)]
+    }
+
+    pub fn spline(&self, mut values: Vec<f64>) -> Spline {
+        let mut bounds = values
+            .iter()
+            .fold([f64::INFINITY, f64::NEG_INFINITY], |[lo, hi], &value| {
+                [lo.min(value), hi.max(value)]
+            });
+        let peak = bounds[0].abs().max(bounds[1].abs());
+        let scale = if peak.is_finite() && peak > 1e280 {
+            peak
+        } else {
+            1.0
+        };
+        if scale > 1.0 {
+            for value in &mut values {
+                *value /= scale;
+            }
+            bounds = bounds.map(|value| value / scale);
+        }
         let curvature = self.curvature(&values);
         Spline {
             values,
             curvature,
             bounds,
+            scale,
         }
     }
 
     fn curvature(&self, values: &[f64]) -> Vec<f64> {
         let mut curvature = vec![0.0; values.len()];
         let mut factors = vec![0.0; values.len()];
+        // The first two and last two cells share a cubic at each endpoint.
+        let end_ratio = |outer, inner| {
+            let ratio = self.width(outer) / self.width(inner);
+            (0.25..=4.0).contains(&ratio).then_some(ratio)
+        };
+        let first = end_ratio(0, 1);
+        let last = end_ratio(self.count - 1, self.count - 2);
         for node in 1..self.count {
             let left = self.width(node - 1);
             let right = self.width(node);
             let total = left + right;
-            let a = left / total;
-            let diagonal = 2.0 - a * factors[node - 1];
-            factors[node] = (right / total) / diagonal;
+            let mut a = left / total;
+            let mut c = right / total;
+            let mut diagonal = 2.0;
+            if let Some(ratio) = first.filter(|_| node == 1) {
+                diagonal += a * (1.0 + ratio);
+                c -= a * ratio;
+                a = 0.0;
+            }
+            if let Some(ratio) = last.filter(|_| node == self.count - 1) {
+                diagonal += c * (1.0 + ratio);
+                a -= c * ratio;
+                c = 0.0;
+            }
+            diagonal -= a * factors[node - 1];
+            factors[node] = c / diagonal;
             curvature[node] = (6.0
                 * (((values[node + 1] - values[node]) / right
                     - (values[node] - values[node - 1]) / left)
@@ -355,6 +458,13 @@ impl SpatialGrid {
         }
         for node in (1..self.count).rev() {
             curvature[node] -= factors[node] * curvature[node + 1];
+        }
+        if let Some(ratio) = first {
+            curvature[0] = curvature[1] + ratio * (curvature[1] - curvature[2]);
+        }
+        if let Some(ratio) = last {
+            let n = self.count;
+            curvature[n] = curvature[n - 1] + ratio * (curvature[n - 1] - curvature[n - 2]);
         }
         curvature
     }
@@ -370,17 +480,36 @@ impl SpatialGrid {
         }
     }
 
+    pub fn sample(&self, spline: &Spline, spot: f64) -> [f64; 3] {
+        let [price, first, second] = self.sample_log(spline, spot);
+        [price, first / spot, (second - first) / spot / spot]
+    }
+
     #[expect(
         clippy::float_cmp,
         reason = "Exact endpoint weights select one-sided formulas without mixing adjacent cells."
     )]
-    pub fn sample(&self, spline: &Spline, spot: f64) -> [f64; 3] {
+    pub fn sample_log(&self, spline: &Spline, spot: f64) -> [f64; 3] {
         let Spline {
             values,
             curvature,
             bounds: [global_min, global_max],
+            scale,
         } = spline;
         let (index, weight) = self.locate(spot);
+        if index > 0 && index + 2 <= self.count {
+            let slope = |i| (values[i + 1] - values[i]) / (self.spots[i + 1] - self.spots[i]);
+            let slope_here: f64 = slope(index);
+            let tolerance = 5e-9 * slope_here.abs();
+            if slope_here.is_finite()
+                && (slope(index - 1) - slope_here).abs() <= tolerance
+                && (slope(index + 1) - slope_here).abs() <= tolerance
+            {
+                let price = slope_here.mul_add(spot - self.spots[index], values[index]) * scale;
+                let derivative = slope_here * spot * scale;
+                return [price, derivative, derivative];
+            }
+        }
         let h = self.width(index);
         let left = 1.0 - weight;
         let lerp = |a: f64, b: f64| a + weight * (b - a);
@@ -395,7 +524,7 @@ impl SpatialGrid {
             - (curvature[index] + 2.0 * curvature[index + 1]) * h * h / 18.0;
         let minimum = values[index].min(values[index + 1]);
         let maximum = values[index].max(values[index + 1]);
-        let overshoot = if self.nodes.is_empty() {
+        let overshoot = if self.is_uniform() {
             interpolated < minimum || interpolated > maximum
         } else {
             first_control.min(second_control) < minimum
@@ -428,13 +557,13 @@ impl SpatialGrid {
                 && first >= before
                 && last <= after;
             if !maximum_turn && !minimum_turn {
-                if self.nodes.is_empty() {
-                    return [interpolated.clamp(minimum, maximum), 0.0, 0.0];
+                if self.is_uniform() {
+                    return [interpolated.clamp(minimum, maximum) * scale, 0.0, 0.0];
                 }
                 if first_control.min(second_control) < *global_min
                     || first_control.max(second_control) > *global_max
                 {
-                    return [linear, slope / self.spacing, 0.0];
+                    return [linear * scale, slope / self.spacing * scale, 0.0];
                 }
             }
         }
@@ -445,22 +574,16 @@ impl SpatialGrid {
         } else {
             interpolated
         };
-        let derivative = ((values[index + 1] - values[index]) / h
+        let derivative = (values[index + 1] - values[index]) / h
             + h * ((1.0 - 3.0 * left * left) * curvature[index]
                 + (3.0 * weight * weight - 1.0) * curvature[index + 1])
-                / 6.0)
-            / self.spacing;
-        let second = lerp(curvature[index], curvature[index + 1]) / self.spacing / self.spacing;
-        if self.scale == 0.0 {
-            [price, derivative, second]
-        } else {
-            let jacobian = self.scale.hypot(spot);
-            [
-                price,
-                derivative / jacobian,
-                (second - derivative * self.coordinate(spot).tanh()) / jacobian / jacobian,
-            ]
-        }
+                / 6.0;
+        let second = lerp(curvature[index], curvature[index + 1]);
+        [
+            price * scale,
+            derivative / self.spacing * scale,
+            second / self.spacing / self.spacing * scale,
+        ]
     }
 }
 
@@ -479,12 +602,19 @@ pub(super) fn concentrate(space: &mut SpatialGrid, mut levels: Vec<f64>, scale: 
 fn concentrate_levels(space: &mut SpatialGrid, mut levels: Vec<f64>, scale: f64) -> Result<()> {
     levels.sort_by(f64::total_cmp);
     levels.dedup();
-    let gap = scale * ((space.upper - space.lower) / scale).asinh() / space.count as f64;
-    let mut previous = space.lower;
+    let anchors: Vec<_> = levels
+        .into_iter()
+        .map(|spot| (space.coordinate(spot), spot))
+        .collect();
+    let mut levels: Vec<_> = anchors.iter().map(|&(x, _)| x).collect();
+    let lower = space.nodes[0];
+    let upper = space.nodes[space.count];
+    let gap = scale * ((upper - lower) / scale).asinh() / space.count as f64;
+    let mut previous = lower;
     levels.retain(|&l| {
-        if l == space.lower || l == space.upper {
+        if l == lower || l == upper {
             true
-        } else if l - previous < gap || space.upper - l < gap {
+        } else if l - previous < gap || upper - l < gap {
             false
         } else {
             previous = l;
@@ -495,8 +625,8 @@ fn concentrate_levels(space: &mut SpatialGrid, mut levels: Vec<f64>, scale: f64)
         return Ok(());
     }
     let mut segments = Vec::new();
-    if levels[0] > space.lower {
-        segments.push((space.lower, levels[0], false, 1_usize, 0.0));
+    if levels[0] > lower {
+        segments.push((lower, levels[0], false, 1_usize, 0.0));
     }
     for pair in levels.windows(2) {
         let middle = pair[0].midpoint(pair[1]);
@@ -504,8 +634,8 @@ fn concentrate_levels(space: &mut SpatialGrid, mut levels: Vec<f64>, scale: f64)
         segments.push((middle, pair[1], false, 1, 0.0));
     }
     let last = levels[levels.len() - 1];
-    if last < space.upper {
-        segments.push((last, space.upper, true, 1, 0.0));
+    if last < upper {
+        segments.push((last, upper, true, 1, 0.0));
     }
     if segments.len() > space.count {
         return Ok(());
@@ -536,7 +666,7 @@ fn concentrate_levels(space: &mut SpatialGrid, mut levels: Vec<f64>, scale: f64)
             spacing = spacing.min(width(a, b) / (steps as f64 - 0.5));
         }
     }
-    let mut nodes = vec![space.lower];
+    let mut nodes = vec![lower];
     for (a, b, from_left, steps, _) in segments {
         for i in 1..=steps {
             if i % 1024 == 0 {
@@ -555,14 +685,7 @@ fn concentrate_levels(space: &mut SpatialGrid, mut levels: Vec<f64>, scale: f64)
             }
         }
     }
-    if nodes.iter().any(|n| !n.is_finite()) {
-        return Err(invalid_grid("concentrated grid is not representable"));
-    }
-    space.count = nodes.len() - 1;
-    space.spacing = 1.0;
-    space.scale = 0.0;
-    space.nodes = nodes;
-    Ok(())
+    space.set_nodes(nodes, &anchors, false)
 }
 
 pub(super) struct TimeGrid {
@@ -614,16 +737,11 @@ impl TimeGrid {
         })
     }
 
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "Grid counts are bounded by validated i32 settings and fit exactly in f64."
-    )]
     pub fn validate_stability(
         &self,
         space: &SpatialGrid,
         sigma: f64,
         theta: f64,
-        uniform: bool,
         risk: &Curve,
         dividend: &Curve,
     ) -> Result<()> {
@@ -633,16 +751,14 @@ impl TimeGrid {
                 let middle = self.times[index].midpoint(self.times[index + 1]);
                 let rate = risk.rate(middle);
                 let q = dividend.rate(middle);
-                let decay = if uniform {
-                    let n = space.count as f64;
-                    (sigma * sigma * n * n).max((rate - q).abs() * n) + rate
-                } else {
-                    (1..space.count)
-                        .map(|i| -space.coefficients(i, rate, q, sigma)[1])
-                        .fold(0.0, f64::max)
-                };
-                if dt * decay > 1.0 {
-                    return Err(invalid_grid("explicit finite-difference grid is unstable"));
+                let end = if space.is_uniform() { 2 } else { space.count };
+                for i in 1..end {
+                    if i % 1024 == 0 {
+                        crate::cancellation::check()?;
+                    }
+                    if -dt * space.coefficients(i, rate, q, sigma)[1] > 1.0 {
+                        return Err(invalid_grid("explicit finite-difference grid is unstable"));
+                    }
                 }
             }
         }
@@ -834,11 +950,11 @@ mod tests {
             times: vec![0.0, 1.0],
             widths: vec![1.0],
         };
-        let space = SpatialGrid::new(FiniteDifferenceSettings::default(), 200.0, 100.0, 100.0)?;
+        let space = SpatialGrid::new(800, [50.0, 200.0], 100.0)?;
         let token = crate::CancellationToken::default();
         let result = token.run(|| {
             token.cancel();
-            grid.validate_stability(&space, 0.000_001, 0.0, false, &curve, &curve)
+            grid.validate_stability(&space, 0.000_001, 0.0, &curve, &curve)
         });
         assert!(
             matches!(result, Err(crate::Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted)
@@ -848,44 +964,38 @@ mod tests {
 
     #[test]
     fn nonuniform_spline_uses_global_bounds_for_overshoot() {
-        let mut grid = SpatialGrid::new(
-            FiniteDifferenceSettings {
-                asset_step_count: 4,
-                ..Default::default()
-            },
-            4.0,
-            0.0,
-            0.0,
+        let mut grid = SpatialGrid::new(4, [1.0, 5.0], 1.0).unwrap();
+        grid.set_nodes(
+            vec![0.0, 2.0_f64.ln(), 2.5_f64.ln(), 4.0_f64.ln(), 5.0_f64.ln()],
+            &[],
+            false,
         )
         .unwrap();
-        grid.nodes = vec![0.0, 1.0, 1.5, 3.0, 4.0];
         let spline = grid.spline(vec![0.0, 0.0, 1.0, 2.0, 3.0]);
-        let sample = grid.sample(&spline, 0.5);
+        let sample = grid.sample(&spline, 1.5);
         assert!(sample.into_iter().all(|value| value.abs() < f64::EPSILON));
     }
 
     #[test]
     fn speed_uses_gamma_differences_only_strictly_inside_grid() {
-        let mut grid = SpatialGrid::new(
-            FiniteDifferenceSettings {
-                asset_step_count: 4,
-                ..Default::default()
-            },
-            20.0,
-            0.0,
-            0.0,
-        )
-        .unwrap();
-        grid.uniform_domain(10.0, 20.0).unwrap();
+        let grid = SpatialGrid::new(4, [10.0, 20.0], 10.0).unwrap();
         let spline = Spline {
-            values: (0..=grid.count).map(|i| grid.asset(i).powi(3)).collect(),
-            curvature: (0..=grid.count)
-                .map(|i| 6.0 * grid.asset(i) * grid.spacing.powi(2))
+            values: grid.nodes.iter().map(|x| x.powi(3)).collect(),
+            curvature: grid
+                .nodes
+                .iter()
+                .map(|x| 6.0 * x * grid.spacing.powi(2))
                 .collect(),
-            bounds: [1_000.0, 8_000.0],
+            bounds: [0.0, 1.0],
+            scale: 1.0,
+        };
+        let gamma = |spot| {
+            let x = log_ratio(spot, 10.0);
+            (6.0 * x - 3.0 * x * x) / spot / spot
         };
         for spot in [11.25, 15.0, 18.75] {
-            assert!((grid.speed(&spline, spot, 1.0).unwrap() - 6.0).abs() < 1e-12);
+            let expected = (gamma(spot + 1.0) - gamma(spot - 1.0)) / 2.0;
+            assert!((grid.speed(&spline, spot, 1.0).unwrap() - expected).abs() < 1e-12);
         }
         for (spot, shift) in [
             (11.0, 1.0),

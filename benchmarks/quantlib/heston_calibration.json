@@ -76,9 +76,9 @@
         "variance_upper": 0.6
       },
       "accuracy": {
-        "price": 9.010789535755631,
-        "absolute_error": 0.0004888717861071257,
-        "error_including_reference_uncertainty": 0.0004888717961071256,
+        "price": 9.010708634850657,
+        "absolute_error": 0.0005697726910813827,
+        "error_including_reference_uncertainty": 0.0005697727010813827,
         "passed": true
       }
     },
@@ -94,9 +94,9 @@
         "variance_upper": 0.6
       },
       "accuracy": {
-        "price": 9.011168773594816,
-        "absolute_error": 0.0001096339469217611,
-        "error_including_reference_uncertainty": 0.0001096339569217611,
+        "price": 9.011148386072161,
+        "absolute_error": 0.00013002146957674654,
+        "error_including_reference_uncertainty": 0.00013002147957674653,
         "passed": true
       }
     },
@@ -112,9 +112,9 @@
         "variance_upper": 0.6
       },
       "accuracy": {
-        "price": 9.010798675096076,
-        "absolute_error": 0.00047973244566179574,
-        "error_including_reference_uncertainty": 0.00047973245566179575,
+        "price": 9.010718071369753,
+        "absolute_error": 0.0005603361719845878,
+        "error_including_reference_uncertainty": 0.0005603361819845878,
         "passed": true
       }
     },
@@ -130,9 +130,9 @@
         "variance_upper": 0.6
       },
       "accuracy": {
-        "price": 9.010785678770603,
-        "absolute_error": 0.0004927287711353756,
-        "error_including_reference_uncertainty": 0.0004927287811353756,
+        "price": 9.010704777501937,
+        "absolute_error": 0.000573630039800932,
+        "error_including_reference_uncertainty": 0.0005736300498009319,
         "passed": true
       }
     },
@@ -141,16 +141,16 @@
       "backend": "kiyosi",
       "variant": "asset_domain",
       "profile": {
-        "asset_steps": 400,
+        "asset_steps": 253,
         "variance_steps": 50,
         "time_steps": 200,
         "asset_upper": 800,
         "variance_upper": 0.6
       },
       "accuracy": {
-        "price": 9.011136835510964,
-        "absolute_error": 0.0001415720307740287,
-        "error_including_reference_uncertainty": 0.00014157204077402868,
+        "price": 9.010888212137287,
+        "absolute_error": 0.00039019540445117684,
+        "error_including_reference_uncertainty": 0.00039019541445117686,
         "passed": true
       }
     },
@@ -166,9 +166,9 @@
         "variance_upper": 1.2
       },
       "accuracy": {
-        "price": 9.01079360385272,
-        "absolute_error": 0.00048480368901770987,
-        "error_including_reference_uncertainty": 0.0004848036990177099,
+        "price": 9.010713007136617,
+        "absolute_error": 0.0005654004051205419,
+        "error_including_reference_uncertainty": 0.0005654004151205419,
         "passed": true
       }
     },
@@ -268,9 +268,9 @@
         "variance_upper": 0.6
       },
       "accuracy": {
-        "price": 6.449434828320507,
-        "absolute_error": 0.0011201785536210096,
-        "error_including_reference_uncertainty": 0.0012484959268572737,
+        "price": 6.449496776249538,
+        "absolute_error": 0.0010582306245900952,
+        "error_including_reference_uncertainty": 0.0011865479978263593,
         "passed": true
       }
     },
@@ -286,9 +286,9 @@
         "variance_upper": 0.6
       },
       "accuracy": {
-        "price": 6.4498122542409675,
-        "absolute_error": 0.0007427526331609258,
-        "error_including_reference_uncertainty": 0.0008710700063971899,
+        "price": 6.4498283162353465,
+        "absolute_error": 0.0007266906387819461,
+        "error_including_reference_uncertainty": 0.0008550080120182102,
         "passed": true
       }
     },
@@ -304,9 +304,9 @@
         "variance_upper": 0.6
       },
       "accuracy": {
-        "price": 6.45006629672515,
-        "absolute_error": 0.000488710148978555,
-        "error_including_reference_uncertainty": 0.0006170275222148192,
+        "price": 6.450116889128561,
+        "absolute_error": 0.00043811774556701266,
+        "error_including_reference_uncertainty": 0.0005664351188032768,
         "passed": true
       }
     },
@@ -322,9 +322,9 @@
         "variance_upper": 0.6
       },
       "accuracy": {
-        "price": 6.449305668331862,
-        "absolute_error": 0.0012493385422667203,
-        "error_including_reference_uncertainty": 0.0013776559155029844,
+        "price": 6.44936283896673,
+        "absolute_error": 0.0011921679073987335,
+        "error_including_reference_uncertainty": 0.0013204852806349976,
         "passed": true
       }
     },
@@ -333,16 +333,16 @@
       "backend": "kiyosi",
       "variant": "asset_domain",
       "profile": {
-        "asset_steps": 400,
+        "asset_steps": 253,
         "variance_steps": 50,
         "time_steps": 200,
         "asset_upper": 800,
         "variance_upper": 0.6
       },
       "accuracy": {
-        "price": 6.449781431310426,
-        "absolute_error": 0.0007735755637021668,
-        "error_including_reference_uncertainty": 0.000901892936938431,
+        "price": 6.449630674078685,
+        "absolute_error": 0.000924332795443128,
+        "error_including_reference_uncertainty": 0.001052650168679392,
         "passed": true
       }
     },
@@ -358,9 +358,9 @@
         "variance_upper": 1.2
       },
       "accuracy": {
-        "price": 6.450009326145388,
-        "absolute_error": 0.0005456807287407273,
-        "error_including_reference_uncertainty": 0.0006739981019769914,
+        "price": 6.450059610590326,
+        "absolute_error": 0.0004953962838021297,
+        "error_including_reference_uncertainty": 0.0006237136570383939,
         "passed": true
       }
     },

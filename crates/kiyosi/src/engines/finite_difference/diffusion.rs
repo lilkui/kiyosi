@@ -21,6 +21,8 @@ macro_rules! with_diffusion {
                         $context, base,
                     );
                 $price
+            } else if let Some($diffusion) = model.surface().constant_volatility() {
+                $price
             } else {
                 let $diffusion = base;
                 $price
@@ -71,25 +73,23 @@ pub(super) trait Diffusion: Copy {
         old: &[f64],
         next: &mut [f64],
         space: &SpatialGrid,
-        [middle, log_carry]: [f64; 2],
+        middle: f64,
         key: [f64; 4],
         edges: [f64; 2],
     ) -> Result<()> {
         let scale = self.variance_rate(middle).sqrt();
         if Self::SPOT_DEPENDENT {
             let [dt, theta, rate, dividend] = key;
-            let carry = log_carry.exp();
             stepper.advance_local(
                 old,
                 next,
                 |i| {
-                    let node = space.asset(i);
-                    let spot = if carry.is_normal() {
-                        node * carry
-                    } else {
-                        super::scaled(node, log_carry)
-                    };
-                    space.coefficients(i, rate, dividend, self.sigma(middle, spot) * scale)
+                    space.coefficients(
+                        i,
+                        rate,
+                        dividend,
+                        self.sigma(middle, space.asset(i)) * scale,
+                    )
                 },
                 [dt, theta],
                 edges,
@@ -187,7 +187,7 @@ pub(super) fn rate_curves(
 
 fn validate_grid(settings: FiniteDifferenceSettings, steps: u64, curve_bytes: u64) -> Result<()> {
     let assets = u64::from(settings.asset_step_count.unsigned_abs());
-    validate_workspace(assets + 1, steps, curve_bytes)?;
+    validate_workspace(settings.scheme, assets + 1, steps, curve_bytes)?;
     let startup = if settings.scheme == FiniteDifferenceScheme::Rannacher {
         steps.min(2)
     } else {

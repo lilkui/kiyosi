@@ -127,7 +127,7 @@ def test_native_spot_greeks_survive_infeasible_scalar_bumps(coupon, shift):
     assert result.speed is None
 
 
-def test_explicit_uniform_stability_uses_the_top_node_bound():
+def test_explicit_uniform_log_grid_checks_stencil_stability():
     end = datetime(2026, 1, 1)
     note = BinarySnowballOption(
         calendar=weekdays_calendar(),
@@ -141,7 +141,7 @@ def test_explicit_uniform_stability_uses_the_top_node_bound():
         ),
     )
     engine = FD(
-        asset_step_count=11,
+        asset_step_count=40,
         time_step_count=10,
         scheme="explicit_euler",
         asset_upper_boundary=400,
@@ -150,6 +150,7 @@ def test_explicit_uniform_stability_uses_the_top_node_bound():
         InvalidInputError,
         lambda: engine.price(note, market()),
     )
+    assert engine.replace(asset_step_count=11).price(note, market()) > 0.0
 
 
 def test_event_greeks_node_curves_and_failed_replacement():

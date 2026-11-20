@@ -409,7 +409,7 @@ def test_scheduled_explicit_stability_retains_the_uniform_grid_bound():
     )
     engine = pricing.FiniteDifferenceBarrierEngine(
         asset_step_count=200,
-        time_step_count=1600,
+        time_step_count=100,
         scheme="explicit_euler",
         asset_upper_boundary=400,
     )
@@ -419,6 +419,7 @@ def test_scheduled_explicit_stability_retains_the_uniform_grid_bound():
         contract,
         market(rate=0.04),
     )
+    assert engine.replace(time_step_count=800).price(contract, market(rate=0.04)) > 0.0
 
 
 def test_scheduled_barrier_work_limit_counts_damping_half_steps():

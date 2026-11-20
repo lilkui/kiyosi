@@ -595,7 +595,7 @@ fn native_spot_greeks_do_not_require_a_feasible_scalar_bump() {
 }
 
 #[test]
-fn explicit_uniform_grid_uses_the_top_node_stability_bound() {
+fn explicit_uniform_log_grid_checks_stencil_stability() {
     let start = date(1, 1);
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let note = BinarySnowballOption::new(BinarySnowballTerms::new(
@@ -612,15 +612,21 @@ fn explicit_uniform_grid_uses_the_top_node_stability_bound() {
         start,
     )
     .unwrap();
-    let engine = FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {
-        asset_step_count: 11,
+    let settings = FiniteDifferenceSettings {
+        asset_step_count: 40,
         time_step_count: 10,
         scheme: FiniteDifferenceScheme::ExplicitEuler,
         asset_upper_boundary: Some(400.0),
-    })
-    .unwrap();
+    };
+    let engine = FiniteDifferenceAutocallableEngine::new(settings).unwrap();
     assert!(matches!(
         engine.price(&note, &ctx).unwrap_err(),
         Error::InvalidInput(_)
     ));
+    let stable = FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 11,
+        ..settings
+    })
+    .unwrap();
+    assert!(stable.price(&note, &ctx).unwrap() > 0.0);
 }

@@ -135,7 +135,8 @@ macro_rules! fd_engine {
                 /// Notes
                 /// -----
                 /// Current observations are evaluated per queried spot. Numerical domains
-                /// cover the interval; active explicit engine bounds must provide coverage.
+                /// use log spot and cover the states that need rollback. Active explicit
+                /// engine bounds must provide coverage.
                 /// Some products prepare several state layers or continuation components.
                 /// Accuracy requires grid and truncation convergence checks. Long work
                 /// releases the GIL; cancellation returns no partial solution.
@@ -208,11 +209,8 @@ fd_engine!(
     PyRef<'_, accumulator::Accumulator>,
 );
 fd_engine!(
-    /// With automatic domains and non-explicit schemes, European BSM grids
-    /// under Actual/365 Fixed remove deterministic carry and concentrate
-    /// around the carry-adjusted strike when it fits the domain.
-    /// American grids with automatic domains and non-explicit schemes concentrate
-    /// around the strike.
+    /// The grid uses log spot and an automatically selected positive lower boundary.
+    /// Automatic domains with non-explicit schemes concentrate nodes around the strike.
     ///
     FiniteDifferenceVanillaEngine,
     binomial::VanillaInstrument<'_>,
@@ -220,8 +218,8 @@ fd_engine!(
     expiry_short_pricing,
 );
 fd_engine!(
-    /// Automatic domains with non-explicit schemes remove deterministic carry
-    /// and concentrate nodes around the adjusted strike when it fits the domain.
+    /// The grid uses log spot and an automatically selected positive lower boundary.
+    /// Automatic domains with non-explicit schemes concentrate nodes around the strike.
     ///
     FiniteDifferenceDigitalEngine,
     digital::DigitalInstrument<'_>,

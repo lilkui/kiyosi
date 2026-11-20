@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "declared_budget": 0.005,
-  "domain": "QuantLib automatic log mesher varied through mesher-only Black volatility; Rust domain_constant_spacing compared with explicit_uniform, separately from selected automatic meshes",
-  "knock_in_domain": "domain_constant_spacing preserves the barrier grid spacing; continuation_constant_spacing preserves full-domain continuation spacing. One shared space count cannot hold both spacings fixed during expansion; neither is an isolated two-grid domain probe",
+  "domain": "QuantLib automatic log mesher varied through mesher-only Black volatility; Rust domain_constant_spacing compared with explicit_boundary at constant mean log spacing, separately from selected automatic meshes",
+  "knock_in_domain": "domain_constant_spacing preserves the barrier grid's mean log spacing; continuation_constant_spacing preserves full-domain continuation mean log spacing. One shared space count cannot hold both spacings fixed during expansion; neither is an isolated two-grid domain probe",
   "cases": [
     {
       "id": "fd-local-vol-european-call",
@@ -16,9 +16,9 @@
               "scheme": "rannacher",
               "upper": "automatic"
             },
-            "price": 11.001639406090021,
-            "absolute_error": 0.00010330010104731002,
-            "error_including_reference_uncertainty": 0.00011432306151347999,
+            "price": 11.00167143489677,
+            "absolute_error": 7.127129429918e-05,
+            "error_including_reference_uncertainty": 8.229425476534997e-05,
             "passed": true
           },
           "space": {
@@ -28,9 +28,9 @@
               "scheme": "rannacher",
               "upper": "automatic"
             },
-            "price": 11.001706938502924,
-            "absolute_error": 3.576768814461673e-05,
-            "error_including_reference_uncertainty": 4.6790648610786687e-05,
+            "price": 11.001715017497252,
+            "absolute_error": 2.768869381597483e-05,
+            "error_including_reference_uncertainty": 3.871165428214479e-05,
             "passed": true
           },
           "time": {
@@ -40,9 +40,9 @@
               "scheme": "rannacher",
               "upper": "automatic"
             },
-            "price": 11.001646953416104,
-            "absolute_error": 9.57527749640974e-05,
-            "error_including_reference_uncertainty": 0.00010677573543026736,
+            "price": 11.001678982259884,
+            "absolute_error": 6.372393118425634e-05,
+            "error_including_reference_uncertainty": 7.474689165042631e-05,
             "passed": true
           },
           "coarse_rejected": {
@@ -52,33 +52,33 @@
               "scheme": "rannacher",
               "upper": "automatic"
             },
-            "price": 10.481745167942906,
-            "absolute_error": 0.5199975382481625,
-            "error_including_reference_uncertainty": 0.5200085612086287,
+            "price": 11.604371154007453,
+            "absolute_error": 0.6026284478163841,
+            "error_including_reference_uncertainty": 0.6026394707768503,
             "passed": false
           },
-          "explicit_uniform": {
+          "explicit_boundary": {
             "profile": {
               "space": 800,
               "time": 400,
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 11.001703183762976,
-            "absolute_error": 3.952242809290851e-05,
-            "error_including_reference_uncertainty": 5.054538855907847e-05,
+            "price": 11.00174443977083,
+            "absolute_error": 1.7335797615203319e-06,
+            "error_including_reference_uncertainty": 1.2756540227690291e-05,
             "passed": true
           },
           "domain_constant_spacing": {
             "profile": {
-              "space": 1200,
+              "space": 892,
               "time": 400,
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 11.001703183762974,
-            "absolute_error": 3.952242809468487e-05,
-            "error_including_reference_uncertainty": 5.054538856085483e-05,
+            "price": 11.001747475373474,
+            "absolute_error": 4.769182405439665e-06,
+            "error_including_reference_uncertainty": 1.5792142871609624e-05,
             "passed": true
           }
         },
@@ -182,9 +182,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 8.359948835591679,
-            "absolute_error": 0.0011175926337401165,
-            "error_including_reference_uncertainty": 0.001131151564836222,
+            "price": 8.35997759074279,
+            "absolute_error": 0.0010888374826283354,
+            "error_including_reference_uncertainty": 0.0011023964137244408,
             "passed": true
           },
           "space": {
@@ -194,9 +194,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 8.360001770609587,
-            "absolute_error": 0.0010646576158315213,
-            "error_including_reference_uncertainty": 0.0010782165469276268,
+            "price": 8.360022418350587,
+            "absolute_error": 0.001044009874831886,
+            "error_including_reference_uncertainty": 0.0010575688059279915,
             "passed": true
           },
           "time": {
@@ -206,9 +206,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 8.36046934235613,
-            "absolute_error": 0.0005970858692894154,
-            "error_including_reference_uncertainty": 0.0006106448003855209,
+            "price": 8.36050002698237,
+            "absolute_error": 0.0005664012430486309,
+            "error_including_reference_uncertainty": 0.0005799601741447364,
             "passed": true
           },
           "coarse_rejected": {
@@ -218,33 +218,33 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 7.993838277833971,
-            "absolute_error": 0.3672281503914476,
-            "error_including_reference_uncertainty": 0.36724170932254374,
+            "price": 8.423735627852192,
+            "absolute_error": 0.06266919962677342,
+            "error_including_reference_uncertainty": 0.06268275855786952,
             "passed": false
           },
-          "explicit_uniform": {
+          "explicit_boundary": {
             "profile": {
               "space": 800,
               "time": 400,
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 8.359948835591679,
-            "absolute_error": 0.0011175926337401165,
-            "error_including_reference_uncertainty": 0.001131151564836222,
+            "price": 8.35997759074279,
+            "absolute_error": 0.0010888374826283354,
+            "error_including_reference_uncertainty": 0.0011023964137244408,
             "passed": true
           },
           "domain_constant_spacing": {
             "profile": {
-              "space": 1200,
+              "space": 892,
               "time": 400,
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 8.359999126494033,
-            "absolute_error": 0.0010673017313855837,
-            "error_including_reference_uncertainty": 0.0010808606624816892,
+            "price": 8.359986702494384,
+            "absolute_error": 0.0010797257310350972,
+            "error_including_reference_uncertainty": 0.0010932846621312027,
             "passed": true
           }
         },
@@ -348,9 +348,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 5.390927204632115,
-            "absolute_error": 1.2295220341407287e-05,
-            "error_including_reference_uncertainty": 0.00016344139057710433,
+            "price": 5.390864573037784,
+            "absolute_error": 7.492681467269335e-05,
+            "error_including_reference_uncertainty": 0.0002260729849083904,
             "passed": true
           },
           "space": {
@@ -360,9 +360,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 5.390945950623758,
-            "absolute_error": 6.450771301125258e-06,
-            "error_including_reference_uncertainty": 0.0001575969415368223,
+            "price": 5.390935822825665,
+            "absolute_error": 3.6770267914931765e-06,
+            "error_including_reference_uncertainty": 0.00015482319702719022,
             "passed": true
           },
           "time": {
@@ -372,9 +372,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 5.3909270794661035,
-            "absolute_error": 1.2420386353184654e-05,
-            "error_including_reference_uncertainty": 0.0001635665565888817,
+            "price": 5.390864462345803,
+            "absolute_error": 7.503750665360798e-05,
+            "error_including_reference_uncertainty": 0.00022618367688930502,
             "passed": true
           },
           "coarse_rejected": {
@@ -384,33 +384,33 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 5.410117517710371,
-            "absolute_error": 0.019178017857914398,
-            "error_including_reference_uncertainty": 0.019329164028150096,
+            "price": 4.752956146077985,
+            "absolute_error": 0.6379833537744721,
+            "error_including_reference_uncertainty": 0.6381344999447078,
             "passed": false
           },
-          "explicit_uniform": {
+          "explicit_boundary": {
             "profile": {
               "space": 800,
               "time": 400,
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 5.390927204632115,
-            "absolute_error": 1.2295220341407287e-05,
-            "error_including_reference_uncertainty": 0.00016344139057710433,
+            "price": 5.390864573037784,
+            "absolute_error": 7.492681467269335e-05,
+            "error_including_reference_uncertainty": 0.0002260729849083904,
             "passed": true
           },
           "domain_constant_spacing": {
             "profile": {
-              "space": 1200,
+              "space": 892,
               "time": 400,
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 5.390927204632115,
-            "absolute_error": 1.2295220341407287e-05,
-            "error_including_reference_uncertainty": 0.00016344139057710433,
+            "price": 5.390873992661174,
+            "absolute_error": 6.550719128295412e-05,
+            "error_including_reference_uncertainty": 0.00021665336151865117,
             "passed": true
           }
         },
@@ -514,9 +514,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 40.530993178918735,
-            "absolute_error": 0.0005960373234259464,
-            "error_including_reference_uncertainty": 0.0007822169592142021,
+            "price": 40.531671077051776,
+            "absolute_error": 0.0012739354564672567,
+            "error_including_reference_uncertainty": 0.0014601150922555124,
             "passed": true
           },
           "space": {
@@ -526,9 +526,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 40.530598737739766,
-            "absolute_error": 0.000201596144457028,
-            "error_including_reference_uncertainty": 0.00038777578024528367,
+            "price": 40.53068759539009,
+            "absolute_error": 0.00029045379478276345,
+            "error_including_reference_uncertainty": 0.0004766334305710191,
             "passed": true
           },
           "time": {
@@ -538,9 +538,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 40.5309724888008,
-            "absolute_error": 0.0005753472054905728,
-            "error_including_reference_uncertainty": 0.0007615268412788285,
+            "price": 40.53165124840958,
+            "absolute_error": 0.0012541068142724043,
+            "error_including_reference_uncertainty": 0.00144028645006066,
             "passed": true
           },
           "coarse_rejected": {
@@ -550,33 +550,33 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 38.99424168728165,
-            "absolute_error": 1.5361554543136577,
-            "error_including_reference_uncertainty": 1.536341633949446,
+            "price": 47.48834251561609,
+            "absolute_error": 6.957945374020781,
+            "error_including_reference_uncertainty": 6.958131553656569,
             "passed": false
           },
-          "explicit_uniform": {
+          "explicit_boundary": {
             "profile": {
               "space": 800,
               "time": 400,
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 40.530993178918735,
-            "absolute_error": 0.0005960373234259464,
-            "error_including_reference_uncertainty": 0.0007822169592142021,
+            "price": 40.531671077051776,
+            "absolute_error": 0.0012739354564672567,
+            "error_including_reference_uncertainty": 0.0014601150922555124,
             "passed": true
           },
           "domain_constant_spacing": {
             "profile": {
-              "space": 1200,
+              "space": 893,
               "time": 400,
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 40.530993178918735,
-            "absolute_error": 0.0005960373234259464,
-            "error_including_reference_uncertainty": 0.0007822169592142021,
+            "price": 40.531645133484865,
+            "absolute_error": 0.0012479918895564879,
+            "error_including_reference_uncertainty": 0.0014341715253447435,
             "passed": true
           },
           "reference_time_1600": {
@@ -586,9 +586,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 40.53044965842862,
-            "absolute_error": 5.251683331408685e-05,
-            "error_including_reference_uncertainty": 0.0002386964691023425,
+            "price": 40.53045571253671,
+            "absolute_error": 5.857094139827268e-05,
+            "error_including_reference_uncertainty": 0.00024475057718652835,
             "passed": true
           },
           "reference_time_3200": {
@@ -598,9 +598,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 40.53044836582791,
-            "absolute_error": 5.122423259962261e-05,
-            "error_including_reference_uncertainty": 0.00023740386838787825,
+            "price": 40.53045447359778,
+            "absolute_error": 5.7332002469934196e-05,
+            "error_including_reference_uncertainty": 0.00024351163825818984,
             "passed": true
           },
           "reference_time_6400": {
@@ -610,9 +610,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 40.530448042685194,
-            "absolute_error": 5.090108988525799e-05,
-            "error_including_reference_uncertainty": 0.00023708072567351363,
+            "price": 40.530454163887335,
+            "absolute_error": 5.702229202597664e-05,
+            "error_including_reference_uncertainty": 0.00024320192781423228,
             "passed": true
           },
           "reference_space_12800": {
@@ -622,21 +622,21 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 40.530441880151876,
-            "absolute_error": 4.4738556567835985e-05,
-            "error_including_reference_uncertainty": 0.00023091819235609163,
+            "price": 40.53044229834908,
+            "absolute_error": 4.5156753770925206e-05,
+            "error_including_reference_uncertainty": 0.00023133638955918085,
             "passed": true
           },
           "reference_domain_600": {
             "profile": {
-              "space": 19200,
+              "space": 14289,
               "time": 6400,
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 40.530441880151876,
-            "absolute_error": 4.4738556567835985e-05,
-            "error_including_reference_uncertainty": 0.00023091819235609163,
+            "price": 40.53044230683671,
+            "absolute_error": 4.516524140285583e-05,
+            "error_including_reference_uncertainty": 0.00023134487719111147,
             "passed": true
           }
         },
@@ -740,9 +740,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 10.381638632086753,
-            "absolute_error": 0.0001037528752121375,
-            "error_including_reference_uncertainty": 0.00010510836086829183,
+            "price": 10.381714370487623,
+            "absolute_error": 2.801447434208626e-05,
+            "error_including_reference_uncertainty": 2.93699599982406e-05,
             "passed": true
           },
           "space": {
@@ -752,9 +752,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 10.381706717348315,
-            "absolute_error": 3.56676136501477e-05,
-            "error_including_reference_uncertainty": 3.702309930630204e-05,
+            "price": 10.381726130456292,
+            "absolute_error": 1.6254505673884978e-05,
+            "error_including_reference_uncertainty": 1.7609991330039318e-05,
             "passed": true
           },
           "time": {
@@ -764,9 +764,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 10.381648337513353,
-            "absolute_error": 9.404744861285508e-05,
-            "error_including_reference_uncertainty": 9.540293426900941e-05,
+            "price": 10.381724075860056,
+            "absolute_error": 1.8309101909252945e-05,
+            "error_including_reference_uncertainty": 1.9664587565407285e-05,
             "passed": true
           },
           "coarse_rejected": {
@@ -776,33 +776,33 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 10.000393878020036,
-            "absolute_error": 0.38134850694192934,
-            "error_including_reference_uncertainty": 0.3813498624275855,
+            "price": 10.35592313424508,
+            "absolute_error": 0.025819250716885733,
+            "error_including_reference_uncertainty": 0.02582060620254189,
             "passed": false
           },
-          "explicit_uniform": {
+          "explicit_boundary": {
             "profile": {
               "space": 800,
               "time": 400,
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 10.381638632086753,
-            "absolute_error": 0.0001037528752121375,
-            "error_including_reference_uncertainty": 0.00010510836086829183,
+            "price": 10.381714370487623,
+            "absolute_error": 2.801447434208626e-05,
+            "error_including_reference_uncertainty": 2.93699599982406e-05,
             "passed": true
           },
           "domain_constant_spacing": {
             "profile": {
-              "space": 1300,
+              "space": 1002,
               "time": 400,
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 10.38163863208675,
-            "absolute_error": 0.00010375287521569021,
-            "error_including_reference_uncertainty": 0.00010510836087184454,
+            "price": 10.381719963451216,
+            "absolute_error": 2.2421510749381923e-05,
+            "error_including_reference_uncertainty": 2.3776996405536263e-05,
             "passed": true
           }
         },
@@ -906,9 +906,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 4.834628924513625,
-            "absolute_error": 2.117490894626428e-06,
-            "error_including_reference_uncertainty": 0.00023475810895322863,
+            "price": 4.834646485428003,
+            "absolute_error": 1.9678405272394173e-05,
+            "error_including_reference_uncertainty": 0.0002523190233309964,
             "passed": true
           },
           "space": {
@@ -918,9 +918,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 4.834655874382421,
-            "absolute_error": 2.90673596907709e-05,
-            "error_including_reference_uncertainty": 0.00026170797774937313,
+            "price": 4.834661942258606,
+            "absolute_error": 3.5135235875394244e-05,
+            "error_including_reference_uncertainty": 0.0002677758539339965,
             "passed": true
           },
           "time": {
@@ -930,9 +930,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 4.834627595672381,
-            "absolute_error": 7.886496504738716e-07,
-            "error_including_reference_uncertainty": 0.00023342926770907608,
+            "price": 4.83464515618284,
+            "absolute_error": 1.8349160109565332e-05,
+            "error_including_reference_uncertainty": 0.00025098977816816756,
             "passed": true
           },
           "coarse_rejected": {
@@ -942,33 +942,33 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 5.0211755534768665,
-            "absolute_error": 0.186548746454136,
-            "error_including_reference_uncertainty": 0.1867813870721946,
+            "price": 4.824572362134645,
+            "absolute_error": 0.010054444888085712,
+            "error_including_reference_uncertainty": 0.010287085506144314,
             "passed": false
           },
-          "explicit_uniform": {
+          "explicit_boundary": {
             "profile": {
               "space": 800,
               "time": 400,
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 4.834628924513625,
-            "absolute_error": 2.117490894626428e-06,
-            "error_including_reference_uncertainty": 0.00023475810895322863,
+            "price": 4.834646485428003,
+            "absolute_error": 1.9678405272394173e-05,
+            "error_including_reference_uncertainty": 0.0002523190233309964,
             "passed": true
           },
           "domain_constant_spacing": {
             "profile": {
-              "space": 1300,
+              "space": 1002,
               "time": 400,
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 4.834628924513625,
-            "absolute_error": 2.117490894626428e-06,
-            "error_including_reference_uncertainty": 0.00023475810895322863,
+            "price": 4.834646380115449,
+            "absolute_error": 1.9573092718161433e-05,
+            "error_including_reference_uncertainty": 0.00025221371077676366,
             "passed": true
           }
         },
@@ -1072,9 +1072,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 3.4802901647324096,
-            "absolute_error": 3.666698403348434e-05,
-            "error_including_reference_uncertainty": 0.000248038062353731,
+            "price": 3.4815005314702936,
+            "absolute_error": 0.00117369975385051,
+            "error_including_reference_uncertainty": 0.0013850708321707567,
             "passed": true
           },
           "space": {
@@ -1084,9 +1084,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 3.4803026968946744,
-            "absolute_error": 2.4134821768662107e-05,
-            "error_including_reference_uncertainty": 0.00023550590008890876,
+            "price": 3.4804944118342402,
+            "absolute_error": 0.00016758011779716142,
+            "error_including_reference_uncertainty": 0.0003789511961174081,
             "passed": true
           },
           "time": {
@@ -1096,9 +1096,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 3.4803013587382847,
-            "absolute_error": 2.5472978158358472e-05,
-            "error_including_reference_uncertainty": 0.00023684405647860513,
+            "price": 3.481511728329747,
+            "absolute_error": 0.0011848966133038985,
+            "error_including_reference_uncertainty": 0.0013962676916241452,
             "passed": true
           },
           "coarse_rejected": {
@@ -1108,21 +1108,21 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 1.618785068037146,
-            "absolute_error": 1.861541763679297,
-            "error_including_reference_uncertainty": 1.8617531347576173,
+            "price": 3.686621164270544,
+            "absolute_error": 0.2062943325541009,
+            "error_including_reference_uncertainty": 0.20650570363242116,
             "passed": false
           },
-          "explicit_uniform": {
+          "explicit_boundary": {
             "profile": {
               "space": 800,
               "time": 400,
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 3.4802901647324096,
-            "absolute_error": 3.666698403348434e-05,
-            "error_including_reference_uncertainty": 0.000248038062353731,
+            "price": 3.4815005314702936,
+            "absolute_error": 0.00117369975385051,
+            "error_including_reference_uncertainty": 0.0013850708321707567,
             "passed": true
           },
           "domain_constant_spacing": {
@@ -1132,21 +1132,21 @@
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 3.479345311270559,
-            "absolute_error": 0.0009815204458840654,
-            "error_including_reference_uncertainty": 0.001192891524204312,
+            "price": 3.4808282468581373,
+            "absolute_error": 0.000501415141694217,
+            "error_including_reference_uncertainty": 0.0007127862200144637,
             "passed": true
           },
           "continuation_constant_spacing": {
             "profile": {
-              "space": 1200,
+              "space": 892,
               "time": 400,
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 3.4802788624942824,
-            "absolute_error": 4.79692221606598e-05,
-            "error_including_reference_uncertainty": 0.0002593403004809065,
+            "price": 3.481430068827072,
+            "absolute_error": 0.001103237110628985,
+            "error_including_reference_uncertainty": 0.0013146081889492318,
             "passed": true
           },
           "reference_time_800": {
@@ -1156,9 +1156,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 3.4803170362475977,
-            "absolute_error": 9.795468845386068e-06,
-            "error_including_reference_uncertainty": 0.00022116654716563272,
+            "price": 3.4803619342297316,
+            "absolute_error": 3.510251328853187e-05,
+            "error_including_reference_uncertainty": 0.00024647359160877855,
             "passed": true
           },
           "reference_time_1600": {
@@ -1168,9 +1168,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 3.4803198316771407,
-            "absolute_error": 7.000039302429428e-06,
-            "error_including_reference_uncertainty": 0.00021837111762267608,
+            "price": 3.4803647296668707,
+            "absolute_error": 3.789795042763444e-05,
+            "error_including_reference_uncertainty": 0.0002492690287478811,
             "passed": true
           },
           "reference_time_3200": {
@@ -1180,9 +1180,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 3.480320530081536,
-            "absolute_error": 6.301634907224241e-06,
-            "error_including_reference_uncertainty": 0.0002176727132274709,
+            "price": 3.4803654280730836,
+            "absolute_error": 3.8596356640496765e-05,
+            "error_including_reference_uncertainty": 0.00024996743496074345,
             "passed": true
           },
           "reference_space_6400": {
@@ -1192,21 +1192,21 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 3.4803213166773803,
-            "absolute_error": 5.515039062764515e-06,
-            "error_including_reference_uncertainty": 0.00021688611738301117,
+            "price": 3.4803291695002523,
+            "absolute_error": 2.337783809203131e-06,
+            "error_including_reference_uncertainty": 0.0002137088621294498,
             "passed": true
           },
           "reference_domain_600": {
             "profile": {
-              "space": 9600,
+              "space": 7134,
               "time": 3200,
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 3.4803211403844783,
-            "absolute_error": 5.691331964818858e-06,
-            "error_including_reference_uncertainty": 0.00021706241028506551,
+            "price": 3.4803243949858924,
+            "absolute_error": 2.436730550670063e-06,
+            "error_including_reference_uncertainty": 0.00021380780887091672,
             "passed": true
           }
         },
@@ -1310,9 +1310,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 5.907745559105993,
-            "absolute_error": 3.293723719455244e-05,
-            "error_including_reference_uncertainty": 3.654985372580083e-05,
+            "price": 5.90772809478542,
+            "absolute_error": 1.547291662173933e-05,
+            "error_including_reference_uncertainty": 1.908553315298772e-05,
             "passed": true
           },
           "space": {
@@ -1322,9 +1322,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 5.907725926059712,
-            "absolute_error": 1.330419091338797e-05,
-            "error_including_reference_uncertainty": 1.691680744463636e-05,
+            "price": 5.907721992008033,
+            "absolute_error": 9.370139234299302e-06,
+            "error_including_reference_uncertainty": 1.298275576554769e-05,
             "passed": true
           },
           "time": {
@@ -1334,9 +1334,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 5.907740018881695,
-            "absolute_error": 2.739701289655727e-05,
-            "error_including_reference_uncertainty": 3.100962942780566e-05,
+            "price": 5.907722555039964,
+            "absolute_error": 9.93317116559922e-06,
+            "error_including_reference_uncertainty": 1.3545787696847608e-05,
             "passed": true
           },
           "coarse_rejected": {
@@ -1346,33 +1346,33 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 5.626707572060176,
-            "absolute_error": 0.2810050498086225,
-            "error_including_reference_uncertainty": 0.28100866242515377,
+            "price": 5.955029249408559,
+            "absolute_error": 0.04731662753976096,
+            "error_including_reference_uncertainty": 0.04732024015629221,
             "passed": false
           },
-          "explicit_uniform": {
+          "explicit_boundary": {
             "profile": {
               "space": 800,
               "time": 400,
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 5.907745559105993,
-            "absolute_error": 3.293723719455244e-05,
-            "error_including_reference_uncertainty": 3.654985372580083e-05,
+            "price": 5.90772809478542,
+            "absolute_error": 1.547291662173933e-05,
+            "error_including_reference_uncertainty": 1.908553315298772e-05,
             "passed": true
           },
           "domain_constant_spacing": {
             "profile": {
-              "space": 1300,
+              "space": 1002,
               "time": 400,
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 5.907745559105996,
-            "absolute_error": 3.293723719810515e-05,
-            "error_including_reference_uncertainty": 3.654985372935354e-05,
+            "price": 5.907728248037262,
+            "absolute_error": 1.5626168464066836e-05,
+            "error_including_reference_uncertainty": 1.9238784995315225e-05,
             "passed": true
           }
         },
@@ -1476,9 +1476,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 44.39931619444559,
-            "absolute_error": 0.00019366357557260017,
-            "error_including_reference_uncertainty": 0.00021207290933310813,
+            "price": 44.39920951391708,
+            "absolute_error": 8.698304706200588e-05,
+            "error_including_reference_uncertainty": 0.00010539238082251385,
             "passed": true
           },
           "space": {
@@ -1488,9 +1488,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 44.39929012481681,
-            "absolute_error": 0.00016759394679155548,
-            "error_including_reference_uncertainty": 0.00018600328055206345,
+            "price": 44.39926432924454,
+            "absolute_error": 0.00014179837452132915,
+            "error_including_reference_uncertainty": 0.00016020770828183712,
             "passed": true
           },
           "time": {
@@ -1500,9 +1500,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 44.39919822870904,
-            "absolute_error": 7.569783902283689e-05,
-            "error_including_reference_uncertainty": 9.410717278334485e-05,
+            "price": 44.399091566453144,
+            "absolute_error": 3.096441687233664e-05,
+            "error_including_reference_uncertainty": 4.93737506328446e-05,
             "passed": true
           },
           "coarse_rejected": {
@@ -1512,21 +1512,21 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 44.61576139517286,
-            "absolute_error": 0.21663886430284407,
-            "error_including_reference_uncertainty": 0.21665727363660459,
+            "price": 45.18046644746649,
+            "absolute_error": 0.7813439165964766,
+            "error_including_reference_uncertainty": 0.7813623259302371,
             "passed": false
           },
-          "explicit_uniform": {
+          "explicit_boundary": {
             "profile": {
               "space": 800,
               "time": 400,
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 44.39931619444559,
-            "absolute_error": 0.00019366357557260017,
-            "error_including_reference_uncertainty": 0.00021207290933310813,
+            "price": 44.39920951391708,
+            "absolute_error": 8.698304706200588e-05,
+            "error_including_reference_uncertainty": 0.00010539238082251385,
             "passed": true
           },
           "domain_constant_spacing": {
@@ -1536,9 +1536,9 @@
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 44.39931619444559,
-            "absolute_error": 0.00019366357557260017,
-            "error_including_reference_uncertainty": 0.00021207290933310813,
+            "price": 44.39920951391708,
+            "absolute_error": 8.698304706200588e-05,
+            "error_including_reference_uncertainty": 0.00010539238082251385,
             "passed": true
           }
         },
@@ -1656,9 +1656,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 4.512602228364067,
-            "absolute_error": 1.5525803520155534e-05,
-            "error_including_reference_uncertainty": 1.789201562817649e-05,
+            "price": 4.512613449233348,
+            "absolute_error": 4.304934239307556e-06,
+            "error_including_reference_uncertainty": 6.671146347328513e-06,
             "passed": true
           },
           "space": {
@@ -1668,9 +1668,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 4.512603976620177,
-            "absolute_error": 1.3777547410498414e-05,
-            "error_including_reference_uncertainty": 1.614375951851937e-05,
+            "price": 4.512606708677529,
+            "absolute_error": 1.1045490058592122e-05,
+            "error_including_reference_uncertainty": 1.341170216661308e-05,
             "passed": true
           },
           "time": {
@@ -1680,9 +1680,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 4.512611928866286,
-            "absolute_error": 5.8253013017761646e-06,
-            "error_including_reference_uncertainty": 8.191513409797122e-06,
+            "price": 4.512623148214698,
+            "absolute_error": 5.394047110307554e-06,
+            "error_including_reference_uncertainty": 7.760259218328511e-06,
             "passed": true
           },
           "coarse_rejected": {
@@ -1692,21 +1692,21 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 4.4970766477444455,
-            "absolute_error": 0.015541106423142104,
-            "error_including_reference_uncertainty": 0.015543472635250124,
+            "price": 4.447857500100311,
+            "absolute_error": 0.06476025406727626,
+            "error_including_reference_uncertainty": 0.06476262027938427,
             "passed": false
           },
-          "explicit_uniform": {
+          "explicit_boundary": {
             "profile": {
               "space": 800,
               "time": 400,
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 4.512602228364067,
-            "absolute_error": 1.5525803520155534e-05,
-            "error_including_reference_uncertainty": 1.789201562817649e-05,
+            "price": 4.512613449233348,
+            "absolute_error": 4.304934239307556e-06,
+            "error_including_reference_uncertainty": 6.671146347328513e-06,
             "passed": true
           },
           "domain_constant_spacing": {
@@ -1716,21 +1716,21 @@
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 4.512602228364067,
-            "absolute_error": 1.5525803520155534e-05,
-            "error_including_reference_uncertainty": 1.789201562817649e-05,
+            "price": 4.512613449233348,
+            "absolute_error": 4.304934239307556e-06,
+            "error_including_reference_uncertainty": 6.671146347328513e-06,
             "passed": true
           },
           "continuation_constant_spacing": {
             "profile": {
-              "space": 1200,
+              "space": 897,
               "time": 400,
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 4.5126037320103,
-            "absolute_error": 1.402215728774081e-05,
-            "error_including_reference_uncertainty": 1.6388369395761768e-05,
+            "price": 4.5126110787845555,
+            "absolute_error": 6.6753830321175656e-06,
+            "error_including_reference_uncertainty": 9.041595140138523e-06,
             "passed": true
           }
         },
@@ -1848,9 +1848,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 29.60290560295943,
-            "absolute_error": 0.00023255306250291596,
-            "error_including_reference_uncertainty": 0.00026061092139960943,
+            "price": 29.603018886097573,
+            "absolute_error": 0.00011926992436173123,
+            "error_including_reference_uncertainty": 0.00014732778325842472,
             "passed": true
           },
           "space": {
@@ -1860,9 +1860,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 29.60304158740541,
-            "absolute_error": 9.656861652374005e-05,
-            "error_including_reference_uncertainty": 0.00012462647542043354,
+            "price": 29.603066416819495,
+            "absolute_error": 7.173920243985776e-05,
+            "error_including_reference_uncertainty": 9.979706133655126e-05,
             "passed": true
           },
           "time": {
@@ -1872,9 +1872,9 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 29.602947712595373,
-            "absolute_error": 0.00019044342656115987,
-            "error_including_reference_uncertainty": 0.00021850128545785336,
+            "price": 29.60306099189507,
+            "absolute_error": 7.716412686420426e-05,
+            "error_including_reference_uncertainty": 0.00010522198576089776,
             "passed": true
           },
           "coarse_rejected": {
@@ -1884,45 +1884,45 @@
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 32.41161425381521,
-            "absolute_error": 2.8084760977932746,
-            "error_including_reference_uncertainty": 2.8085041556521713,
+            "price": 29.2197380209427,
+            "absolute_error": 0.38340013507923487,
+            "error_including_reference_uncertainty": 0.3834281929381316,
             "passed": false
           },
-          "explicit_uniform": {
+          "explicit_boundary": {
             "profile": {
               "space": 800,
               "time": 400,
               "scheme": "rannacher",
               "upper": 400
             },
-            "price": 29.60290560295943,
-            "absolute_error": 0.00023255306250291596,
-            "error_including_reference_uncertainty": 0.00026061092139960943,
+            "price": 29.603018886097573,
+            "absolute_error": 0.00011926992436173123,
+            "error_including_reference_uncertainty": 0.00014732778325842472,
             "passed": true
           },
           "domain_constant_spacing": {
             "profile": {
-              "space": 1300,
+              "space": 1002,
               "time": 400,
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 29.60290560295943,
-            "absolute_error": 0.00023255306250291596,
-            "error_including_reference_uncertainty": 0.00026061092139960943,
+            "price": 29.6030176457849,
+            "absolute_error": 0.00012051023703563146,
+            "error_including_reference_uncertainty": 0.00014856809593232495,
             "passed": true
           },
           "continuation_constant_spacing": {
             "profile": {
-              "space": 1200,
+              "space": 886,
               "time": 400,
               "scheme": "rannacher",
               "upper": 600
             },
-            "price": 29.60293012591526,
-            "absolute_error": 0.00020803010667336252,
-            "error_including_reference_uncertainty": 0.00023608796557005602,
+            "price": 29.60299543394871,
+            "absolute_error": 0.0001427220732246326,
+            "error_including_reference_uncertainty": 0.0001707799321213261,
             "passed": true
           }
         },

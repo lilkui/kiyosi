@@ -10,21 +10,18 @@ pub(super) fn boundary_value<D: Diffusion>(
     tau: f64,
 ) -> f64 {
     let continuation = if D::LOCAL {
+        let asset_value = scaled(upper, dividend_log);
+        let strike_value = scaled(payoff.strike, risk_log);
         if payoff.is_digital() {
-            if payoff.sign > 0.0 {
-                scaled(
-                    payoff.payout().unwrap_or(upper),
-                    if payoff.payout().is_some() {
-                        risk_log
-                    } else {
-                        dividend_log
-                    },
-                )
+            if payoff.sign * (asset_value - strike_value) > 0.0 {
+                payoff
+                    .payout()
+                    .map_or(asset_value, |amount| scaled(amount, risk_log))
             } else {
                 0.0
             }
         } else {
-            (payoff.sign * (scaled(upper, dividend_log) - scaled(payoff.strike, risk_log))).max(0.0)
+            (payoff.sign * (asset_value - strike_value)).max(0.0)
         }
     } else {
         let (d1, d2) = black_scholes_arguments(

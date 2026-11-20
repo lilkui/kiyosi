@@ -29,6 +29,7 @@ pub struct LocalVolatilitySurface {
     spots: Arc<[f64]>,
     values: Arc<[f64]>,
     maximum: f64,
+    minimum: f64,
 }
 
 impl LocalVolatilitySurface {
@@ -85,6 +86,7 @@ impl LocalVolatilitySurface {
             }
         }
         let mut maximum: f64 = 0.0;
+        let mut minimum = f64::INFINITY;
         for (row, values) in values.iter().enumerate() {
             for (column, &value) in values.iter().enumerate() {
                 if column % 1024 == 0 {
@@ -96,6 +98,7 @@ impl LocalVolatilitySurface {
                     ));
                 }
                 maximum = maximum.max(value);
+                minimum = minimum.min(value);
             }
         }
         let mut years = Vec::with_capacity(times.len());
@@ -121,6 +124,7 @@ impl LocalVolatilitySurface {
             spots: spots.into(),
             values: table.into(),
             maximum,
+            minimum,
         })
     }
 
@@ -142,6 +146,10 @@ impl LocalVolatilitySurface {
     /// Returns the largest supplied volatility; see [`Self::new`] for units.
     pub fn maximum_volatility(&self) -> f64 {
         self.maximum
+    }
+
+    pub(crate) fn constant_volatility(&self) -> Option<f64> {
+        (self.minimum.to_bits() == self.maximum.to_bits()).then_some(self.maximum)
     }
 
     /// Interpolates sigma at an absolute time and positive spot.

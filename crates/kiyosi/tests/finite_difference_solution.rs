@@ -25,6 +25,60 @@ fn close(actual: f64, expected: f64, tolerance: f64) {
 }
 
 #[test]
+fn log_grid_covers_low_saved_put_endpoint() -> Result<()> {
+    let put = EuropeanOption::new(OptionType::Put, 100.0, dates().0, dates().1)?;
+    let low = 0.0001;
+    let engine = FiniteDifferenceVanillaEngine::default();
+    let solution = engine.solve(&put, &market(150.0), low..=120.0)?;
+    let expected = AnalyticEuropeanEngine.price(&put, &market(low))?;
+    close(solution.price(low)?, expected, 0.001);
+    close(engine.price(&put, &market(low))?, expected, 0.001);
+    assert!(solution.price(120.0)? < solution.price(low)?);
+    Ok(())
+}
+
+#[test]
+fn log_grid_keeps_continuous_barrier_equality() -> Result<()> {
+    let barrier = 80.1_f64;
+    let mut terms = BarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        dates().0,
+        dates().1,
+        barrier,
+        BarrierType::DownAndOut,
+    );
+    terms.rebate = 7.0;
+    let option = BarrierOption::new(terms)?;
+    let engine = FiniteDifferenceBarrierEngine::default();
+    let solution = engine.solve(&option, &market(100.0), barrier.next_down()..=100.0)?;
+    let rebate = AnalyticBarrierEngine.price(&option, &market(barrier))?;
+    close(solution.price(barrier.next_down())?, rebate, 1e-12);
+    close(solution.price(barrier)?, rebate, 1e-12);
+    let expected = AnalyticBarrierEngine.price(&option, &market(barrier + 0.01))?;
+    close(solution.price(barrier + 0.01)?, expected, 0.001);
+    Ok(())
+}
+
+#[test]
+fn log_grid_respects_discounted_asset_digital_cap_with_carry() -> Result<()> {
+    let option = DigitalOption::asset_or_nothing(OptionType::Call, 100.0, dates().0, dates().1)?;
+    let market = PricingContext::new(
+        BlackScholesMertonParameters::new(0.11, 0.04, 0.08)?,
+        250.0,
+        dates().0,
+    )?;
+    let value = FiniteDifferenceDigitalEngine::default().price(&option, &market)?;
+    assert!(value <= 250.0 * (-0.04_f64).exp());
+    close(
+        value,
+        AnalyticDigitalEngine.price(&option, &market)?,
+        0.000_01,
+    );
+    Ok(())
+}
+
+#[test]
 fn saved_vanilla_matches_analytic_and_scalar_batch_contracts() {
     let solution = FiniteDifferenceVanillaEngine::default()
         .solve(&option(), &market(200.0), 80.0..=120.0)

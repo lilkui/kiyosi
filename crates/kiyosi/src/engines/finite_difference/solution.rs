@@ -16,6 +16,7 @@ pub trait FiniteDifferenceEngine<I = EuropeanOption>: PricingEngine<I> {
     /// Fixes valuation time, model inputs, contract and supplied history. Current
     /// observations use each queried spot. The interval need not contain the
     /// context's spot. Multiple financial states may require multiple rollbacks.
+    /// Range endpoints are in spot-price units. The solver uses log spot internally.
     /// Inputs remain unchanged; failure or cancellation returns no partial solution.
     ///
     /// # Errors
@@ -392,7 +393,7 @@ pub(super) fn probes(
 #[derive(PartialEq)]
 pub(super) struct Grid {
     pub space: SpatialGrid,
-    spline: Spline,
+    pub spline: Spline,
 }
 impl Grid {
     pub fn new(space: SpatialGrid, values: Vec<f64>) -> Self {

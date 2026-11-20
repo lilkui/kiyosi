@@ -179,7 +179,8 @@ fn native<T: AutocallableTerms>(
             rolled,
             settings,
             diffusion,
-            state.knocked_in
+            state.knocked_in,
+            rolled.spot_price()
         ))?);
     }
     let upper = grid.as_ref().map(|grid| grid.space.upper);
@@ -197,6 +198,7 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
     settings: FiniteDifferenceSettings,
     diffusion: D,
     starting_knocked: bool,
+    minimum_spot: f64,
 ) -> Result<AutocallableGrid> {
     let t = note.view();
     let daily = t.daily_knock_in();
@@ -254,6 +256,7 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
     let intervals = grid.times.partition_point(|&v| v < nearest);
     if intervals < near_steps {
         validate_workspace(
+            settings.scheme,
             u64::from(settings.asset_step_count.unsigned_abs()) + 1,
             (grid.widths.len() - intervals + near_steps) as u64,
             risk.workspace_bytes() + dividend.workspace_bytes(),
@@ -302,14 +305,35 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
             &dividend,
         )?,
     };
-    let mut space = SpatialGrid::new(
-        settings,
-        upper,
-        if upper > 4.0 * highest { highest } else { 0.0 },
-        highest.max(context.spot_price()),
-    )?;
+    if upper <= highest.max(context.spot_price()) {
+        return Err(super::invalid_grid(
+            "finite-difference upper bound must exceed spot and contract levels",
+        ));
+    }
+    let lowest = levels
+        .iter()
+        .copied()
+        .filter(|level| *level > 0.0)
+        .reduce(f64::min)
+        .unwrap_or(highest);
+    let width = super::diffusion_log_width(context, expiry, &risk, &dividend)?;
+    let mut lower = super::grid::spot_floor(
+        minimum_spot,
+        lowest,
+        (1.5 * width).max(std::f64::consts::LN_2),
+    );
+    if !D::LOCAL && !layered && t.knock_in.is_none() && event_times.iter().all(|&at| at == expiry) {
+        // A very distant terminal fixing has no representable lower-tail contribution.
+        let distance = crate::numerics::log_ratio(minimum_spot, highest);
+        let sigma_width = diffusion.sigma(0.0, minimum_spot) * time.sqrt();
+        let carry = dividend.log_factor(0.0, time) - risk.log_factor(0.0, time);
+        if 0.5 * distance > 50.0 * sigma_width + sigma_width * sigma_width + carry.abs() {
+            lower = super::scaled(minimum_spot, -0.5 * distance);
+        }
+    }
+    let mut space = SpatialGrid::new(settings.asset_step_count, [lower, upper], highest)?;
     if settings.scheme != FiniteDifferenceScheme::ExplicitEuler {
-        let scale = highest * (0.001 * (nearest * 365.0).min(1.0).sqrt()).max(64.0 * f64::EPSILON);
+        let scale = (0.001 * (nearest * 365.0).min(1.0).sqrt()).max(64.0 * f64::EPSILON);
         super::grid::concentrate(&mut space, levels, scale)?;
     }
     if !D::LOCAL {
@@ -317,7 +341,6 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
             &space,
             diffusion.sigma(0.0, 0.0),
             settings.scheme.theta(),
-            space.scale == 0.0 && space.nodes.is_empty(),
             &risk,
             &dividend,
         )?;
@@ -368,14 +391,15 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
             let q = dividend.rate(middle);
             let key = [dt, weight, rate, q];
             let discount = (-rate * dt).exp();
+            let dividend_discount = (-q * dt).exp();
             diffusion.advance(
                 &mut stepper,
                 &alive,
                 &mut next_alive,
                 &space,
-                [middle, 0.0],
+                middle,
                 key,
-                [alive[0] * discount, alive[size - 1] * discount],
+                space.discount_affine_edges(&alive, discount, dividend_discount),
             )?;
             std::mem::swap(&mut alive, &mut next_alive);
             if layered {
@@ -384,9 +408,9 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
                     &knocked,
                     &mut next_knocked,
                     &space,
-                    [middle, 0.0],
+                    middle,
                     key,
-                    [knocked[0] * discount, knocked[size - 1] * discount],
+                    space.discount_affine_edges(&knocked, discount, dividend_discount),
                 )?;
                 std::mem::swap(&mut knocked, &mut next_knocked);
             }
@@ -619,14 +643,15 @@ impl<T: AutocallableTerms> super::FiniteDifferenceEngine<AutocallableNote<T>>
             }
         }
         let grid = if pending {
-            let (rolled, _, _) = continuation_context(&anchor, start)?;
+            let (rolled, carry, _) = continuation_context(&anchor, start)?;
             let rolled = rolled.as_ref();
             Some(diffusion::with_diffusion!(rolled, |diffusion| solve_grid(
                 note,
                 rolled,
                 self.settings,
                 diffusion,
-                starting_knocked
+                starting_knocked,
+                super::scaled(*range.start(), carry)
             ))?)
         } else {
             None

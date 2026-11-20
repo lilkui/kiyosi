@@ -512,7 +512,7 @@ fn explicit_stability_uses_the_continuous_domain_and_settings_validate_eagerly()
             ..Default::default()
         })
         .unwrap();
-    for (steps, stable) in [(500, true), (50, false), (1, false)] {
+    for (steps, stable) in [(800, true), (50, false), (1, false)] {
         let engine = FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings {
             asset_step_count: 200,
             time_step_count: steps,
@@ -662,17 +662,23 @@ fn scheduled_explicit_stability_preserves_the_uniform_grid_boundary() {
     let mut t = terms(BarrierType::UpAndOut, OptionType::Call);
     t.observation_times = Some(vec![t.expiry_time]);
     let option = BarrierOption::new(t).unwrap();
-    let engine = FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings {
+    let settings = FiniteDifferenceSettings {
         asset_step_count: 200,
-        time_step_count: 1600,
+        time_step_count: 100,
         scheme: FiniteDifferenceScheme::ExplicitEuler,
         asset_upper_boundary: Some(400.0),
-    })
-    .unwrap();
+    };
+    let engine = FiniteDifferenceBarrierEngine::new(settings).unwrap();
     assert!(matches!(
         engine.price(&option, &market(100.0)).unwrap_err(),
         Error::InvalidInput(_)
     ));
+    let stable = FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings {
+        time_step_count: 800,
+        ..settings
+    })
+    .unwrap();
+    assert!(stable.price(&option, &market(100.0)).unwrap() > 0.0);
 }
 
 #[test]
