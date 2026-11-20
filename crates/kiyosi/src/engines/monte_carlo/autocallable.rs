@@ -199,6 +199,7 @@ impl MonteCarloAutocallableEngine {
         let daily = terms.daily_knock_in() && !state.knocked_in && note.knock_in_affects_payoff();
         let valuation = context.valuation_time();
         let dates = future_event_times(note, context, daily)?;
+        self.settings.validate_path_steps(dates.len())?;
         let mut previous = valuation;
         let sigma = model.volatility();
         let initial_spot = context.spot_price();
@@ -207,6 +208,7 @@ impl MonteCarloAutocallableEngine {
         let mut steps = Vec::with_capacity(dates.len());
         let mut next = note.events().partition_point(|r| r.time() <= valuation);
         for date in dates {
+            crate::cancellation::check()?;
             let (drift, diffusion, log_discount) = transition(
                 rate,
                 dividend,

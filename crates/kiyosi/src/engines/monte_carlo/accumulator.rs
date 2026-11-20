@@ -212,8 +212,11 @@ impl MonteCarloAccumulatorEngine {
             }
         };
         let mut previous = valuation;
-        let mut steps = Vec::new();
-        for date in option.future_observation_times(context)? {
+        let dates = option.future_observation_times(context)?;
+        self.settings.validate_path_steps(dates.len())?;
+        let mut steps = Vec::with_capacity(dates.len());
+        for date in dates {
+            crate::cancellation::check()?;
             let (drift, diffusion, log_discount) = transition(
                 rate,
                 dividend,

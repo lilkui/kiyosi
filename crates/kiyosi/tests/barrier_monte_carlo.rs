@@ -33,6 +33,35 @@ const KINDS: [BarrierType; 4] = [
 ];
 
 #[test]
+fn scheduled_barrier_checks_path_budget_before_building_steps() -> Result<()> {
+    let mut terms = terms(BarrierType::DownAndOut, OptionType::Call);
+    let start = terms.effective_time;
+    terms.expiry_time = start.add_micros(101)?;
+    terms.calendar = TradingCalendar::all_days();
+    terms.observation_times = Some(
+        (1..=100)
+            .map(|micros| start.add_micros(micros))
+            .collect::<Result<_>>()?,
+    );
+    let option = BarrierOption::new(terms)?;
+    let engine = MonteCarloBarrierEngine::new(MonteCarloSettings {
+        path_count: 10_000_000,
+        seed: Some(42),
+        ..Default::default()
+    })?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.0, 0.0, f64::from_bits(1))?,
+        100.0,
+        start,
+    )?;
+    assert!(matches!(
+        engine.price(&option, &context),
+        Err(Error::InvalidInput(message)) if message.contains("path steps")
+    ));
+    Ok(())
+}
+
+#[test]
 fn native_barrier_spot_controls_recover_near_boundary_greeks() -> Result<()> {
     let single = BarrierOption::new(terms(BarrierType::UpAndOut, OptionType::Call))?;
     let double = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(

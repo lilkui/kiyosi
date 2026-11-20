@@ -16,10 +16,24 @@ from kiyosi import (
     pricing,
 )
 from kiyosi.instruments import EuropeanOption
-from kiyosi.market import RateTermStructure
+from kiyosi.market import RateTermStructure, all_days_calendar
 from kiyosi.pricing import numerical_greeks
 from support.assertions import assert_rejection
 from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, option
+
+
+def test_scheduled_barrier_checks_path_budget_before_building_steps():
+    end = START + timedelta(microseconds=101)
+    contract = option(
+        "down_and_out",
+        "call",
+        expiry_time=end,
+        calendar=all_days_calendar(),
+        observation_times=[START + timedelta(microseconds=i) for i in range(1, 101)],
+    )
+    engine = pricing.MonteCarloBarrierEngine(path_count=10_000_000, seed=42)
+    with pytest.raises(InvalidInputError, match="path steps"):
+        engine.price(contract, market(volatility=math.ulp(0.0)))
 
 
 def test_tiny_volatility_payoffs_match_the_vanilla_limit(subtests):

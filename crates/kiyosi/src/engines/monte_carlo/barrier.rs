@@ -265,42 +265,23 @@ impl MonteCarloBarrierEngine {
         let duration = time.years_until(expiry);
         let drift = rate - dividend - 0.5 * sigma * sigma;
         let continuous = option.observation_mode() == ObservationMode::Continuous;
-        let mut dates = if continuous {
-            Vec::new()
-        } else {
-            option
-                .observation_times()
-                .unwrap_or(&[])
-                .iter()
-                .copied()
-                .filter(|date| *date > time)
-                .collect::<Vec<_>>()
-        };
-        if dates.last() != Some(&option.expiry_time()) {
-            dates.push(option.expiry_time());
-        }
+        let dates = option.observation_times().unwrap_or(&[]);
+        let dates = &dates[dates.partition_point(|&date| date <= time)..];
+        let extra = (dates.last() != Some(&expiry)).then_some((expiry, false));
+        let dimensions = dates.len() + usize::from(extra.is_some());
+        self.settings.validate_path_steps(dimensions)?;
         let mut previous = time;
-        let mut steps = Vec::with_capacity(dates.len());
-        for date in dates {
-            let next = date;
-            let dt = previous.years_until(next);
+        let mut steps = Vec::with_capacity(dimensions);
+        for (date, observe) in dates.iter().map(|&date| (date, true)).chain(extra) {
+            crate::cancellation::check()?;
+            let dt = previous.years_until(date);
             let width = sigma * dt.sqrt();
             let increment = drift * dt;
             if width <= 0.0 || !width.is_finite() || !increment.is_finite() {
                 return Err(unstable());
             }
-            steps.push((
-                increment,
-                width,
-                -rate * time.years_until(next),
-                !continuous
-                    && option
-                        .observation_times()
-                        .unwrap_or(&[])
-                        .binary_search(&date)
-                        .is_ok(),
-            ));
-            previous = next;
+            steps.push((increment, width, -rate * time.years_until(date), observe));
+            previous = date;
         }
         let spot = context.spot_price();
         let moneyness = log_ratio(spot, option.strike());

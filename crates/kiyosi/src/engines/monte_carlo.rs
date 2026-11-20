@@ -192,6 +192,16 @@ impl MonteCarloSettings {
         }
         Ok(())
     }
+
+    fn validate_path_steps(self, dimensions: usize) -> Result<()> {
+        if (self.path_count.unsigned_abs() as usize).saturating_mul(dimensions) > 1_000_000_000 {
+            return Err(Error::InvalidInput(
+                "Monte Carlo simulation exceeds one billion path steps; reduce paths or sampling dimensions"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -1102,13 +1112,8 @@ fn path_samples<const N: usize>(
     statistics: bool,
     payoff: impl Fn(&[f64]) -> Result<[f64; N]> + Sync,
 ) -> Result<([Moments; N], [Moments; N], u64)> {
+    settings.validate_path_steps(dimensions)?;
     let paths = settings.path_count as usize;
-    if paths.saturating_mul(dimensions) > 1_000_000_000 {
-        return Err(Error::InvalidInput(
-            "Monte Carlo simulation exceeds one billion path steps; reduce paths or sampling dimensions"
-                .into(),
-        ));
-    }
     let seed = settings.resolved_seed()?;
     let samples = if settings.antithetic {
         paths.div_ceil(2)
