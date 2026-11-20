@@ -64,6 +64,15 @@ def test_rejects_oversized_heston_workspace_before_pricing():
     assert engine.price(option(), market.replace(valuation_time=END)) == 0
 
 
+def test_single_row_heston_workspace_includes_asset_axis_buffers():
+    engine = FiniteDifferenceHestonVanillaEngine(
+        asset_step_count=7_000_000, time_step_count=1
+    )
+    market = context(model(vol_of_vol=0, initial_variance=1e6))
+    with pytest.raises(InvalidInputError, match="workspace"):
+        engine.price(option(), market)
+
+
 def test_heston_workspace_includes_off_grid_curve_knots():
     curve = RateTermStructure(
         reference_time=START,
@@ -72,8 +81,8 @@ def test_heston_workspace_includes_off_grid_curve_knots():
     )
     engine = FiniteDifferenceHestonVanillaEngine(
         asset_step_count=3,
-        variance_step_count=2_097_150,
-        time_step_count=21,
+        variance_step_count=2_003_246,
+        time_step_count=44,
         variance_upper_boundary=0.01,
     )
     with pytest.raises(InvalidInputError, match="workspace"):

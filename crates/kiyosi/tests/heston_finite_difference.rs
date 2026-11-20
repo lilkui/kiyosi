@@ -97,6 +97,30 @@ fn rejects_oversized_heston_workspace_before_pricing() {
 }
 
 #[test]
+fn single_row_heston_workspace_includes_asset_axis_buffers() -> kiyosi::Result<()> {
+    let (start, end) = dates();
+    let engine = FiniteDifferenceHestonVanillaEngine::new(HestonFiniteDifferenceSettings {
+        asset_step_count: 7_000_000,
+        time_step_count: 1,
+        ..Default::default()
+    })?;
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let model = context(0.0, 0.0).model_parameters().as_heston()?.replace(
+        kiyosi::HestonParameterChanges {
+            initial_variance: Some(1e6),
+            ..Default::default()
+        },
+    )?;
+    // The automatic domain overflows before allocation if the workspace check regresses.
+    let market = PricingContext::new(model, 100.0, start)?;
+    assert!(matches!(
+        engine.price(&option, &market),
+        Err(Error::InvalidInput(message)) if message.contains("workspace")
+    ));
+    Ok(())
+}
+
+#[test]
 fn heston_workspace_includes_off_grid_curve_knots() -> kiyosi::Result<()> {
     let (start, end) = dates();
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
@@ -110,8 +134,8 @@ fn heston_workspace_includes_off_grid_curve_knots() -> kiyosi::Result<()> {
     let market = PricingContext::new(model, 100.0, start)?;
     let engine = FiniteDifferenceHestonVanillaEngine::new(HestonFiniteDifferenceSettings {
         asset_step_count: 3,
-        variance_step_count: 2_097_150,
-        time_step_count: 21,
+        variance_step_count: 2_003_246,
+        time_step_count: 44,
         // Stop before the large allocation if the workspace check regresses.
         variance_upper_boundary: Some(0.01),
         ..Default::default()

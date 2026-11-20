@@ -277,7 +277,11 @@ fn prepare(
     mut payoff: Payoff,
     settings: HestonFiniteDifferenceSettings,
 ) -> Result<HestonState> {
-    const BYTES_PER_GRID_POINT: u64 = 128;
+    // Live values, multiplier, operator coefficients and both ADI stages.
+    const BYTES_PER_GRID_POINT: u64 = 112;
+    // Axis coordinates, derivative coefficients, and terminal and intrinsic payoffs.
+    const BYTES_PER_AXIS_NODE: u64 = 56;
+    const BYTES_PER_SOLVE_NODE: u64 = 32;
     const BYTES_PER_TIME_STEP: u64 = 24;
     let model = context.model_parameters().as_heston()?;
     let time = time_to_expiry(option, context)?;
@@ -320,10 +324,12 @@ fn prepare(
         u64::try_from(settings.variance_step_count).map_err(|_| unstable())? + 1
     };
     let steps = u64::try_from(settings.time_step_count).map_err(|_| unstable())?;
-    // Reserve for the live operator, rollback buffers, axes and time grid.
+    let grid_bytes = (assets * rows)
+        .saturating_mul(BYTES_PER_GRID_POINT)
+        .saturating_add((assets + rows) * BYTES_PER_AXIS_NODE)
+        .saturating_add(assets.max(rows) * BYTES_PER_SOLVE_NODE);
     let validate_grid = |time_steps, curve_bytes| {
-        if (assets * rows)
-            .saturating_mul(BYTES_PER_GRID_POINT)
+        if grid_bytes
             .saturating_add(time_steps * BYTES_PER_TIME_STEP)
             .saturating_add(curve_bytes)
             > WORKSPACE_BUDGET
