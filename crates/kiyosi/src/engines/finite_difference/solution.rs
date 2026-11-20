@@ -59,7 +59,6 @@ pub struct FiniteDifferenceSolution {
     context: PricingContext,
     range: RangeInclusive<f64>,
     supported: GreeksRequest,
-    deterministic_exercise: Option<(f64, usize)>,
     query_work: usize,
     value: Arc<dyn Erased>,
 }
@@ -104,7 +103,6 @@ impl FiniteDifferenceSolution {
         } else {
             GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Speed])
         };
-        let deterministic_exercise = backend.deterministic_exercise();
         let query_work = if context.valuation_time() < instrument.expiry_time()
             && context
                 .model_parameters()
@@ -121,8 +119,7 @@ impl FiniteDifferenceSolution {
             context: context.clone(),
             range,
             supported,
-            deterministic_exercise,
-            query_work: query_work.max(deterministic_exercise.map_or(0, |(_, count)| count)),
+            query_work,
             value: Arc::new(Prepared {
                 instrument,
                 backend,
@@ -324,12 +321,7 @@ impl FiniteDifferenceSolution {
     }
 
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
-        if let Some((boundary, _)) = self.deterministic_exercise {
-            let spot = context.spot_price();
-            spot - radius <= boundary && boundary <= spot + radius
-        } else {
-            self.value.contract().at_spot_discontinuity(context, radius)
-        }
+        self.value.at_spot_discontinuity(context, radius)
     }
 
     fn validate_spot(&self, spot: f64) -> Result<()> {
@@ -415,8 +407,11 @@ impl Grid {
 }
 
 pub(super) trait Backend<I>: PartialEq + Send + Sync + 'static {
-    fn deterministic_exercise(&self) -> Option<(f64, usize)> {
-        None
+    fn at_spot_discontinuity(&self, instrument: &I, context: &PricingContext, radius: f64) -> bool
+    where
+        I: OptionContract,
+    {
+        instrument.at_spot_discontinuity(context, radius)
     }
 
     fn query_work(&self, _instrument: &I, _context: &PricingContext) -> usize {
@@ -445,7 +440,7 @@ trait Erased: Send + Sync {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult>;
-    fn contract(&self) -> &dyn OptionContract;
+    fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool;
     fn as_any(&self) -> &dyn Any;
     fn same(&self, other: &dyn Erased) -> bool;
 }
@@ -464,8 +459,9 @@ where
         self.backend
             .evaluate(&self.instrument, context, request, shifts)
     }
-    fn contract(&self) -> &dyn OptionContract {
-        &self.instrument
+    fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
+        self.backend
+            .at_spot_discontinuity(&self.instrument, context, radius)
     }
     fn as_any(&self) -> &dyn Any {
         self

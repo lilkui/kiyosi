@@ -368,6 +368,37 @@ fn saved_deterministic_american_uses_dense_exercise_intervals() -> Result<()> {
 }
 
 #[test]
+fn deterministic_american_exercise_tie_has_undefined_spot_greeks() -> Result<()> {
+    let (start, end) = dates();
+    let nodes = vec![start.add_days(180)?, end];
+    let risk = RateTermStructure::new(start, nodes.clone(), vec![1.0, 61.0 / 64.0])?;
+    let dividend = RateTermStructure::new(start, nodes, vec![62.0 / 64.0; 2])?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(risk, dividend, 0.0)?,
+        150.0,
+        start,
+    )?;
+    let option = AmericanOption::new(OptionType::Call, 100.0, start, end)?;
+    let engine = FiniteDifferenceVanillaEngine::default();
+    let solution = engine.solve(&option, &context, 145.0..=155.0)?;
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
+    for result in [
+        engine.price_with_greeks(&option, &context, request)?,
+        solution.price_with_greeks(150.0, request, None)?,
+    ] {
+        close(result.price(), 50.0, 1e-12);
+        assert_eq!(result.status(Greek::Delta), GreekStatus::Undefined);
+        assert_eq!(result.status(Greek::Gamma), GreekStatus::Undefined);
+    }
+    for (spot, delta) in [(149.0, 62.0 / 64.0), (151.0, 1.0)] {
+        let result = solution.price_with_greeks(spot, request, None)?;
+        close(result.require(Greek::Delta)?, delta, 1e-9);
+        close(result.require(Greek::Gamma)?, 0.0, 1e-8);
+    }
+    Ok(())
+}
+
+#[test]
 fn saved_absorbing_heston_american_reports_its_exercise_intervals() -> Result<()> {
     let start = dates().0;
     let end = start.add_days(1200)?;

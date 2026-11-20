@@ -498,11 +498,7 @@ impl OptionContract for AmericanOption {
             return self.terms.at_spot_discontinuity(context, radius);
         }
         matches!(context.deterministic_until(end), Ok(time) if time == end)
-            && crate::engines::deterministic::american_exercise_boundary(self, context).is_ok_and(
-                |boundary| {
-                    let spot = context.spot_price();
-                    spot - radius <= boundary && boundary <= spot + radius
-                },
-            )
+            && crate::engines::deterministic::american_exercise_discontinuity(self, context, radius)
+                .unwrap_or(false)
     }
 }

@@ -588,10 +588,21 @@ impl<I: OptionContract> solution::Backend<I> for VanillaState {
         )?)
     }
 
-    fn deterministic_exercise(&self) -> Option<(f64, usize)> {
-        self.exercise
-            .as_ref()
-            .map(crate::engines::deterministic::AmericanExercise::metadata)
+    fn query_work(&self, _: &I, _: &PricingContext) -> usize {
+        self.exercise.as_ref().map_or(
+            0,
+            crate::engines::deterministic::AmericanExercise::interval_count,
+        )
+    }
+
+    fn at_spot_discontinuity(&self, option: &I, context: &PricingContext, radius: f64) -> bool {
+        if let Some(exercise) = &self.exercise {
+            exercise
+                .at_spot_discontinuity(context, radius)
+                .unwrap_or(false)
+        } else {
+            option.at_spot_discontinuity(context, radius)
+        }
     }
 }
 

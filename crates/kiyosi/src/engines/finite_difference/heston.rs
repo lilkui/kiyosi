@@ -546,11 +546,11 @@ impl HestonState {
     }
 }
 impl<I: OptionContract> super::solution::Backend<I> for HestonState {
-    fn deterministic_exercise(&self) -> Option<(f64, usize)> {
+    fn query_work(&self, _: &I, _: &PricingContext) -> usize {
         if let Self::Exercise(exercise) = self {
-            Some(exercise.metadata())
+            exercise.interval_count()
         } else {
-            None
+            0
         }
     }
 

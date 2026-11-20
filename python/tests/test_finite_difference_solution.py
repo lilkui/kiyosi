@@ -357,6 +357,39 @@ def test_saved_deterministic_american_uses_dense_exercise_intervals():
     assert solution.price_with_greeks(100, "delta").status("delta") == "undefined"
 
 
+def test_deterministic_american_exercise_tie_has_undefined_spot_greeks():
+    nodes = [START + timedelta(days=180), END]
+    market = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=RateTermStructure(
+                reference_time=START, times=nodes, factors=[1.0, 61 / 64]
+            ),
+            dividend_yield=RateTermStructure(
+                reference_time=START, times=nodes, factors=[62 / 64] * 2
+            ),
+            volatility=0,
+        ),
+        spot_price=150,
+        valuation_time=START,
+    )
+    instrument = ins.AmericanOption(
+        option_type="call", strike=100, effective_time=START, expiry_time=END
+    )
+    engine = pricing.FiniteDifferenceVanillaEngine()
+    solution = engine.solve(instrument, market, spot_range=(145, 155))
+    greeks = ["delta", "gamma"]
+    for result in (
+        engine.price_with_greeks(instrument, market, greeks),
+        solution.price_with_greeks(150, greeks),
+    ):
+        assert result.price == pytest.approx(50, rel=0, abs=1e-12)
+        assert result.status("delta") == result.status("gamma") == "undefined"
+    for spot, delta in ((149, 62 / 64), (151, 1)):
+        result = solution.price_with_greeks(spot, greeks)
+        assert result.delta == pytest.approx(delta, rel=0, abs=1e-9)
+        assert result.gamma == pytest.approx(0, rel=0, abs=1e-8)
+
+
 def test_expiry_deterministic_and_settlement_paths_ignore_unused_grid_bounds():
     engine = pricing.FiniteDifferenceDigitalEngine(asset_upper_boundary=1)
     instrument = ins.CashOrNothingOption(

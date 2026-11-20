@@ -57,6 +57,7 @@ pub(super) fn vanilla(
             &risk,
             &dividend,
             &market_exercise_times(context, end),
+            None,
         );
     }
     context.validate_curve_coverage(end)?;
@@ -78,17 +79,14 @@ pub(super) fn vanilla(
     discounted_intrinsic(payoff, spot, dividend_log, risk_log, moneyness)
 }
 
-pub(crate) fn american_exercise_boundary(
+pub(crate) fn american_exercise_discontinuity(
     option: &crate::AmericanOption,
     context: &PricingContext,
-) -> Result<f64> {
-    let model = context.model_parameters();
-    let start = context.valuation_time();
-    let end = option.expiry_time();
-    let risk = Curve::new(model.risk_free_curve(), start, end)?;
-    let dividend = Curve::new(model.dividend_curve(), start, end)?;
+    radius: f64,
+) -> Result<bool> {
     let payoff = Payoff::vanilla(option.option_type(), option.strike(), true);
-    exercise_boundary(payoff, &risk, &dividend)
+    AmericanExercise::new(payoff, context, option.expiry_time())?
+        .at_spot_discontinuity(context, radius)
 }
 
 fn exercise_boundary(payoff: Payoff, risk: &Curve, dividend: &Curve) -> Result<f64> {
@@ -134,8 +132,8 @@ impl AmericanExercise {
         })
     }
 
-    pub(super) fn metadata(&self) -> (f64, usize) {
-        (self.boundary, self.times.len())
+    pub(super) fn interval_count(&self) -> usize {
+        self.times.len()
     }
 
     pub(super) fn price(&self, context: &PricingContext) -> Result<f64> {
@@ -146,7 +144,45 @@ impl AmericanExercise {
             &self.risk,
             &self.dividend,
             &self.times,
+            None,
         )
+    }
+
+    pub(super) fn at_spot_discontinuity(
+        &self,
+        context: &PricingContext,
+        radius: f64,
+    ) -> Result<bool> {
+        let spot = context.spot_price();
+        if spot - radius <= self.boundary && self.boundary <= spot + radius {
+            return Ok(true);
+        }
+        let mut best = 0.0;
+        let mut best_log_delta = 0.0;
+        let mut alternative = 0.0;
+        let mut observe = |value, log_delta: f64| {
+            let distinct = (log_delta - best_log_delta).abs()
+                > 4.0 * f64::EPSILON * log_delta.abs().max(best_log_delta.abs()).max(1.0);
+            if value > best {
+                if distinct {
+                    alternative = best;
+                }
+                best = value;
+                best_log_delta = log_delta;
+            } else if distinct {
+                alternative = f64::max(alternative, value);
+            }
+        };
+        let price = market_exercise_value(
+            self.payoff,
+            context,
+            self.expiry,
+            &self.risk,
+            &self.dividend,
+            &self.times,
+            Some(&mut observe),
+        )?;
+        Ok(alternative > 0.0 && price - alternative <= 4.0 * f64::EPSILON * price)
     }
 }
 
@@ -176,6 +212,7 @@ fn market_exercise_value(
     risk: &Curve,
     dividend: &Curve,
     times: &[Timestamp],
+    observe: Option<&mut dyn FnMut(f64, f64)>,
 ) -> Result<f64> {
     let start = context.valuation_time();
     let spot = context.spot_price();
@@ -199,9 +236,9 @@ fn market_exercise_value(
         spot,
         0.0,
         start.years_until(expiry),
-        risk,
-        dividend,
+        [risk, dividend],
         knots,
+        observe,
     )
 }
 
@@ -258,9 +295,9 @@ pub(super) fn exercise_value(
         spot,
         start,
         end,
-        risk,
-        dividend,
+        [risk, dividend],
         knots.into_iter().chain([end]).map(|time| (time, None)),
+        None,
     )
 }
 
@@ -283,34 +320,45 @@ fn exercise_value_on_knots(
     spot: f64,
     start: f64,
     end: f64,
-    risk: &Curve,
-    dividend: &Curve,
+    [risk, dividend]: [&Curve; 2],
     knots: impl Iterator<Item = (f64, Option<f64>)>,
+    mut observe: Option<&mut dyn FnMut(f64, f64)>,
 ) -> Result<f64> {
-    let value = |dividend_log, risk_log, moneyness: Option<f64>| {
-        discounted_intrinsic(
-            payoff,
-            spot,
-            dividend_log,
-            risk_log,
-            moneyness.unwrap_or_else(|| log_ratio(spot, payoff.strike) + (dividend_log - risk_log)),
-        )
+    let moneyness = |dividend_log, risk_log, quoted: Option<f64>| {
+        quoted.unwrap_or_else(|| log_ratio(spot, payoff.strike) + (dividend_log - risk_log))
     };
     if !payoff.is_american() || start >= end {
-        return value(
-            dividend.log_factor(start, end),
-            risk.log_factor(start, end),
-            None,
-        );
+        let d = dividend.log_factor(start, end);
+        let r = risk.log_factor(start, end);
+        return discounted_intrinsic(payoff, spot, d, r, moneyness(d, r, None));
     }
     if spot == 0.0 && payoff.sign > 0.0 {
         return Ok(0.0);
     }
     let mut best = payoff.value(spot);
+    // Check only local maxima so a nearby knot on the same smooth branch cannot look like a tie.
+    let time_slope = |r: f64, q: f64, moneyness: f64| {
+        let slope = if r != 0.0 && q != 0.0 && r.signum() == q.signum() {
+            r.signum() * (log_ratio(r.abs(), q.abs()) - moneyness)
+        } else {
+            r - q
+        };
+        payoff.sign * slope
+    };
+    if let Some(observe) = &mut observe {
+        if time_slope(
+            risk.rate(start),
+            dividend.rate(start),
+            moneyness(0.0, 0.0, None),
+        ) <= 0.0
+        {
+            observe(best, 0.0);
+        }
+    }
     let mut a = start;
     let mut risk_log = Sum::default();
     let mut dividend_log = Sum::default();
-    for (b, moneyness) in knots {
+    for (b, quoted) in knots {
         crate::cancellation::check()?;
         let middle = a.midpoint(b);
         let r = risk.rate(middle);
@@ -321,17 +369,32 @@ fn exercise_value_on_knots(
                     - dividend_log.total();
             let t = a + log / (r - q);
             if t > a && t < b {
-                best = best.max(value(
-                    dividend_log.total() + dividend.log_factor(a, t),
-                    risk_log.total() + risk.log_factor(a, t),
-                    None,
-                )?);
+                let d = dividend_log.total() + dividend.log_factor(a, t);
+                let r_log = risk_log.total() + risk.log_factor(a, t);
+                let value =
+                    discounted_intrinsic(payoff, spot, d, r_log, moneyness(d, r_log, None))?;
+                best = best.max(value);
+                if let Some(observe) = &mut observe {
+                    if payoff.sign * r.signum() * (q - r) < 0.0 {
+                        observe(value, d);
+                    }
+                }
             }
         }
         // Advance by each interval to preserve short widths without rescanning prior knots.
         risk_log.add(risk.log_factor(a, b));
         dividend_log.add(dividend.log_factor(a, b));
-        best = best.max(value(dividend_log.total(), risk_log.total(), moneyness)?);
+        let (d, r_log) = (dividend_log.total(), risk_log.total());
+        let forward = moneyness(d, r_log, quoted);
+        let value = discounted_intrinsic(payoff, spot, d, r_log, forward)?;
+        best = best.max(value);
+        if let Some(observe) = &mut observe {
+            if time_slope(r, q, forward) >= 0.0
+                && (b >= end || time_slope(risk.rate(b), dividend.rate(b), forward) <= 0.0)
+            {
+                observe(value, d);
+            }
+        }
         a = b;
     }
     Ok(best)
