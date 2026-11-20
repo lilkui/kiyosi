@@ -322,22 +322,17 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
             let model = context.natural_bsm_parameters()?;
             let rate = model.flat_risk_free_rate()?;
             let dividend = model.flat_dividend_yield()?;
-            for (greek, curve, effective_rate, can_switch) in [
-                (Greek::Rho, model.risk_free_curve(), rate, dividend <= 0.0),
-                (
-                    Greek::DividendRho,
-                    model.dividend_curve(),
-                    dividend,
-                    rate >= 0.0,
-                ),
+            for (greek, curve, can_switch) in [
+                (Greek::Rho, model.risk_free_curve(), dividend <= 0.0),
+                (Greek::DividendRho, model.dividend_curve(), rate >= 0.0),
             ] {
                 if !requested.has(greek) || !can_switch {
                     continue;
                 }
-                let quote = curve
-                    .calendar_quote()
-                    .map_or(effective_rate, |(quote, _)| quote);
-                let shift = crate::risk::numerical::symmetric_shift(quote, settings.rate_shift);
+                let shift = crate::risk::numerical::symmetric_shift(
+                    curve.shift_origin(),
+                    settings.rate_shift,
+                );
                 if shift <= 0.0 || !(2.0 * shift).is_finite() {
                     continue;
                 }

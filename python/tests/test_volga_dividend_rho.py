@@ -1,7 +1,7 @@
 """Volga and parallel dividend-yield sensitivities through the public API."""
 
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 from kiyosi.instruments import AmericanOption, EuropeanOption
@@ -138,6 +138,27 @@ def test_parallel_dividend_curves_numerical_bumps_and_availability():
     assert actual.volga is not None
     assert actual.dividend_rho is None
     assert context.model_parameters.dividend_curve.factors == curve.factors
+
+
+def test_numerical_rate_greeks_require_distinct_parallel_shifts():
+    end = START + timedelta(microseconds=2)
+    curve = RateTermStructure(
+        reference_time=START,
+        times=[START + timedelta(microseconds=1), end],
+        factors=[1, 0.99],
+    ).shifted(1e15)
+    context = market(rate=curve, dividend=curve, sigma=1e6)
+    option = EuropeanOption(
+        option_type="call", strike=100, effective_time=START, expiry_time=end
+    )
+    engine = AnalyticEuropeanEngine()
+    request = ["rho", "dividend_rho"]
+    collapsed = numerical_greeks(engine, option, context, request, rate_shift=1e-4)
+    assert collapsed.status("rho") == "stencil_unavailable"
+    assert collapsed.status("dividend_rho") == "stencil_unavailable"
+    distinct = numerical_greeks(engine, option, context, request, rate_shift=1e7)
+    assert distinct.rho > 0
+    assert distinct.dividend_rho < 0
 
 
 def test_american_dividend_stencil_crossing_zero_keeps_one_estimator():

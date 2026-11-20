@@ -484,15 +484,8 @@ pub(crate) fn complete_greeks(
             result.set(request, Greek::Zomma, (high.1 - low.1) / (2.0 * v))?;
         }
     }
-    let quote = |curve: &crate::RateTermStructure| {
-        curve
-            .calendar_quote()
-            .map(|(rate, _)| rate)
-            .or_else(|| curve.exact_flat_rate())
-            .unwrap_or(0.0)
-    };
     if want(Greek::Rho) {
-        let r = symmetric_shift(quote(model.risk_free_curve()), settings.rate_shift);
+        let r = symmetric_shift(model.risk_free_curve().shift_origin(), settings.rate_shift);
         if r > 0.0 && (2.0 * r).is_finite() {
             result.set(
                 request,
@@ -502,7 +495,7 @@ pub(crate) fn complete_greeks(
         }
     }
     if want(Greek::DividendRho) {
-        let dividend = quote(model.dividend_curve());
+        let dividend = model.dividend_curve().shift_origin();
         let q = symmetric_shift(dividend, settings.rate_shift);
         if q > 0.0 && (2.0 * q).is_finite() {
             let evaluate = |shift| -> Result<f64> {

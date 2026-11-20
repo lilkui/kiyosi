@@ -15,6 +15,46 @@ fn market() -> (EuropeanOption, PricingContext) {
 }
 
 #[test]
+fn numerical_rate_greeks_require_distinct_parallel_shifts() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_micros(2)?;
+    let curve = RateTermStructure::new(start, vec![start.add_micros(1)?, end], vec![1.0, 0.99])?
+        .shifted(1e15)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(curve.clone(), curve, 1e6)?,
+        100.0,
+        start,
+    )?;
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let request = GreeksRequest::new([Greek::Rho, Greek::DividendRho]);
+    let evaluate = |rate_shift| {
+        numerical_greeks(
+            &AnalyticEuropeanEngine,
+            &option,
+            &context,
+            request,
+            NumericalShiftSettings {
+                rate_shift,
+                ..Default::default()
+            },
+        )
+    };
+    let collapsed = evaluate(1e-4)?;
+    assert_eq!(
+        collapsed.status(Greek::Rho),
+        GreekStatus::StencilUnavailable
+    );
+    assert_eq!(
+        collapsed.status(Greek::DividendRho),
+        GreekStatus::StencilUnavailable
+    );
+    let distinct = evaluate(1e7)?;
+    assert!(distinct.require(Greek::Rho)? > 0.0);
+    assert!(distinct.require(Greek::DividendRho)? < 0.0);
+    Ok(())
+}
+
+#[test]
 fn implied_volatility_inherits_contract_rules_and_keeps_engine_overrides() -> Result<()> {
     struct BarrierEngine;
     impl PricingEngine<BarrierOption> for BarrierEngine {

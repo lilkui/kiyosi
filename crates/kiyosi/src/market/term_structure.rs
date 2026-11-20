@@ -526,6 +526,13 @@ impl RateTermStructure {
             self.forwards[index] + self.spread
         }))
     }
+    pub(crate) fn shift_origin(&self) -> f64 {
+        self.calendar_quote()
+            .map(|(rate, _)| rate)
+            .or(self.rate)
+            .unwrap_or(self.spread)
+    }
+
     /// Returns an owned parallel shift with unchanged coverage.
     ///
     /// The shift uses the calendar's annualization basis for calendar quotes
