@@ -24,7 +24,7 @@ jobs:
       id-token: write
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.release.tag_name }}
           persist-credentials: false
@@ -52,7 +52,7 @@ jobs:
           echo "run-id=$run_id" >> "$GITHUB_OUTPUT"
 
       - name: Download Linux distributions
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: distributions-ubuntu-26.04
           run-id: ${{ steps.ci.outputs.run-id }}
@@ -60,18 +60,26 @@ jobs:
           path: dist
 
       - name: Download Windows distributions
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: distributions-windows-2025-vs2026
           run-id: ${{ steps.ci.outputs.run-id }}
           github-token: ${{ github.token }}
           path: dist
 
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: '0.13.7'
+          python-version: '3.15'
+
+      - name: Install locked wheel tooling
+        run: |
+          uv venv .wheel-tools
+          uv pip sync --python .wheel-tools --require-hashes --only-binary :all: .github/cibuildwheel.txt
 
       - name: Check configured wheel matrix and source distribution
         run: |
-          uv run --no-project --with cibuildwheel -- python - <<'PY'
+          uv run --no-project --python .wheel-tools -- python - <<'PY'
           import subprocess
           import sys
           import tomllib
@@ -102,4 +110,4 @@ jobs:
           PY
 
       - name: Publish distributions
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1

@@ -1,0 +1,37 @@
+# Regenerate from cibuildwheel==<version> with uv pip compile --universal --python-version 3.12 --generate-hashes --no-header --no-annotate.
+bashlex==0.18 \
+    --hash=sha256:5bb03a01c6d5676338c36fd1028009c8ad07e7d61d8a1ce3f513b7fff52796ee \
+    --hash=sha256:91d73a23a3e51711919c1c899083890cdecffc91d8c088942725ac13e9dcfffa
+bracex==3.2.3 \
+    --hash=sha256:8d6d677856121820d67b9009e76a5740fb02ab6dcd2d9815a83724d1888c305d \
+    --hash=sha256:8fbf92b4db3c31de999145e22a47d4ffdbefb983a98583c3272bd7d570f9a343
+build==1.6.1 \
+    --hash=sha256:51cc11666391ab6f092070437ac747002ff46f3e4113a3622177ee6b488bfc53 \
+    --hash=sha256:ecd351a4be9d35a9eaaba244a7687143c9c7d4aea6ac964e7e7ddab20cbcf4e7
+certifi==2026.10.23 \
+    --hash=sha256:a9895e6e2758b371e0545e321a3a8fd1fcfd9829ada8824a936dfb16aaaf36cd \
+    --hash=sha256:e9b54de76e530bb6cf0ccd036787103acb58fd42ba930ea8bf948ddbaa2f61d1
+cibuildwheel==4.3.3 \
+    --hash=sha256:05bd519cad35780ef62554678437432b09b1e56daa20237a5fdc5af8419b5def \
+    --hash=sha256:c6dd74bbf639feb39177618b4cfd51d906300e1621b2cdf0ce68e933ead36987
+colorama==0.4.6 ; os_name == 'nt' \
+    --hash=sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44 \
+    --hash=sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6
+dependency-groups==1.3.2 \
+    --hash=sha256:8c337f7b92445823b0d0ea507f611390c58dcd2112be00aebcd738a2ca7a1c64 \
+    --hash=sha256:c81831f43828dbc3987ee247eb198241a0152b8e7ceab10977cc3808eb388ac7
+filelock==4.2.12 \
+    --hash=sha256:21decfec02f116ed4c954433cdb31f28c3b346b784543177b6d7059da2702ee9 \
+    --hash=sha256:7e7da24d3ac39268b0f156e56870001de44886318f092f9d851e692f7114d6dd
+humanize==4.17.0 \
+    --hash=sha256:02d0899527760efe18011944f882df4970943b4cdff7b5a0ba7fed43a576ef98 \
+    --hash=sha256:1d6a36c453dbfbb3f0b34601d2e0b4ce5d48d780305cd45714843f0068fde6ac
+packaging==26.3 \
+    --hash=sha256:94edc256424af38762eb31306eed28beb9f0efc50a8837492c9d6fd6004aed79 \
+    --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
+platformdirs==4.14.7 \
+    --hash=sha256:391513b74707c42335fff3ea17eaac657a7ee9ffcadd809634d34ea594d0122c \
+    --hash=sha256:5472257c1cf97a14658af52997011c7e59e4aebf3a24950b973c11b579e1b074
+pyproject-hooks==1.3.3 \
+    --hash=sha256:5fc53fdac9f7bd63fbcdc868fb5f90b4784d78a53a3d3388cd738b807441a20b \
+    --hash=sha256:defda19b854fa0d3bd4f76ea4ddcba8abd7dcfcdd585a6690ade050744fc5f43
