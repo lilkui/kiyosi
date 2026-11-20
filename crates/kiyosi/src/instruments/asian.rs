@@ -117,14 +117,11 @@ impl AverageTerms {
             if geometric {
                 total.add(a.midpoint(cumulative.total()) * weight);
             } else {
-                let growth = if delta == 0.0 {
-                    0.0
-                } else if delta > 0.0 {
-                    delta + (-(-delta).exp_m1() / delta).ln()
-                } else {
-                    (delta.exp_m1() / delta).ln()
-                };
-                total.add(crate::numerics::scaled_cash(context.spot_price(), a + growth) * weight);
+                total.add(crate::numerics::discounted_product(
+                    context.spot_price(),
+                    weight,
+                    a + crate::numerics::log_mean_exponential(delta),
+                ));
             }
         }
         if geometric {

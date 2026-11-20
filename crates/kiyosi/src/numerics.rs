@@ -237,6 +237,16 @@ pub(crate) fn discounted_product(scale: f64, weight: f64, log_discount: f64) -> 
     }
 }
 
+pub(crate) fn log_mean_exponential(log_growth: f64) -> f64 {
+    if log_growth == 0.0 {
+        0.0
+    } else if log_growth > 0.0 {
+        log_growth + (-(-log_growth).exp_m1() / log_growth).ln()
+    } else {
+        (log_growth.exp_m1() / log_growth).ln()
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct Sum {
     value: f64,

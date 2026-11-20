@@ -31,6 +31,18 @@ START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 KINDS = (ArithmeticAveragePriceOption, GeometricAveragePriceOption)
 
 
+def test_deterministic_arithmetic_weights_large_segment_before_scaling():
+    dividend = RateTermStructure(
+        reference_time=START, times=[END - timedelta(days=4), END], factors=[1, 100]
+    )
+    spot = 1e307
+    instrument = option(ArithmeticAveragePriceOption, strike=spot)
+    expected = spot * (4 / 365) * (99 / math.log(100) - 1)
+    assert pricing.MonteCarloAsianEngine().price(
+        instrument, market(spot, 0, rate=0, dividend=dividend)
+    ) == pytest.approx(expected, rel=1e-12)
+
+
 def market(spot=100, volatility=0.2, valuation=START, rate=0.04, dividend=0.01):
     return PricingContext(
         model_parameters=BlackScholesMertonParameters(

@@ -574,14 +574,7 @@ fn log_average_forward(
     times.dedup();
     let mut mean = f64::NEG_INFINITY;
     for pair in times.windows(2) {
-        let x = carry(pair[0], pair[1]);
-        let growth = if x == 0.0 {
-            0.0
-        } else if x > 0.0 {
-            x + (-(-x).exp_m1() / x).ln()
-        } else {
-            (x.exp_m1() / x).ln()
-        };
+        let growth = crate::numerics::log_mean_exponential(carry(pair[0], pair[1]));
         mean = log_add(
             mean,
             carry(0.0, pair[0]) + growth + ((pair[1] - pair[0]) / future).ln(),

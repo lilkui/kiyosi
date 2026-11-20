@@ -1,5 +1,28 @@
 use kiyosi::*;
 
+#[test]
+fn deterministic_arithmetic_weights_large_segment_before_scaling() -> Result<()> {
+    let start = date(1, 1);
+    let expiry = start.add_days(365)?;
+    let dividend =
+        RateTermStructure::new(start, vec![start.add_days(361)?, expiry], vec![1.0, 100.0])?;
+    let spot = 1e307;
+    let market = PricingContext::new(
+        BlackScholesMertonParameters::new(0.0, dividend, 0.0)?,
+        spot,
+        start,
+    )?;
+    let option =
+        ArithmeticAveragePriceOption::new(OptionType::Call, spot, start, start, expiry, None)?;
+    let expected = spot * (4.0 / 365.0) * (99.0 / 100.0_f64.ln() - 1.0);
+    let price = MonteCarloAsianEngine::default().price(&option, &market)?;
+    assert!(
+        (price / expected - 1.0).abs() < 1e-12,
+        "{price} vs {expected}"
+    );
+    Ok(())
+}
+
 fn date(month: u32, day: u32) -> Timestamp {
     Date::new(2025, month, day).unwrap().start_of_day()
 }
