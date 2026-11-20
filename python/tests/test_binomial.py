@@ -99,6 +99,16 @@ def test_cash_digital_keeps_finite_price_when_discounted_payout_overflows():
         assert engine.price(large, context) == pytest.approx(expected, rel=1e-12)
 
 
+def test_one_step_gamma_falls_back_after_log_space_pricing():
+    option = contract(EuropeanOption, strike=100_000)
+    context = market(spot=100_000, rate=-700, dividend=-700)
+    engine = CoxRossRubinsteinVanillaEngine(step_count=1)
+    shift = 10_000
+    result = engine.price_with_greeks(option, context, "gamma", spot_shift=shift)
+    assert result.price == pytest.approx(1.0108647497978358e308, rel=1e-12)
+    assert abs(result.require("gamma") / result.price * shift**2) < 1e-12
+
+
 def test_american_rollback_budget_preserves_direct_tree_pricing():
     context = market()
     put = contract(AmericanOption, "put")

@@ -95,6 +95,27 @@ fn cash_digital_keeps_finite_price_when_discounted_payout_overflows() -> Result<
 }
 
 #[test]
+fn one_step_gamma_falls_back_after_log_space_pricing() -> Result<()> {
+    let (start, end) = dates();
+    let option = EuropeanOption::new(OptionType::Call, 100_000.0, start, end)?;
+    let context = market(100_000.0, -700.0, -700.0, 0.2);
+    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 1 })?;
+    let shift = 10_000.0;
+    let result = engine.price_with_greeks_with_settings(
+        &option,
+        &context,
+        GreeksRequest::new([Greek::Gamma]),
+        NumericalShiftSettings {
+            spot_shift: Some(shift),
+            ..Default::default()
+        },
+    )?;
+    assert!((result.price() / 1.010_864_749_797_835_8e308 - 1.0).abs() < 1e-12);
+    assert!((result.require(Greek::Gamma)? / result.price() * shift * shift).abs() < 1e-12);
+    Ok(())
+}
+
+#[test]
 fn american_rollback_budget_preserves_direct_tree_pricing() -> Result<()> {
     let (start, end) = dates();
     let context = market(100.0, 0.05, 0.02, 0.2);

@@ -354,7 +354,7 @@ fn native(
             .is_finite());
     if direct {
         let level = if request.has(Greek::Gamma) {
-            2
+            2.min(steps)
         } else {
             usize::from(request.has(Greek::Delta))
         };
