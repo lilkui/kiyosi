@@ -1,5 +1,5 @@
 use crate::conversions::integer;
-use crate::engines::{ShortPricing, binomial};
+use crate::engines::{binomial, vanilla_short_pricing};
 use crate::error::domain;
 use crate::instruments::accumulator;
 use crate::instruments::autocallable;
@@ -201,17 +201,6 @@ macro_rules! fd_engine {
     };
 }
 
-fn vanilla_short_pricing(
-    option: &impl kiyosi::OptionContract,
-    context: &kiyosi::PricingContext,
-) -> ShortPricing {
-    if context.valuation_time() == option.expiry_time() {
-        ShortPricing::Scalar
-    } else {
-        ShortPricing::Never
-    }
-}
-
 fd_engine!(
     /// The rollback work limit counts both layers when future purchases are possible.
     ///
@@ -260,33 +249,3 @@ fd_engine!(
     autocallable::AutocallableInstrument<'_>,
     autocallable::with_note,
 );
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::engines::ScalarRequest;
-    use kiyosi::{AmericanOption, BlackScholesMertonParameters, Date, EuropeanOption, OptionType};
-
-    #[test]
-    fn vanilla_terminal_prices_dispatch_inline() -> kiyosi::Result<()> {
-        let start = Date::new(2025, 1, 1)?.start_of_day();
-        let expiry = start.add_days(365)?;
-        let european = EuropeanOption::new(OptionType::Call, 100.0, start, expiry)?;
-        let american = AmericanOption::new(OptionType::Put, 100.0, start, expiry)?;
-        for (valuation, inline) in [
-            (expiry.add_micros(-1)?, false),
-            (expiry, true),
-            (expiry.add_micros(1)?, false),
-        ] {
-            let model = BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?;
-            let context = kiyosi::PricingContext::new(model, 100.0, valuation)?;
-            for policy in [
-                vanilla_short_pricing(&european, &context),
-                vanilla_short_pricing(&american, &context),
-            ] {
-                assert_eq!(policy.allows_inline(ScalarRequest::Price, &context), inline);
-            }
-        }
-        Ok(())
-    }
-}
