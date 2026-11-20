@@ -96,6 +96,69 @@ fn continuous_barrier_resolves_low_volatility_near_the_edge() -> Result<()> {
 }
 
 #[test]
+fn constant_local_volatility_resolves_continuous_barriers() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_days(365)?;
+    let bsm = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.0, 0.01)?,
+        100.0,
+        start,
+    )?;
+    let local = PricingContext::new(
+        LocalVolatilityParameters::new(
+            0.05,
+            0.0,
+            LocalVolatilitySurface::new(
+                vec![start, end],
+                vec![80.0, 120.0],
+                vec![vec![0.01; 2]; 2],
+            )?,
+        )?,
+        100.0,
+        start,
+    )?;
+    let vanilla = BarrierOption::new(BarrierOptionTerms::new(
+        OptionType::Call,
+        95.0,
+        start,
+        end,
+        99.9,
+        BarrierType::DownAndOut,
+    ))?;
+    let touch = TouchOption::cash(
+        TouchOptionTerms::new(start, end, 99.9, BarrierType::DownAndOut),
+        1.0,
+    )?;
+    let vanilla_engine = FiniteDifferenceBarrierEngine::default();
+    let touch_engine = FiniteDifferenceBinaryBarrierEngine::default();
+    let range = 99.95..=100.05;
+    for (actual, saved, expected) in [
+        (
+            vanilla_engine.price(&vanilla, &local)?,
+            vanilla_engine
+                .solve(&vanilla, &local, range.clone())?
+                .price(100.0)?,
+            AnalyticBarrierEngine.price(&vanilla, &bsm)?,
+        ),
+        (
+            touch_engine.price(&touch, &local)?,
+            touch_engine.solve(&touch, &local, range)?.price(100.0)?,
+            AnalyticBinaryBarrierEngine.price(&touch, &bsm)?,
+        ),
+    ] {
+        assert!(
+            (actual - expected).abs() < 0.005 * expected,
+            "{actual} != {expected}"
+        );
+        assert!(
+            (saved - expected).abs() < 0.005 * expected,
+            "{saved} != {expected}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn earlier_knock_out_preserves_rebate_greeks_at_later_barrier() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let first = start.add_days(365)?;

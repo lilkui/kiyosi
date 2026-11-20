@@ -4,9 +4,11 @@ from itertools import product
 
 import pytest
 from kiyosi import pricing
-from kiyosi.instruments import BarrierOption
+from kiyosi.instruments import BarrierOption, TouchOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
+    LocalVolatilityParameters,
+    LocalVolatilitySurface,
     PricingContext,
 )
 
@@ -86,6 +88,46 @@ def test_continuous_barrier_resolves_low_volatility_near_the_edge():
     saved = engine.solve(option, context, spot_range=(99.95, 100.05))
     assert engine.price(option, context) == pytest.approx(expected, rel=0.005)
     assert saved.price(100) == pytest.approx(expected, rel=0.005)
+
+
+def test_constant_local_volatility_resolves_continuous_barriers():
+    start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+    life = {"effective_time": start, "expiry_time": end}
+    barrier = {"barrier_level": 99.9, "barrier_type": "down_and_out"}
+    vanilla = BarrierOption(option_type="call", strike=95, **life, **barrier)
+    touch = TouchOption(payoff_type="cash", payout=1, **life, **barrier)
+    bsm = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0, volatility=0.01
+        ),
+        spot_price=100,
+        valuation_time=start,
+    )
+    local = bsm.replace(
+        model_parameters=LocalVolatilityParameters(
+            risk_free_rate=0.05,
+            dividend_yield=0,
+            surface=LocalVolatilitySurface(
+                times=[start, end], spots=[80, 120], values=[[0.01, 0.01]] * 2
+            ),
+        )
+    )
+    for option, analytic, engine in (
+        (
+            vanilla,
+            pricing.AnalyticBarrierEngine(),
+            pricing.FiniteDifferenceBarrierEngine(),
+        ),
+        (
+            touch,
+            pricing.AnalyticBinaryBarrierEngine(),
+            pricing.FiniteDifferenceBinaryBarrierEngine(),
+        ),
+    ):
+        expected = analytic.price(option, bsm)
+        saved = engine.solve(option, local, spot_range=(99.95, 100.05))
+        assert engine.price(option, local) == pytest.approx(expected, rel=0.005)
+        assert saved.price(100) == pytest.approx(expected, rel=0.005)
 
 
 def test_continuous_single_barriers_retain_exact_levels_near_knock_out(subtests):

@@ -257,13 +257,12 @@ fn solve_grid<D: Diffusion>(
             upper_barrier.unwrap_or(if up { option.barrier_level() } else { upper }),
         )?;
         if upper_barrier.is_none()
-            && !D::LOCAL
             && settings.scheme != super::FiniteDifferenceScheme::ExplicitEuler
         {
             space.resolve_barrier(
                 up,
                 contract.digital.map(DigitalOption::strike),
-                diffusion.sigma(0.0, 0.0),
+                diffusion.sigma(0.0, option.barrier_level()),
                 time,
                 &risk,
                 &dividend,
