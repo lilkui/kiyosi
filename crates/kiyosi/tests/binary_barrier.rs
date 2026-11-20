@@ -55,6 +55,22 @@ fn no_touch_preserves_survival_at_adjacent_barriers() -> Result<()> {
                 (price / expected - 1.0).abs() < 1e-12,
                 "{price} vs {expected}"
             );
+            let direction = if kind == BarrierType::UpAndOut {
+                OptionType::Put
+            } else {
+                OptionType::Call
+            };
+            let terms = BinaryBarrierTerms::new(direction, barrier, start, end, barrier, kind);
+            let binary = if contract.payout().is_some() {
+                BinaryBarrierOption::cash(terms, spot)?
+            } else {
+                BinaryBarrierOption::asset(terms)?
+            };
+            let price = AnalyticBinaryBarrierEngine.price(&binary, &context)?;
+            assert!(
+                (price / expected - 1.0).abs() < 1e-12,
+                "{direction:?} at {barrier}: {price} vs {expected}"
+            );
         }
     }
     Ok(())

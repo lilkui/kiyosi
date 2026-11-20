@@ -118,7 +118,17 @@ impl Contract<'_> {
                 rate,
             );
         }
-        if self.digital.is_none() && sigma * sigma == 0.0 {
+        // Survival alone pays when the strike lies outside the surviving region.
+        let digital = self.digital.filter(|digital| {
+            let strike_offset = log_ratio(digital.strike(), option.barrier_level()) - shift;
+            knock_in
+                || match (upper, digital.option_type()) {
+                    (true, OptionType::Put) => strike_offset < 0.0,
+                    (false, OptionType::Call) => strike_offset > 0.0,
+                    _ => true,
+                }
+        });
+        if digital.is_none() && sigma * sigma == 0.0 {
             let probability = hit_value(1.0, ratio.abs(), upper, rate - dividend, sigma, t, 0.0)?;
             let weight = if knock_in {
                 probability
@@ -139,11 +149,9 @@ impl Contract<'_> {
                 ))
             };
         }
-        let strike = self
-            .digital
-            .map_or(option.barrier_level(), DigitalOption::strike);
+        let strike = digital.map_or(option.barrier_level(), DigitalOption::strike);
         let strike_above = log_ratio(strike, option.barrier_level()) > shift;
-        let direction = self.digital.map(DigitalOption::option_type);
+        let direction = digital.map(DigitalOption::option_type);
         let call = direction == Some(OptionType::Call);
         let carry = rate - dividend;
         let ([width, x1, x2, y1, y2], reflected) =

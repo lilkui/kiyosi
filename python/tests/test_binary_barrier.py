@@ -103,6 +103,33 @@ def test_no_touch_preserves_survival_at_adjacent_barriers(signed_drift):
     assert price == pytest.approx(expected, abs=0, rel=2e-11)
 
 
+@pytest.mark.parametrize(
+    "barrier_type,option_type,toward,strike",
+    [("down_and_out", "call", 0, 80), ("up_and_out", "put", math.inf, 120)],
+    ids=["down-and-out-call", "up-and-out-put"],
+)
+def test_binary_knock_out_matches_no_touch_near_redundant_strike(
+    barrier_type, option_type, toward, strike
+):
+    barrier = math.nextafter(100, toward)
+    binary = ins.BinaryBarrierOption(
+        **make_terms(
+            barrier_type=barrier_type,
+            barrier_level=barrier,
+            option_type=option_type,
+            strike=strike,
+            payoff_type="cash",
+            payout=1e16,
+        )
+    )
+    touch = make_touch(barrier_type=barrier_type, barrier_level=barrier, payout=1e16)
+    engine = AnalyticBinaryBarrierEngine()
+    context = make_context(rate=0.05, dividend=0.02)
+    expected = engine.price(touch, context)
+    assert expected > 0
+    assert engine.price(binary, context) == pytest.approx(expected, abs=0, rel=1e-12)
+
+
 def test_strict_history_current_and_paid_cash_and_asset_settlement():
     engine = AnalyticBinaryBarrierEngine()
     for payoff_type in ("cash", "asset"):
