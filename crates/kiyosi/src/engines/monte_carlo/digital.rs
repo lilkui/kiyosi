@@ -72,10 +72,8 @@ impl MonteCarloDigitalEngine {
     ///
     /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     pub fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
-        Ok(self
-            .native(option, context, GreeksRequest::new([]), false)?
-            .0
-            .price())
+        self.price_with_seed(option, context)
+            .map(|(price, _)| price)
     }
 
     /// Returns a price with sampling standard error and an asymptotic 95% interval.

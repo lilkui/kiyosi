@@ -255,7 +255,6 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
         option: &AmericanOption,
         context: &PricingContext,
     ) -> Result<(f64, Option<u64>)> {
-        context.natural_bsm_parameters()?;
         self.american_price(option, context, true)
     }
     fn default_spot_shift(&self, _option: &AmericanOption, context: &PricingContext) -> f64 {
@@ -263,7 +262,6 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
     }
 
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        context.natural_bsm_parameters()?;
         <Self as PricingEngine<EuropeanOption>>::validate_applicability(self, context)
     }
 
@@ -276,8 +274,8 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
     }
 
     fn price(&self, option: &AmericanOption, context: &PricingContext) -> Result<f64> {
-        context.natural_bsm_parameters()?;
-        Ok(self.american_price(option, context, true)?.0)
+        self.price_with_seed(option, context)
+            .map(|(price, _)| price)
     }
 
     fn price_with_greeks_with_settings(

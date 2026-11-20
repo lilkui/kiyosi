@@ -531,17 +531,8 @@ macro_rules! asian_pricing {
                 prepare_seeded_request!(self, self.settings.sampling)
             }
             fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
-                context.natural_bsm_parameters()?;
-                Ok(self
-                    .native(
-                        &option.0,
-                        context,
-                        $geometric,
-                        GreeksRequest::new([]),
-                        false,
-                    )?
-                    .0
-                    .price())
+                self.price_with_seed(option, context)
+                    .map(|(price, _)| price)
             }
 
             fn price_with_greeks_with_settings(
