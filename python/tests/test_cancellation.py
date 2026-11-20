@@ -122,6 +122,47 @@ def test_greek_iterable_polls_signals_before_consuming_duplicates():
     assert engine.price_with_greeks(contract, market, ["delta", "delta"]) == expected
 
 
+@requires_cpu_timer
+def test_autocallable_observation_iterable_polls_signals_before_consuming_records():
+    from datetime import datetime
+    from itertools import repeat
+    from operator import length_hint
+
+    from kiyosi.instruments import (
+        AutocallableObservation,
+        KnockInObservation,
+        SnowballOption,
+    )
+    from kiyosi.market import all_days_calendar
+
+    start = datetime(2025, 1, 1)
+    end = datetime(2026, 1, 1)
+    record = AutocallableObservation.snowball(end, 110, coupon_rate=0.08)
+    records = repeat(record, 2_000_000)
+
+    class Observations:
+        def __iter__(self):
+            arm()
+            return records
+
+    note = SnowballOption(
+        maturity_coupon_rate=0.06,
+        initial_spot=100,
+        knock_in_level=80,
+        upper_strike=100,
+        lower_strike=60,
+        effective_time=start,
+        expiry_time=end,
+        knock_in_observation=KnockInObservation.at_expiry(),
+        autocall_observations=[record],
+        calendar=all_days_calendar(),
+    )
+    with pytest.raises(RequestInterrupted), cpu_interrupt() as arm:
+        note.replace(autocall_observations=Observations())
+    assert length_hint(records) > 0
+    assert note.autocall_observations == (record,)
+
+
 @pytest.mark.parametrize(
     "case",
     (

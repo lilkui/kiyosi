@@ -1,6 +1,7 @@
 use crate::calendar::{TradingCalendar, run_date_scan};
 use crate::conversions::{
-    integer_usize, python_timestamp, python_tuple, real, reals, supplied, timestamp, timestamps,
+    collect_values, integer_usize, python_timestamp, python_tuple, real, reals, supplied,
+    timestamp, timestamps,
 };
 use crate::error::domain;
 use pyo3::exceptions::{PyTypeError, PyValueError};
@@ -273,10 +274,9 @@ impl KnockInObservation {
 }
 
 pub(crate) fn records(values: &Bound<'_, PyAny>) -> PyResult<Vec<kiyosi::AutocallableObservation>> {
-    values
-        .try_iter()?
-        .map(|item| Ok(item?.extract::<PyRef<'_, AutocallableObservation>>()?.0))
-        .collect()
+    collect_values(values, |item| {
+        Ok(item.extract::<PyRef<'_, AutocallableObservation>>()?.0)
+    })
 }
 
 /// Snowball knock-out observation with a finite annual coupon.
@@ -479,7 +479,7 @@ macro_rules! phoenix_observation {
             }
         }
         fn $records(values: &Bound<'_, PyAny>) -> PyResult<Vec<kiyosi::$name>> {
-            values.try_iter()?.map(|item| Ok(item?.extract::<PyRef<'_, $name>>()?.0)).collect()
+            collect_values(values, |item| Ok(item.extract::<PyRef<'_, $name>>()?.0))
         }
     };
 }
