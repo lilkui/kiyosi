@@ -4,6 +4,7 @@ use std::{cell::RefCell, marker::PhantomData, sync::Arc};
 
 const BITS: usize = 52;
 const MASK: u64 = (1 << BITS) - 1;
+pub(super) const SEQUENCE_BYTES_PER_DIMENSION: usize = (BITS + 1) * size_of::<u64>();
 
 include!("sobol_joe_kuo.rs");
 
@@ -71,13 +72,18 @@ pub(super) struct SobolSequence {
     shifts: Vec<u64>,
 }
 
+pub(super) fn validate_dimensions(dimensions: usize) -> Result<()> {
+    if !(1..=21_201).contains(&dimensions) {
+        return Err(Error::InvalidInput(
+            "Sobol dimension must be in 1..=21,201".into(),
+        ));
+    }
+    Ok(())
+}
+
 impl SobolSequence {
     pub(super) fn new(dimensions: usize, seed: u64) -> Result<Self> {
-        if !(1..=21_201).contains(&dimensions) {
-            return Err(Error::InvalidInput(
-                "Sobol dimension must be in 1..=21,201".into(),
-            ));
-        }
+        validate_dimensions(dimensions)?;
         let mut directions = vec![0; dimensions * BITS];
         let mut shifts = Vec::with_capacity(dimensions);
         let mut polynomial = POLYNOMIAL_DATA.as_slice();

@@ -484,6 +484,7 @@ sampling_settings!(
         /// Monitoring uses continuous survival or the original
         /// fixing dates. Near-strike payoffs retain movements even when terminal spot
         /// rounds to strike. Only delta and gamma are returned.
+        /// Scheduled transition and sampling workspace is capped at 1 GiB per request.
     ]
 );
 
@@ -503,6 +504,7 @@ sampling_settings!(
     [
         /// Simulation uses trading days when knock-in matters,
         /// or observation dates and expiry otherwise.
+        /// Scheduled transition and sampling workspace is capped at 1 GiB per request.
     ]
 );
 
@@ -523,6 +525,7 @@ sampling_settings!(
     [
         /// Simulation uses the future trading dates. A current
         /// knock-out settles before any purchase.
+        /// Scheduled transition and sampling workspace is capped at 1 GiB per request.
     ]
 );
 

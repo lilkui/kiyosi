@@ -80,8 +80,9 @@ impl MonteCarloBarrierEngine {
     /// see the [caller-supplied history contract](crate).
     ///
     /// Returns [`crate::Error::UnsupportedOperation`] for nonconstant rate curves,
-    /// [`crate::Error::InvalidInput`] outside life,
-    /// [`crate::Error::InvalidInput`] for Sobol dimensions above 21,201, [`crate::Error::InvalidInput`] for impossible history,
+    /// [`crate::Error::InvalidInput`] outside life, for impossible history or Sobol
+    /// dimensions above 21,201, or when the scheduled transition and sampling
+    /// workspace exceeds 1 GiB per request,
     /// or [`crate::Error::ComputationFailure`] for unrepresentable paths,
     /// nonconvergent survival series or results.
     /// Operational failures retain their native [`std::io::Error`] through
@@ -276,9 +277,8 @@ impl MonteCarloBarrierEngine {
         let dates = &dates[dates.partition_point(|&date| date <= time)..];
         let extra = (dates.last() != Some(&expiry)).then_some((expiry, false));
         let dimensions = dates.len() + usize::from(extra.is_some());
-        self.settings.validate_path_steps(dimensions)?;
         let mut previous = time;
-        let mut steps = Vec::with_capacity(dimensions);
+        let mut steps = self.settings.scheduled_steps(dimensions)?;
         for (date, observe) in dates.iter().map(|&date| (date, true)).chain(extra) {
             crate::cancellation::check()?;
             let dt = previous.years_until(date);

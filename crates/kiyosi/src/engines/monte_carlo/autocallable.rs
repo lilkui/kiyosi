@@ -143,7 +143,8 @@ impl MonteCarloAutocallableEngine {
     /// Checks flat rates ([`crate::Error::UnsupportedOperation`]), then inclusive
     /// life and prior history. Invalid life or impossible history returns
     /// [`crate::Error::InvalidInput`]. Calendar compatibility follows
-    /// [`AutocallableNote::new`]. Sobol dimensions above 21,201
+    /// [`AutocallableNote::new`]. Sobol dimensions above 21,201 or transition and
+    /// sampling workspace above 1 GiB per request
     /// return [`crate::Error::InvalidInput`]. Non-finite paths,
     /// payments or uncertainty return [`crate::Error::ComputationFailure`].
     /// Entropy and thread failures preserve native I/O details through
@@ -199,13 +200,12 @@ impl MonteCarloAutocallableEngine {
         let daily = terms.daily_knock_in() && !state.knocked_in && note.knock_in_affects_payoff();
         let valuation = context.valuation_time();
         let dates = future_event_times(note, context, daily)?;
-        self.settings.validate_path_steps(dates.len())?;
         let mut previous = valuation;
         let sigma = model.volatility();
         let initial_spot = context.spot_price();
         let knock_in = terms.knock_in.map(|ki| log_ratio(ki.level, initial_spot));
         let below_knock_in = |log_return| knock_in.is_some_and(|level| log_return < level);
-        let mut steps = Vec::with_capacity(dates.len());
+        let mut steps = self.settings.scheduled_steps(dates.len())?;
         let mut next = note.events().partition_point(|r| r.time() <= valuation);
         for date in dates {
             crate::cancellation::check()?;

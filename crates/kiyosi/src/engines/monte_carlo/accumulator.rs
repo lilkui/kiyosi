@@ -141,7 +141,8 @@ impl MonteCarloAccumulatorEngine {
     /// [`crate::Error::InvalidInput`]; missing history returns [`crate::Error::MissingHistory`].
     /// Calendar compatibility is validated by [`Accumulator::new`]. Required curve
     /// coverage is checked before simulating future events.
-    /// Sobol dimensions above 21,201 return [`crate::Error::InvalidInput`].
+    /// Sobol dimensions above 21,201 or transition and sampling workspace
+    /// above 1 GiB per request return [`crate::Error::InvalidInput`].
     /// Non-finite paths, quantities, settlements or uncertainty return
     /// [`crate::Error::ComputationFailure`]. Entropy and thread failures retain native
     /// I/O details through [`crate::Error::Io`].
@@ -213,8 +214,7 @@ impl MonteCarloAccumulatorEngine {
         };
         let mut previous = valuation;
         let dates = option.future_observation_times(context)?;
-        self.settings.validate_path_steps(dates.len())?;
-        let mut steps = Vec::with_capacity(dates.len());
+        let mut steps = self.settings.scheduled_steps(dates.len())?;
         for date in dates {
             crate::cancellation::check()?;
             let (drift, diffusion, log_discount) = transition(

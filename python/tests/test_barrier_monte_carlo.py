@@ -581,7 +581,8 @@ def test_sobol_dimension_limit_includes_the_unobserved_expiry_leg():
         observation_times=dates,
     )
     engine = pricing.MonteCarloBarrierEngine(path_count=1, seed=42, sampling="sobol")
-    assert_rejection(InvalidInputError, engine.price, contract, market())
+    with pytest.raises(InvalidInputError, match="Sobol dimension"):
+        engine.price(contract, market(volatility=math.ulp(0.0)))
 
 
 def test_scaled_rare_hits_and_only_requested_greek_failures():

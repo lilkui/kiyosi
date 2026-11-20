@@ -4157,6 +4157,7 @@ class MonteCarloBarrierEngine(
     Monitoring uses continuous survival or the original
     fixing dates. Near-strike payoffs retain movements even when terminal spot
     rounds to strike. Only delta and gamma are returned.
+    Scheduled transition and sampling workspace is capped at 1 GiB per request.
     """
 
     def __eq__(self, other: object) -> bool: ...
@@ -4253,6 +4254,7 @@ class MonteCarloAutocallableEngine(
     the parent's first parallel request. Use spawn or max_active_workers=1.
     Simulation uses trading days when knock-in matters,
     or observation dates and expiry otherwise.
+    Scheduled transition and sampling workspace is capped at 1 GiB per request.
     """
 
     def __eq__(self, other: object) -> bool: ...
@@ -4341,6 +4343,7 @@ class MonteCarloAccumulatorEngine(_MonteCarloMethods[Accumulator, Accumulator]):
     the parent's first parallel request. Use spawn or max_active_workers=1.
     Simulation uses the future trading dates. A current
     knock-out settles before any purchase.
+    Scheduled transition and sampling workspace is capped at 1 GiB per request.
     """
 
     def __eq__(self, other: object) -> bool: ...

@@ -19,6 +19,7 @@ use crate::{
 
 const BLOCK_SIZE: usize = 256;
 const DEFAULT_STEP_COUNT: i32 = 50;
+const SCHEDULED_WORKSPACE_BUDGET: usize = 1 << 30;
 
 macro_rules! prepare_seeded_request {
     ($engine:expr, $settings:expr) => {{
@@ -202,11 +203,81 @@ impl MonteCarloSettings {
         }
         Ok(())
     }
+
+    fn sample_count(self) -> usize {
+        (self.path_count.unsigned_abs() as usize).div_ceil(if self.antithetic { 2 } else { 1 })
+    }
+
+    fn validate_scheduled_workspace<T>(self, dimensions: usize) -> Result<()> {
+        self.validate_path_steps(dimensions)?;
+        let blocks = self.sample_count().div_ceil(BLOCK_SIZE);
+        // Each active worker owns one block's normal buffer and, for Sobol, its cursor.
+        let workers = if self.max_active_workers == 0 {
+            blocks
+        } else {
+            blocks.min(self.max_active_workers.unsigned_abs() as usize)
+        };
+        let mut bytes_per_step = size_of::<T>() + workers * size_of::<f64>();
+        if self.sampling == MonteCarloSampling::Sobol {
+            sobol::validate_dimensions(dimensions)?;
+            bytes_per_step += sobol::SEQUENCE_BYTES_PER_DIMENSION + workers * size_of::<u64>();
+        }
+        if dimensions.saturating_mul(bytes_per_step) > SCHEDULED_WORKSPACE_BUDGET {
+            return Err(Error::InvalidInput(
+                "Monte Carlo transition and sampling workspace exceeds 1 GiB; reduce observations or active workers"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+
+    fn scheduled_steps<T>(self, dimensions: usize) -> Result<Vec<T>> {
+        self.validate_scheduled_workspace::<T>(dimensions)?;
+        Ok(Vec::with_capacity(dimensions))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn scheduled_workspace_counts_transitions_and_concurrent_sample_buffers() -> Result<()> {
+        type BarrierStep = (f64, f64, f64, Option<(f64, Option<f64>)>);
+        type WideStep = [f64; 64];
+        let settings = MonteCarloSettings {
+            path_count: 1,
+            ..Default::default()
+        };
+        let limit = SCHEDULED_WORKSPACE_BUDGET / (size_of::<BarrierStep>() + size_of::<f64>());
+        settings.validate_scheduled_workspace::<BarrierStep>(limit)?;
+        assert!(matches!(
+            settings.scheduled_steps::<BarrierStep>(limit + 1),
+            Err(Error::InvalidInput(message)) if message.contains("workspace")
+        ));
+
+        let limit = SCHEDULED_WORKSPACE_BUDGET / (size_of::<WideStep>() + size_of::<f64>());
+        let parallel = MonteCarloSettings {
+            path_count: 257,
+            max_active_workers: 2,
+            ..settings
+        };
+        assert!(matches!(
+            parallel.validate_scheduled_workspace::<WideStep>(limit),
+            Err(Error::InvalidInput(message)) if message.contains("workspace")
+        ));
+        MonteCarloSettings {
+            max_active_workers: 1,
+            ..parallel
+        }
+        .validate_scheduled_workspace::<WideStep>(limit)?;
+        MonteCarloSettings {
+            antithetic: true,
+            ..parallel
+        }
+        .validate_scheduled_workspace::<WideStep>(limit)?;
+        Ok(())
+    }
 
     #[test]
     fn cancelled_parallel_work_restores_worker_scopes() -> Result<()> {
@@ -1146,11 +1217,7 @@ fn path_samples<const N: usize>(
     settings.validate_path_steps(dimensions)?;
     let paths = settings.path_count as usize;
     let seed = settings.resolved_seed()?;
-    let samples = if settings.antithetic {
-        paths.div_ceil(2)
-    } else {
-        paths
-    };
+    let samples = settings.sample_count();
     let statistics = statistics
         && settings.sampling == MonteCarloSampling::PseudoRandom
         && (!settings.antithetic || paths % 2 == 0);
