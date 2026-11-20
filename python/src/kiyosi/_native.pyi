@@ -2425,7 +2425,9 @@ class QuadratureVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
     Uses Simpson integration for European options and Gaussian backward
     induction with piecewise cubic continuation interpolation for American
     options. American calls with nonnegative rates and nonpositive dividend
-    yields use the analytic European price. Requires flat-rate BSM parameters.
+    yields use the analytic European price. With one exercise interval,
+    American pricing takes the greater of immediate exercise and the analytic
+    European price without using a spatial grid. Requires flat-rate BSM parameters.
     Check spatial, time and
     integration-extent convergence separately; fixed-grid completion does not
     estimate error. Higher Greeks near exercise boundaries also require bump

@@ -126,9 +126,12 @@ fn short_vanilla(
     settings: kiyosi::QuadratureVanillaSettings,
     context: &kiyosi::PricingContext,
 ) -> bool {
-    european
-        && settings.asset_step_count
-            <= kiyosi::QuadratureVanillaSettings::default().asset_step_count
+    let bounded = if european {
+        settings.asset_step_count <= kiyosi::QuadratureVanillaSettings::default().asset_step_count
+    } else {
+        settings.time_step_count == 1
+    };
+    bounded
         && context.model_parameters().as_bsm().is_ok_and(|model| {
             model.risk_free_curve().nodes().is_empty() && model.dividend_curve().nodes().is_empty()
         })
@@ -145,7 +148,9 @@ quadrature_engine!(
     /// Uses Simpson integration for European options and Gaussian backward
     /// induction with piecewise cubic continuation interpolation for American
     /// options. American calls with nonnegative rates and nonpositive dividend
-    /// yields use the analytic European price. Requires flat-rate BSM parameters.
+    /// yields use the analytic European price. With one exercise interval,
+    /// American pricing takes the greater of immediate exercise and the analytic
+    /// European price without using a spatial grid. Requires flat-rate BSM parameters.
     /// Check spatial, time and
     /// integration-extent convergence separately; fixed-grid completion does not
     /// estimate error. Higher Greeks near exercise boundaries also require bump
@@ -218,14 +223,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn only_bounded_european_quadrature_uses_short_calls() -> kiyosi::Result<()> {
+    fn bounded_european_and_single_interval_american_quadrature_use_short_calls()
+    -> kiyosi::Result<()> {
         let start = kiyosi::Date::new(2025, 1, 1)?.start_of_day();
         let end = start.add_days(365)?;
         let model = kiyosi::BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?;
         let context = kiyosi::PricingContext::new(model.clone(), 100.0, start)?;
         let settings = kiyosi::QuadratureVanillaSettings::default();
+        let one_interval = kiyosi::QuadratureVanillaSettings {
+            time_step_count: 1,
+            asset_step_count: i32::MAX,
+            ..settings
+        };
         assert!(short_vanilla(true, settings, &context));
         assert!(!short_vanilla(false, settings, &context));
+        assert!(short_vanilla(false, one_interval, &context));
         assert!(!short_vanilla(
             true,
             kiyosi::QuadratureVanillaSettings {
@@ -250,6 +262,7 @@ mod tests {
                 ..Default::default()
             })?;
             assert!(!short_vanilla(true, settings, &context));
+            assert!(!short_vanilla(false, one_interval, &context));
         }
         Ok(())
     }

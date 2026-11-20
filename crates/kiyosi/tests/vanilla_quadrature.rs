@@ -130,9 +130,10 @@ fn american_quadrature_rejects_an_oversized_grid_before_rollback() -> Result<()>
 }
 
 #[test]
-fn american_one_interval_is_exercise_now_or_at_expiry() {
+fn american_one_interval_is_exercise_now_or_at_expiry_without_a_grid() {
     let (start, end) = dates();
     let engine = QuadratureVanillaEngine::new(QuadratureVanillaSettings {
+        asset_step_count: i32::MAX,
         time_step_count: 1,
         ..Default::default()
     })

@@ -59,8 +59,10 @@ impl QuadratureVanillaSettings {
 ///
 /// European pricing uses composite Simpson integration split at the strike.
 /// American calls use the analytic European price when rates are nonnegative
-/// and dividend yields are nonpositive. Other American pricing integrates cubic
-/// continuation curves on a strike-centered log-price grid, with linear interpolation in cells whose cubic control values
+/// and dividend yields are nonpositive. With one exercise interval, American pricing
+/// takes the greater of immediate exercise and the analytic European price without a grid.
+/// Other American pricing integrates cubic continuation curves on a strike-centered
+/// log-price grid, with linear interpolation in cells whose cubic control values
 /// exceed the endpoint range, and exercise at valuation, uniform time points and expiry.
 /// The last interval integrates the terminal payoff with exact Gaussian moments.
 /// In-the-money tails extend the edge values linearly in the asset; opposite
@@ -163,6 +165,10 @@ macro_rules! vanilla_pricing {
                 $(
                     if payoff.sign > 0.0 && rate >= 0.0 && dividend <= 0.0 {
                         return crate::AnalyticEuropeanEngine.price(option.$vanilla(), context);
+                    }
+                    if self.settings.time_step_count == 1 {
+                        let continuation = crate::AnalyticEuropeanEngine.price(option.$vanilla(), context)?;
+                        return Ok(continuation.max(payoff.value(context.spot_price())));
                     }
                 )?
                 let sigma = context.natural_bsm_parameters()?.volatility();

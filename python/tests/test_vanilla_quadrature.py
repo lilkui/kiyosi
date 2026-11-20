@@ -387,6 +387,19 @@ def test_shared_engine_supports_concurrent_pricing():
     assert actual == expected
 
 
+@pytest.mark.parametrize("spot", [50, 100])
+def test_american_one_interval_is_exercise_now_or_at_expiry_without_a_grid(spot):
+    engine = pricing.QuadratureVanillaEngine(
+        asset_step_count=2**31 - 1, time_step_count=1
+    )
+    context = market(spot=spot)
+    continuation = pricing.AnalyticEuropeanEngine().price(
+        contract(EuropeanOption, "put"), context
+    )
+    actual = engine.price(contract(AmericanOption, "put"), context)
+    assert actual == pytest.approx(max(100 - spot, continuation), rel=1e-12)
+
+
 def test_american_quadrature_rejects_an_oversized_grid_before_rollback():
     engine = pricing.QuadratureVanillaEngine(
         asset_step_count=2_000_000, time_step_count=2
