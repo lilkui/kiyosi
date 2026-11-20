@@ -369,13 +369,23 @@ fn prepare(
             ));
         }
     }
-    // A nearby spot anchor can shrink spacing across the entire concentrated mesh.
+    let mut asset_scale = 0.1 * spot.max(payoff.strike);
+    let width = payoff.strike * integrated.sqrt();
+    let mut levels = vec![payoff.strike];
+    if width < upper / f64::from(settings.asset_step_count) {
+        // Resolve the payoff kink and its drifted location when diffusion is narrow.
+        asset_scale = asset_scale.min(width).max(f64::EPSILON.sqrt());
+        levels.push(scaled_cash(
+            payoff.strike,
+            risk.log_factor(0.0, time) - dividend.log_factor(0.0, time),
+        ));
+    }
     let asset = space(
         settings.asset_step_count,
         upper,
         spot.max(payoff.strike),
-        (0.1 * spot.max(payoff.strike)).max(f64::MIN_POSITIVE),
-        vec![payoff.strike],
+        asset_scale,
+        levels,
     )?;
     let mut valuation_row = 0;
     let variance = if deterministic {

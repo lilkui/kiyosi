@@ -25,6 +25,30 @@ from kiyosi.pricing import (
 from test_heston import END, START, context, model, option, reference
 
 
+@pytest.mark.parametrize(
+    ("days", "spot", "tolerance"), [(1, 100.0, 1.5e-5), (365, 96.0, 3.5e-4)]
+)
+def test_heston_grid_resolves_low_integrated_variance(days, spot, tolerance):
+    contract = option(expiry_time=START + timedelta(days=days))
+    market = context(
+        model(
+            risk_free_rate=0.04,
+            dividend_yield=0.01,
+            initial_variance=0.005**2,
+            long_run_variance=0.005**2,
+            vol_of_vol=0,
+        ),
+        spot_price=spot,
+    )
+    expected = AnalyticHestonEuropeanEngine().price(contract, market)
+    engine = FiniteDifferenceHestonVanillaEngine()
+    saved = engine.solve(contract, market, spot_range=(spot - 0.01, spot + 0.01))
+    assert engine.price(contract, market) == pytest.approx(
+        expected, abs=tolerance, rel=0
+    )
+    assert saved.price(spot) == pytest.approx(expected, abs=tolerance, rel=0)
+
+
 def test_absorbing_heston_preserves_quoted_forward_payoffs():
     risk, dividend = (
         RateTermStructure(reference_time=START, times=[END], factors=[factor])

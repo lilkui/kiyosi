@@ -72,6 +72,36 @@ fn context(xi: f64, correlation: f64) -> PricingContext {
 }
 
 #[test]
+fn heston_grid_resolves_low_integrated_variance() -> kiyosi::Result<()> {
+    use kiyosi::FiniteDifferenceEngine;
+
+    let start = Date::new(2025, 1, 6)?.start_of_day();
+    let model = HestonParameters::new(kiyosi::HestonParameterInputs {
+        risk_free_rate: 0.04.into(),
+        dividend_yield: 0.01.into(),
+        initial_variance: 0.005_f64.powi(2),
+        long_run_variance: 0.005_f64.powi(2),
+        mean_reversion_speed: 1.5,
+        vol_of_vol: 0.0,
+        correlation: -0.7,
+    })?;
+    let engine = FiniteDifferenceHestonVanillaEngine::default();
+    for (days, spot, tolerance) in [(1, 100.0, 1.5e-5), (365, 96.0, 3.5e-4)] {
+        let contract = EuropeanOption::new(OptionType::Call, 100.0, start, start.add_days(days)?)?;
+        let market = PricingContext::new(model.clone(), spot, start)?;
+        let expected = AnalyticHestonEuropeanEngine::default().price(&contract, &market)?;
+        let saved = engine.solve(&contract, &market, spot - 0.01..=spot + 0.01)?;
+        for actual in [engine.price(&contract, &market)?, saved.price(spot)?] {
+            assert!(
+                (actual - expected).abs() < tolerance,
+                "{days}d: {actual} != {expected}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn rejects_oversized_heston_workspace_before_pricing() {
     let (start, end) = dates();
     let engine = FiniteDifferenceHestonVanillaEngine::new(HestonFiniteDifferenceSettings {
