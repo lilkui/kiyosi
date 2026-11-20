@@ -204,6 +204,7 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
         "curve_factors",
         "curve_shift",
         "heston_saved",
+        "accumulator_saved",
         "calendar_new",
         "calendar_layer",
         "surface",
@@ -219,13 +220,15 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 import sys
                 import threading
                 from datetime import datetime, time, timedelta
-                from kiyosi.instruments import AmericanOption, RangeAccrualOption
+                from kiyosi.instruments import Accumulator, AmericanOption, RangeAccrualOption
                 from kiyosi.market import (
-                    HestonParameters, LocalVolatilitySurface, PricingContext,
+                    BlackScholesMertonParameters, HestonParameters, LocalVolatilitySurface, PricingContext,
                     RateTermStructure, all_days_calendar, custom_calendar,
                     fixed_interval_schedule, weekdays_calendar,
                 )
-                from kiyosi.pricing import FiniteDifferenceHestonVanillaEngine
+                from kiyosi.pricing import (
+                    FiniteDifferenceAccumulatorEngine, FiniteDifferenceHestonVanillaEngine,
+                )
 
                 start_time = datetime(1, 1, 1)
                 short_end = datetime(1, 1, 3)
@@ -294,6 +297,26 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                         option, context, spot_range=(80, 120),
                     )
                     operation = lambda: saved.price_many([90.0] * 32)
+                elif case == "accumulator_saved":
+                    end = start_time + timedelta(days=1)
+                    option = Accumulator(
+                        strike=100, knock_out_level=200, daily_quantity=1,
+                        acceleration_factor=1, effective_time=start_time, expiry_time=end,
+                        observation_clock_time=time(), calendar=calendar,
+                        knock_out_observation_times=(
+                            start_time + timedelta(seconds=i) for i in range(1, 86_400)
+                        ),
+                    )
+                    model = BlackScholesMertonParameters(
+                        risk_free_rate=0, dividend_yield=0, volatility=0,
+                    )
+                    context = PricingContext(
+                        model_parameters=model, valuation_time=start_time, spot_price=105,
+                    )
+                    saved = FiniteDifferenceAccumulatorEngine().solve(
+                        option, context, spot_range=(100, 110),
+                    )
+                    operation = lambda: saved.price_many([105.0] * 32)
                 elif case in ("calendar_new", "calendar_layer"):
                     closed = [start_time.date() + timedelta(days=i) for i in range(600_000)]
                     if case == "calendar_layer":
@@ -367,6 +390,8 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                     assert curve.parallel_shift == 0.0
                 elif case == "heston_saved":
                     assert all(abs(value - 10.0) < 1e-12 for value in operation())
+                elif case == "accumulator_saved":
+                    assert operation() == (10.0,) * 32
                 elif case in ("calendar_new", "calendar_layer"):
                     result = operation()
                     assert result.is_trading_day(closed[0]) == (case == "calendar_layer")

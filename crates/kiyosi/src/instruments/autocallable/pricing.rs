@@ -81,13 +81,15 @@ pub(crate) fn event_times_through<T: AutocallableTerms>(
     daily: bool,
     horizon: Timestamp,
 ) -> Result<Vec<Timestamp>> {
-    let mut times: Vec<_> = note
-        .events()
-        .iter()
-        .map(|r| r.time)
-        .skip_while(|&time| time <= context.valuation_time())
-        .take_while(|&time| time <= horizon)
-        .collect();
+    crate::cancellation::check()?;
+    let events = note.events();
+    let first = events.partition_point(|record| record.time <= context.valuation_time());
+    let count = events[first..].partition_point(|record| record.time <= horizon);
+    let mut times = Vec::with_capacity(count + 1);
+    for chunk in events[first..first + count].chunks(1024) {
+        crate::cancellation::check()?;
+        times.extend(chunk.iter().map(|r| r.time));
+    }
     if let Some(clock) = note.observation_clock_time().filter(|_| daily) {
         times.extend(crate::ObservationSchedule::daily_times(
             context.valuation_time(),
@@ -160,7 +162,8 @@ pub(crate) fn fixed_value_at<T: AutocallableTerms>(
         return None;
     }
     let mut coupons = 0.0;
-    for record in note.events().iter().rev().filter(|r| r.time > time) {
+    for record in note.events().iter().rev().take_while(|r| r.time > time) {
+        crate::cancellation::check().ok()?;
         let discount = discount(record.time)?;
         if !discount.is_normal()
             || record.has_knock_out()

@@ -595,6 +595,10 @@ struct BinaryState {
     digital: Option<super::VanillaState>,
 }
 impl<I: BinaryInstrument> super::solution::Backend<I> for BinaryState {
+    fn query_work(&self, option: &I, context: &PricingContext) -> usize {
+        super::solution::monitoring_query_work(option.saved_contract().monitoring, context)
+    }
+
     fn evaluate(
         &self,
         instrument: &I,

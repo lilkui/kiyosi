@@ -50,7 +50,7 @@ impl FiniteDifferenceSolution {
         queries: usize,
         operation: impl FnOnce() -> kiyosi::Result<T> + Send,
     ) -> PyResult<T> {
-        if queries > 32 || queries.saturating_mul(self.0.exercise_intervals()) > 1024 {
+        if queries > 32 || queries.saturating_mul(self.0.query_work()) > 1024 {
             domain(crate::cancellation::run(py, operation)?)
         } else {
             domain(operation())

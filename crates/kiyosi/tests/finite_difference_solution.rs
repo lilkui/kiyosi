@@ -349,7 +349,7 @@ fn saved_deterministic_american_uses_dense_exercise_intervals() -> Result<()> {
     let engine = FiniteDifferenceVanillaEngine::default();
     let solution = engine.solve(&option, &context, 80.0..=120.0)?;
     let delta = GreeksRequest::new([Greek::Delta]);
-    assert_eq!(solution.exercise_intervals(), 1200);
+    assert_eq!(solution.query_work(), 1200);
     close(solution.price(110.0)?, 10.0, 1e-12);
     close(
         solution
@@ -388,7 +388,7 @@ fn saved_absorbing_heston_american_reports_its_exercise_intervals() -> Result<()
     let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
     let engine = FiniteDifferenceHestonVanillaEngine::default();
     let solution = engine.solve(&option, &context, 80.0..=120.0)?;
-    assert_eq!(solution.exercise_intervals(), 1200);
+    assert_eq!(solution.query_work(), 1200);
     let values = solution.price_many(&[90.0, 110.0, 90.0])?;
     for (value, expected) in values.into_iter().zip([10.0, 0.0, 10.0]) {
         close(value, expected, 1e-12);

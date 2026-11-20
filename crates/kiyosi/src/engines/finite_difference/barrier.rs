@@ -840,6 +840,10 @@ struct BarrierState {
     vanilla: Option<super::VanillaState>,
 }
 impl<I: Contract> super::solution::Backend<I> for BarrierState {
+    fn query_work(&self, option: &I, context: &PricingContext) -> usize {
+        super::solution::monitoring_query_work(&option.monitoring().monitoring, context)
+    }
+
     fn evaluate(
         &self,
         option: &I,

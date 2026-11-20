@@ -365,6 +365,19 @@ struct AccumulatorState {
     grid: Option<AccumulatorGrid>,
 }
 impl super::solution::Backend<Accumulator> for AccumulatorState {
+    fn query_work(&self, option: &Accumulator, context: &PricingContext) -> usize {
+        let valuation = context.valuation_time();
+        if self.start <= valuation || option.knock_out_settled() == Some(true) {
+            return 0;
+        }
+        let days =
+            usize::try_from(valuation.date().days_until(self.start.date())).unwrap_or(usize::MAX);
+        let times = option.knock_out_observation_times().unwrap_or(&[]);
+        let future = times.partition_point(|&time| time <= self.start)
+            - times.partition_point(|&time| time <= valuation);
+        days.saturating_add(future).saturating_add(1)
+    }
+
     fn evaluate(
         &self,
         option: &Accumulator,

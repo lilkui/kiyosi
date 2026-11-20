@@ -60,6 +60,7 @@ pub struct FiniteDifferenceSolution {
     range: RangeInclusive<f64>,
     supported: GreeksRequest,
     deterministic_exercise: Option<(f64, usize)>,
+    query_work: usize,
     value: Arc<dyn Erased>,
 }
 
@@ -103,11 +104,25 @@ impl FiniteDifferenceSolution {
         } else {
             GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Speed])
         };
+        let deterministic_exercise = backend.deterministic_exercise();
+        let query_work = if context.valuation_time() < instrument.expiry_time()
+            && context
+                .model_parameters()
+                .variance_time_convention()
+                .calendar()
+                .is_some()
+        {
+            // A closed calendar can require scanning the full horizon before pricing.
+            usize::MAX
+        } else {
+            backend.query_work(&instrument, context)
+        };
         Self {
             context: context.clone(),
             range,
             supported,
-            deterministic_exercise: backend.deterministic_exercise(),
+            deterministic_exercise,
+            query_work: query_work.max(deterministic_exercise.map_or(0, |(_, count)| count)),
             value: Arc::new(Prepared {
                 instrument,
                 backend,
@@ -133,11 +148,10 @@ impl FiniteDifferenceSolution {
         self.supported
     }
 
-    /// Reports the number of deterministic American exercise intervals scanned per spot.
+    /// Estimates per-spot work for dispatching cancellable queries.
     #[doc(hidden)]
-    pub fn exercise_intervals(&self) -> usize {
-        self.deterministic_exercise
-            .map_or(0, |(_, intervals)| intervals)
+    pub fn query_work(&self) -> usize {
+        self.query_work
     }
 
     /// Evaluates a spot without rollback; see [`FiniteDifferenceEngine::solve`].
@@ -347,6 +361,25 @@ pub(super) fn at_spot(context: &PricingContext, spot: f64) -> Result<PricingCont
     })
 }
 
+pub(super) fn monitoring_query_work(
+    monitoring: &crate::instruments::monitoring::Monitoring,
+    context: &PricingContext,
+) -> usize {
+    let start = context.valuation_time();
+    let end = monitoring.expiry_time();
+    if start >= end || !crate::engines::deterministic::enabled(context) {
+        return 0;
+    }
+    if monitoring.observation_mode() == crate::ObservationMode::Scheduled {
+        let times = monitoring.observation_times();
+        return times.len() - times.partition_point(|&time| time <= start);
+    }
+    let model = context.model_parameters();
+    let intervals = [model.risk_free_curve(), model.dividend_curve()]
+        .map(|curve| super::Curve::interval_count(curve, start, end));
+    usize::try_from(intervals[0] + intervals[1]).unwrap_or(usize::MAX)
+}
+
 pub(super) fn probes(
     range: &RangeInclusive<f64>,
     levels: impl IntoIterator<Item = f64>,
@@ -384,6 +417,10 @@ impl Grid {
 pub(super) trait Backend<I>: PartialEq + Send + Sync + 'static {
     fn deterministic_exercise(&self) -> Option<(f64, usize)> {
         None
+    }
+
+    fn query_work(&self, _instrument: &I, _context: &PricingContext) -> usize {
+        0
     }
 
     fn evaluate(

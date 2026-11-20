@@ -489,7 +489,9 @@ impl AutocallableState {
         if let Some(value) = state.settlement {
             return PricingResult::new(value);
         }
-        if let Some(value) = fixed_value_at(note, context, self.start, state.knocked_in) {
+        let fixed = fixed_value_at(note, context, self.start, state.knocked_in);
+        crate::cancellation::check()?;
+        if let Some(value) = fixed {
             let discount = deterministic::discount(context, self.start)?;
             let mut result =
                 PricingResult::new(scaled_signed_cash(value, discount) + state.coupon)?;
@@ -535,6 +537,25 @@ impl AutocallableState {
 }
 
 impl<T: AutocallableTerms> super::solution::Backend<AutocallableNote<T>> for AutocallableState {
+    fn query_work(&self, note: &AutocallableNote<T>, context: &PricingContext) -> usize {
+        if context.valuation_time() == note.expiry_time()
+            || note.barrier_state() == Some(AutocallableBarrierState::KnockedOut)
+        {
+            return 0;
+        }
+        let days = if note.view().daily_knock_in() {
+            usize::try_from(
+                context
+                    .valuation_date()
+                    .days_until(note.expiry_time().date()),
+            )
+            .unwrap_or(usize::MAX)
+        } else {
+            0
+        };
+        days.saturating_add(note.events().len())
+    }
+
     fn evaluate(
         &self,
         note: &AutocallableNote<T>,
