@@ -36,6 +36,33 @@ def test_scheduled_barrier_checks_path_budget_before_building_steps():
         engine.price(contract, market(volatility=math.ulp(0.0)))
 
 
+@pytest.mark.parametrize("scheduled", [False, True], ids=["continuous", "expiry"])
+def test_barrier_payoff_preserves_quoted_forward(scheduled):
+    scale = 2**50
+    curve = RateTermStructure(reference_time=START, times=[END], factors=[0.4])
+    context = market(40 * scale, rate=curve, dividend=0, volatility=1e-20)
+    contract = option(
+        "down_and_out",
+        "put",
+        strike=100 * scale,
+        barrier_level=20 * scale,
+        observation_times=[END] if scheduled else None,
+    )
+    expected = pricing.AnalyticEuropeanEngine().price(
+        EuropeanOption(
+            option_type="put", strike=100 * scale, effective_time=START, expiry_time=END
+        ),
+        context,
+    )
+    assert expected == pytest.approx(2.5, abs=1e-12, rel=0)
+    assert pricing.MonteCarloBarrierEngine(path_count=4096, seed=42).price(
+        contract, context
+    ) == pytest.approx(expected, abs=1e-4, rel=0)
+    assert pricing.QuadratureBarrierEngine().price(contract, context) == pytest.approx(
+        expected, abs=1e-8, rel=0
+    )
+
+
 def test_tiny_volatility_payoffs_match_the_vanilla_limit(subtests):
     sigma = 1e-17
     end = START + timedelta(days=365)

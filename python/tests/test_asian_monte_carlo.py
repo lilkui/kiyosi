@@ -13,7 +13,11 @@ from kiyosi import (
     UnsupportedOperationError,
     pricing,
 )
-from kiyosi.instruments import ArithmeticAveragePriceOption, GeometricAveragePriceOption
+from kiyosi.instruments import (
+    ArithmeticAveragePriceOption,
+    EuropeanOption,
+    GeometricAveragePriceOption,
+)
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
@@ -46,6 +50,24 @@ def option(kind, direction="call", strike=100, averaging=START, realized=None):
         expiry_time=END,
         realized_average=realized,
     )
+
+
+@pytest.mark.parametrize("kind", KINDS)
+def test_single_fixing_preserves_quoted_forward(kind):
+    scale = 2**50
+    curve = RateTermStructure(reference_time=START, times=[END], factors=[0.4])
+    context = market(40 * scale, 1e-20, rate=curve, dividend=0)
+    strike = 100 * scale
+    vanilla = EuropeanOption(
+        option_type="put", strike=strike, effective_time=START, expiry_time=END
+    )
+    expected = pricing.AnalyticEuropeanEngine().price(vanilla, context)
+    instrument = option(kind, "put", strike=strike, averaging=END)
+    value = pricing.MonteCarloAsianEngine(path_count=4096, seed=42).price(
+        instrument, context
+    )
+    assert expected == pytest.approx(2.5, abs=1e-12, rel=0)
+    assert value == pytest.approx(expected, abs=1e-4, rel=0)
 
 
 def test_constructor_exports_defaults_and_representation_errors(subtests):

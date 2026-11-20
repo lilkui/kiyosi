@@ -33,6 +33,36 @@ const KINDS: [BarrierType; 4] = [
 ];
 
 #[test]
+fn barrier_payoff_preserves_quoted_forward() -> Result<()> {
+    let mut terms = terms(BarrierType::DownAndOut, OptionType::Put);
+    let start = terms.effective_time;
+    let end = terms.expiry_time;
+    let scale = 2.0_f64.powi(50);
+    terms.strike = 100.0 * scale;
+    terms.barrier_level = 20.0 * scale;
+    let risk = RateTermStructure::new(start, vec![end], vec![0.4])?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(risk, 0.0, 1e-20)?,
+        40.0 * scale,
+        start,
+    )?;
+    let sampler = MonteCarloBarrierEngine::new(MonteCarloSettings {
+        path_count: 4096,
+        seed: Some(42),
+        ..Default::default()
+    })?;
+    for times in [None, Some(vec![end])] {
+        terms.observation_times = times;
+        let option = BarrierOption::new(terms.clone())?;
+        let sampled = sampler.price(&option, &context)?;
+        let integrated = QuadratureBarrierEngine::default().price(&option, &context)?;
+        assert!((sampled - 2.5).abs() < 1e-4, "{sampled}");
+        assert!((integrated - 2.5).abs() < 1e-8, "{integrated}");
+    }
+    Ok(())
+}
+
+#[test]
 fn scheduled_barrier_checks_path_budget_before_building_steps() -> Result<()> {
     let mut terms = terms(BarrierType::DownAndOut, OptionType::Call);
     let start = terms.effective_time;

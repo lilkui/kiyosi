@@ -199,7 +199,12 @@ pub(in crate::engines) fn continuous_price(
     let width = sigma * time.sqrt();
     let drift = (rate - dividend - 0.5 * sigma * sigma) * time;
     let barrier = log_ratio(option.barrier_level(), context.spot_price());
-    let strike = log_ratio(option.strike(), context.spot_price());
+    let carry = (rate - dividend) * time;
+    let mean_distance = |level| {
+        context.log_forward_moneyness(option.expiry_time(), level, carry) - (0.5 * width) * width
+    };
+    let strike_mean = mean_distance(option.strike());
+    let barrier_mean = mean_distance(option.barrier_level());
     if width <= 0.0 || !width.is_finite() || !drift.is_finite() {
         return Err(invalid_transition());
     }
@@ -210,8 +215,8 @@ pub(in crate::engines) fn continuous_price(
         } else {
             0.0
         };
-    let strike_normal = (strike - drift) / width;
-    let barrier_normal = (barrier - drift) / width;
+    let strike_normal = -strike_mean / width;
+    let barrier_normal = -barrier_mean / width;
     let knock_in = option.barrier_type().is_knock_in();
     let up = option.barrier_type().is_up();
     let sign = if option.option_type() == OptionType::Call {
@@ -292,8 +297,12 @@ pub(in crate::engines) fn continuous_price(
     breaks.dedup();
     let mut result = crate::numerics::Sum::default();
     result.add(super::simpson(&breaks, settings.asset_step_count, |z| {
-        let terminal = drift + width * z;
-        integrand(z, terminal - strike, barrier - terminal, 0.0)
+        integrand(
+            z,
+            width.mul_add(z, strike_mean),
+            (-width).mul_add(z, -barrier_mean),
+            0.0,
+        )
     })?);
     if !knock_in && option.rebate_timing() == RebateTiming::AtHit && rebate != 0.0 {
         result.add(hit_value(
@@ -485,6 +494,7 @@ struct PreparedCurve {
     option: BarrierOption,
     model: crate::BlackScholesMertonParameters,
     valuation: crate::Timestamp,
+    first_date: crate::Timestamp,
     nodes: Vec<f64>,
     layer: Layer,
     drift: f64,
@@ -497,12 +507,20 @@ fn scheduled_price(
     settings: QuadratureSettings,
     prepared: Option<&mut Option<PreparedCurve>>,
 ) -> Result<f64> {
-    let evaluate = |nodes: &[f64], layer: &Layer, drift, deviation, discount| {
+    let current = log_ratio(context.spot_price(), option.strike());
+    let mean = |date, drift, deviation| {
+        context
+            .quoted_log_forward_moneyness(date, option.strike())
+            .map_or(current + drift, |forward| {
+                forward - (0.5 * deviation) * deviation
+            })
+    };
+    let evaluate = |nodes: &[f64], layer: &Layer, date, drift, deviation, discount| {
         checked(layer.evaluate(
             nodes,
-            log_ratio(context.spot_price(), option.strike()),
+            mean(date, drift, deviation),
             option.strike(),
-            drift,
+            0.0,
             deviation,
             discount,
         ))
@@ -515,6 +533,7 @@ fn scheduled_price(
             return evaluate(
                 &curve.nodes,
                 &curve.layer,
+                curve.first_date,
                 curve.drift,
                 curve.deviation,
                 curve.discount,
@@ -535,14 +554,13 @@ fn scheduled_price(
     let horizon = context.valuation_time().years_until(option.expiry_time());
     let extent = settings.integration_standard_deviations * sigma * horizon.sqrt();
     let barrier = log_ratio(option.barrier_level(), option.strike());
-    let current = log_ratio(context.spot_price(), option.strike());
     if dates.len() == 1 && dates[0] == option.expiry_time() {
         let (drift, deviation, discount) = transition(horizon)?;
         return checked(integrate_terminal(
             &terminal_layer(option),
-            current,
+            mean(dates[0], drift, deviation),
             option.strike(),
-            drift,
+            0.0,
             deviation,
             discount,
         ));
@@ -580,12 +598,13 @@ fn scheduled_price(
         };
         let (drift, deviation, discount) = transition(time)?;
         if event == 0 {
-            let value = evaluate(&nodes, &layer, drift, deviation, discount)?;
+            let value = evaluate(&nodes, &layer, dates[0], drift, deviation, discount)?;
             if let Some(prepared) = prepared {
                 *prepared = Some(PreparedCurve {
                     option: option.clone(),
                     model: context.natural_bsm_parameters()?.clone(),
                     valuation: context.valuation_time(),
+                    first_date: dates[0],
                     nodes,
                     layer,
                     drift,

@@ -263,7 +263,14 @@ impl MonteCarloBarrierEngine {
         let dividend = model.flat_dividend_yield()?;
         let sigma = model.volatility();
         let duration = time.years_until(expiry);
-        let drift = rate - dividend - 0.5 * sigma * sigma;
+        let carry_rate = rate - dividend;
+        let half_variance_rate = 0.5 * sigma * sigma;
+        let drift = carry_rate - half_variance_rate;
+        let mean_distance = |date, level| {
+            let elapsed = time.years_until(date);
+            context.log_forward_moneyness(date, level, carry_rate * elapsed)
+                - half_variance_rate * elapsed
+        };
         let continuous = option.observation_mode() == ObservationMode::Continuous;
         let dates = option.observation_times().unwrap_or(&[]);
         let dates = &dates[dates.partition_point(|&date| date <= time)..];
@@ -276,17 +283,24 @@ impl MonteCarloBarrierEngine {
             crate::cancellation::check()?;
             let dt = previous.years_until(date);
             let width = sigma * dt.sqrt();
-            let increment = drift * dt;
-            if width <= 0.0 || !width.is_finite() || !increment.is_finite() {
+            let elapsed = time.years_until(date);
+            let mean = drift * elapsed;
+            if width <= 0.0 || !width.is_finite() || !mean.is_finite() {
                 return Err(unstable());
             }
-            steps.push((increment, width, -rate * time.years_until(date), observe));
+            let observation = observe.then(|| {
+                (
+                    mean_distance(date, option.barrier_level()),
+                    upper.map(|level| mean_distance(date, level)),
+                )
+            });
+            steps.push((mean, width, -rate * elapsed, observation));
             previous = date;
         }
         let spot = context.spot_price();
-        let moneyness = log_ratio(spot, option.strike());
+        let moneyness = mean_distance(expiry, option.strike());
         let barrier = log_ratio(option.barrier_level(), spot);
-        let upper_return = upper.map(|upper| log_ratio(upper, spot));
+        let terminal_barrier = mean_distance(expiry, option.barrier_level());
         let up = option.barrier_type().is_up();
         let knock_in = option.barrier_type().is_knock_in();
         let at_hit = option.rebate_timing() == RebateTiming::AtHit;
@@ -300,23 +314,25 @@ impl MonteCarloBarrierEngine {
         let gamma = request.has(Greek::Gamma);
         let (means, error, seed) = path_means(self.settings, steps.len(), statistics, |normals| {
             let mut terminal = 0.0;
+            let mut noise = 0.0;
             let mut touched = false;
             let mut knocked_out = 0.0;
-            for (&(increment, width, discount, observe), &z) in steps.iter().zip(normals) {
-                terminal += increment + width * z;
+            for (&(mean, width, discount, observation), &z) in steps.iter().zip(normals) {
+                noise = width.mul_add(z, noise);
+                terminal = mean + noise;
                 let asset = scaled_value(spot, 1.0, terminal)?;
                 if asset <= 0.0 {
                     return Err(unstable());
                 }
-                if observe
-                    && (if let Some(upper) = upper_return {
-                        terminal <= barrier || terminal >= upper
+                if observation.is_some_and(|(lower, upper)| {
+                    if let Some(upper) = upper {
+                        noise <= -lower || noise >= -upper
                     } else if up {
-                        terminal >= barrier
+                        noise >= -lower
                     } else {
-                        terminal <= barrier
-                    })
-                {
+                        noise <= -lower
+                    }
+                }) {
                     touched = true;
                 }
                 if touched && !knock_in {
@@ -329,7 +345,7 @@ impl MonteCarloBarrierEngine {
                 }
             }
             let asset = scaled_value(spot, 1.0, terminal)?;
-            let distance = moneyness + terminal;
+            let distance = moneyness + noise;
             let payoff = if distance.abs() < 0.5 {
                 option.strike() * distance.exp_m1()
             } else {
@@ -342,7 +358,7 @@ impl MonteCarloBarrierEngine {
             let (value, first, second) = if let (true, Some(upper)) = (continuous, upper) {
                 let [survival, first, second] = super::double_barrier::survival(
                     -barrier,
-                    terminal - barrier,
+                    terminal_barrier + noise,
                     log_ratio(upper, option.barrier_level()),
                     steps[0].1,
                     delta || gamma,
@@ -385,13 +401,14 @@ impl MonteCarloBarrierEngine {
                     if gamma { derivative(second)? } else { 0.0 },
                 )
             } else if continuous {
+                let distance_to_barrier = terminal_barrier + noise;
                 let live = if up {
-                    terminal < barrier
+                    distance_to_barrier < 0.0
                 } else {
-                    terminal > barrier
+                    distance_to_barrier > 0.0
                 };
                 let slope = if live {
-                    2.0 * ((barrier - terminal).abs() / steps[0].1) / steps[0].1
+                    2.0 * (distance_to_barrier.abs() / steps[0].1) / steps[0].1
                 } else {
                     0.0
                 };

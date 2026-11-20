@@ -294,20 +294,26 @@ impl MonteCarloAsianEngine {
         }
         let (means, standard_error, seed) = if geometric || single {
             let variance_time = if single { tau } else { lead + future / 3.0 };
+            let moneyness = if single {
+                let carry = model.dividend_curve().log_factor(valuation, expiry)? - log_discount;
+                context.log_forward_moneyness(expiry, o.terms.strike(), carry)
+            } else {
+                weight * log_ratio(context.spot_price(), o.terms.strike())
+            };
             let p = GeometricParameters {
                 spot: context.spot_price(),
                 strike: o.terms.strike(),
                 weight,
                 log_discount,
-                drift: if single && !flat {
-                    carry_between(0.0, tau) - 0.5 * sigma * sigma * tau
+                drift: if single {
+                    -0.5 * sigma * sigma * tau
                 } else {
-                    weight * drift_rate * if single { tau } else { lead + future / 2.0 }
+                    weight * drift_rate * (lead + future / 2.0)
                 },
                 width: sigma * (weight * variance_time.sqrt()),
                 log_width: sigma.ln() + weight.ln() + 0.5 * variance_time.ln(),
                 log_base_width: sigma.ln() + 0.5 * variance_time.ln(),
-                initial_moneyness: weight * log_ratio(context.spot_price(), o.terms.strike())
+                initial_moneyness: moneyness
                     + if valuation > start {
                         prior_weight * log_ratio(o.realized.unwrap_or(0.0), o.terms.strike())
                     } else {

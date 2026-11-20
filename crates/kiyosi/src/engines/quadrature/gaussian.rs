@@ -1,4 +1,6 @@
-use crate::numerics::{Sum, log_interval_mass, scaled_signed_cash};
+use crate::numerics::{
+    Sum, discounted_product, log_interval_mass, log_narrow_interval_mass, scaled_signed_cash,
+};
 use crate::{Error, Result, Timestamp};
 use std::collections::hash_map::{Entry, HashMap};
 
@@ -20,6 +22,10 @@ pub(super) struct TerminalPiece {
     pub asset: f64,
 }
 
+#[expect(
+    clippy::float_cmp,
+    reason = "Only an exact strike cash leg identifies a payoff anchored at zero."
+)]
 pub(super) fn integrate_terminal(
     pieces: &[TerminalPiece],
     log_spot: f64,
@@ -30,14 +36,36 @@ pub(super) fn integrate_terminal(
 ) -> f64 {
     let mut sum = Sum::default();
     let mean = log_spot + drift;
+    let forward = (0.5 * deviation).mul_add(deviation, mean);
     for piece in pieces {
         let lower = (piece.lower - mean) / deviation;
         let upper = (piece.upper - mean) / deviation;
-        if piece.cash != 0.0 {
-            sum.add(scaled_signed_cash(
-                piece.cash,
-                discount + log_interval_mass(lower, upper),
+        let log_mass = || log_interval_mass(lower, upper);
+        if deviation < 1e-5
+            && forward.abs() < 0.5
+            && piece.asset != 0.0
+            && piece.cash == -piece.asset * anchor
+        {
+            // Factor the small forward payoff and integrate the two CDF shifts as narrow strips.
+            let strip = |edge: f64| {
+                log_narrow_interval_mass(edge - 0.5 * deviation, deviation)
+                    .unwrap_or_else(|| log_interval_mass(edge - deviation, edge))
+            };
+            let asset = -piece.cash;
+            sum.add(discounted_product(
+                asset.abs(),
+                asset.signum() * forward.exp_m1(),
+                discount + log_mass(),
             ));
+            sum.add(scaled_signed_cash(asset, discount + forward + strip(lower)));
+            sum.add(scaled_signed_cash(
+                -asset,
+                discount + forward + strip(upper),
+            ));
+            continue;
+        }
+        if piece.cash != 0.0 {
+            sum.add(scaled_signed_cash(piece.cash, discount + log_mass()));
         }
         if piece.asset != 0.0 {
             sum.add(scaled_signed_cash(

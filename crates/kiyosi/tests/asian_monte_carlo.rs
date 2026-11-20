@@ -14,6 +14,39 @@ fn market(spot: f64, sigma: f64, valuation: Timestamp) -> PricingContext {
 }
 
 #[test]
+fn single_fixing_preserves_quoted_forward() -> Result<()> {
+    let start = date(1, 1);
+    let end = start.add_days(365)?;
+    let scale = 2.0_f64.powi(50);
+    let strike = 100.0 * scale;
+    let risk = RateTermStructure::new(start, vec![end], vec![0.4])?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(risk, 0.0, 1e-20)?,
+        40.0 * scale,
+        start,
+    )?;
+    let engine = MonteCarloAsianEngine::new(
+        MonteCarloSettings {
+            path_count: 4096,
+            seed: Some(42),
+            ..Default::default()
+        }
+        .into(),
+    )?;
+    let arithmetic =
+        ArithmeticAveragePriceOption::new(OptionType::Put, strike, start, end, end, None)?;
+    let geometric =
+        GeometricAveragePriceOption::new(OptionType::Put, strike, start, end, end, None)?;
+    for price in [
+        engine.price(&arithmetic, &context)?,
+        engine.price(&geometric, &context)?,
+    ] {
+        assert!((price - 2.5).abs() < 1e-4, "{price}");
+    }
+    Ok(())
+}
+
+#[test]
 fn geometric_exact_sampling_matches_analytic_and_ignores_steps() {
     let start = date(1, 1);
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
