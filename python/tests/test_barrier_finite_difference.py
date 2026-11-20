@@ -20,6 +20,39 @@ from support.assertions import assert_rejection
 from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, option
 
 
+@pytest.mark.parametrize(
+    "strike, scheduled",
+    [(75, True), (80, True), (80, False)],
+    ids=["later-barrier", "later-barrier-and-strike", "continuous"],
+)
+def test_earlier_knock_out_preserves_rebate_greeks_at_later_barrier(strike, scheduled):
+    expiry = START + timedelta(days=730)
+    risk = RateTermStructure(
+        reference_time=START, times=[END, expiry], factors=[0.9375, 0.96875]
+    )
+    contract = option(
+        "up_and_out",
+        strike=strike,
+        barrier_level=80,
+        expiry_time=expiry,
+        observation_times=[END, expiry] if scheduled else None,
+        rebate=10,
+    )
+    context = market(spot=77.5, rate=risk, dividend=0, volatility=0)
+    engine = pricing.FiniteDifferenceBarrierEngine()
+    result = engine.price_with_greeks(contract, context, ("delta", "rho"))
+    assert result.price == pytest.approx(9.6875)
+    assert result.delta == pytest.approx(0, abs=1e-12)
+    assert result.rho == pytest.approx(-19.375, abs=2e-7, rel=0)
+    saved = engine.solve(contract, context, spot_range=(77, 78))
+    assert saved.price_with_greeks(77.5, "delta").delta == pytest.approx(0, abs=1e-12)
+    last_only = contract.replace(observation_times=[expiry])
+    assert (
+        engine.price_with_greeks(last_only, context, "delta").status("delta")
+        == "undefined"
+    )
+
+
 def test_continuous_prices_and_greeks_against_live_quantlib(subtests):
 
     oracle = importlib.import_module("quantlib_reference.barrier")

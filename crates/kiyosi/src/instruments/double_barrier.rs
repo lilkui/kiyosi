@@ -230,11 +230,12 @@ impl OptionContract for DoubleBarrierOption {
         self.lower
             .monitoring
             .spot_discontinuity(context, radius, Some(self.upper))
-            || !self
-                .lower
-                .monitoring
-                .payoff_terminated(context, Some(self.upper))
-                && self.vanilla().at_spot_discontinuity(context, radius)
+            || self.lower.monitoring.live_payoff_discontinuity(
+                context,
+                radius,
+                Some(self.upper),
+                || self.vanilla().at_spot_discontinuity(context, radius),
+            )
     }
     fn time_stencil_available(
         &self,
@@ -248,11 +249,12 @@ impl OptionContract for DoubleBarrierOption {
         self.lower
             .monitoring
             .all_greeks_unavailable(context, Some(self.upper))
-            || !self
-                .lower
-                .monitoring
-                .payoff_terminated(context, Some(self.upper))
-                && self.vanilla().all_greeks_unavailable(context)
+            || self.lower.monitoring.live_payoff_discontinuity(
+                context,
+                0.0,
+                Some(self.upper),
+                || self.vanilla().all_greeks_unavailable(context),
+            )
     }
 }
 

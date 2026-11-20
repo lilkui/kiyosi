@@ -1,5 +1,56 @@
 use kiyosi::*;
 
+#[test]
+fn earlier_knock_out_preserves_rebate_greeks_at_later_barrier() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let first = start.add_days(365)?;
+    let expiry = start.add_days(730)?;
+    let risk = RateTermStructure::new(start, vec![first, expiry], vec![0.9375, 0.96875])?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(risk, 0.0, 0.0)?,
+        77.5,
+        start,
+    )?;
+    let mut terms = BarrierOptionTerms::new(
+        OptionType::Call,
+        75.0,
+        start,
+        expiry,
+        80.0,
+        BarrierType::UpAndOut,
+    );
+    terms.observation_times = Some(vec![first, expiry]);
+    terms.rebate = 10.0;
+    let option = BarrierOption::new(terms)?;
+    let engine = FiniteDifferenceBarrierEngine::default();
+    let request = GreeksRequest::new([Greek::Delta, Greek::Rho]);
+    for (strike, observation_times) in [
+        (75.0, Some(vec![first, expiry])),
+        (80.0, Some(vec![first, expiry])),
+        (80.0, None),
+    ] {
+        let contract = option.replace(BarrierOptionChanges {
+            strike: Some(strike),
+            observation_times: Some(observation_times),
+            ..Default::default()
+        })?;
+        let result = engine.price_with_greeks(&contract, &context, request)?;
+        assert!((result.price() - 9.6875).abs() < 1e-12);
+        assert!(result.require(Greek::Delta)?.abs() < 1e-12);
+        assert!((result.require(Greek::Rho)? + 19.375).abs() < 2e-7);
+        let saved = engine.solve(&contract, &context, 77.0..=78.0)?;
+        let saved = saved.price_with_greeks(77.5, request, None)?;
+        assert!(saved.require(Greek::Delta)?.abs() < 1e-12);
+    }
+    let last_only = option.replace(BarrierOptionChanges {
+        observation_times: Some(Some(vec![expiry])),
+        ..Default::default()
+    })?;
+    let result = engine.price_with_greeks(&last_only, &context, request)?;
+    assert_eq!(result.status(Greek::Delta), GreekStatus::Undefined);
+    Ok(())
+}
+
 fn terms(kind: BarrierType, direction: OptionType) -> BarrierOptionTerms {
     BarrierOptionTerms::new(
         direction,

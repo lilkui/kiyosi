@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use crate::{
     BarrierTouchState, BarrierType, Error, ObservationMode, ObservationSchedule, OptionContract,
     OptionType, PricingContext, Result, Timestamp, TradingCalendar,
@@ -20,6 +22,12 @@ pub(crate) struct Monitoring {
     barrier_type: BarrierType,
     schedule: ObservationSchedule,
     touch_state: Option<BarrierTouchState>,
+}
+
+#[derive(PartialEq, Eq)]
+enum DeterministicTouch {
+    Boundary,
+    Confirmed,
 }
 
 impl Monitoring {
@@ -151,60 +159,88 @@ impl Monitoring {
                 option_type == OptionType::Put && strike <= self.barrier_level()
             }
     }
-    pub(crate) fn payoff_terminated(&self, context: &PricingContext, upper: Option<f64>) -> bool {
-        self.state(context, upper)
-            .is_ok_and(|(_, touched, finished)| {
-                if self.barrier_type().is_knock_in() {
-                    !touched && finished
-                } else {
-                    touched
-                }
-            })
-    }
-    fn deterministic_discontinuity(
+    pub(crate) fn live_payoff_discontinuity(
         &self,
         context: &PricingContext,
         radius: f64,
         upper: Option<f64>,
+        payoff_discontinuity: impl FnOnce() -> bool,
     ) -> bool {
-        let start = context.valuation_time();
-        let Ok(end) = context.deterministic_until(self.expiry_time()) else {
-            return false;
+        let Ok((_, touched, finished)) = self.state(context, upper) else {
+            return payoff_discontinuity();
         };
-        if end <= start {
-            return false;
+        if self.barrier_type().is_knock_in() {
+            (touched || !finished) && payoff_discontinuity()
+        } else {
+            !touched
+                && payoff_discontinuity()
+                && self.deterministic_touch(context, radius, upper)
+                    != Some(DeterministicTouch::Confirmed)
         }
-        let model = context.model_parameters();
-        let crosses = |time| {
-            time >= start
-                && time <= end
-                && (context.forward_crosses(time, self.barrier_level(), radius)
-                    || upper.is_some_and(|level| context.forward_crosses(time, level, radius)))
+    }
+    fn deterministic_touch(
+        &self,
+        context: &PricingContext,
+        radius: f64,
+        upper: Option<f64>,
+    ) -> Option<DeterministicTouch> {
+        let start = context.valuation_time();
+        let end = context.deterministic_until(self.expiry_time()).ok()?;
+        if end <= start {
+            return None;
+        }
+        let lower_spot = (context.spot_price() - radius).max(0.0);
+        let upper_spot = context.spot_price() + radius;
+        let check_fixing = |time| {
+            let carry = context.forward_carry(time).ok()?;
+            let compare = |level, up| {
+                let low = context.forward_spot_cmp(time, lower_spot, level, carry)?;
+                let high = context.forward_spot_cmp(time, upper_spot, level, carry)?;
+                if low.is_le() && high.is_ge() {
+                    Some(DeterministicTouch::Boundary)
+                } else if (up && low == Ordering::Greater) || (!up && high == Ordering::Less) {
+                    // Every spot has touched. Later fixings cannot change that event.
+                    Some(DeterministicTouch::Confirmed)
+                } else {
+                    None
+                }
+            };
+            compare(self.barrier_level(), self.barrier_type().is_up())
+                .or_else(|| upper.and_then(|level| compare(level, true)))
         };
         let running = |_: &Timestamp| crate::cancellation::check().is_ok();
         if self.continuous() {
-            [start, end]
-                .into_iter()
-                .chain(
-                    [model.risk_free_curve(), model.dividend_curve()]
-                        .into_iter()
-                        .flat_map(|curve| {
-                            curve.nodes()[curve.nodes().partition_point(|&node| node < start)..]
-                                .iter()
-                                .copied()
-                                .take_while(|&node| node <= end)
-                        }),
-                )
+            let model = context.model_parameters();
+            let mut risk = model
+                .risk_free_curve()
+                .nodes_after(start)
+                .iter()
+                .copied()
+                .peekable();
+            let mut dividend = model
+                .dividend_curve()
+                .nodes_after(start)
+                .iter()
+                .copied()
+                .peekable();
+            let knots = std::iter::from_fn(|| match (risk.peek(), dividend.peek()) {
+                (Some(r), Some(q)) if r <= q => risk.next(),
+                (_, Some(_)) => dividend.next(),
+                _ => risk.next(),
+            });
+            std::iter::once(start)
+                .chain(knots.take_while(|&time| time < end))
+                .chain([end])
                 .take_while(running)
-                .any(crosses)
+                .find_map(check_fixing)
         } else {
             let times = self.observation_times();
-            times[times.partition_point(|&time| time <= start)..]
+            times[times.partition_point(|&time| time < start)..]
                 .iter()
                 .copied()
                 .take_while(|&time| time <= end)
                 .take_while(running)
-                .any(crosses)
+                .find_map(check_fixing)
         }
     }
 
@@ -215,7 +251,7 @@ impl Monitoring {
     ) -> bool {
         self.state(context, upper)
             .is_ok_and(|(_, touched, _)| !touched)
-            && self.deterministic_discontinuity(context, 0.0, upper)
+            && self.deterministic_touch(context, 0.0, upper) == Some(DeterministicTouch::Boundary)
     }
 
     pub(crate) fn spot_discontinuity(
@@ -227,9 +263,10 @@ impl Monitoring {
         let spot = context.spot_price();
         let crosses = |level| spot - radius <= level && level <= spot + radius;
         self.touch_state() != Some(BarrierTouchState::Touched)
-            && (self.deterministic_discontinuity(context, radius, upper)
-                || self.monitored(context.valuation_time())
-                    && (crosses(self.barrier_level()) || upper.is_some_and(crosses)))
+            && (self.monitored(context.valuation_time())
+                && (crosses(self.barrier_level()) || upper.is_some_and(crosses))
+                || self.deterministic_touch(context, radius, upper)
+                    == Some(DeterministicTouch::Boundary))
     }
 }
 impl OptionContract for Monitoring {
