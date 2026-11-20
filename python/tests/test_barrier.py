@@ -57,6 +57,39 @@ def make_context(spot=100, time=datetime(2025, 1, 1), **changes):
     )
 
 
+def test_later_guaranteed_touch_preserves_expiry_rebate_greeks():
+    start = datetime(2025, 1, 1)
+    first, second, end = [start + timedelta(days=days) for days in (1, 2, 3)]
+    risk = RateTermStructure(
+        reference_time=start, times=[first, second, end], factors=[0.5, 0.25, 0.125]
+    )
+    context = make_context(60, time=start).replace(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=risk, dividend_yield=0, volatility=0
+        )
+    )
+    expiry = BarrierOption(
+        **make_terms(
+            expiry_time=end,
+            observation_times=[first, second],
+            calendar=all_days_calendar(),
+            rebate=8,
+        )
+    )
+    engine = AnalyticBarrierEngine()
+    request = ["delta", "gamma"]
+    value = engine.price_with_greeks(expiry, context, request)
+    assert value.price == pytest.approx(1, rel=0, abs=1e-12)
+    assert value.delta == pytest.approx(0, rel=0, abs=1e-12)
+    assert value.gamma == pytest.approx(0, rel=0, abs=1e-12)
+
+    hit = expiry.replace(rebate_timing="at_hit")
+    value = engine.price_with_greeks(hit, context, request)
+    assert value.price == pytest.approx(4, rel=0, abs=1e-12)
+    assert value.status("delta") == "undefined"
+    assert value.status("gamma") == "undefined"
+
+
 def test_analytic_knock_out_preserves_narrow_paying_interval():
     adjacent = math.nextafter(100.0, 0.0)
     for scale, strike, dividend, expected in (

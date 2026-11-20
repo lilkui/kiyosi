@@ -227,15 +227,17 @@ impl OptionContract for DoubleBarrierOption {
         self.expiry_time()
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
-        self.lower
-            .monitoring
-            .spot_discontinuity(context, radius, Some(self.upper))
-            || self.lower.monitoring.live_payoff_discontinuity(
-                context,
-                radius,
-                Some(self.upper),
-                || self.vanilla().at_spot_discontinuity(context, radius),
-            )
+        self.lower.monitoring.spot_discontinuity(
+            context,
+            radius,
+            Some(self.upper),
+            self.lower.touch_timing_for_greeks(),
+        ) || self.lower.monitoring.live_payoff_discontinuity(
+            context,
+            radius,
+            Some(self.upper),
+            || self.vanilla().at_spot_discontinuity(context, radius),
+        )
     }
     fn time_stencil_available(
         &self,
@@ -246,15 +248,16 @@ impl OptionContract for DoubleBarrierOption {
         self.lower.time_stencil_available(context, before, after)
     }
     fn all_greeks_unavailable(&self, context: &PricingContext) -> bool {
-        self.lower
+        self.lower.monitoring.all_greeks_unavailable(
+            context,
+            Some(self.upper),
+            self.lower.touch_timing_for_greeks(),
+        ) || self
+            .lower
             .monitoring
-            .all_greeks_unavailable(context, Some(self.upper))
-            || self.lower.monitoring.live_payoff_discontinuity(
-                context,
-                0.0,
-                Some(self.upper),
-                || self.vanilla().all_greeks_unavailable(context),
-            )
+            .live_payoff_discontinuity(context, 0.0, Some(self.upper), || {
+                self.vanilla().all_greeks_unavailable(context)
+            })
     }
 }
 

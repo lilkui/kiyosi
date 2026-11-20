@@ -20,6 +20,39 @@ fn market(spot: f64, time: Timestamp) -> PricingContext {
 }
 
 #[test]
+fn later_guaranteed_touch_preserves_expiry_rebate_greeks() -> Result<()> {
+    let mut terms = terms(BarrierType::UpAndOut);
+    let start = terms.effective_time;
+    let first = start.add_days(1)?;
+    let second = start.add_days(2)?;
+    let end = start.add_days(3)?;
+    terms.expiry_time = end;
+    terms.calendar = TradingCalendar::all_days();
+    terms.observation_times = Some(vec![first, second]);
+    terms.rebate = 8.0;
+    let risk = RateTermStructure::new(start, vec![first, second, end], vec![0.5, 0.25, 0.125])?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(risk, 0.0, 0.0)?,
+        60.0,
+        start,
+    )?;
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
+    let expiry = BarrierOption::new(terms.clone())?;
+    let value = AnalyticBarrierEngine.price_with_greeks(&expiry, &context, request)?;
+    assert!((value.price() - 1.0).abs() < 1e-12);
+    assert!(value.require(Greek::Delta)?.abs() < 1e-12);
+    assert!(value.require(Greek::Gamma)?.abs() < 1e-12);
+
+    terms.rebate_timing = RebateTiming::AtHit;
+    let hit = BarrierOption::new(terms)?;
+    let value = AnalyticBarrierEngine.price_with_greeks(&hit, &context, request)?;
+    assert!((value.price() - 4.0).abs() < 1e-12);
+    assert_eq!(value.status(Greek::Delta), GreekStatus::Undefined);
+    assert_eq!(value.status(Greek::Gamma), GreekStatus::Undefined);
+    Ok(())
+}
+
+#[test]
 fn analytic_knock_out_preserves_narrow_paying_interval() -> Result<()> {
     let adjacent = libm::nextafter(100.0, 0.0);
     for (scale, strike, dividend, reference) in [

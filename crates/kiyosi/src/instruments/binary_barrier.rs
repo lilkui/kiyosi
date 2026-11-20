@@ -387,7 +387,7 @@ macro_rules! monitoring_accessors {
                 self.expiry_time()
             }
             fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
-                self.monitoring.at_spot_discontinuity(context, radius)
+                self.contract().spot_discontinuity(context, radius)
                     || self
                         .monitoring
                         .live_payoff_discontinuity(context, radius, None, || {
@@ -397,7 +397,8 @@ macro_rules! monitoring_accessors {
                         })
             }
             fn all_greeks_unavailable(&self, context: &PricingContext) -> bool {
-                self.monitoring.all_greeks_unavailable(context, None)
+                self.monitoring
+                    .all_greeks_unavailable(context, None, self.contract().timing)
                     || self
                         .monitoring
                         .live_payoff_discontinuity(context, 0.0, None, || {
@@ -473,6 +474,10 @@ impl Contract<'_> {
     }
     pub(crate) fn state(&self, context: &PricingContext) -> Result<(bool, bool, bool)> {
         self.monitoring.state(context, self.upper_barrier)
+    }
+    pub(crate) fn spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
+        self.monitoring
+            .spot_discontinuity(context, radius, self.upper_barrier, self.timing)
     }
     pub(crate) fn payoff_requires_touch(&self) -> bool {
         self.digital.is_some_and(|digital| {

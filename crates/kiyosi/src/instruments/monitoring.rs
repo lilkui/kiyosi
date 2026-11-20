@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use crate::{
     BarrierTouchState, BarrierType, Error, ObservationMode, ObservationSchedule, OptionContract,
-    OptionType, PricingContext, Result, Timestamp, TradingCalendar,
+    OptionType, PricingContext, Result, SettlementTiming, Timestamp, TradingCalendar,
 };
 
 pub(crate) fn validate_upper(lower: f64, upper: f64) -> Result<()> {
@@ -174,7 +174,7 @@ impl Monitoring {
         } else {
             !touched
                 && payoff_discontinuity()
-                && self.deterministic_touch(context, radius, upper)
+                && self.deterministic_touch(context, radius, upper, SettlementTiming::AtExpiry)
                     != Some(DeterministicTouch::Confirmed)
         }
     }
@@ -183,6 +183,7 @@ impl Monitoring {
         context: &PricingContext,
         radius: f64,
         upper: Option<f64>,
+        timing: SettlementTiming,
     ) -> Option<DeterministicTouch> {
         let start = context.valuation_time();
         let end = context.deterministic_until(self.expiry_time()).ok()?;
@@ -208,8 +209,17 @@ impl Monitoring {
             compare(self.barrier_level(), self.barrier_type().is_up())
                 .or_else(|| upper.and_then(|level| compare(level, true)))
         };
+        let mut boundary = None;
+        let mut relevant_touch = |time| match check_fixing(time) {
+            Some(DeterministicTouch::Boundary) if timing == SettlementTiming::AtExpiry => {
+                // Later guaranteed touches can resolve whether the expiry payoff is activated.
+                boundary = Some(DeterministicTouch::Boundary);
+                None
+            }
+            touch => touch,
+        };
         let running = |_: &Timestamp| crate::cancellation::check().is_ok();
-        if self.continuous() {
+        let touch = if self.continuous() {
             let model = context.model_parameters();
             let mut risk = model
                 .risk_free_curve()
@@ -232,7 +242,7 @@ impl Monitoring {
                 .chain(knots.take_while(|&time| time < end))
                 .chain([end])
                 .take_while(running)
-                .find_map(check_fixing)
+                .find_map(&mut relevant_touch)
         } else {
             let times = self.observation_times();
             times[times.partition_point(|&time| time < start)..]
@@ -240,18 +250,21 @@ impl Monitoring {
                 .copied()
                 .take_while(|&time| time <= end)
                 .take_while(running)
-                .find_map(check_fixing)
-        }
+                .find_map(&mut relevant_touch)
+        };
+        touch.or(boundary)
     }
 
     pub(crate) fn all_greeks_unavailable(
         &self,
         context: &PricingContext,
         upper: Option<f64>,
+        timing: SettlementTiming,
     ) -> bool {
         self.state(context, upper)
             .is_ok_and(|(_, touched, _)| !touched)
-            && self.deterministic_touch(context, 0.0, upper) == Some(DeterministicTouch::Boundary)
+            && self.deterministic_touch(context, 0.0, upper, timing)
+                == Some(DeterministicTouch::Boundary)
     }
 
     pub(crate) fn spot_discontinuity(
@@ -259,14 +272,23 @@ impl Monitoring {
         context: &PricingContext,
         radius: f64,
         upper: Option<f64>,
+        timing: SettlementTiming,
     ) -> bool {
+        if self.touch_state() == Some(BarrierTouchState::Touched) {
+            return false;
+        }
         let spot = context.spot_price();
         let crosses = |level| spot - radius <= level && level <= spot + radius;
-        self.touch_state() != Some(BarrierTouchState::Touched)
-            && (self.monitored(context.valuation_time())
-                && (crosses(self.barrier_level()) || upper.is_some_and(crosses))
-                || self.deterministic_touch(context, radius, upper)
-                    == Some(DeterministicTouch::Boundary))
+        let current_boundary = self.monitored(context.valuation_time())
+            && (crosses(self.barrier_level()) || upper.is_some_and(crosses));
+        if current_boundary && timing == SettlementTiming::AtHit {
+            return true;
+        }
+        match self.deterministic_touch(context, radius, upper, timing) {
+            Some(DeterministicTouch::Boundary) => true,
+            Some(DeterministicTouch::Confirmed) => false,
+            None => current_boundary,
+        }
     }
 }
 impl OptionContract for Monitoring {
@@ -275,9 +297,6 @@ impl OptionContract for Monitoring {
     }
     fn expiry_time(&self) -> Timestamp {
         self.expiry_time()
-    }
-    fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
-        self.spot_discontinuity(context, radius, None)
     }
     fn time_stencil_available(
         &self,

@@ -126,7 +126,7 @@ fn native(
                 if uses_local_diffusion(context) {
                     let h =
                         crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
-                    let request = if option.spot_discontinuity(context, h, contract.upper_barrier) {
+                    let request = if contract.spot_discontinuity(context, h) {
                         GreeksRequest::new([])
                     } else {
                         request
@@ -164,7 +164,7 @@ fn native(
         end,
         request,
         shifts,
-        |radius| option.spot_discontinuity(context, radius, contract.upper_barrier),
+        |radius| contract.spot_discontinuity(context, radius),
         |context, request, shifts| {
             let grid = diffusion::with_diffusion!(context, |diffusion| solve_grid(
                 contract, context, settings, diffusion
@@ -472,7 +472,6 @@ impl BinaryGrid {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        let option = contract.monitoring;
         let spot = context.spot_price();
         let sample = self.grid.sample(spot);
         let scale = scaled(
@@ -486,7 +485,7 @@ impl BinaryGrid {
         let mut result =
             PricingResult::new(crate::numerics::checked_with_scale(sample[0], scale)?)?;
         let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
-        if !option.spot_discontinuity(context, h, contract.upper_barrier) {
+        if !contract.spot_discontinuity(context, h) {
             result.set(request, Greek::Delta, sample[1])?;
             result.set(request, Greek::Gamma, sample[2])?;
             if request.has(Greek::Speed) {
@@ -653,11 +652,7 @@ impl<I: BinaryInstrument> super::solution::Backend<I> for BinaryState {
                             context.spot_price(),
                             shifts.spot_shift_at(context.spot_price()),
                         );
-                        let request = if contract.monitoring.spot_discontinuity(
-                            context,
-                            h,
-                            contract.upper_barrier,
-                        ) {
+                        let request = if contract.spot_discontinuity(context, h) {
                             GreeksRequest::new([])
                         } else {
                             request
@@ -684,11 +679,7 @@ impl<I: BinaryInstrument> super::solution::Backend<I> for BinaryState {
                 end,
                 request,
                 shifts,
-                |radius| {
-                    contract
-                        .monitoring
-                        .spot_discontinuity(context, radius, contract.upper_barrier)
-                },
+                |radius| contract.spot_discontinuity(context, radius),
                 |context, request, shifts| {
                     self.grid
                         .as_ref()

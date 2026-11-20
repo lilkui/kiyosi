@@ -1,7 +1,7 @@
 use super::monitoring::Monitoring;
 use crate::{
     Error, EuropeanOption, ObservationSchedule, OptionContract, OptionType, PricingContext, Result,
-    Timestamp, TradingCalendar,
+    SettlementTiming, Timestamp, TradingCalendar,
 };
 
 /// Direction and activation behavior; see [`BarrierOption::new`].
@@ -257,7 +257,15 @@ impl BarrierOption {
         self.monitoring
             .payoff_requires_touch(self.option_type(), self.strike())
     }
+    pub(crate) fn touch_timing_for_greeks(&self) -> SettlementTiming {
+        if self.rebate() > 0.0 && self.rebate_timing() == RebateTiming::AtHit {
+            SettlementTiming::AtHit
+        } else {
+            SettlementTiming::AtExpiry
+        }
+    }
 }
+
 impl OptionContract for BarrierOption {
     fn volatility_affects_price(&self, context: &PricingContext) -> bool {
         let Ok((_, touched, finished)) = self.state(context) else {
@@ -275,7 +283,8 @@ impl OptionContract for BarrierOption {
         self.expiry_time()
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
-        self.monitoring.at_spot_discontinuity(context, radius)
+        self.monitoring
+            .spot_discontinuity(context, radius, None, self.touch_timing_for_greeks())
             || self
                 .monitoring
                 .live_payoff_discontinuity(context, radius, None, || {
@@ -283,7 +292,8 @@ impl OptionContract for BarrierOption {
                 })
     }
     fn all_greeks_unavailable(&self, context: &PricingContext) -> bool {
-        self.monitoring.all_greeks_unavailable(context, None)
+        self.monitoring
+            .all_greeks_unavailable(context, None, self.touch_timing_for_greeks())
             || self
                 .monitoring
                 .live_payoff_discontinuity(context, 0.0, None, || {
