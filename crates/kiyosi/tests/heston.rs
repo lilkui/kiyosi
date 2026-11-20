@@ -85,6 +85,26 @@ fn default_heston_budget_prices_high_correlation_call() -> Result<()> {
 }
 
 #[test]
+fn default_heston_budget_prices_deep_out_of_money_call() -> Result<()> {
+    let market = context(HestonParameters::new(HestonParameterInputs {
+        risk_free_rate: 0.05.into(),
+        dividend_yield: (-0.02).into(),
+        initial_variance: 0.005,
+        long_run_variance: 0.001,
+        mean_reversion_speed: 0.3,
+        vol_of_vol: 1.1,
+        correlation: 0.98,
+    })?);
+    let (start, end) = dates();
+    let call = EuropeanOption::new(OptionType::Call, 200.0, start, end)?;
+    let actual = AnalyticHestonEuropeanEngine::default().price(&call, &market)?;
+    // QuantLib 1.44 Gatheral with adaptive integration.
+    let expected = 0.225_029_733_623_573_95;
+    assert!((actual - expected).abs() < 1e-8, "{actual} != {expected}");
+    Ok(())
+}
+
+#[test]
 fn default_heston_refines_near_zero_call_prices() -> Result<()> {
     let start = dates().0;
     let call = EuropeanOption::new(OptionType::Call, 160.0, start, start.add_days(30)?)?;

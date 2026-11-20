@@ -13,7 +13,7 @@ use pyo3::prelude::*;
 ///     Finite nonnegative relative tolerance; defaults to 1e-8.
 /// max_evaluations : int, optional
 ///     Positive request-wide characteristic-function budget; defaults to
-///     20,000.
+///     100,000.
 ///
 /// Raises
 /// ------

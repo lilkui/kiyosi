@@ -67,6 +67,21 @@ def option(**changes):
     )
 
 
+def test_default_heston_budget_prices_deep_out_of_money_call():
+    parameters = model(
+        dividend_yield=-0.02,
+        initial_variance=0.005,
+        long_run_variance=0.001,
+        mean_reversion_speed=0.3,
+        vol_of_vol=1.1,
+        correlation=0.98,
+    )
+    price = AnalyticHestonEuropeanEngine().price(
+        option(strike=200), context(parameters)
+    )
+    assert price == pytest.approx(0.22502973362357395, abs=1e-8, rel=0)
+
+
 def reference(parameters, instrument, tolerance, *, exp_sinh=False):
     """Price a Heston option with QuantLib 1.44 Gatheral integration.
 
@@ -455,7 +470,7 @@ def test_numerical_controls_native_conversions_and_failure_state(subtests):
             engine.relative_tolerance,
             engine.max_evaluations,
         )
-    ) == ((1e-8, 1e-8, 20_000))
+    ) == ((1e-8, 1e-8, 100_000))
     for name in ("absolute_tolerance", "relative_tolerance"):
         assert (
             inspect.signature(AnalyticHestonEuropeanEngine).parameters[name].kind
