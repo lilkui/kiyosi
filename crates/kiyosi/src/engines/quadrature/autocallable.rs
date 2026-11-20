@@ -368,14 +368,15 @@ fn price<T: AutocallableTerms>(
     let drift_extent = (drift_rate * horizon).abs();
     let lower = 0.0_f64.min(breaks[0]) - drift_extent - extent;
     let upper = 0.0_f64.max(breaks[breaks.len() - 1]) + drift_extent + extent;
-    let nodes = integration_nodes(lower, upper, settings.asset_step_count, &breaks)?;
-    validate_scheduled_work(
-        &nodes,
-        &dates,
-        1 + usize::from(layers),
-        terminal.len(),
-        transition,
+    let layer_count = 1 + usize::from(layers);
+    let nodes = integration_nodes(
+        lower,
+        upper,
+        settings.asset_step_count,
+        &breaks,
+        layer_count,
     )?;
+    validate_scheduled_work(&nodes, &dates, layer_count, terminal.len(), transition)?;
     let interpolation = CubicInterpolation::new(&nodes);
     let terminal_in = if layers {
         self::terminal(note, event(note, note.expiry_time()), &breaks, true)
@@ -401,7 +402,7 @@ fn price<T: AutocallableTerms>(
     };
     let mut alive = layer(&terminal);
     let mut knocked = layer(&terminal_in);
-    let mut transitions = TransitionCache::default();
+    let mut transitions = TransitionCache::new(nodes.capacity(), layer_count)?;
     for index in (0..dates.len()).rev() {
         crate::cancellation::check()?;
         let final_event = index == dates.len() - 1;

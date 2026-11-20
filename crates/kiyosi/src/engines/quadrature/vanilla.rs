@@ -265,7 +265,7 @@ fn american_price(
     if !extent.is_finite() || !discount.is_finite() || deviation <= 0.0 {
         return Err(invalid_transition());
     }
-    let nodes = integration_nodes(-extent, extent, settings.asset_step_count, &[0.0])?;
+    let nodes = integration_nodes(-extent, extent, settings.asset_step_count, &[0.0], 1)?;
     validate_rollback_work(&nodes, drift_step, deviation, settings.time_step_count)?;
     let interpolation = CubicInterpolation::new(&nodes);
     let intrinsic: Vec<_> = nodes
@@ -289,7 +289,7 @@ fn american_price(
             asset: payoff.sign,
         }],
     };
-    let mut cache = TransitionCache::default();
+    let mut cache = TransitionCache::new(nodes.capacity(), 1)?;
     let mut values = vec![0.0; nodes.len()];
     for _ in 1..settings.time_step_count {
         crate::cancellation::check()?;

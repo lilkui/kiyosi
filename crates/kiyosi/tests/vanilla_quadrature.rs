@@ -114,6 +114,22 @@ fn american_quadrature_rejects_an_oversized_transition() -> Result<()> {
 }
 
 #[test]
+fn american_quadrature_rejects_an_oversized_grid_before_rollback() -> Result<()> {
+    let (start, end) = dates();
+    let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let context = market(100.0, 0.05, 0.02, 0.2);
+    let engine = QuadratureVanillaEngine::new(QuadratureVanillaSettings {
+        asset_step_count: 2_000_000,
+        time_step_count: 2,
+        ..Default::default()
+    })?;
+    assert!(
+        matches!(engine.price(&option, &context), Err(Error::InvalidInput(message)) if message.contains("workspace"))
+    );
+    Ok(())
+}
+
+#[test]
 fn american_one_interval_is_exercise_now_or_at_expiry() {
     let (start, end) = dates();
     let engine = QuadratureVanillaEngine::new(QuadratureVanillaSettings {

@@ -230,15 +230,17 @@ fn price(
                     upper,
                     settings.asset_step_count,
                     &[],
+                    count,
                 )?);
             }
         }
     }
-    let nodes = integration_nodes(lower, upper, settings.asset_step_count, &breaks)?;
+    let nodes = integration_nodes(lower, upper, settings.asset_step_count, &breaks, count)?;
+    drop(breaks);
     let terminal_pieces = layers[0].exact.len().max(layers[1].exact.len());
     validate_scheduled_work(&nodes, &dates, count, terminal_pieces, transition)?;
     let interpolation = CubicInterpolation::new(&nodes);
-    let mut transitions = TransitionCache::default();
+    let mut transitions = TransitionCache::new(nodes.capacity(), count)?;
     let mut continuation: [Vec<Polynomial>; 2] = Default::default();
     let mut next_knock_out = None;
     let mut remaining_purchases = 0_usize;

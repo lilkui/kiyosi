@@ -233,6 +233,7 @@ pub(super) fn integration_nodes(
     upper: f64,
     steps: i32,
     breaks: &[f64],
+    layers: usize,
 ) -> crate::Result<Vec<f64>> {
     let invalid = || {
         crate::Error::ComputationFailure("quadrature integration grid is not representable".into())
@@ -241,7 +242,7 @@ pub(super) fn integration_nodes(
         return Err(invalid());
     }
     let points = (steps as usize + 1).saturating_add(breaks.len());
-    if points.saturating_mul(size_of::<Cell>()) > WORKSPACE_BUDGET {
+    if grid_bytes(points, layers) > WORKSPACE_BUDGET {
         return Err(workspace_error());
     }
     let mut nodes = Vec::with_capacity(points);
@@ -256,7 +257,7 @@ pub(super) fn integration_nodes(
         });
     }
     nodes.extend_from_slice(breaks);
-    nodes.sort_by(f64::total_cmp);
+    nodes.sort_unstable_by(f64::total_cmp);
     // Avoid roundoff-sized cells without collapsing the resolution of narrow grids.
     let minimum_spacing = (64.0 * f64::EPSILON * lower.abs().max(upper.abs()).max(1.0))
         .min(0.5 * (upper - lower) / f64::from(steps));
@@ -265,6 +266,14 @@ pub(super) fn integration_nodes(
         return Err(invalid());
     }
     Ok(nodes)
+}
+
+fn grid_bytes(points: usize, layers: usize) -> usize {
+    // Old and new polynomial layers can coexist, along with values and intrinsic payoffs.
+    let per_point = size_of::<f64>()
+        + size_of::<Cell>()
+        + layers * 2 * (size_of::<Polynomial>() + size_of::<f64>());
+    points.saturating_mul(per_point)
 }
 
 struct Cell {
@@ -488,10 +497,21 @@ pub(super) fn integrate_curve(
     sum.total()
 }
 
-#[derive(Default)]
-pub(super) struct TransitionCache(Vec<(f64, Transition)>);
+pub(super) struct TransitionCache {
+    entries: Vec<(f64, Transition)>,
+    budget: usize,
+}
 
 impl TransitionCache {
+    pub fn new(node_capacity: usize, layers: usize) -> Result<Self> {
+        Ok(Self {
+            entries: Vec::new(),
+            budget: WORKSPACE_BUDGET
+                .checked_sub(grid_bytes(node_capacity, layers))
+                .ok_or_else(workspace_error)?,
+        })
+    }
+
     #[expect(
         clippy::float_cmp,
         reason = "Transition cache durations must match exactly before reusing an integration matrix."
@@ -503,28 +523,32 @@ impl TransitionCache {
         drift: f64,
         deviation: f64,
     ) -> crate::Result<&Transition> {
-        let index = if let Some(index) = self.0.iter().position(|(duration, _)| *duration == time) {
+        let index = if let Some(index) = self
+            .entries
+            .iter()
+            .position(|(duration, _)| *duration == time)
+        {
             index
         } else {
             // Retain common event gaps without accumulating matrices for irregular schedules.
-            if self.0.len() == 3 {
-                self.0.remove(0);
+            let row_bytes = Transition::row_bytes(nodes, drift, deviation, self.budget)?;
+            if self.entries.len() == 3 {
+                self.entries.remove(0);
             }
-            let row_bytes = Transition::row_bytes(nodes, drift, deviation)?;
             let mut retained = self
-                .0
+                .entries
                 .iter()
                 .map(|(_, matrix)| matrix.storage_bytes())
                 .sum::<usize>();
-            while retained + row_bytes > WORKSPACE_BUDGET {
-                retained -= self.0.remove(0).1.storage_bytes();
+            while retained + row_bytes > self.budget {
+                retained -= self.entries.remove(0).1.storage_bytes();
             }
-            let max_moments = (WORKSPACE_BUDGET - retained - row_bytes) / BYTES_PER_CACHED_MOMENT;
-            self.0
+            let max_moments = (self.budget - retained - row_bytes) / BYTES_PER_CACHED_MOMENT;
+            self.entries
                 .push((time, Transition::new(nodes, drift, deviation, max_moments)?));
-            self.0.len() - 1
+            self.entries.len() - 1
         };
-        Ok(&self.0[index].1)
+        Ok(&self.entries[index].1)
     }
 }
 
@@ -547,14 +571,14 @@ impl Transition {
                 .sum::<usize>()
     }
 
-    fn row_bytes(nodes: &[f64], drift: f64, deviation: f64) -> Result<usize> {
+    fn row_bytes(nodes: &[f64], drift: f64, deviation: f64, budget: usize) -> Result<usize> {
         nodes.iter().try_fold(
             nodes.len().saturating_mul(size_of::<Row>()),
             |bytes, &node| {
                 crate::cancellation::check()?;
                 let cells = active_cells(nodes, node + drift, deviation).len();
                 let bytes = bytes.saturating_add(cells.saturating_mul(size_of::<usize>()));
-                (bytes <= WORKSPACE_BUDGET)
+                (bytes <= budget)
                     .then_some(bytes)
                     .ok_or_else(workspace_error)
             },
@@ -643,11 +667,11 @@ mod tests {
 
     #[test]
     fn integration_nodes_merge_roundoff_without_collapsing_narrow_grids() {
-        let nodes = integration_nodes(-0.2, 0.2, 512, &[0.0, 1.4e-16]).unwrap();
+        let nodes = integration_nodes(-0.2, 0.2, 512, &[0.0, 1.4e-16], 1).unwrap();
         assert_eq!(nodes.len(), 513);
         assert!(nodes.windows(2).all(|pair| pair[1] - pair[0] > 1e-14));
 
-        let tiny = integration_nodes(-1e-20, 1e-20, 8, &[0.0]).unwrap();
+        let tiny = integration_nodes(-1e-20, 1e-20, 8, &[0.0], 1).unwrap();
         assert_eq!(tiny.len(), 9);
         assert_eq!(tiny[0], -1e-20);
         assert_eq!(tiny[tiny.len() - 1], 1e-20);
@@ -679,10 +703,22 @@ mod tests {
     }
 
     #[test]
+    fn transition_rows_must_fit_in_the_budget_left_by_the_grid() -> Result<()> {
+        let nodes = [-1.0, -0.75, -0.5, -0.25, 0.25, 0.5, 0.75, 1.0];
+        let capacity = WORKSPACE_BUDGET / grid_bytes(1, 1);
+        let mut cache = TransitionCache::new(capacity, 1)?;
+        assert!(matches!(
+            cache.get(1.0, &nodes, 0.0, 1.0),
+            Err(Error::InvalidInput(_))
+        ));
+        Ok(())
+    }
+
+    #[test]
     fn transitions_match_normal_probabilities_across_repeated_intervals() {
         let nodes = [-1.0, 0.0, 1.0];
         let curve = [[1.0, 0.0, 0.0, 0.0]; 2];
-        let mut cache = TransitionCache::default();
+        let mut cache = TransitionCache::new(nodes.len(), 1).unwrap();
         for time in [1.0_f64, 2.0, 3.0, 4.0, 1.0] {
             let deviation = time.sqrt();
             let mut values = [0.0; 3];

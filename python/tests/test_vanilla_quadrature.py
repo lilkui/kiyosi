@@ -387,6 +387,14 @@ def test_shared_engine_supports_concurrent_pricing():
     assert actual == expected
 
 
+def test_american_quadrature_rejects_an_oversized_grid_before_rollback():
+    engine = pricing.QuadratureVanillaEngine(
+        asset_step_count=2_000_000, time_step_count=2
+    )
+    with pytest.raises(InvalidInputError, match="workspace"):
+        engine.price(contract(AmericanOption, "put"), market())
+
+
 def test_european_quadrature_counts_panels_across_sections():
     engine = pricing.QuadratureVanillaEngine(asset_step_count=125_000_001)
     instrument = contract(EuropeanOption, "call")
