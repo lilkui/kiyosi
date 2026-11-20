@@ -211,6 +211,8 @@ fd_engine!(
 fd_engine!(
     /// The grid uses log spot and an automatically selected positive lower boundary.
     /// Automatic domains with non-explicit schemes concentrate nodes around the strike.
+    /// For drift-dominated European contracts with constant volatility, automatic
+    /// Rannacher grids can sample the exact lognormal transition.
     ///
     FiniteDifferenceVanillaEngine,
     binomial::VanillaInstrument<'_>,
@@ -220,6 +222,8 @@ fd_engine!(
 fd_engine!(
     /// The grid uses log spot and an automatically selected positive lower boundary.
     /// Automatic domains with non-explicit schemes concentrate nodes around the strike.
+    /// For drift-dominated contracts with constant volatility, automatic Rannacher
+    /// grids can sample the exact lognormal transition.
     ///
     FiniteDifferenceDigitalEngine,
     digital::DigitalInstrument<'_>,

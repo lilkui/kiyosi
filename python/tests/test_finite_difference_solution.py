@@ -111,6 +111,43 @@ def test_log_grid_respects_discounted_asset_digital_cap_with_carry():
     )
 
 
+def test_automatic_european_grid_resolves_low_volatility_with_strong_carry():
+    terms = {
+        "option_type": "call",
+        "strike": 100,
+        "effective_time": START,
+        "expiry_time": START + timedelta(days=730),
+    }
+    snapshot = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.15, dividend_yield=-0.03, volatility=0.01
+        ),
+        spot_price=70,
+        valuation_time=START,
+    )
+    for contract, engine, analytic in (
+        (
+            ins.EuropeanOption(**terms),
+            pricing.FiniteDifferenceVanillaEngine(),
+            pricing.AnalyticEuropeanEngine(),
+        ),
+        (
+            ins.CashOrNothingOption(payout=100, **terms),
+            pricing.FiniteDifferenceDigitalEngine(),
+            pricing.AnalyticDigitalEngine(),
+        ),
+        (
+            ins.AssetOrNothingOption(**terms),
+            pricing.FiniteDifferenceDigitalEngine(),
+            pricing.AnalyticDigitalEngine(),
+        ),
+    ):
+        expected = analytic.price(contract, snapshot)
+        assert engine.price(contract, snapshot) == pytest.approx(expected, abs=0.001)
+        solution = engine.solve(contract, snapshot, spot_range=(68.0, 72.0))
+        assert solution.price(70) == pytest.approx(expected, abs=0.001)
+
+
 @pytest.mark.parametrize("kind", ("bsm", "local", "deterministic"))
 @pytest.mark.parametrize(
     "instrument,name",

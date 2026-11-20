@@ -1,9 +1,10 @@
 use super::{Payoff, curve::Curve};
-use crate::numerics::{scaled_cash as scaled, weighted_cdf};
+use crate::engines::analytic::european::{black_scholes_arguments, lognormal_price};
+use crate::numerics::{log_ratio, scaled_cash as scaled, weighted_cdf};
 use crate::{
     AmericanOption, DigitalOption, Error, EuropeanOption, Greek, GreeksRequest,
     NumericalShiftSettings, OptionContract, OptionType, PricingContext, PricingEngine,
-    PricingResult, Result, Timestamp, engines::analytic::european::black_scholes_arguments,
+    PricingResult, Result, Timestamp,
 };
 
 mod accumulator;
@@ -399,6 +400,18 @@ fn solve_model<D: Diffusion>(
     ) * time.sqrt();
     let margin = 1.5 * log_width;
     let narrow = width < 0.04;
+    // Even placing every spatial cell along the drift path can leave the
+    // numerical diffusion comparable to the model variance near the payoff kink.
+    let carry_limit = (0.5 * f64::from(settings.asset_step_count)).sqrt();
+    let queries_near_kink = narrow
+        && log_ratio(minimum_spot, payoff.strike) + carry <= 8.0 * width
+        && log_ratio(spot, payoff.strike) + carry >= -8.0 * width;
+    let exact_transition = !payoff.is_american()
+        && !D::LOCAL
+        && concentrate
+        && settings.scheme == FiniteDifferenceScheme::Rannacher
+        && (queries_near_kink && carry.abs() > carry_limit * width
+            || payoff.is_digital() && carry.abs() > 32.0 * width);
     let compact = concentrate && narrow && settings.scheme != FiniteDifferenceScheme::ExplicitEuler;
     let domain_width = if compact {
         margin.max(1e-3)
@@ -421,7 +434,12 @@ fn solve_model<D: Diffusion>(
     }
     let lower = grid::spot_floor(minimum_spot, payoff.strike, domain_width);
     let mut space = SpatialGrid::new(settings.asset_step_count, [lower, upper], payoff.strike)?;
-    if settings.scheme != FiniteDifferenceScheme::ExplicitEuler && settings.asset_step_count >= 16 {
+    if exact_transition {
+        let kink = scaled(payoff.strike, -carry);
+        grid::concentrate(&mut space, vec![kink], (0.3 * width).max(f64::EPSILON))?;
+    } else if settings.scheme != FiniteDifferenceScheme::ExplicitEuler
+        && settings.asset_step_count >= 16
+    {
         if width > 0.0 && carry.abs() > 4.0 * width && narrow {
             space.resolve_drift_band(payoff.strike, carry, width)?;
         } else if narrow || concentrate || payoff.is_american() || !D::LOCAL {
@@ -464,19 +482,14 @@ fn solve_model<D: Diffusion>(
     let is_cash_digital = payoff.payout().is_some();
     let is_asset_digital = payoff.is_digital() && !is_cash_digital;
     let discount = [risk.log_factor(0.0, time), dividend.log_factor(0.0, time)];
-    if payoff.is_digital()
-        && !D::LOCAL
-        && concentrate
-        && settings.scheme == FiniteDifferenceScheme::Rannacher
-        && carry.abs() > 32.0 * width
-    {
-        // The exact lognormal transition resolves narrow digital tails that
-        // a monotone spatial stencil would smear with one-sided drift.
+    if exact_transition {
         let [r, q] = discount;
         let normalized = if is_cash_digital {
             [0.0, q - r]
-        } else {
+        } else if is_asset_digital {
             [r - q, 0.0]
+        } else {
+            discount
         };
         let values = (0..=space.count)
             .map(|i| {
@@ -484,6 +497,17 @@ fn solve_model<D: Diffusion>(
                     crate::cancellation::check()?;
                 }
                 let spot = space.asset(i);
+                if !payoff.is_digital() {
+                    return lognormal_price(
+                        spot,
+                        payoff.strike,
+                        log_ratio(spot, payoff.strike) + carry,
+                        (q, r),
+                        diffusion.sigma(0.0, spot),
+                        time.sqrt(),
+                        payoff.sign,
+                    );
+                }
                 let value = payoff::boundary_value(payoff, spot, normalized, diffusion, time);
                 Ok(if is_asset_digital {
                     value / spot
@@ -1015,8 +1039,10 @@ engine_settings!(
     /// Unsupported combinations return [`Error::UnsupportedOperation`], even at expiry.
     /// Accepts flat or nonconstant rate curves. Automatic domains concentrate nodes
     /// around the strike for non-explicit schemes. The grid uses log spot and an
-    /// automatically selected positive lower boundary. Terminal payoff kinks are
-    /// averaged in log spot.
+    /// automatically selected positive lower boundary. Time marching starts from
+    /// payoff kinks averaged in log spot. For drift-dominated European contracts
+    /// with constant volatility, automatic Rannacher grids can sample the exact
+    /// lognormal transition.
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// ## Errors
@@ -1298,10 +1324,12 @@ vanilla_pricing!(EuropeanOption, false);
 vanilla_pricing!(AmericanOption, true);
 
 impl FiniteDifferenceDigitalEngine {
-    /// Prices a digital using cell-averaged terminal payoffs, settling strictly in the money at expiry.
+    /// Prices a digital, settling strictly in the money at expiry.
     ///
     /// Rejects nonconstant rate curves before life validation, including at expiry.
-    /// Accepts BSM or local volatility, with cell-averaged digital payoffs in both models.
+    /// Accepts BSM or local volatility. Time marching uses cell-averaged payoffs.
+    /// For drift-dominated contracts with constant volatility, automatic
+    /// Rannacher grids can sample the exact lognormal transition.
     /// The grid uses log spot with an automatically selected positive lower boundary.
     /// Automatic domains with non-explicit schemes concentrate nodes around the strike.
     /// See [`FiniteDifferenceVanillaEngine::price_with_greeks`] for context construction.
