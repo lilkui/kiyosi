@@ -239,7 +239,7 @@ impl ShortPricing {
     }
 }
 
-fn vanilla_short_pricing(
+fn expiry_short_pricing(
     option: &impl kiyosi::OptionContract,
     context: &kiyosi::PricingContext,
 ) -> ShortPricing {
@@ -437,14 +437,18 @@ impl PricingRequest<kiyosi::GreekMethod> for GreekMethodRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kiyosi::{AmericanOption, BlackScholesMertonParameters, Date, EuropeanOption, OptionType};
+    use kiyosi::{
+        AmericanOption, BlackScholesMertonParameters, Date, DigitalOption, EuropeanOption,
+        OptionType,
+    };
 
     #[test]
-    fn vanilla_terminal_prices_dispatch_inline() -> kiyosi::Result<()> {
+    fn terminal_prices_dispatch_inline() -> kiyosi::Result<()> {
         let start = Date::new(2025, 1, 1)?.start_of_day();
         let expiry = start.add_days(365)?;
         let european = EuropeanOption::new(OptionType::Call, 100.0, start, expiry)?;
         let american = AmericanOption::new(OptionType::Put, 100.0, start, expiry)?;
+        let digital = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, expiry)?;
         for (valuation, inline) in [
             (expiry.add_micros(-1)?, false),
             (expiry, true),
@@ -453,8 +457,9 @@ mod tests {
             let model = BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?;
             let context = kiyosi::PricingContext::new(model, 100.0, valuation)?;
             for policy in [
-                vanilla_short_pricing(&european, &context),
-                vanilla_short_pricing(&american, &context),
+                expiry_short_pricing(&european, &context),
+                expiry_short_pricing(&american, &context),
+                expiry_short_pricing(&digital, &context),
             ] {
                 assert_eq!(policy.allows_inline(ScalarRequest::Price, &context), inline);
                 assert!(!policy.allows_inline(SeededPriceRequest, &context));

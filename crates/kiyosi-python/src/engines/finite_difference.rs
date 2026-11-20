@@ -1,5 +1,5 @@
 use crate::conversions::integer;
-use crate::engines::{binomial, vanilla_short_pricing};
+use crate::engines::{binomial, expiry_short_pricing};
 use crate::error::domain;
 use crate::instruments::accumulator;
 use crate::instruments::autocallable;
@@ -217,7 +217,7 @@ fd_engine!(
     FiniteDifferenceVanillaEngine,
     binomial::VanillaInstrument<'_>,
     binomial::with_vanilla,
-    vanilla_short_pricing,
+    expiry_short_pricing,
 );
 fd_engine!(
     /// Automatic domains with non-explicit schemes remove deterministic carry

@@ -317,6 +317,7 @@ def test_strict_expiry_and_solver_failures_leave_inputs_unchanged():
             result = engine.price_with_greeks(option, context, greeks="all")
             pays = spot > 100 if option.option_type == "call" else spot < 100
             assert result.price == ((spot if asset else 10) if pays else 0)
+            assert engine.price(option, context) == result.price
             for name in GREEKS:
                 assert getattr(result, name) is None
             assert_rejection(

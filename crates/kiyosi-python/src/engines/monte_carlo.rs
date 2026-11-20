@@ -1,5 +1,5 @@
 use crate::conversions::{boolean, integer};
-use crate::engines::{binomial, vanilla_short_pricing};
+use crate::engines::{binomial, expiry_short_pricing};
 use crate::error::domain;
 use crate::instruments::accumulator;
 use crate::instruments::asian;
@@ -535,8 +535,8 @@ sampling_settings!(
     with_contract
 );
 
-engine_methods!(@evaluate MonteCarloVanillaEngine, binomial::VanillaInstrument<'_>, binomial::with_vanilla, vanilla_short_pricing);
+engine_methods!(@evaluate MonteCarloVanillaEngine, binomial::VanillaInstrument<'_>, binomial::with_vanilla, expiry_short_pricing);
 
-engine_methods!(@evaluate MonteCarloDigitalEngine, digital::DigitalInstrument<'_>, digital::with_digital);
+engine_methods!(@evaluate MonteCarloDigitalEngine, digital::DigitalInstrument<'_>, digital::with_digital, expiry_short_pricing);
 
 engine_methods!(@evaluate MonteCarloAsianEngine, asian::AsianInstrument<'_>, asian::with_asian);
