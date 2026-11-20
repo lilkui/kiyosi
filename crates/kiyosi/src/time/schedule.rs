@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{Error, Result, TimeOfDay, Timestamp, TradingCalendar};
 
 /// Owns strictly ordered observation times and their validation calendar.
@@ -6,7 +8,7 @@ use crate::{Error, Result, TimeOfDay, Timestamp, TradingCalendar};
 /// See [`Self::fixed_interval`] for construction.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ObservationSchedule {
-    times: Vec<Timestamp>,
+    times: Option<Arc<Vec<Timestamp>>>,
     calendar: TradingCalendar,
 }
 
@@ -41,10 +43,14 @@ impl ObservationSchedule {
         calendar: &TradingCalendar,
     ) -> Result<Self> {
         Self::validate_times(&times, start_time, end_time, calendar)?;
-        Ok(Self {
-            times,
+        Ok(Self::from_validated_times(times, calendar))
+    }
+
+    fn from_validated_times(times: Vec<Timestamp>, calendar: &TradingCalendar) -> Self {
+        Self {
+            times: (!times.is_empty()).then(|| Arc::new(times)),
             calendar: calendar.clone(),
-        })
+        }
     }
 
     pub(crate) fn validate_times(
@@ -82,16 +88,14 @@ impl ObservationSchedule {
         include_start: bool,
         observation_clock_time: TimeOfDay,
     ) -> Result<Self> {
-        Ok(Self {
-            times: Self::daily_times(
-                start_time,
-                end_time,
-                calendar,
-                include_start,
-                observation_clock_time,
-            )?,
-            calendar: calendar.clone(),
-        })
+        let times = Self::daily_times(
+            start_time,
+            end_time,
+            calendar,
+            include_start,
+            observation_clock_time,
+        )?;
+        Ok(Self::from_validated_times(times, calendar))
     }
 
     pub(crate) fn daily_times(
@@ -184,10 +188,7 @@ impl ObservationSchedule {
                 break;
             }
         }
-        Ok(Self {
-            times,
-            calendar: calendar.clone(),
-        })
+        Ok(Self::from_validated_times(times, calendar))
     }
 
     /// Creates monthly candidates anchored to `start_time`'s day, clamped at month end.
@@ -237,10 +238,7 @@ impl ObservationSchedule {
                 break;
             }
         }
-        Ok(Self {
-            times,
-            calendar: calendar.clone(),
-        })
+        Ok(Self::from_validated_times(times, calendar))
     }
 
     /// Borrows the calendar used to validate and generate these observations.
@@ -255,15 +253,15 @@ impl ObservationSchedule {
     ///
     /// See [`Self::fixed_interval`] for construction.
     pub fn times(&self) -> &[Timestamp] {
-        &self.times
+        self.times.as_deref().map_or(&[], Vec::as_slice)
     }
     /// Returns the number of observation times; see [`Self::fixed_interval`].
     pub fn len(&self) -> usize {
-        self.times.len()
+        self.times().len()
     }
     /// Reports whether there are no observations; see [`Self::fixed_interval`].
     pub fn is_empty(&self) -> bool {
-        self.times.is_empty()
+        self.times.is_none()
     }
 }
 
@@ -308,6 +306,19 @@ mod tests {
         Arc,
         atomic::{AtomicUsize, Ordering},
     };
+
+    #[test]
+    fn cloned_schedules_share_storage_after_original_is_dropped() -> Result<()> {
+        let start = crate::Date::new(2025, 1, 1)?.start_of_day();
+        let end = start.add_days(1)?;
+        let schedule =
+            ObservationSchedule::new(vec![start, end], start, end, &TradingCalendar::all_days())?;
+        let cloned = schedule.clone();
+        assert!(std::ptr::eq(schedule.times(), cloned.times()));
+        drop(schedule);
+        assert_eq!(cloned.times(), &[start, end]);
+        Ok(())
+    }
 
     #[test]
     fn explicit_schedule_validation_polls_between_calendar_queries() -> Result<()> {
