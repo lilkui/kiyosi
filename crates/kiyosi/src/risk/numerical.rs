@@ -36,6 +36,9 @@ pub(crate) fn expiry_greeks(
     mut result: PricingResult,
     price: impl Fn(&PricingContext) -> Result<f64>,
 ) -> Result<PricingResult> {
+    if result.requested() == GreeksRequest::new([]) {
+        return Ok(result);
+    }
     if context.valuation_time() != option.expiry_time() {
         return Ok(if option.at_spot_discontinuity(context, 0.0) {
             result
@@ -291,11 +294,8 @@ pub(crate) fn complete_greeks(
             Ok(native(context, GreeksRequest::new([]))?.price())
         });
     }
-    if option.all_greeks_unavailable(context) {
-        return Ok(result);
-    }
     let want = |g| request.has(g) && !available.has(g);
-    if !Greek::ALL.into_iter().any(want) {
+    if !Greek::ALL.into_iter().any(want) || option.all_greeks_unavailable(context) {
         return Ok(result);
     }
     let model = context.bsm_parameters()?;
@@ -589,6 +589,48 @@ mod tests {
             )
             .unwrap(),
         )
+    }
+
+    #[test]
+    fn empty_greek_requests_skip_discontinuity_checks() -> Result<()> {
+        struct Contract(EuropeanOption);
+        impl OptionContract for Contract {
+            fn effective_time(&self) -> Timestamp {
+                self.0.effective_time()
+            }
+            fn expiry_time(&self) -> Timestamp {
+                self.0.expiry_time()
+            }
+            fn all_greeks_unavailable(&self, _: &PricingContext) -> bool {
+                panic!("price-only requests need no Greek availability checks");
+            }
+            fn at_spot_discontinuity(&self, _: &PricingContext, _: f64) -> bool {
+                panic!("price-only requests need no spot discontinuity checks");
+            }
+        }
+        let (option, context) = inputs();
+        let option = Contract(option);
+        for valuation_time in [context.valuation_time(), option.expiry_time()] {
+            let context = context.replace(PricingContextChanges {
+                valuation_time: Some(valuation_time),
+                ..Default::default()
+            })?;
+            let result = complete_greeks(
+                &option,
+                &context,
+                GreeksRequest::new([]),
+                Default::default(),
+                false,
+                PricingResult::new(4.0)?,
+                |_, _| panic!("price-only requests need no bumped prices"),
+            )?;
+            assert_eq!(result.price(), 4.0);
+            assert_eq!(
+                result.status(Greek::Delta),
+                crate::GreekStatus::NotRequested
+            );
+        }
+        Ok(())
     }
 
     #[test]

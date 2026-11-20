@@ -814,7 +814,7 @@ fn complete_greeks(
             Ok(native(context, GreeksRequest::new([]))?.price())
         });
     }
-    if option.all_greeks_unavailable(context) {
+    if request == GreeksRequest::new([]) || option.all_greeks_unavailable(context) {
         return Ok(result);
     }
     let missing_delta = request.has(Greek::Delta) && !result.has(Greek::Delta);
