@@ -97,14 +97,13 @@ fn range_accrual_uses_caller_hits_across_the_observation_boundary() -> Result<()
         Err(Error::MissingHistory(_))
     ));
     assert_eq!(known.realized_hit_count(), Some(1));
-    assert!(
-        known
-            .replace(RangeAccrualOptionChanges {
-                realized_hit_count: Some(Some(-1)),
-                ..Default::default()
-            })
-            .is_err()
-    );
+    assert!(matches!(
+        known.replace(RangeAccrualOptionChanges {
+            realized_hit_count: Some(Some(-1)),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
     assert_eq!(known.realized_hit_count(), Some(1));
     assert_eq!(
         known.replace(RangeAccrualOptionChanges {

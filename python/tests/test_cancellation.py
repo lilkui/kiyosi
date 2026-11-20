@@ -4,11 +4,40 @@ import signal
 import subprocess
 import sys
 import textwrap
+from contextlib import contextmanager
 
 import pytest
 
 
-@pytest.mark.skipif(not hasattr(signal, "setitimer"), reason="requires an OS alarm")
+class RequestInterrupted(Exception):
+    pass
+
+
+requires_cpu_timer = pytest.mark.skipif(
+    not hasattr(signal, "ITIMER_VIRTUAL"), reason="requires a POSIX CPU timer"
+)
+
+
+@contextmanager
+def cpu_interrupt():
+    def stop(*_):
+        raise RequestInterrupted
+
+    def arm():
+        # The timer counts time spent executing, even when CI deschedules the process.
+        signal.setitimer(signal.ITIMER_VIRTUAL, 0.002)
+
+    previous_timer = signal.setitimer(signal.ITIMER_VIRTUAL, 0)
+    previous_handler = signal.signal(signal.SIGVTALRM, stop)
+    try:
+        yield arm
+    finally:
+        signal.setitimer(signal.ITIMER_VIRTUAL, 0)
+        signal.signal(signal.SIGVTALRM, previous_handler)
+        signal.setitimer(signal.ITIMER_VIRTUAL, *previous_timer)
+
+
+@requires_cpu_timer
 def test_surface_value_export_polls_signals_before_returning_the_tuple():
     from datetime import datetime, timedelta
 
@@ -22,27 +51,15 @@ def test_surface_value_export_polls_signals_before_returning_the_tuple():
         values=[(0.2,) * size] * size,
     )
 
-    class StopExport(Exception):
-        pass
-
-    def stop(*_):
-        raise StopExport
-
-    original_handler = signal.signal(signal.SIGALRM, stop)
     exported = None
-    try:
-        with pytest.raises(StopExport):
-            signal.setitimer(signal.ITIMER_REAL, 0.005)
-            exported = surface.values
-            signal.setitimer(signal.ITIMER_REAL, 0)
-    finally:
-        signal.setitimer(signal.ITIMER_REAL, 0)
-        signal.signal(signal.SIGALRM, original_handler)
+    with pytest.raises(RequestInterrupted), cpu_interrupt() as arm:
+        arm()
+        exported = surface.values
     assert exported is None
     assert surface.volatility(start, 1) == 0.2
 
 
-@pytest.mark.skipif(not hasattr(signal, "setitimer"), reason="requires an OS alarm")
+@requires_cpu_timer
 def test_timestamp_export_polls_signals_before_returning_the_tuple():
     from datetime import datetime, time, timedelta
 
@@ -57,28 +74,15 @@ def test_timestamp_export_polls_signals_before_returning_the_tuple():
         calendar=all_days_calendar(),
     )
 
-    class StopExport(Exception):
-        pass
-
-    def stop(*_):
-        raise StopExport
-
-    original_handler = signal.signal(signal.SIGALRM, stop)
     exported = None
-    stopped = False
-    try:
-        signal.setitimer(signal.ITIMER_REAL, 0.005)
+    with pytest.raises(RequestInterrupted), cpu_interrupt() as arm:
+        arm()
         exported = schedule.times
-    except StopExport:
-        stopped = True
-    finally:
-        signal.setitimer(signal.ITIMER_REAL, 0)
-        signal.signal(signal.SIGALRM, original_handler)
-    assert stopped and exported is None
+    assert exported is None
     assert schedule[:2].times == (start + timedelta(days=1), start + timedelta(days=2))
 
 
-@pytest.mark.skipif(not hasattr(signal, "setitimer"), reason="requires an OS alarm")
+@requires_cpu_timer
 def test_greek_iterable_polls_signals_before_consuming_duplicates():
     from datetime import datetime
     from itertools import repeat
@@ -88,18 +92,12 @@ def test_greek_iterable_polls_signals_before_consuming_duplicates():
     from kiyosi.market import BlackScholesMertonParameters, PricingContext
     from kiyosi.pricing import AnalyticEuropeanEngine
 
-    class StopConversion(Exception):
-        pass
-
-    def stop(*_):
-        raise StopConversion
-
     count = 50_000_000
     names = repeat("delta", count)
 
     class Names:
         def __iter__(self):
-            signal.setitimer(signal.ITIMER_REAL, 0.005)
+            arm()
             return names
 
     start = datetime(2025, 1, 1)
@@ -117,15 +115,11 @@ def test_greek_iterable_polls_signals_before_consuming_duplicates():
         valuation_time=start,
     )
     engine = AnalyticEuropeanEngine()
-    original_handler = signal.signal(signal.SIGALRM, stop)
-    try:
-        with pytest.raises(StopConversion):
-            engine.price_with_greeks(contract, market, Names())
-    finally:
-        signal.setitimer(signal.ITIMER_REAL, 0)
-        signal.signal(signal.SIGALRM, original_handler)
+    expected = engine.price_with_greeks(contract, market, "delta")
+    with pytest.raises(RequestInterrupted), cpu_interrupt() as arm:
+        engine.price_with_greeks(contract, market, Names())
     assert length_hint(names) > 0
-    assert engine.price_with_greeks(contract, market, ["delta", "delta"]).delta > 0
+    assert engine.price_with_greeks(contract, market, ["delta", "delta"]) == expected
 
 
 @pytest.mark.parametrize(
@@ -156,7 +150,6 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                         import signal
                         import threading
                         import sys
-                        import time
                         from datetime import datetime, timedelta
                         from math import exp
                         from kiyosi import instruments as i, market as m, pricing as p
@@ -215,16 +208,19 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                                 raise StopCalculation("requested stop")
                             signal.signal(signal.SIGINT, stop)
                         expected = StopCalculation if case == "custom_handler" else KeyboardInterrupt
-                        delay = 0.001 if case in ("geometric_asian", "analytic_greeks", "numerical_greeks", "analytic_solver") else 0.05
-                        ready = threading.Event()
+                        ready, start_request = threading.Event(), threading.Event()
                         def send_interrupt():
-                            ready.wait()
-                            time.sleep(delay)
+                            ready.set()
+                            start_request.wait()
                             signal.raise_signal(signal.SIGINT)
                         timer = threading.Thread(target=send_interrupt)
                         timer.start()
-                        ready.set()
+                        ready.wait()
+                        # The sender can acquire the GIL when the native request releases it.
+                        interval = sys.getswitchinterval()
+                        sys.setswitchinterval(100)
                         try:
+                            start_request.set()
                             if case == "fd_solution_solve":
                                 engine.solve(option, context, spot_range=(80, 120))
                             elif case == "fd_solution_batch":
@@ -240,18 +236,34 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                                     lower_bound=0, upper_bound=1)
                             else:
                                 engine.price(option, context)
-                        except expected:
-                            pass
+                        except expected as error:
+                            assert type(error) is expected
+                            if case == "custom_handler":
+                                assert error.args == ("requested stop",)
                         else:
                             raise AssertionError("pricing returned instead of propagating the signal")
                         finally:
+                            signal.signal(signal.SIGINT, signal.SIG_IGN)
+                            sys.setswitchinterval(interval)
                             timer.join()
-                        context = context.replace(model_parameters=model)
-                        assert replay.price(vanilla, context) == baseline
+
+                        assert replay.price(vanilla, m.PricingContext(
+                            model_parameters=model, spot_price=100, valuation_time=start,
+                        )) == baseline
                         if case == "fd_solution_batch":
                             assert saved.price(100) == saved_price
-
-                        print("cancelled and replayed")
+                            assert saved.price_many([100]) == (saved_price,)
+                        else:
+                            # A terminal payoff exercises the interrupted engine with bounded work.
+                            terminal = context.replace(
+                                spot_price=90 if case == "tree" else 110,
+                                valuation_time=end,
+                            )
+                            if case in ("serial_mc", "parallel_mc", "seeded_mc",
+                                        "custom_handler", "geometric_asian", "analytic_greeks",
+                                        "numerical_greeks", "analytic_solver"):
+                                option = option.replace(averaging_start_time=end)
+                            assert abs(engine.price(option, terminal) - 10.0) < 1e-12
                     """),
             case,
         ],
@@ -261,7 +273,6 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
         check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    assert result.stdout.strip() == "cancelled and replayed"
 
 
 @pytest.mark.parametrize(
@@ -296,6 +307,7 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 import sys
                 import threading
                 from datetime import datetime, time, timedelta
+                from math import exp
                 from time import monotonic
                 from kiyosi.instruments import (
                     Accumulator, AmericanOption, BarrierOption, KnockInObservation,
@@ -526,10 +538,13 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 elif case == "curve_shift":
                     shifted = operation()
                     assert shifted.parallel_shift == 0.01
-                    assert shifted.factor(start_time, shifted.max_time) < 1.0
+                    expected = exp(-0.01 * count / (365 * 86400))
+                    assert abs(shifted.factor(start_time, shifted.max_time) - expected) < 1e-15
                     assert curve.parallel_shift == 0.0
                 elif case == "heston_saved":
-                    assert all(abs(value - 10.0) < 1e-12 for value in operation())
+                    values = operation()
+                    assert len(values) == 32
+                    assert all(abs(value - 10.0) < 1e-12 for value in values)
                 elif case == "accumulator_saved":
                     assert operation() == (10.0,) * 32
                 elif case in ("calendar_new", "calendar_layer"):

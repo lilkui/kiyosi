@@ -354,19 +354,24 @@ def test_sobol_dimension_limit_uses_remaining_monitoring_dates():
     end = datetime(2110, 1, 1)
     fields = {
         "expiry_time": end,
+        "knock_in_level": 1e-100,
         "autocall_observations": autocallable_observations(
-            [end], [110], knock_out_coupon_rates=[0.08]
+            [end], [1e100], knock_out_coupon_rates=[0.08]
         ),
     }
     engine = MC(path_count=2, seed=42, sampling="sobol")
-    assert_rejection(
-        InvalidInputError,
-        lambda: engine.price(
+    with pytest.raises(InvalidInputError, match="Sobol dimension"):
+        engine.price(
             contract(
                 **fields,
                 knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             ),
             market(),
-        ),
+        )
+
+    # Both seeded paths finish between the deliberately distant barriers.
+    years = (end - START).days / 365
+    expected = (1 + 0.06 * years) * math.exp(-0.04 * years)
+    assert engine.price(contract(**fields), market()) == pytest.approx(
+        expected, rel=0, abs=1e-12
     )
-    assert math.isfinite(engine.price(contract(**fields), market()))

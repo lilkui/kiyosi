@@ -261,13 +261,12 @@ def test_midnight_intraday_and_calendar_events_are_applied_once():
     assert engine.price(option, context) == pytest.approx(
         terminal_reference(option, context), rel=0, abs=0.001
     )
-    weekend = contract(datetime(2025, 1, 5), calendar=all_days_calendar())
-    assert math.isfinite(
-        engine.price(
-            weekend.replace(calendar=all_days_calendar()),
-            market(),
-        )
+    weekend = contract(datetime(2025, 1, 5)).replace(calendar=all_days_calendar())
+    friday_after_purchase = market(
+        105, datetime(2025, 1, 3, 12), volatility=0, rate=0, dividend=0
     )
+    # Three held units plus the Saturday and Sunday purchases.
+    assert engine.price(weekend, friday_after_purchase) == 25
 
 
 def test_validation_precedes_state_and_bumped_failures_leave_inputs_intact():

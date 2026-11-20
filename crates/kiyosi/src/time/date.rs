@@ -61,11 +61,11 @@ impl Date {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::Date;
+    /// use kiyosi::{Date, Error};
     /// # fn main() -> kiyosi::Result<()> {
     /// let leap_day = Date::new(2024, 2, 29)?;
     /// assert_eq!(leap_day.day(), 29);
-    /// assert!(Date::new(2025, 2, 29).is_err());
+    /// assert!(matches!(Date::new(2025, 2, 29), Err(Error::InvalidInput(_))));
     /// # Ok(()) }
     /// ```
     pub fn new(year: i32, month: u32, day: u32) -> Result<Self> {

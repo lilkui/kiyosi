@@ -204,21 +204,19 @@ def test_lockout_history_depends_only_on_eligible_knock_out_observations():
     after_eligible = first_eligible + timedelta(days=1)
     note = contract(
         barrier_state=None,
-        knock_out_observations=(
-            [
-                KnockOutObservation(at, level)
-                for at, level in zip(
-                    [MIDDLE, first_eligible, END], [110] * 3, strict=True
-                )
-            ]
-        )[1:],
+        knock_out_observations=[
+            KnockOutObservation(at, 110) for at in (first_eligible, END)
+        ],
         coupon_observations=[
-            CouponObservation(at, level)
-            for at, level in zip([MIDDLE, first_eligible, END], [90] * 3, strict=True)
+            CouponObservation(at, 90) for at in (MIDDLE, first_eligible, END)
         ],
     )
     engine = QuadratureAutocallableEngine()
-    assert math.isfinite(engine.price(note, market(100, first_eligible)))
+    # The locked coupon is past. Today's coupon and the maturity payment remain.
+    at_first_eligible = market(100, first_eligible, volatility=0, rate=0, dividend=0)
+    assert engine.price(note, at_first_eligible) == pytest.approx(
+        1.02, rel=0, abs=1e-12
+    )
     with pytest.raises(MissingHistoryError):
         engine.price(note, market(100, after_eligible))
     known = note.replace(barrier_state="no_event")

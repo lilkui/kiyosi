@@ -70,6 +70,7 @@ class CommandTests(unittest.TestCase):
                 text=True,
                 capture_output=True,
                 check=False,
+                timeout=600,
             )
             self.assertEqual(result.returncode, 1)
             data = json.loads(report.read_text())
@@ -135,8 +136,9 @@ class CommandTests(unittest.TestCase):
                 text=True,
                 capture_output=True,
                 check=False,
+                timeout=600,
             )
-            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(result.returncode, 1, result.stderr)
             data = json.loads(report.read_text())
             self.assertEqual(data["status"], "failed")
             self.assertIn("executable", data["error"])
@@ -160,8 +162,9 @@ class CommandTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=600,
             )
-            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(result.returncode, 1, result.stderr)
             data = json.loads(report.read_text())
             self.assertEqual(len(data["cases"]), 59)
             self.assertTrue(
@@ -174,7 +177,7 @@ class CommandTests(unittest.TestCase):
 class NativeRustTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        command(rust_build_command())
+        command(rust_build_command(), timeout=600)
         cls.executable = RUST_EXECUTABLE
 
     def test_fresh_native_batches_match_independent_bsm_reference(self):
@@ -195,6 +198,7 @@ class NativeRustTests(unittest.TestCase):
             text=True,
             capture_output=True,
             check=True,
+            timeout=120,
         )
         data = json.loads(result.stdout)
         self.assertAlmostEqual(data["price"], 9.227005508154036, places=11)
@@ -205,8 +209,9 @@ class NativeRustTests(unittest.TestCase):
             text=True,
             capture_output=True,
             check=False,
+            timeout=120,
         )
-        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("unknown", result.stderr)
 
     def test_native_json_preserves_small_prices(self):
@@ -223,7 +228,8 @@ class NativeRustTests(unittest.TestCase):
                 "rate=0",
                 "dividend=0",
                 "volatility=0.2",
-            ]
+            ],
+            timeout=120,
         )
         expected = 7.965567455405801e-20
         self.assertAlmostEqual(json.loads(result)["price"] / expected, 1.0, places=14)
@@ -399,6 +405,7 @@ class ReportTests(unittest.TestCase):
                 check=False,
                 env=environment,
                 cwd=root if relative_executables else RUNNER.parent,
+                timeout=600,
             )
             self.assertTrue(report.exists(), result.stderr)
             return result, json.loads(report.read_text())
@@ -421,7 +428,7 @@ class ReportTests(unittest.TestCase):
 
     def test_default_rejects_incomplete_manifest_with_explicit_required_rows(self):
         result, report = self.run_fixture(complete=True)
-        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.returncode, 1, result.stderr)
         self.assertEqual(report["coverage"]["required_cells"], 51)
         self.assertEqual(report["coverage"]["covered_cells"], 1)
         missing = [c for c in report["cases"] if c["status"] == "missing_coverage"]
@@ -447,23 +454,26 @@ class ReportTests(unittest.TestCase):
                     key: value,
                 }
                 result, report = self.run_fixture(batch=batch)
-                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertIsNone(report["cases"][0]["ratio"])
                 self.assertIn("native result", report["cases"][0]["error"])
 
     def test_bool_reference_is_rejected(self):
         result, report = self.run_fixture(reference=True)
-        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("reference", report["cases"][0]["error"])
 
     def test_bool_error_budget_is_rejected(self):
         result, report = self.run_fixture(patch={"error_budget": True})
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIsNone(report["cases"][0]["ratio"])
+        self.assertEqual(result.returncode, 1, result.stderr)
+        row = report["cases"][0]
+        self.assertEqual(row["status"], "failed")
+        self.assertIn("error_budget must be finite and positive", row["error"])
+        self.assertIsNone(row["ratio"])
 
     def test_missing_native_family_retains_unsupported_row(self):
         result, report = self.run_fixture(families=[])
-        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.returncode, 1, result.stderr)
         self.assertEqual(report["cases"][0]["status"], "unsupported")
         self.assertIn("kiyosi/european_bsm", report["cases"][0]["error"])
 
@@ -480,7 +490,7 @@ class ReportTests(unittest.TestCase):
 
     def test_incompatible_native_version_fails(self):
         result, report = self.run_fixture(version="1.43")
-        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("1.44", report["error"])
         self.assertEqual(report["cases"][0]["status"], "prerequisite_failed")
         self.assertIsNone(report["cases"][0]["ratio"])
@@ -491,7 +501,7 @@ class ReportTests(unittest.TestCase):
                 result, report = self.run_fixture(
                     runtime_name=f"libQuantLib.so.{version}.0"
                 )
-                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertIn("runtime filename", report["error"])
                 self.assertEqual(report["cases"][0]["status"], "prerequisite_failed")
                 self.assertEqual(
@@ -502,7 +512,7 @@ class ReportTests(unittest.TestCase):
 
     def test_accuracy_failure_suppresses_ratio_and_fails(self):
         result, report = self.run_fixture(reference=11)
-        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIsNone(report["cases"][0]["ratio"])
         self.assertEqual(report["cases"][0]["status"], "accuracy_failed")
         self.assertEqual(
@@ -534,7 +544,7 @@ class ReportTests(unittest.TestCase):
 
     def test_unknown_requested_case_fails_explicitly(self):
         result, report = self.run_fixture(extra=("--case", "absent"))
-        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.returncode, 1, result.stderr)
         self.assertEqual(report["cases"][-1]["id"], "absent")
         self.assertEqual(report["cases"][-1]["status"], "unsupported")
         self.assertEqual(report["cases"][0]["status"], "passed")

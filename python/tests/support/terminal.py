@@ -5,12 +5,18 @@ from typing import get_args
 import pytest
 from kiyosi import Greek
 
+ALL_GREEKS = get_args(Greek)
 
-def assert_terminal_greeks(result, delta):
-    for greek in get_args(Greek):
+
+def assert_terminal_greeks(
+    result, delta, *, requested=ALL_GREEKS, supported=ALL_GREEKS
+):
+    assert set(result.requested) == set(requested)
+    assert set(result.supported) == set(supported)
+    for greek in ALL_GREEKS:
         if (
-            greek not in result.requested
-            or greek not in result.supported
+            greek not in requested
+            or greek not in supported
             or greek in ("theta", "charm", "color")
             or (
                 delta is None

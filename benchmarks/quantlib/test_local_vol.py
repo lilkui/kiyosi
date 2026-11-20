@@ -8,9 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import test_fd
-
-ROOT = test_fd.ROOT
+from run import ROOT, RUST_EXECUTABLE, command, rust_build_command
+from test_fd import build_quantlib_test_executable
 
 SURFACE = {
     "surface_low": 80,
@@ -25,8 +24,8 @@ SURFACE = {
 class LocalVolatilityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        test_fd.FiniteDifferenceTests.setUpClass()
-        cls.executable = test_fd.FiniteDifferenceTests.executable
+        command(rust_build_command(), timeout=600)
+        cls.executable = RUST_EXECUTABLE
 
     def test_supplied_surface_interpolates_and_clamps_spot(self):
         for spot, expected in [
@@ -51,6 +50,7 @@ class LocalVolatilityTests(unittest.TestCase):
                 text=True,
                 capture_output=True,
                 check=False,
+                timeout=120,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertAlmostEqual(
@@ -85,6 +85,7 @@ class LocalVolatilityTests(unittest.TestCase):
                     text=True,
                     capture_output=True,
                     check=False,
+                    timeout=120,
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 reference = references[case["id"]]
@@ -106,8 +107,7 @@ class QuantLibLocalVolatilityTests(LocalVolatilityTests):
 
     @classmethod
     def setUpClass(cls):
-        test_fd.QuantLibFiniteDifferenceTests.setUpClass()
-        cls.executable = test_fd.QuantLibFiniteDifferenceTests.executable
+        cls.executable = build_quantlib_test_executable(cls)
 
     def test_inaccurate_profile_suppresses_timing_in_report(self):
         case = json.loads(
@@ -136,18 +136,15 @@ class QuantLibLocalVolatilityTests(LocalVolatilityTests):
                 text=True,
                 capture_output=True,
                 check=False,
+                timeout=600,
             )
-            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(result.returncode, 1, result.stderr)
             row = json.loads(report.read_text())["cases"][0]
             self.assertEqual(row["status"], "accuracy_failed")
             self.assertIsNone(row["ratio"])
             self.assertEqual(row["inputs"]["surface_start_low"], 0.30)
             for backend in row["backends"].values():
                 self.assertNotIn("timing", backend)
-
-    @classmethod
-    def tearDownClass(cls):
-        test_fd.QuantLibFiniteDifferenceTests.tearDownClass()
 
 
 if __name__ == "__main__":

@@ -292,7 +292,13 @@ mod tests {
                 visited.fetch_add(1, Ordering::Relaxed);
                 if block == 0 {
                     token.cancel();
-                    inherited.store(crate::cancellation::check().is_err(), Ordering::Relaxed);
+                    inherited.store(
+                        matches!(
+                            crate::cancellation::check(),
+                            Err(Error::Io(error)) if error.kind() == io::ErrorKind::Interrupted
+                        ),
+                        Ordering::Relaxed,
+                    );
                 }
                 Ok(block)
             })

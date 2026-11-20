@@ -111,14 +111,14 @@ impl RateTermStructure {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{Date, RateTermStructure};
+    /// use kiyosi::{Date, Error, RateTermStructure};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let end = start.add_days(365)?;
     /// let curve = RateTermStructure::bounded_flat(0.05, start, end)?;
     /// assert_eq!(curve.exact_flat_rate(), Some(0.05));
     /// assert_eq!(curve.max_time(), Some(end));
-    /// assert!(curve.forward_rate(end.add_days(1)?).is_err());
+    /// assert!(matches!(curve.forward_rate(end.add_days(1)?), Err(Error::InvalidInput(_))));
     /// # Ok(()) }
     /// ```
     pub fn bounded_flat(rate: f64, reference: Timestamp, max_time: Timestamp) -> Result<Self> {

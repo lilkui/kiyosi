@@ -16,6 +16,7 @@ from kiyosi.market import (
     all_days_calendar,
     weekdays_calendar,
 )
+from support.terminal import ALL_GREEKS
 
 START, END = datetime(2025, 1, 6), datetime(2025, 1, 10)
 
@@ -662,7 +663,8 @@ def test_zero_volatility_prices_and_statistics_agree_across_supported_engines(su
                     assert result.delta == pytest.approx(
                         expected_delta, rel=0, abs=1e-9
                     )
-                for greek in result.requested:
+                assert set(result.requested) == set(ALL_GREEKS)
+                for greek in ALL_GREEKS:
                     value = getattr(result, greek)
                     if value is not None:
                         assert math.isfinite(value)

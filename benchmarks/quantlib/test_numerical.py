@@ -30,6 +30,7 @@ class NumericalNativeTests(unittest.TestCase):
                 text=True,
                 capture_output=True,
                 check=False,
+                timeout=600,
             )
             if result.returncode:
                 raise RuntimeError(result.stderr + result.stdout)
@@ -60,6 +61,7 @@ class NumericalNativeTests(unittest.TestCase):
             text=True,
             capture_output=True,
             check=False,
+            timeout=120,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertAlmostEqual(
@@ -86,6 +88,7 @@ class NumericalNativeTests(unittest.TestCase):
             text=True,
             capture_output=True,
             check=False,
+            timeout=120,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertLess(
@@ -122,6 +125,7 @@ class NumericalNativeTests(unittest.TestCase):
                 text=True,
                 capture_output=True,
                 check=False,
+                timeout=600,
             )
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
             cases = json.loads(report.read_text())["cases"]
@@ -161,8 +165,9 @@ class NumericalNativeTests(unittest.TestCase):
                 text=True,
                 capture_output=True,
                 check=False,
+                timeout=600,
             )
-            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(result.returncode, 1, result.stderr)
             data = json.loads(report.read_text())
             self.assertEqual(data["status"], "failed")
             case = data["cases"][0]
@@ -180,10 +185,19 @@ class NumericalNativeTests(unittest.TestCase):
             ("kiyosi", self.executable),
             ("quantlib", self.quantlib),
         ):
-            for count in (1.5, -1, 1000001):
+            for count, rust_error in (
+                (1.5, "invalid digit"),
+                (-1, "step_count must be between"),
+                (1000001, "step_count must be between"),
+            ):
+                diagnostic = (
+                    rust_error
+                    if backend == "kiyosi"
+                    else "step_count must be an integer"
+                )
                 with self.subTest(backend=backend, count=count):
                     invalid = case | {"profiles": {backend: {"step_count": count}}}
-                    with self.assertRaises(RuntimeError):
+                    with self.assertRaisesRegex(RuntimeError, diagnostic):
                         native(binary, invalid, backend, 1)
 
 

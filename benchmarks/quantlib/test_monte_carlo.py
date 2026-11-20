@@ -81,6 +81,7 @@ class MonteCarloReportTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=600,
             )
             return result, json.loads(report.read_text())["cases"][0]
 
@@ -96,7 +97,7 @@ class MonteCarloReportTests(unittest.TestCase):
 
     def test_wide_sampling_dispersion_suppresses_ratio(self):
         result, data = self.fixture()
-        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(result.returncode, 1, result.stderr)
         self.assertEqual(data["status"], "precision_failed")
         self.assertIsNone(data["ratio"])
         for backend in data["backends"].values():
@@ -107,7 +108,7 @@ class MonteCarloReportTests(unittest.TestCase):
 
     def test_ensemble_bias_fails_despite_accurate_timing_seed(self):
         result, data = self.fixture(noise=0, bias=0.06)
-        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(result.returncode, 1, result.stderr)
         self.assertEqual(data["status"], "accuracy_failed")
         self.assertIsNone(data["ratio"])
         for backend in data["backends"].values():
@@ -169,19 +170,31 @@ class MonteCarloNativeTests(unittest.TestCase):
                         invalid["profiles"][backend]["seed"] = 5
                         with self.assertRaisesRegex(RuntimeError, "couples QuantLib"):
                             native(binary, invalid, backend, 1)
-                    for key, value in (
-                        ("workers", 2),
-                        ("seed", 0),
-                        ("seed", 4294967301),
-                        ("path_count", 10000001),
-                        ("antithetic", "true"),
-                        ("control_variate", "true"),
-                        ("sampling", "sobol"),
-                        ("path_count", 1.5),
+                    policy = "MC benchmark requires one worker"
+                    for key, value, rust_error, quantlib_error in (
+                        ("workers", 2, policy, policy),
+                        ("seed", 0, policy, "seed$"),
+                        ("seed", 4294967301, "number too large", "seed$"),
+                        (
+                            "path_count",
+                            10000001,
+                            "path_count must be between",
+                            "path_count$",
+                        ),
+                        ("antithetic", "true", policy, policy),
+                        ("control_variate", "true", policy, policy),
+                        ("sampling", "sobol", policy, policy),
+                        ("path_count", 1.5, "invalid digit", "path_count$"),
                     ):
                         invalid = copy.deepcopy(case)
                         invalid["profiles"][backend][key] = value
-                        with self.assertRaises(RuntimeError):
+                        diagnostic = (
+                            rust_error if backend == "kiyosi" else quantlib_error
+                        )
+                        with (
+                            self.subTest(key=key, value=value),
+                            self.assertRaisesRegex(RuntimeError, diagnostic),
+                        ):
                             native(binary, invalid, backend, 1)
 
     def test_committed_profiles_pass_live_ensemble_gate(self):
@@ -211,6 +224,7 @@ class MonteCarloNativeTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=600,
             )
             data = json.loads(report.read_text())
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout)

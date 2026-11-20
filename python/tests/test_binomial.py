@@ -38,7 +38,7 @@ from kiyosi.pricing import (
     numerical_greeks,
 )
 from support.assertions import assert_rejection
-from support.terminal import assert_terminal_greeks
+from support.terminal import ALL_GREEKS, assert_terminal_greeks
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 GREEKS = (
@@ -437,6 +437,7 @@ def test_american_immediate_exercise_and_european_limit(steps):
 def test_expiry_strict_equality_and_lifetime_boundaries(kind, direction):
     engine = engine_for(kind)
     option = contract(kind, direction)
+    supported = ("delta", "gamma") if kind in DIGITAL else ALL_GREEKS
     for spot in (90, 100, 110):
         context = market(spot, 100, -100, 1e-200, END)
         intrinsic = max((1 if direction == "call" else -1) * (spot - 100), 0)
@@ -454,7 +455,7 @@ def test_expiry_strict_equality_and_lifetime_boundaries(kind, direction):
             if kind in VANILLA
             else int(kind is AssetOrNothingOption and intrinsic > 0)
         )
-        assert_terminal_greeks(result, delta)
+        assert_terminal_greeks(result, delta, supported=supported)
         assert_rejection(
             UnsupportedOperationError,
             implied_volatility,
@@ -469,14 +470,19 @@ def test_expiry_strict_equality_and_lifetime_boundaries(kind, direction):
         START - timedelta(days=1),
         datetime(2026, 1, 1) + timedelta(microseconds=1),
     ):
-        if kind is not AmericanOption and time < START:
-            assert math.isfinite(engine.price(option, market(valuation=time)))
-        else:
+        if kind is AmericanOption or time > END:
             assert_rejection(
                 InvalidInputError,
                 engine.price,
                 option,
                 market(valuation=time),
+            )
+        else:
+            spot = 110 if direction == "call" else 90
+            context = market(spot, 0, 0, 0, time)
+            expected = spot if kind is AssetOrNothingOption else 10
+            assert engine.price(option, context) == pytest.approx(
+                expected, rel=0, abs=1e-12
             )
 
 

@@ -2610,7 +2610,10 @@ fn independent_observation_records_validate_zero_and_replacement() -> Result<()>
             Err(Error::InvalidInput(_))
         ));
     }
-    assert!(KnockOutObservation::new(time, 0.0).is_err());
+    assert!(matches!(
+        KnockOutObservation::new(time, 0.0),
+        Err(Error::InvalidInput(_))
+    ));
     assert_eq!(knock_out.knock_out_level(), 110.0);
     Ok(())
 }

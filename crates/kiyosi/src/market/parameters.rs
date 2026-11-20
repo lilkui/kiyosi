@@ -86,7 +86,7 @@ impl BlackScholesMertonParameters {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{BlackScholesMertonParameters, Date, RateTermStructure};
+    /// use kiyosi::{BlackScholesMertonParameters, Date, Error, RateTermStructure};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let end = Date::new(2026, 1, 1)?.start_of_day();
@@ -94,7 +94,7 @@ impl BlackScholesMertonParameters {
     /// let model = BlackScholesMertonParameters::new(discounts, 0.02, 0.2)?;
     /// assert!((model.risk_free_curve().factor(start, end)? - 0.95).abs() < 1e-14);
     /// assert_eq!(model.flat_dividend_yield()?, 0.02);
-    /// assert!(model.flat_risk_free_rate().is_err()); // This curve has varying forwards.
+    /// assert!(matches!(model.flat_risk_free_rate(), Err(Error::UnsupportedOperation(_))));
     /// # Ok(()) }
     /// ```
     pub fn new(

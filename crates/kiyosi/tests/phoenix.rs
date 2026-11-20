@@ -302,24 +302,27 @@ fn lockout_history_depends_only_on_eligible_knock_out_observations() {
     let mut input = terms();
     input.barrier_state = None;
 
-    input.knock_out_observations = ([date(2, 3), date(3, 3), date(4, 1)]
-        .iter()
-        .zip([110.0; 3].iter())
-        .map(|(&time, &level)| kiyosi::KnockOutObservation::new(time, level))
+    input.knock_out_observations = [date(3, 3), date(4, 1)]
+        .into_iter()
+        .map(|time| KnockOutObservation::new(time, 110.0))
         .collect::<kiyosi::Result<Vec<_>>>()
-        .unwrap())
-    .into_iter()
-    .skip(1)
-    .collect();
+        .unwrap();
     input.coupon_observations = [date(2, 3), date(3, 3), date(4, 1)]
-        .iter()
-        .zip([90.0; 3].iter())
-        .map(|(&time, &level)| kiyosi::CouponObservation::new(time, level))
+        .into_iter()
+        .map(|time| CouponObservation::new(time, 90.0))
         .collect::<kiyosi::Result<Vec<_>>>()
         .unwrap();
     let note = PhoenixOption::new(input).unwrap();
     let engine = QuadratureAutocallableEngine::default();
-    assert!(engine.price(&note, &market(100.0, date(3, 3))).is_ok());
+    // The locked coupon is past. Today's coupon and the maturity payment remain.
+    let at_first_eligible = PricingContext::new(
+        BlackScholesMertonParameters::new(0.0, 0.0, 0.0).unwrap(),
+        100.0,
+        date(3, 3),
+    )
+    .unwrap();
+    let price = engine.price(&note, &at_first_eligible).unwrap();
+    assert!((price - 1.02).abs() < 1e-12, "Phoenix price {price}");
     assert!(matches!(
         engine.price(&note, &market(100.0, date(3, 4))),
         Err(Error::MissingHistory(_))

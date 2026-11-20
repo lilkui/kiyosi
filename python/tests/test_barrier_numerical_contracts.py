@@ -14,7 +14,7 @@ from kiyosi import (
 from kiyosi.instruments import EuropeanOption
 from kiyosi.pricing import numerical_greeks
 from support.assertions import assert_rejection
-from support.terminal import assert_terminal_greeks
+from support.terminal import ALL_GREEKS, assert_terminal_greeks
 from test_barrier_binomial import END, KINDS, START, market, option
 
 
@@ -131,6 +131,11 @@ def test_valuation_and_greek_validation_preserve_core_errors(subtests):
 
 def test_expiry_settlement_has_terminal_spot_greeks(subtests):
     for engine in engines():
+        supported = (
+            ("delta", "gamma")
+            if isinstance(engine, pricing.CoxRossRubinsteinBarrierEngine)
+            else ALL_GREEKS
+        )
         with subtests.test(engine=type(engine).__name__):
             for kind in KINDS:
                 contract = option(kind, rebate=3, touch_state="untouched")
@@ -140,7 +145,9 @@ def test_expiry_settlement_has_terminal_spot_greeks(subtests):
                     greeks="all",
                 )
                 assert result.price == (3 if kind.endswith("in") else 10)
-                assert_terminal_greeks(result, int(kind.endswith("out")))
+                assert_terminal_greeks(
+                    result, int(kind.endswith("out")), supported=supported
+                )
 
 
 def test_implied_volatility_reprices_and_rejects_fixed_cashflows(subtests):

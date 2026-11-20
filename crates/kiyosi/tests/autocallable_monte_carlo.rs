@@ -479,12 +479,12 @@ fn sobol_dimension_limit_applies_only_to_remaining_simulation_dates() {
     let mut terms = SnowballTerms::new(
         0.06,
         100.0,
-        80.0,
+        1e-100,
         100.0,
         60.0,
         start,
         end,
-        autocallable_observations(&[end], &[110.0], Some(&[0.08]), None).unwrap(),
+        autocallable_observations(&[end], &[1e100], Some(&[0.08]), None).unwrap(),
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (end).time_of_day(),
         },
@@ -500,14 +500,18 @@ fn sobol_dimension_limit_applies_only_to_remaining_simulation_dates() {
     .unwrap();
     assert!(matches!(
         engine.price(&note, &market(100.0, start)).unwrap_err(),
-        Error::InvalidInput(_)
+        Error::InvalidInput(message) if message.contains("Sobol dimension")
     ));
     terms.knock_in_observation = KnockInObservation::AtExpiry;
+    let expiry_only = SnowballOption::new(terms).unwrap();
+    let actual = engine.price(&expiry_only, &market(100.0, start)).unwrap();
+
+    // Both seeded paths finish between the deliberately distant barriers.
+    let years = start.years_until(end);
+    let expected = (1.0 + 0.06 * years) * (-0.04 * years).exp();
     assert!(
-        engine
-            .price(&SnowballOption::new(terms).unwrap(), &market(100.0, start))
-            .unwrap()
-            .is_finite()
+        (actual - expected).abs() < 1e-12,
+        "price {actual}, expected {expected}"
     );
 }
 

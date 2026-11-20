@@ -150,7 +150,7 @@ def test_history_start_intraday_life_and_expiry(kind):
             greeks="all",
         )
         assert result.price == expected
-        assert_terminal_greeks(result, 0)
+        assert_terminal_greeks(result, 0, supported=("delta", "gamma"))
         assert (
             settled.price(
                 option(kind, direction, averaging=END),

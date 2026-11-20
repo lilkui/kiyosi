@@ -184,7 +184,9 @@ def test_concurrent_asian_delta_requests_preserve_results_and_errors(subtests):
             {"greeks": "all"},
         ] * 4
         with subtests.test(kind=kind), ThreadPoolExecutor(max_workers=4) as pool:
-            for selection, result in zip(selections, pool.map(calculate, selections)):
+            for selection, result in zip(
+                selections, pool.map(calculate, selections), strict=True
+            ):
                 assert result.price == pytest.approx(expected_price, rel=0, abs=1e-12)
                 assert result.delta == pytest.approx(expected_delta, rel=0, abs=1e-12)
                 if selection["greeks"] != "all":

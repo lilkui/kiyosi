@@ -171,37 +171,47 @@ def test_default_path_count_supports_both_sampling_methods(sampling):
     assert engine.path_count == 131072
 
 
-def test_defaults_terminal_prices_and_statistics():
+def test_default_steps_seed_and_workers():
     default = MonteCarloVanillaEngine()
-    assert (
-        (
-            default.path_count,
-            default.step_count,
-            default.seed,
-            default.max_active_workers,
-        )
-    ) == ((131_072, 50, None, 0))
-    for direction, reference in (
-        ("call", 9.227005508154036),
-        ("put", 6.330080627549918),
-    ):
-        engine = MonteCarloVanillaEngine(seed=42, max_active_workers=4)
-        option = contract(direction)
-        estimate = engine.price_with_statistics(option, market())
-        assert estimate.price == engine.price(option, market())
-        assert estimate.price == pytest.approx(reference, rel=0, abs=0.2)
-        assert estimate.standard_error > 0
-        lower, upper = estimate.confidence_interval
-        assert_decimal_equal(
-            upper - lower, 2 * 1.959963984540054 * estimate.standard_error
-        )
-        for steps in (2, 7, 10_000):
-            other = MonteCarloVanillaEngine(seed=42, step_count=steps)
-            assert other.price(option, market()) == estimate.price
-        one = MonteCarloVanillaEngine(path_count=1, seed=42)
-        estimate = one.price_with_statistics(option, market())
-        assert estimate.standard_error is None
-        assert estimate.confidence_interval is None
+    assert (default.step_count, default.seed, default.max_active_workers) == (
+        50,
+        None,
+        0,
+    )
+
+
+@pytest.mark.parametrize(
+    "direction,reference", [("call", 9.227005508154036), ("put", 6.330080627549918)]
+)
+def test_terminal_price_and_confidence_interval_match_seeded_sampling(
+    direction, reference
+):
+    engine = MonteCarloVanillaEngine(seed=42, max_active_workers=4)
+    option, context = contract(direction), market()
+
+    estimate = engine.price_with_statistics(option, context)
+
+    assert estimate.price == engine.price(option, context)
+    assert estimate.price == pytest.approx(reference, rel=0, abs=0.2)
+    assert estimate.standard_error > 0
+    lower, upper = estimate.confidence_interval
+    normal_95_percent_quantile = 1.959963984540054
+    assert_decimal_equal(
+        upper - lower, 2 * normal_95_percent_quantile * estimate.standard_error
+    )
+    for steps in (2, 7, 10_000):
+        other = engine.replace(step_count=steps)
+        assert other.price(option, context) == estimate.price
+
+
+@pytest.mark.parametrize("direction", ("call", "put"))
+def test_one_path_has_no_standard_error_or_confidence_interval(direction):
+    engine = MonteCarloVanillaEngine(path_count=1, seed=42)
+
+    estimate = engine.price_with_statistics(contract(direction), market())
+
+    assert estimate.standard_error is None
+    assert estimate.confidence_interval is None
 
 
 @pytest.mark.parametrize("sampling", ("pseudo_random", "sobol"))

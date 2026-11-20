@@ -4,6 +4,7 @@ import copy
 import inspect
 from datetime import datetime
 from datetime import time as clock_time
+from types import ModuleType
 
 import pytest
 from kiyosi import instruments as i
@@ -354,8 +355,16 @@ def test_repr_and_engine_replacement_ignore_constructor_only_parameters(
     )
     representations = [repr(value) for value in objects]
 
+    exports = ModuleType(_native.__name__)
     for value in objects:
         factory = type(value)
+        setattr(exports, factory.__name__, factory)
+        if inspect.isfunction(factory.__repr__):
+            monkeypatch.setattr(factory, "__repr__", object.__repr__)
+        for method in ("__copy__", "__deepcopy__"):
+            monkeypatch.delattr(factory, method)
+        if factory is p.FiniteDifferenceVanillaEngine:
+            monkeypatch.delattr(factory, "replace")
         constructor = inspect.signature(factory)
         monkeypatch.setattr(
             factory,
@@ -372,7 +381,7 @@ def test_repr_and_engine_replacement_ignore_constructor_only_parameters(
             ),
             raising=False,
         )
-    install(_native)
+    install(exports)
     for value, expected in zip(objects, representations, strict=True):
         assert repr(value) == expected
     updated = objects[1].replace(asset_step_count=234)
@@ -392,11 +401,10 @@ def test_range_accrual_repr_identifies_observation_clock():
         observation_clock_time=clock_time(9, 0, 0, 123456),
     )
     afternoon = morning.replace(observation_clock_time=clock_time(15, 0, 0, 654321))
-    for option in (morning, afternoon):
-        assert (f"observation_clock_time={option.observation_clock_time!r}") in repr(
-            option
-        )
-    assert repr(morning) != repr(afternoon)
+    assert morning.observation_clock_time == clock_time(9, 0, 0, 123456)
+    assert afternoon.observation_clock_time == clock_time(15, 0, 0, 654321)
+    assert "observation_clock_time=datetime.time(9, 0, 0, 123456)" in repr(morning)
+    assert "observation_clock_time=datetime.time(15, 0, 0, 654321)" in repr(afternoon)
 
 
 def test_repr_bounds_large_surfaces_and_handles_extreme_curve_shifts():

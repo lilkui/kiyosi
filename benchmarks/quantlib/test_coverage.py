@@ -83,8 +83,9 @@ class CoverageTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=600,
             )
-            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(result.returncode, 1, result.stderr)
             self.assertTrue(report.exists(), result.stderr)
             return json.loads(report.read_text())
 

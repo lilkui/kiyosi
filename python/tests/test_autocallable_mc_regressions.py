@@ -325,9 +325,15 @@ def test_fixed_implied_volatility_preserves_non_finite_pricing_errors(subtests):
 
 def test_contract_calendar_controls_daily_monte_carlo_observations(subtests):
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
-    parameters = BlackScholesMertonParameters(
-        risk_free_rate=0.03, dividend_yield=0, volatility=0.3
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.03, dividend_yield=0, volatility=0.3
+        ),
+        spot_price=100,
+        valuation_time=start,
     )
+    engine = pricing.MonteCarloAutocallableEngine(path_count=2000, seed=42)
+    reference = pricing.QuadratureAutocallableEngine(asset_step_count=1024)
     for observations in ([datetime(2025, 7, 1)], [datetime(2025, 7, 1), end]):
         terms = {
             "maturity_coupon_rate": 0.04,
@@ -353,39 +359,35 @@ def test_contract_calendar_controls_daily_monte_carlo_observations(subtests):
                     else KnockInObservation.at_expiry()
                 ),
             )
-            for note, engine in (
-                (
-                    BinarySnowballOption(calendar=weekdays_calendar(), **terms),
-                    pricing.MonteCarloAutocallableEngine(path_count=2000, seed=42),
-                ),
-                (
-                    snowball,
-                    pricing.MonteCarloAutocallableEngine(path_count=2000, seed=42),
-                ),
-            ):
+            binary = BinarySnowballOption(calendar=weekdays_calendar(), **terms)
+            for note in (binary, snowball):
                 with subtests.test(
                     observations=observations,
                     note=type(note).__name__,
                     mode=mode,
                 ):
-                    prices = [
-                        engine.price(
-                            note.replace(
-                                calendar=calendar,
-                                barrier_state=note.barrier_state,
-                            ),
-                            PricingContext(
-                                model_parameters=parameters,
-                                spot_price=100,
-                                valuation_time=start,
-                            ),
-                        )
-                        for calendar in (weekdays_calendar(), all_days_calendar())
-                    ]
+                    all_days = note.replace(calendar=all_days_calendar())
                     if isinstance(note, SnowballOption) and mode == "every_trading_day":
-                        assert prices[0] != prices[1]
+                        weekend = datetime(2025, 1, 4)
+                        assert weekend not in note.knock_in_observation_schedule
+                        assert weekend in all_days.knock_in_observation_schedule
+                        estimates = [
+                            engine.price_with_statistics(scheduled, context)
+                            for scheduled in (note, all_days)
+                        ]
+                        for scheduled, estimate in zip(
+                            (note, all_days), estimates, strict=True
+                        ):
+                            # Include sampling uncertainty and spatial quadrature error.
+                            budget = 5 * estimate.standard_error + 0.002
+                            assert estimate.price == pytest.approx(
+                                reference.price(scheduled, context), rel=0, abs=budget
+                            )
+                        assert estimates[0].price != estimates[1].price
                     else:
-                        assert prices[0] == prices[1]
+                        assert engine.price(note, context) == engine.price(
+                            all_days, context
+                        )
 
 
 def check_autocallable(subtests, note, context, expected):

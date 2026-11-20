@@ -109,6 +109,10 @@ fn finite_difference_terminal_greeks_are_exact_for_bsm_and_local_volatility() ->
         local.into(),
     ];
     for model in models {
+        let supported = match &model {
+            ModelParameters::LocalVolatility(_) => GreeksRequest::new([Greek::Delta, Greek::Gamma]),
+            _ => GreeksRequest::all(),
+        };
         for (direction, deltas) in [
             (OptionType::Call, [Some(0.0), None, Some(1.0)]),
             (OptionType::Put, [Some(-1.0), None, Some(0.0)]),
@@ -141,8 +145,10 @@ fn finite_difference_terminal_greeks_are_exact_for_bsm_and_local_volatility() ->
                             generic.greek_method(&option, &context)?,
                             GreekMethod::Native
                         );
+                        assert_eq!(result.requested(), GreeksRequest::all());
+                        assert_eq!(result.supported(), supported);
                         for greek in Greek::ALL {
-                            let expected = if !result.supported().has(greek)
+                            let expected = if !supported.has(greek)
                                 || matches!(greek, Greek::Theta | Greek::Charm | Greek::Color)
                             {
                                 None

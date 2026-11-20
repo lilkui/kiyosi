@@ -488,7 +488,9 @@ def test_unsupported_greeks_solvers_expiry_and_coverage():
         ["delta", "gamma"],
     )
     assert terminal.price == 10
-    assert_terminal_greeks(terminal, 1)
+    assert_terminal_greeks(
+        terminal, 1, requested=("delta", "gamma"), supported=("delta", "gamma")
+    )
     with pytest.raises(InvalidInputError):
         engine().price(option(end=END + timedelta(days=1)), c)
     dated = RateTermStructure(

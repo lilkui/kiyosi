@@ -16,13 +16,43 @@ from run import RUST_EXECUTABLE, command, rust_build_command
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def build_quantlib_test_executable(test_class):
+    directory = test_class.enterClassContext(tempfile.TemporaryDirectory())
+    executable = Path(directory) / "quantlib_bench"
+    config = os.environ.get("QUANTLIB_CONFIG", "quantlib-config")
+
+    def flags(flag):
+        return shlex.split(
+            subprocess.check_output([config, flag], text=True, timeout=30)
+        )
+
+    subprocess.run(
+        [
+            "c++",
+            "-std=c++17",
+            "-O3",
+            "-DNDEBUG",
+            *flags("--cflags"),
+            str(ROOT / "benchmarks/quantlib/quantlib.cpp"),
+            "-o",
+            str(executable),
+            *flags("--libs"),
+        ],
+        check=True,
+        capture_output=True,
+        timeout=600,
+    )
+
+    return executable
+
+
 class FiniteDifferenceTests(unittest.TestCase):
     backend = "kiyosi"
     profile: ClassVar[dict] = {"scheme": "rannacher", "upper": 400}
 
     @classmethod
     def setUpClass(cls):
-        command(rust_build_command())
+        command(rust_build_command(), timeout=600)
         cls.executable = RUST_EXECUTABLE
 
     def invoke(self, **changes):
@@ -52,6 +82,7 @@ class FiniteDifferenceTests(unittest.TestCase):
             text=True,
             capture_output=True,
             check=False,
+            timeout=120,
         )
 
     def test_european_and_american_exercise(self):
@@ -76,10 +107,22 @@ class FiniteDifferenceTests(unittest.TestCase):
 
     def test_invalid_domain_is_rejected(self):
         key = "upper" if self.backend == "kiyosi" else "domain"
-        for value in ["auto", "True", "-1", "NaN", "inf"]:
+        for value, rust_error in (
+            ("auto", "invalid float literal"),
+            ("True", "invalid float literal"),
+            ("-1", "asset_upper_boundary must be finite and positive"),
+            ("NaN", "asset_upper_boundary must be finite and positive"),
+            ("inf", "asset_upper_boundary must be finite and positive"),
+        ):
             with self.subTest(value=value):
                 result = self.invoke(**{key: value})
-                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(
+                    rust_error
+                    if self.backend == "kiyosi"
+                    else "FD domain must be automatic",
+                    result.stderr,
+                )
 
     def test_all_product_profiles_against_independent_references(self):
         cases = json.loads(
@@ -107,6 +150,7 @@ class FiniteDifferenceTests(unittest.TestCase):
                     text=True,
                     capture_output=True,
                     check=False,
+                    timeout=120,
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 reference = references[case["id"]]
@@ -127,8 +171,9 @@ class FiniteDifferenceTests(unittest.TestCase):
                         text=True,
                         capture_output=True,
                         check=False,
+                        timeout=120,
                     )
-                    self.assertNotEqual(rejected.returncode, 0)
+                    self.assertEqual(rejected.returncode, 1, rejected.stderr)
                     self.assertIn("FD subset", rejected.stderr)
                 if "barrier" in params:
                     params["spot"] = params["barrier"]
@@ -140,8 +185,9 @@ class FiniteDifferenceTests(unittest.TestCase):
                         text=True,
                         capture_output=True,
                         check=False,
+                        timeout=120,
                     )
-                    self.assertNotEqual(rejected.returncode, 0)
+                    self.assertEqual(rejected.returncode, 1, rejected.stderr)
                     self.assertIn("untouched", rejected.stderr)
 
 
@@ -196,27 +242,7 @@ class QuantLibFiniteDifferenceTests(FiniteDifferenceTests):
 
     @classmethod
     def setUpClass(cls):
-        cls.directory = tempfile.TemporaryDirectory()
-        cls.executable = Path(cls.directory.name) / "quantlib_bench"
-        config = os.environ.get("QUANTLIB_CONFIG", "quantlib-config")
-        flags = lambda flag: shlex.split(
-            subprocess.check_output([config, flag], text=True)
-        )
-        subprocess.run(
-            [
-                "c++",
-                "-std=c++17",
-                "-O3",
-                "-DNDEBUG",
-                *flags("--cflags"),
-                str(ROOT / "benchmarks/quantlib/quantlib.cpp"),
-                "-o",
-                str(cls.executable),
-                *flags("--libs"),
-            ],
-            check=True,
-            capture_output=True,
-        )
+        cls.executable = build_quantlib_test_executable(cls)
 
     def test_failed_reference_suppresses_timing_and_ratio(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -244,18 +270,15 @@ class QuantLibFiniteDifferenceTests(FiniteDifferenceTests):
                 text=True,
                 capture_output=True,
                 check=False,
+                timeout=600,
             )
-            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(result.returncode, 1, result.stderr)
             case = json.loads(report.read_text())["cases"][0]
             self.assertEqual(case["status"], "accuracy_failed")
             self.assertIsNone(case["ratio"])
             for backend in case["backends"].values():
                 self.assertFalse(backend["accuracy"]["passed"])
                 self.assertNotIn("timing", backend)
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.directory.cleanup()
 
 
 if __name__ == "__main__":

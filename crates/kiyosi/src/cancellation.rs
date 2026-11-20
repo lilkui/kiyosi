@@ -135,13 +135,14 @@ mod tests {
         assert!(
             matches!(result, Err(crate::Error::Io(error)) if error.kind() == io::ErrorKind::Interrupted)
         );
-        assert!(
-            std::panic::catch_unwind(|| inner.run::<()>(|| {
+        let panic = std::panic::catch_unwind(|| {
+            inner.run::<()>(|| {
                 inner.cancel();
-                panic!("custom engine panic")
-            }))
-            .is_err()
-        );
+                std::panic::panic_any("custom engine panic")
+            })
+        })
+        .expect_err("the custom engine panic must propagate");
+        assert_eq!(panic.downcast_ref::<&str>(), Some(&"custom engine panic"));
         check()?;
         assert_eq!(CancellationToken::default().run(|| Ok(7))?, 7);
         Ok(())

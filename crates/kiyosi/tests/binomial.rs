@@ -434,32 +434,55 @@ fn expiry_boundaries_settle_strictly_and_life_errors_precede_trees() {
                 ));
             }
         }
-        for time in [
-            Date::new(2024, 12, 31).unwrap().start_of_day(),
-            Timestamp::new(end.date(), 0, 0, 0, 1).unwrap(),
+        let spot = if direction == OptionType::Call {
+            110.0
+        } else {
+            90.0
+        };
+        let before_start = market(spot, 0.0, 0.0, 0.0)
+            .replace(PricingContextChanges {
+                valuation_time: Some(start.add_days(-1).unwrap()),
+                ..Default::default()
+            })
+            .unwrap();
+        let after_expiry = before_start
+            .replace(PricingContextChanges {
+                valuation_time: Some(end.add_micros(1).unwrap()),
+                ..Default::default()
+            })
+            .unwrap();
+        let cash = DigitalOption::cash_or_nothing(direction, 100.0, 10.0, start, end).unwrap();
+        let asset = DigitalOption::asset_or_nothing(direction, 100.0, start, end).unwrap();
+        for (product, actual, expected) in [
+            (
+                "vanilla",
+                vanilla.price(&european, &before_start).unwrap(),
+                10.0,
+            ),
+            (
+                "cash digital",
+                digital.price(&cash, &before_start).unwrap(),
+                10.0,
+            ),
+            (
+                "asset digital",
+                digital.price(&asset, &before_start).unwrap(),
+                spot,
+            ),
         ] {
-            let context = market(100.0, 0.05, 0.02, 1e-200)
-                .replace(PricingContextChanges {
-                    valuation_time: Some(time),
-                    ..Default::default()
-                })
-                .unwrap();
-            if time > european.expiry_time() {
-                assert!(matches!(
-                    vanilla.price(&european, &context),
-                    Err(Error::InvalidInput(_))
-                ));
-                let option =
-                    DigitalOption::cash_or_nothing(direction, 100.0, 10.0, start, end).unwrap();
-                assert!(matches!(
-                    digital.price(&option, &context).unwrap_err(),
-                    Error::InvalidInput(_)
-                ));
-            }
-            assert!(matches!(
-                vanilla.price(&american, &context).unwrap_err(),
-                Error::InvalidInput(_)
-            ));
+            assert!(
+                (actual - expected).abs() < 1e-12,
+                "{direction:?} {product} before effective time: {actual}, expected {expected}"
+            );
+        }
+        for result in [
+            vanilla.price(&american, &before_start),
+            vanilla.price(&american, &after_expiry),
+            vanilla.price(&european, &after_expiry),
+            digital.price(&cash, &after_expiry),
+            digital.price(&asset, &after_expiry),
+        ] {
+            assert!(matches!(result, Err(Error::InvalidInput(_))));
         }
     }
 }

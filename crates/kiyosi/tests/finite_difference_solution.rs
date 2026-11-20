@@ -40,6 +40,8 @@ fn saved_vanilla_matches_analytic_and_scalar_batch_contracts() {
     let results = solution
         .price_many_with_greeks(&spots, GreeksRequest::all(), None)
         .unwrap();
+    assert_eq!(prices.len(), spots.len(), "scalar batch result count");
+    assert_eq!(results.len(), spots.len(), "Greeks batch result count");
     for ((spot, price), result) in spots.into_iter().zip(prices).zip(results) {
         assert_eq!(price, solution.price(spot).unwrap());
         assert_eq!(
@@ -468,7 +470,9 @@ fn saved_absorbing_heston_american_reports_its_exercise_intervals() -> Result<()
     let solution = engine.solve(&option, &context, 80.0..=120.0)?;
     assert_eq!(solution.query_work(), 1200);
     let values = solution.price_many(&[90.0, 110.0, 90.0])?;
-    for (value, expected) in values.into_iter().zip([10.0, 0.0, 10.0]) {
+    let expected = [10.0, 0.0, 10.0];
+    assert_eq!(values.len(), expected.len(), "Heston batch result count");
+    for (value, expected) in values.into_iter().zip(expected) {
         close(value, expected, 1e-12);
     }
     assert_eq!(solution.supported(), GreeksRequest::new([]));

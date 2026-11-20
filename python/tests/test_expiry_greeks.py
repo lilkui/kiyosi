@@ -8,7 +8,7 @@ from kiyosi import instruments as ins
 from kiyosi import market, pricing
 from kiyosi.instruments import KnockInObservation
 from kiyosi.pricing import numerical_greeks
-from support.terminal import assert_terminal_greeks
+from support.terminal import ALL_GREEKS, assert_terminal_greeks
 
 
 def test_finite_difference_terminal_greeks_are_exact_for_bsm_and_local_volatility(
@@ -29,6 +29,8 @@ def test_finite_difference_terminal_greeks_are_exact_for_bsm_and_local_volatilit
     )
     engine = pricing.FiniteDifferenceVanillaEngine()
     for model in models:
+        local_volatility = isinstance(model, market.LocalVolatilityParameters)
+        supported = ("delta", "gamma") if local_volatility else ALL_GREEKS
         for kind in (ins.EuropeanOption, ins.AmericanOption):
             for direction, deltas in (
                 ("call", (0, None, 1)),
@@ -57,11 +59,10 @@ def test_finite_difference_terminal_greeks_are_exact_for_bsm_and_local_volatilit
                             valuation_time=end,
                         )
                         result = engine.price_with_greeks(option, context, "all")
-                        assert_terminal_greeks(result, delta)
+                        assert_terminal_greeks(result, delta, supported=supported)
                         assert engine.greek_method(option, context) == "native"
                         assert engine.active_greek_controls(option, context) == []
-                        if isinstance(model, market.LocalVolatilityParameters):
-                            assert result.supported == (("delta", "gamma"))
+                        if local_volatility:
                             assert result.status("vega") == "unsupported"
                         only_delta = engine.price_with_greeks(option, context, "delta")
                         assert only_delta.status("gamma") == "not_requested"

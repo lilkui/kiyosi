@@ -92,9 +92,13 @@ fn calendar_bounded_quotes_pause_on_closed_dates() -> kiyosi::Result<()> {
     assert_eq!(curve.forward_rate(saturday)?, 0.0);
     assert!((curve.forward_rate(monday)? - 0.05 * 365.0 / 261.0).abs() < 1e-15);
     assert!((curve.log_factor(friday_noon, monday_noon)? + 0.05 / 261.0).abs() < 1e-15);
-    for (factor, &node) in curve.factors()?.iter().zip(curve.nodes()) {
-        assert_eq!(*factor, curve.factor(friday_noon, node)?);
-    }
+    assert_eq!(
+        curve.factors()?,
+        [
+            curve.factor(friday_noon, saturday)?,
+            curve.factor(friday_noon, monday)?,
+        ]
+    );
     let shifted = curve.shifted(0.01)?;
     assert_eq!(shifted.factor(saturday, monday)?, 1.0);
     assert!((shifted.log_factor(friday_noon, monday_noon)? + 0.06 / 261.0).abs() < 1e-15);

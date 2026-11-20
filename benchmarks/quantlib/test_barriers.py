@@ -55,6 +55,7 @@ class NativeBarrierTests(unittest.TestCase):
                 text=True,
                 capture_output=True,
                 check=False,
+                timeout=600,
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             data = json.loads(report.read_text())
@@ -109,8 +110,9 @@ class NativeBarrierTests(unittest.TestCase):
                     text=True,
                     capture_output=True,
                     check=False,
+                    timeout=120,
                 )
-                self.assertNotEqual(invalid.returncode, 0)
+                self.assertEqual(invalid.returncode, 1, invalid.stderr)
                 self.assertIn("untouched", invalid.stderr)
             case = cases["double-barrier-out-call"]
             for series in (2.5, -1, 1001):
@@ -128,8 +130,9 @@ class NativeBarrierTests(unittest.TestCase):
                     text=True,
                     capture_output=True,
                     check=False,
+                    timeout=120,
                 )
-                self.assertNotEqual(invalid.returncode, 0)
+                self.assertEqual(invalid.returncode, 1, invalid.stderr)
                 self.assertIn("series", invalid.stderr)
             for row in cases.values():
                 self.assertEqual(row["status"], "passed")

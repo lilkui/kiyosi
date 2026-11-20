@@ -37,7 +37,12 @@ class HestonTests(unittest.TestCase):
                 str(report),
             ]
             result = subprocess.run(
-                arguments, cwd=ROOT, capture_output=True, text=True, check=False
+                arguments,
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=600,
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             data = json.loads(report.read_text())
@@ -77,6 +82,7 @@ class HestonTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=600,
             )
             self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
             row = json.loads(report.read_text())["cases"][0]

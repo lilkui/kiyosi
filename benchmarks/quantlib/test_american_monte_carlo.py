@@ -59,9 +59,10 @@ class AmericanMonteCarloTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=600,
             )
             data = json.loads(report.read_text())["cases"][0]
-            self.assertNotEqual(result.returncode, 0, result.stdout)
+            self.assertEqual(result.returncode, 1, result.stderr)
             self.assertIsNone(data["ratio"])
             self.assertEqual(data["status"], "precision_failed")
             for name, backend in data["backends"].items():
@@ -80,22 +81,26 @@ class AmericanMonteCarloTests(unittest.TestCase):
                         self.assertNotIn("calibration_seed", sample["profile"])
 
     def test_native_work_policy_rejects_invalid_profiles(self):
+        policy = "American MC requires one worker"
         for backend, executable in self.executables.items():
-            for key, value in (
-                ("workers", 2),
-                ("seed", 0),
-                ("seed", 4294967296),
-                ("step_count", 1),
-                ("step_count", 2.5),
-                ("path_count", 10000001),
-                ("basis", "laguerre"),
-                ("antithetic", "true"),
+            for key, value, rust_error, quantlib_error in (
+                ("workers", 2, policy, policy),
+                ("seed", 0, policy, "seed$"),
+                ("seed", 4294967296, "number too large", "seed$"),
+                ("step_count", 1, policy, policy),
+                ("step_count", 2.5, "invalid digit", "step_count$"),
+                ("path_count", 10000001, policy, "path_count$"),
+                ("basis", "laguerre", policy, policy),
+                ("antithetic", "true", policy, policy),
             ):
-                with self.subTest(backend=backend, key=key, value=value):
-                    invalid = copy.deepcopy(self.case)
-                    invalid["profiles"][backend][key] = value
-                    with self.assertRaises(RuntimeError):
-                        native(executable, invalid, backend, 1)
+                invalid = copy.deepcopy(self.case)
+                invalid["profiles"][backend][key] = value
+                diagnostic = rust_error if backend == "kiyosi" else quantlib_error
+                with (
+                    self.subTest(backend=backend, key=key, value=value),
+                    self.assertRaisesRegex(RuntimeError, diagnostic),
+                ):
+                    native(executable, invalid, backend, 1)
         invalid = copy.deepcopy(self.case)
         invalid["profiles"]["quantlib"]["calibration_seed"] = 1729
         with self.assertRaisesRegex(RuntimeError, "independent nonzero seeds"):

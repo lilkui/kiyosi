@@ -325,8 +325,12 @@ mod tests {
                     sample_bits(&fresh, dimensions)
                 );
             }
-            assert!(sequence(0, 42).is_err());
-            assert!(sequence(21_202, 42).is_err());
+            for dimensions in [0, 21_202] {
+                assert!(
+                    matches!(sequence(dimensions, 42), Err(Error::InvalidInput(_))),
+                    "Sobol accepted an invalid dimension or returned the wrong error: {dimensions}"
+                );
+            }
             retained = Arc::downgrade(&sequence(4, 42)?);
             assert!(retained.upgrade().is_some());
         }
@@ -355,9 +359,10 @@ mod tests {
         let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let _request = RequestCache::new();
             *retained.borrow_mut() = Arc::downgrade(&sequence(5, 43).unwrap());
-            panic!("pricing failed");
-        }));
-        assert!(panic.is_err());
+            std::panic::panic_any("pricing failed");
+        }))
+        .expect_err("the request panic must propagate");
+        assert_eq!(panic.downcast_ref::<&str>(), Some(&"pricing failed"));
         assert!(retained.borrow().upgrade().is_none());
         assert!(!Arc::ptr_eq(&sequence(5, 43)?, &sequence(5, 43)?));
         Ok(())

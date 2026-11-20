@@ -39,11 +39,11 @@ impl VarianceTimeConvention {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{VarianceTimeConvention, TradingCalendar};
+    /// use kiyosi::{Error, TradingCalendar, VarianceTimeConvention};
     /// # fn main() -> kiyosi::Result<()> {
     /// let clock = VarianceTimeConvention::from_inputs(true, Some(TradingCalendar::weekdays()))?;
     /// assert_eq!(clock.calendar().map(TradingCalendar::trading_days_per_year), Some(261));
-    /// assert!(VarianceTimeConvention::from_inputs(true, None).is_err());
+    /// assert!(matches!(VarianceTimeConvention::from_inputs(true, None), Err(Error::InvalidInput(_))));
     /// # Ok(()) }
     /// ```
     pub fn from_inputs(business_time: bool, calendar: Option<TradingCalendar>) -> Result<Self> {
