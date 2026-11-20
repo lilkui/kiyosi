@@ -51,9 +51,10 @@ fn log_grid_keeps_continuous_barrier_equality() -> Result<()> {
     terms.rebate = 7.0;
     let option = BarrierOption::new(terms)?;
     let engine = FiniteDifferenceBarrierEngine::default();
-    let solution = engine.solve(&option, &market(100.0), barrier.next_down()..=100.0)?;
+    let below_barrier = libm::nextafter(barrier, 0.0);
+    let solution = engine.solve(&option, &market(100.0), below_barrier..=100.0)?;
     let rebate = AnalyticBarrierEngine.price(&option, &market(barrier))?;
-    close(solution.price(barrier.next_down())?, rebate, 1e-12);
+    close(solution.price(below_barrier)?, rebate, 1e-12);
     close(solution.price(barrier)?, rebate, 1e-12);
     let expected = AnalyticBarrierEngine.price(&option, &market(barrier + 0.01))?;
     close(solution.price(barrier + 0.01)?, expected, 0.001);
