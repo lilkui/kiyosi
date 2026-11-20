@@ -944,6 +944,25 @@ fn interpolation_and_implicit_euler_preserve_large_currency_scales() {
 }
 
 #[test]
+fn automatic_european_grid_resolves_low_volatility_at_the_forward_strike() -> Result<()> {
+    let (start, end) = dates();
+    let engine = FiniteDifferenceVanillaEngine::default();
+    for (rate, dividend) in [(0.1_f64, 0.0), (0.0, 0.1)] {
+        let context = market(100.0, rate, dividend, 0.005);
+        for direction in [OptionType::Call, OptionType::Put] {
+            let option =
+                EuropeanOption::new(direction, 100.0 * (rate - dividend).exp(), start, end)?;
+            let expected = AnalyticEuropeanEngine.price(&option, &context)?;
+            let saved = engine.solve(&option, &context, 95.0..=105.0)?;
+            for price in [engine.price(&option, &context)?, saved.price(100.0)?] {
+                assert!((price - expected).abs() < 5e-5, "{price} != {expected}");
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn low_volatility_drift_stabilization_converges_and_large_grids_are_supported() {
     let (start, end) = dates();
     for direction in [OptionType::Call, OptionType::Put] {

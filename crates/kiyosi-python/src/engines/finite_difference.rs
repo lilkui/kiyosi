@@ -219,6 +219,10 @@ fd_engine!(
     PyRef<'_, accumulator::Accumulator>,
 );
 fd_engine!(
+    /// With automatic domains and non-explicit schemes, European BSM grids
+    /// under Actual/365 Fixed remove deterministic carry and concentrate
+    /// around the carry-adjusted strike when it fits the domain.
+    ///
     FiniteDifferenceVanillaEngine,
     binomial::VanillaInstrument<'_>,
     binomial::with_vanilla,

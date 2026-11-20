@@ -3492,6 +3492,10 @@ class FiniteDifferenceVanillaEngine(
     strike. Surface coverage follows remaining stochastic evolution; rate
     coverage follows required future discounting. Automatic local-volatility
     domains require convergence checks.
+
+    With automatic domains and non-explicit schemes, European BSM grids
+    under Actual/365 Fixed remove deterministic carry and concentrate
+    around the carry-adjusted strike when it fits the domain.
     """
 
 class FiniteDifferenceDigitalEngine(

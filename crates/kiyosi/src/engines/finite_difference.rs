@@ -344,7 +344,7 @@ fn native_model<D: Diffusion>(
 )]
 fn solve_model<D: Diffusion>(
     option: &impl OptionContract,
-    payoff: Payoff,
+    mut payoff: Payoff,
     context: &PricingContext,
     settings: FiniteDifferenceSettings,
     concentrate: bool,
@@ -354,14 +354,28 @@ fn solve_model<D: Diffusion>(
     let spot = context.spot_price();
     let model = context.model_parameters();
     let expiry = option.expiry_time();
-    let (risk, dividend) = diffusion::rate_curves(context, expiry, settings)?;
+    let (market_risk, dividend) = diffusion::rate_curves(context, expiry, settings)?;
+    let concentrated = !payoff.is_american()
+        && concentrate
+        && settings.scheme != FiniteDifferenceScheme::ExplicitEuler;
+    let level = spot.max(payoff.strike);
     let upper = match settings.asset_upper_boundary {
         Some(upper) => upper,
         None if D::LOCAL || payoff.is_american() => {
-            diffusion_upper(spot.max(payoff.strike), context, expiry, &risk, &dividend)?
+            diffusion_upper(level, context, expiry, &market_risk, &dividend)?
         }
-        None => 4.0 * spot.max(payoff.strike),
+        None => 4.0 * level,
     };
+    let mut risk = &market_risk;
+    if concentrated && !D::LOCAL && !payoff.is_digital() {
+        // Long carry paths leave the fine cells near the strike. Remove carry from
+        // the spot coordinate, adjusting the terminal strike and discounting at yield.
+        let strike = scaled(payoff.strike, -context.forward_carry(expiry)?);
+        if strike.is_normal() && strike < upper {
+            payoff.strike = strike;
+            risk = &dividend;
+        }
+    }
     let mut space = SpatialGrid::new(
         settings,
         upper,
@@ -370,19 +384,16 @@ fn solve_model<D: Diffusion>(
         } else {
             0.0
         },
-        spot.max(payoff.strike),
+        level,
     )?;
-    if !payoff.is_american()
-        && concentrate
-        && settings.scheme != FiniteDifferenceScheme::ExplicitEuler
-    {
+    if concentrated {
         let width = diffusion.sigma(0.0, spot) * time.sqrt();
         let scale = payoff.strike * (0.1 * width).max(1e-4);
         if scale > 0.0 && scale.is_finite() {
             grid::concentrate(&mut space, vec![payoff.strike], scale)?;
         }
     }
-    let time_grid = diffusion::time_grid(context, expiry, settings, &risk, &dividend, &[])?;
+    let time_grid = diffusion::time_grid(context, expiry, settings, &market_risk, &dividend, &[])?;
     let rollback_steps = time_grid.rollback_steps(settings.scheme, &[])?;
     validate_work(space.count as u64, rollback_steps)?;
     let can_exercise = payoff.is_american()
@@ -406,7 +417,7 @@ fn solve_model<D: Diffusion>(
             diffusion.sigma(0.0, 0.0),
             theta,
             !payoff.is_american(),
-            &risk,
+            risk,
             &dividend,
         )?;
     }
@@ -485,7 +496,7 @@ fn solve_model<D: Diffusion>(
                 payoff::boundary_value(payoff, upper, [risk_log, dividend_log], diffusion, tau);
             if can_exercise {
                 high = high.max(crate::engines::deterministic::exercise_value(
-                    payoff, upper, current, time, &risk, &dividend,
+                    payoff, upper, current, time, risk, &dividend,
                 )?);
             }
             let low = if payoff.sign > 0.0 || (payoff.is_digital() && payoff.payout().is_none()) {
@@ -928,7 +939,9 @@ engine_settings!(
     /// Unsupported combinations return [`Error::UnsupportedOperation`], even at expiry.
     /// Accepts flat or nonconstant rate curves. American automatic domains expand with volatility
     /// and maturity and use sinh coordinates. With automatic domains, non-explicit
-    /// European grids concentrate nodes around the strike.
+    /// European grids concentrate nodes around the strike. Under Actual/365 Fixed
+    /// BSM, these grids remove deterministic carry and concentrate around the
+    /// carry-adjusted strike when the adjusted strike fits the domain.
     /// Explicit upper boundaries retain uniform European spot grids.
     /// Both grids use cell-averaged terminal payoff kinks.
     /// See [`Self::price_with_greeks`] for an example.

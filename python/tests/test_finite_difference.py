@@ -49,6 +49,27 @@ FACTORIES = (
 SCHEMES = ("explicit_euler", "implicit_euler", "crank_nicolson", "rannacher")
 
 
+@pytest.mark.parametrize(("rate", "dividend"), [(0.1, 0), (0, 0.1)])
+@pytest.mark.parametrize("direction", ["call", "put"])
+def test_automatic_european_grid_resolves_low_volatility_at_the_forward_strike(
+    rate, dividend, direction
+):
+    snapshot = market(spot=100, rate=rate, dividend=dividend, sigma=0.005)
+    instrument = EuropeanOption(
+        option_type=direction,
+        strike=100 * math.exp(rate - dividend),
+        effective_time=START,
+        expiry_time=END,
+    )
+    expected = AnalyticEuropeanEngine().price(instrument, snapshot)
+    engine = FiniteDifferenceVanillaEngine()
+    saved = engine.solve(instrument, snapshot, spot_range=(95, 105))
+    assert engine.price(instrument, snapshot) == pytest.approx(
+        expected, rel=0, abs=5e-5
+    )
+    assert saved.price(100) == pytest.approx(expected, rel=0, abs=5e-5)
+
+
 def engine_for(kind, **settings):
     return (
         FiniteDifferenceVanillaEngine
