@@ -215,9 +215,7 @@ impl AnalyticHestonEuropeanEngine {
             weight,
             remaining: self.settings.max_evaluations,
         };
-        let correction = integrate(&mut integrand, base / scale, self.settings, scale)?;
-        let price = base + scale * correction;
-        checked_with_scale(price, scale)
+        integrate(&mut integrand, base, self.settings, scale)
     }
 }
 
@@ -496,6 +494,7 @@ fn integrate(
     settings: HestonIntegrationSettings,
     scale: f64,
 ) -> Result<f64> {
+    let normalized_base = base / scale;
     let mut panels = Vec::new();
     let ends = [0.0, 0.25, 0.5, 0.75, 0.9, 0.99, 1.0];
     for pair in ends.windows(2) {
@@ -514,12 +513,18 @@ fn integrate(
         }
         let correction = sum.total();
         let tolerance = settings.absolute_tolerance / scale
-            + settings.relative_tolerance * (base + correction).abs();
-        if !correction.is_finite() || !error.total().is_finite() {
+            + settings.relative_tolerance * (normalized_base + correction).abs();
+        let estimated_error = error.total();
+        if !correction.is_finite() || !estimated_error.is_finite() {
             return Err(computation());
         }
-        if error.total() <= 0.25 * tolerance {
-            return Ok(correction);
+        if estimated_error <= 0.25 * tolerance {
+            let price = base + scale * correction;
+            match checked_with_scale(price, scale) {
+                // The target can admit a negative estimate beyond roundoff near zero.
+                Err(_) if price < 0.0 && -price / scale <= estimated_error => {}
+                result => return result,
+            }
         }
         let old = panels.swap_remove(worst);
         let mid = old.left.midpoint(old.right);

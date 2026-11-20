@@ -127,6 +127,12 @@ def reference(parameters, instrument, tolerance, *, exp_sinh=False):
         return contract.NPV()
 
 
+def test_default_heston_refines_near_zero_call_prices():
+    instrument = option(strike=160, expiry_time=START + timedelta(days=30))
+    price = AnalyticHestonEuropeanEngine().price(instrument, context())
+    assert 0 <= price <= 1e-8
+
+
 def test_deterministic_variance_prices_survive_overflowing_discounted_legs():
     parameters = model(risk_free_rate=-0.75, dividend_yield=-0.75, vol_of_vol=0)
     snapshot = context(parameters, spot_price=1e308)

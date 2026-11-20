@@ -85,6 +85,16 @@ fn default_heston_budget_prices_high_correlation_call() -> Result<()> {
 }
 
 #[test]
+fn default_heston_refines_near_zero_call_prices() -> Result<()> {
+    let start = dates().0;
+    let call = EuropeanOption::new(OptionType::Call, 160.0, start, start.add_days(30)?)?;
+    let price = AnalyticHestonEuropeanEngine::default().price(&call, &context(model()))?;
+    // Independent QuantLib integrations place the price within 2e-14 of zero.
+    assert!((0.0..=1e-8).contains(&price), "{price}");
+    Ok(())
+}
+
+#[test]
 fn deterministic_variance_prices_survive_overflowing_discounted_legs() -> Result<()> {
     let (start, end) = dates();
     let engine = AnalyticHestonEuropeanEngine::default();
