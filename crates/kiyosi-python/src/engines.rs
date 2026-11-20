@@ -2,7 +2,13 @@ use pyo3::prelude::*;
 
 // Expand the complete method block before PyO3 parses the implementation.
 macro_rules! engine_methods {
-    (@evaluate $name:ident, $instrument:ty, $with:path) => {
+    (@short $option:ident, $context:ident) => {
+        $crate::engines::ShortPricing::Never
+    };
+    (@short $option:ident, $context:ident, $short:path) => {
+        $short($option, &$context.0)
+    };
+    (@evaluate $name:ident, $instrument:ty, $with:path $(, $short:path)?) => {
         impl $name {
             pub(crate) fn evaluate<R: Send>(
                 &self,
@@ -12,7 +18,8 @@ macro_rules! engine_methods {
                 request: impl $crate::engines::PricingRequest<R>,
             ) -> pyo3::PyResult<R> {
                 $with!(&instrument, option, $crate::engines::evaluate(
-                    py, &self.0, option, context, request, $crate::engines::ShortPricing::Never,
+                    py, &self.0, option, context, request,
+                    engine_methods!(@short option, context $(, $short)?),
                 ))
             }
         }
