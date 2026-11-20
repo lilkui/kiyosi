@@ -6854,6 +6854,7 @@ class SnowballOption:
         Daily monitoring includes the effective instant at the contractual clock on
         open dates. Expiry-only monitoring returns just expiry. Observations for
         knock-out and coupons are supplied by the product observation lists.
+        Long scans release the GIL and poll Python signals.
         """
 
     def replace(
@@ -7247,6 +7248,7 @@ class PhoenixOption:
         Daily monitoring includes the effective instant at the contractual clock on
         open dates. Expiry-only monitoring returns just expiry. Observations for
         knock-out and coupons are supplied by the product observation lists.
+        Long scans release the GIL and poll Python signals.
         """
 
     def replace(
@@ -7461,6 +7463,7 @@ class BinarySnowballOption:
         Daily monitoring includes the effective instant at the contractual clock on
         open dates. Expiry-only monitoring returns just expiry. Observations for
         knock-out and coupons are supplied by the product observation lists.
+        Long scans release the GIL and poll Python signals.
         """
 
     def replace(
@@ -7668,6 +7671,7 @@ class TernarySnowballOption:
         Daily monitoring includes the effective instant at the contractual clock on
         open dates. Expiry-only monitoring returns just expiry. Observations for
         knock-out and coupons are supplied by the product observation lists.
+        Long scans release the GIL and poll Python signals.
         """
 
     def replace(
@@ -8612,7 +8616,7 @@ class Accumulator:
 
         Includes the effective instant when it matches the contract clock and
         calendar; expiry adds no observation. Coincident knock-out can prevent
-        accumulation.
+        accumulation. Long scans release the GIL and poll Python signals.
         """
 
     @property
@@ -8620,7 +8624,7 @@ class Accumulator:
         """Return an owned schedule resolving daily or explicit knock-out monitoring.
 
         An empty explicit list disables knock-out. Supplied history does not filter
-        this whole-life schedule.
+        this whole-life schedule. Long scans release the GIL and poll Python signals.
         """
 
     @property

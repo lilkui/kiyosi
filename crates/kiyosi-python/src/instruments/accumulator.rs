@@ -1,4 +1,4 @@
-use crate::calendar::TradingCalendar;
+use crate::calendar::{TradingCalendar, run_date_scan};
 use crate::conversions::{direction, python_timestamp, real, timestamp, timestamps};
 use crate::error::domain;
 use pyo3::prelude::*;
@@ -204,21 +204,27 @@ value_methods!(@documented Accumulator, AccumulatorChanges,
     ///
     /// Includes the effective instant when it matches the contract clock and
     /// calendar; expiry adds no observation. Coincident knock-out can prevent
-    /// accumulation.
+    /// accumulation. Long scans release the GIL and poll Python signals.
     ///
     #[getter]
-    fn accumulation_schedule(&self) -> PyResult<crate::schedule::ObservationSchedule> {
-        domain(self.0.accumulation_schedule()).map(crate::schedule::ObservationSchedule)
+    fn accumulation_schedule(&self, py: Python<'_>) -> PyResult<crate::schedule::ObservationSchedule> {
+        let days = self.0.effective_time().date().days_until(self.0.expiry_time().date());
+        run_date_scan(py, days.unsigned_abs() + 1, || self.0.accumulation_schedule())
+            .map(crate::schedule::ObservationSchedule)
     }
 
     /// Return an owned schedule resolving daily or explicit knock-out monitoring.
     ///
     /// An empty explicit list disables knock-out. Supplied history does not filter
-    /// this whole-life schedule.
+    /// this whole-life schedule. Long scans release the GIL and poll Python signals.
     ///
     #[getter]
-    fn knock_out_observation_schedule(&self) -> PyResult<crate::schedule::ObservationSchedule> {
-        domain(self.0.knock_out_observation_schedule()).map(crate::schedule::ObservationSchedule)
+    fn knock_out_observation_schedule(&self, py: Python<'_>) -> PyResult<crate::schedule::ObservationSchedule> {
+        let Some(times) = self.0.knock_out_observation_times() else {
+            return self.accumulation_schedule(py);
+        };
+        run_date_scan(py, times.len() as u64, || self.0.knock_out_observation_schedule())
+            .map(crate::schedule::ObservationSchedule)
     }
 
     /// Return an owned copy of the contract's observation calendar.

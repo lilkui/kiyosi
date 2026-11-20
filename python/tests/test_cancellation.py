@@ -268,6 +268,10 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
     "case",
     (
         "schedule",
+        "accumulation_schedule",
+        "daily_knock_out_schedule",
+        "explicit_knock_out_schedule",
+        "daily_knock_in_schedule",
         "barrier_new",
         "barrier_replace",
         "range_new",
@@ -292,7 +296,10 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 import sys
                 import threading
                 from datetime import datetime, time, timedelta
-                from kiyosi.instruments import Accumulator, AmericanOption, BarrierOption, RangeAccrualOption
+                from kiyosi.instruments import (
+                    Accumulator, AmericanOption, BarrierOption, KnockInObservation,
+                    RangeAccrualOption, SnowballOption, autocallable_observations,
+                )
                 from kiyosi.market import (
                     BlackScholesMertonParameters, HestonParameters, LocalVolatilitySurface, PricingContext,
                     RateTermStructure, all_days_calendar, custom_calendar,
@@ -321,7 +328,34 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                     "range_replace": lambda: original.replace(expiry_time=long_end),
                 }
                 case = sys.argv[1]
-                if case in ("barrier_new", "barrier_replace"):
+                if case in ("accumulation_schedule", "daily_knock_out_schedule", "explicit_knock_out_schedule"):
+                    explicit = case == "explicit_knock_out_schedule"
+                    count = 1_000_000
+                    times = (start_time + timedelta(seconds=i) for i in range(count)) if explicit else None
+                    accumulator = Accumulator(
+                        strike=100, knock_out_level=120, daily_quantity=1, acceleration_factor=1,
+                        effective_time=start_time, expiry_time=long_end, observation_clock_time=time(),
+                        calendar=calendar, knock_out_observation_times=times,
+                    )
+                    if case == "accumulation_schedule":
+                        operation = lambda: accumulator.accumulation_schedule
+                    else:
+                        operation = lambda: accumulator.knock_out_observation_schedule
+                    schedule_size = count if explicit else (long_end - start_time).days + 1
+                    schedule_last = start_time + timedelta(seconds=count - 1) if explicit else long_end
+                elif case == "daily_knock_in_schedule":
+                    note = SnowballOption(
+                        maturity_coupon_rate=0.06, initial_spot=100, knock_in_level=80,
+                        upper_strike=100, lower_strike=60, effective_time=start_time,
+                        expiry_time=long_end, calendar=calendar,
+                        knock_in_observation=KnockInObservation.every_trading_day(time()),
+                        autocall_observations=autocallable_observations(
+                            [long_end], [110], knock_out_coupon_rates=[0.08]),
+                    )
+                    operation = lambda: note.knock_in_observation_schedule
+                    schedule_size = (long_end - start_time).days + 1
+                    schedule_last = long_end
+                elif case in ("barrier_new", "barrier_replace"):
                     count = 750_000
                     end = start_time + timedelta(days=count)
                     times = fixed_interval_schedule(
@@ -471,6 +505,11 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                     if case == "barrier_replace":
                         assert created.rebate == 2
                         assert barrier.rebate == 0
+                elif case in ("accumulation_schedule", "daily_knock_out_schedule",
+                              "explicit_knock_out_schedule", "daily_knock_in_schedule"):
+                    fresh = operation()
+                    assert len(fresh) == schedule_size
+                    assert fresh[0] == start_time and fresh[-1] == schedule_last
                 elif case == "curve_new":
                     created = operation()
                     assert created.max_time == times[-1]

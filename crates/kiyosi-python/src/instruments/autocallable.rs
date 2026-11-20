@@ -35,10 +35,15 @@ macro_rules! autocallable_properties {
             /// Daily monitoring includes the effective instant at the contractual clock on
             /// open dates. Expiry-only monitoring returns just expiry. Observations for
             /// knock-out and coupons are supplied by the product observation lists.
+            /// Long scans release the GIL and poll Python signals.
             ///
             #[getter]
-            fn knock_in_observation_schedule(&self) -> PyResult<Option<crate::schedule::ObservationSchedule>> {
-                Ok(domain(self.0.knock_in_observation_schedule())?.map(crate::schedule::ObservationSchedule))
+            fn knock_in_observation_schedule(&self, py: Python<'_>) -> PyResult<Option<crate::schedule::ObservationSchedule>> {
+                let count = self.0.observation_clock_time().map_or(0, |_| {
+                    self.0.effective_time().date().days_until(self.0.expiry_time().date()).unsigned_abs() + 1
+                });
+                Ok(run_date_scan(py, count, || self.0.knock_in_observation_schedule())?
+                    .map(crate::schedule::ObservationSchedule))
             }
             /// Return nonnegative normalized principal, independent of coupons and losses.
             #[getter]
