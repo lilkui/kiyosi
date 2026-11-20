@@ -1,7 +1,8 @@
 use super::{
     BLOCK_SIZE, Error, EuropeanOption, GreeksRequest, Moments, MonteCarloSampling,
     MonteCarloVanillaEngine, NumericalShiftSettings, OptionType, Pcg32, PricingContext,
-    PricingEngine, PricingResult, Result, run_blocks, sample_normal, scaled_value, sobol, unstable,
+    PricingEngine, PricingResult, Result, check_path_step, run_blocks, sample_normal, scaled_value,
+    sobol, unstable,
 };
 use crate::{AmericanOption, BlackScholesMertonParameterChanges, Greek, PricingContextChanges};
 
@@ -158,6 +159,7 @@ impl MonteCarloVanillaEngine {
                 let mut positive = context.spot_price();
                 let mut negative = positive;
                 for step in 0..intervals {
+                    check_path_step(step)?;
                     let normal = sample_normal(&mut generator, &mut spare, &mut cursor);
                     positive *= diffusion.mul_add(normal, drift).exp();
                     if !positive.is_finite() || positive <= 0.0 {

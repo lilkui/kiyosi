@@ -18,6 +18,7 @@ use crate::{
 };
 
 const BLOCK_SIZE: usize = 256;
+const PATH_CHECK_INTERVAL: usize = 1024;
 const DEFAULT_STEP_COUNT: i32 = 50;
 const SCHEDULED_WORKSPACE_BUDGET: usize = 1 << 30;
 
@@ -340,6 +341,40 @@ mod tests {
             matches!(result, Err(Error::Io(error)) if error.kind() == io::ErrorKind::Interrupted)
         );
         assert!(samples.load(Ordering::Relaxed) < 4096);
+    }
+
+    #[test]
+    fn dense_sampling_cancels_between_path_chunks() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        for antithetic in [false, true] {
+            let token = crate::CancellationToken::default();
+            let payoffs = AtomicUsize::new(0);
+            let result = token.run(|| {
+                let sampled = path_samples(
+                    MonteCarloSettings {
+                        path_count: 64,
+                        seed: Some(42),
+                        antithetic,
+                        max_active_workers: 1,
+                        ..Default::default()
+                    },
+                    4096,
+                    false,
+                    |_| {
+                        payoffs.fetch_add(1, Ordering::Relaxed);
+                        token.cancel();
+                        Ok([1.0])
+                    },
+                );
+                assert!(matches!(&sampled, Err(Error::Io(error)) if error.kind() == io::ErrorKind::Interrupted));
+                sampled
+            });
+            assert!(
+                matches!(result, Err(Error::Io(error)) if error.kind() == io::ErrorKind::Interrupted)
+            );
+            assert_eq!(payoffs.load(Ordering::Relaxed), 1);
+        }
     }
 
     #[test]
@@ -1243,9 +1278,11 @@ fn path_samples<const N: usize>(
             if path % 64 == 0 {
                 crate::cancellation::check()?;
             }
-            for normal in &mut normals {
-                *normal = sample_normal(&mut generator, &mut spare, &mut cursor);
-            }
+            for_each_path_chunk(&mut normals, |chunk| {
+                for normal in chunk {
+                    *normal = sample_normal(&mut generator, &mut spare, &mut cursor);
+                }
+            })?;
             if let Some(cursor) = &mut cursor {
                 cursor.next_path();
             }
@@ -1254,9 +1291,11 @@ fn path_samples<const N: usize>(
                 moments[i].add(positive[i], variance);
             }
             if settings.antithetic && path < paths / 2 {
-                for normal in &mut normals {
-                    *normal = -*normal;
-                }
+                for_each_path_chunk(&mut normals, |chunk| {
+                    for normal in chunk {
+                        *normal = -*normal;
+                    }
+                })?;
                 let negative = payoff(&normals)?;
                 for i in 0..N {
                     moments[i].add(negative[i], variance);
@@ -1280,6 +1319,23 @@ fn path_samples<const N: usize>(
         }
     }
     Ok((total, pairs, seed))
+}
+
+fn for_each_path_chunk(normals: &mut [f64], mut apply: impl FnMut(&mut [f64])) -> Result<()> {
+    for (index, chunk) in normals.chunks_mut(PATH_CHECK_INTERVAL).enumerate() {
+        if index != 0 {
+            crate::cancellation::check()?;
+        }
+        apply(chunk);
+    }
+    Ok(())
+}
+
+fn check_path_step(index: usize) -> Result<()> {
+    if index != 0 && index % PATH_CHECK_INTERVAL == 0 {
+        crate::cancellation::check()?;
+    }
+    Ok(())
 }
 
 fn sample_normal(

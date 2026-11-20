@@ -642,6 +642,7 @@ impl ArithmeticParameters {
         let (mut growth, mut relative_sum, mut log_sum) = (0.0, 0.0, f64::NEG_INFINITY);
         let (mut normal_sum, mut weighted_normals) = (0.0, 0.0);
         for (index, &normal) in normals[usize::from(lead)..].iter().enumerate() {
+            super::check_path_step(index)?;
             let drift = if interval_drifts.is_empty() {
                 self.drift
             } else {

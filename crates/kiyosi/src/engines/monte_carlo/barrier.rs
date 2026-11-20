@@ -1,4 +1,4 @@
-use super::{greeks, path_means, scaled_value, unstable};
+use super::{check_path_step, greeks, path_means, scaled_value, unstable};
 use crate::engines::analytic::barrier::{hit_value, resolved_price};
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::log_ratio;
@@ -317,7 +317,10 @@ impl MonteCarloBarrierEngine {
             let mut noise = 0.0;
             let mut touched = false;
             let mut knocked_out = 0.0;
-            for (&(mean, width, discount, observation), &z) in steps.iter().zip(normals) {
+            for (index, (&(mean, width, discount, observation), &z)) in
+                steps.iter().zip(normals).enumerate()
+            {
+                check_path_step(index)?;
                 noise = width.mul_add(z, noise);
                 terminal = mean + noise;
                 let asset = scaled_value(spot, 1.0, terminal)?;

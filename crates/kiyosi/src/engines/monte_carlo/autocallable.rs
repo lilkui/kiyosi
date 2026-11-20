@@ -1,5 +1,5 @@
 use super::{Moments, MonteCarloEstimate, MonteCarloSettings};
-use super::{estimate, path_samples, scaled_value, transition, unstable};
+use super::{check_path_step, estimate, path_samples, scaled_value, transition, unstable};
 use crate::instruments::autocallable::pricing::{
     fixed_value, future_event_times, initial, validate,
 };
@@ -249,9 +249,10 @@ impl MonteCarloAutocallableEngine {
                 let mut log_return = 0.0;
                 let mut knocked_in = state.knocked_in;
                 let mut coupons = state.coupon;
-                for ((drift, diffusion, log_discount, record, observe_knock_in), normal) in
-                    steps.iter().zip(normals)
+                for (index, ((drift, diffusion, log_discount, record, observe_knock_in), normal)) in
+                    steps.iter().zip(normals).enumerate()
                 {
+                    check_path_step(index)?;
                     // Keep threshold decisions before rounding the simulated spot.
                     log_return += diffusion.mul_add(*normal, *drift);
                     spot = scaled_value(initial_spot, 1.0, log_return)?;
