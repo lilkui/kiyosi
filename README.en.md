@@ -8,9 +8,6 @@
 
 Kiyosi is a derivatives pricing library with core engines built in Rust and an easy-to-use API for Python users.
 
-> [!WARNING]
-> The project is in Alpha; API backward compatibility is not guaranteed.
-
 ## Features
 
 - **High-performance core**: Core computation is implemented in Rust, releasing the GIL during calculation to support parallel execution across Python threads.
@@ -96,7 +93,7 @@ Abbreviations: FD = finite differences; MC = Monte Carlo simulation.
 
 ## Disclaimer
 
-This project is for research and educational purposes only. Its results do not constitute investment advice; validate them independently before production use.
+This project is for research and educational purposes only; validate results independently before production use. This library does not commit to freezing its public API and may undergo major refactoring for a better design.
 
 ## License
 
