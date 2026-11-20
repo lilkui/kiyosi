@@ -274,21 +274,13 @@ impl Monitoring {
         upper: Option<f64>,
         timing: SettlementTiming,
     ) -> bool {
-        if self.touch_state() == Some(BarrierTouchState::Touched) {
-            return false;
-        }
         let spot = context.spot_price();
         let crosses = |level| spot - radius <= level && level <= spot + radius;
-        let current_boundary = self.monitored(context.valuation_time())
-            && (crosses(self.barrier_level()) || upper.is_some_and(crosses));
-        if current_boundary && timing == SettlementTiming::AtHit {
-            return true;
-        }
-        match self.deterministic_touch(context, radius, upper, timing) {
-            Some(DeterministicTouch::Boundary) => true,
-            Some(DeterministicTouch::Confirmed) => false,
-            None => current_boundary,
-        }
+        self.touch_state() != Some(BarrierTouchState::Touched)
+            && (self.monitored(context.valuation_time())
+                && (crosses(self.barrier_level()) || upper.is_some_and(crosses))
+                || self.deterministic_touch(context, radius, upper, timing)
+                    == Some(DeterministicTouch::Boundary))
     }
 }
 impl OptionContract for Monitoring {
