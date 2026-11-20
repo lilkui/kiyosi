@@ -168,14 +168,22 @@ impl AnalyticEuropeanEngine {
                     } else {
                         f64::NEG_INFINITY
                     };
-                    let [asset, cash] = if rate - dividend == 0.0 {
+                    let drift = rate - dividend;
+                    let [first, second] = if drift.abs() <= 0.5 * rate.abs() {
+                        // Express the nearly cancelling carry legs in terms of the option value.
                         let price = result.price();
                         [
                             (
                                 rate.abs().ln() + price.abs().ln(),
                                 rate.signum() * price.signum(),
                             ),
-                            (f64::NEG_INFINITY, 1.0),
+                            (
+                                drift.abs().ln()
+                                    + spot.ln()
+                                    + dividend_log
+                                    + log_normal_cdf(sign * d1),
+                                -sign * drift.signum(),
+                            ),
                         ]
                     } else {
                         [
@@ -196,12 +204,12 @@ impl AnalyticEuropeanEngine {
                         ]
                     };
                     // Cancel signed terms before restoring their monetary scale.
-                    let scale = diffusion.max(asset.0).max(cash.0);
+                    let scale = diffusion.max(first.0).max(second.0);
                     if scale == f64::NEG_INFINITY {
                         0.0
                     } else {
-                        let total = asset.1 * (asset.0 - scale).exp()
-                            + cash.1 * (cash.0 - scale).exp()
+                        let total = first.1 * (first.0 - scale).exp()
+                            + second.1 * (second.0 - scale).exp()
                             - (diffusion - scale).exp();
                         scaled_signed_cash(total, scale)
                     }

@@ -343,6 +343,19 @@ def test_short_dated_rate_greeks_survive_discount_overflow(make_context):
     assert result.dividend_rho == pytest.approx(-scaled_strike * (1 - p), rel=1e-12)
 
 
+def test_european_theta_preserves_nearly_equal_rate_carry(make_context):
+    model = BlackScholesMertonParameters(
+        risk_free_rate=0.05000000000000139, dividend_yield=0.05, volatility=1e-15
+    )
+    result = AnalyticEuropeanEngine().price_with_greeks(
+        make_option(strike=1e12),
+        make_context(spot_price=1e12, model_parameters=model),
+        "theta",
+    )
+    # Black–Scholes theta evaluated with 60 decimal digits and exact binary64 inputs.
+    assert result.theta == pytest.approx(-0.0012156929829932356, rel=0, abs=1e-15)
+
+
 @pytest.mark.parametrize(
     ("strike", "rate", "dividend"),
     [(1.5e308, -0.1, -0.1), (1.66e308, -2.0, -2.01)],

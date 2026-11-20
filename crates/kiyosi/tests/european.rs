@@ -395,6 +395,25 @@ fn short_dated_rate_greeks_survive_discount_overflow() -> Result<()> {
 }
 
 #[test]
+fn european_theta_preserves_nearly_equal_rate_carry() -> Result<()> {
+    use kiyosi::{Greek, GreeksRequest};
+
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let option = EuropeanOption::new(OptionType::Call, 1e12, start, start.add_days(365)?)?;
+    let model = BlackScholesMertonParameters::new(0.050_000_000_000_001_39, 0.05, 1e-15)?;
+    let context = PricingContext::new(model, 1e12, start)?;
+    let theta = AnalyticEuropeanEngine
+        .price_with_greeks(&option, &context, GreeksRequest::new([Greek::Theta]))?
+        .require(Greek::Theta)?;
+    // Black–Scholes theta evaluated with 60 decimal digits and exact binary64 inputs.
+    assert!(
+        (theta - (-0.001_215_692_982_993_235_6)).abs() < 1e-15,
+        "{theta}"
+    );
+    Ok(())
+}
+
+#[test]
 fn european_theta_survives_discounted_leg_overflow() -> Result<()> {
     use kiyosi::{Greek, GreeksRequest};
 
