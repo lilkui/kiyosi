@@ -1,5 +1,5 @@
+use crate::calendar::run_date_scan;
 use crate::conversions::{real, timestamp};
-use crate::error::domain;
 use crate::instruments::barrier;
 use pyo3::prelude::*;
 
@@ -101,6 +101,7 @@ monitoring_properties!(
     #[pyo3(signature = (*, effective_time, expiry_time, lower_barrier, upper_barrier, barrier_type, payout, settlement_timing=kiyosi::SettlementTiming::default(), observation_times=None, touch_state=None, calendar=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     pub(crate) fn new(
+        py: Python<'_>,
         effective_time: &Bound<'_, PyAny>,
         expiry_time: &Bound<'_, PyAny>,
         lower_barrier: &Bound<'_, PyAny>,
@@ -129,9 +130,8 @@ monitoring_properties!(
         terms.touch_state = touch_state;
         terms.calendar =
             crate::calendar::observation_calendar(calendar, observation_times)?.unwrap_or_default();
-        Ok(Self(domain(kiyosi::DoubleTouchOption::cash(
-            terms, payout,
-        ))?))
+        let count = terms.observation_times.as_ref().map_or(0, Vec::len);
+        run_date_scan(py, count as u64, || kiyosi::DoubleTouchOption::cash(terms, payout)).map(Self)
     },
     /// Return positive finite lower trigger; equality counts as a touch.
     #[getter]

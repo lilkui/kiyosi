@@ -1,5 +1,5 @@
+use crate::calendar::run_date_scan;
 use crate::conversions::{direction, real, timestamp};
-use crate::error::domain;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
@@ -135,6 +135,7 @@ monitoring_properties!(
     #[pyo3(signature = (*, option_type, strike, effective_time, expiry_time, barrier_level, barrier_type, rebate=kiyosi::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=kiyosi::RebateTiming::default(), observation_times=None, touch_state=None, calendar=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
+        py: Python<'_>,
         option_type: &Bound<'_, PyAny>,
         strike: &Bound<'_, PyAny>,
         effective_time: &Bound<'_, PyAny>,
@@ -164,7 +165,8 @@ monitoring_properties!(
         terms.touch_state = touch_state;
         terms.calendar =
             crate::calendar::observation_calendar(calendar, observation_times)?.unwrap_or_default();
-        Ok(Self(domain(kiyosi::BarrierOption::new(terms))?))
+        let count = terms.observation_times.as_ref().map_or(0, Vec::len);
+        run_date_scan(py, count as u64, || kiyosi::BarrierOption::new(terms)).map(Self)
     },
     /// Return call or put payoff direction.
     #[getter]

@@ -5,6 +5,18 @@ macro_rules! monitoring_properties {
      {$($field:ident: $value:expr),+ $(,)?}
      [$(#[$replacement_doc:meta])*],
      $($extra:item),* $(,)?) => {
+        impl $name {
+            fn replace_monitoring(&self, py: pyo3::Python<'_>, changes: kiyosi::$changes) -> pyo3::PyResult<Self> {
+                let observations = changes.observation_times.as_ref().map_or_else(
+                    || self.0.observation_times(),
+                    |times| times.as_deref(),
+                );
+                let count = observations.map_or(0, <[kiyosi::Timestamp]>::len);
+                $crate::calendar::run_date_scan(py, count as u64, || self.0.replace(changes))
+                    .map(Self)
+            }
+        }
+
         value_methods!(@documented $name, $changes, [$($parameter),+], |$slf|
             {$($field: $value),+}, [$(#[$replacement_doc])*], {
             $($extra)*
@@ -70,7 +82,7 @@ macro_rules! monitoring_properties {
                     kiyosi::BarrierTouchState::Touched => "touched",
                 })
             }
-        });
+        }, py => $name::replace_monitoring);
     };
 }
 

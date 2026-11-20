@@ -268,6 +268,8 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
     "case",
     (
         "schedule",
+        "barrier_new",
+        "barrier_replace",
         "range_new",
         "range_replace",
         "curve_new",
@@ -290,7 +292,7 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 import sys
                 import threading
                 from datetime import datetime, time, timedelta
-                from kiyosi.instruments import Accumulator, AmericanOption, RangeAccrualOption
+                from kiyosi.instruments import Accumulator, AmericanOption, BarrierOption, RangeAccrualOption
                 from kiyosi.market import (
                     BlackScholesMertonParameters, HestonParameters, LocalVolatilitySurface, PricingContext,
                     RateTermStructure, all_days_calendar, custom_calendar,
@@ -319,7 +321,24 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                     "range_replace": lambda: original.replace(expiry_time=long_end),
                 }
                 case = sys.argv[1]
-                if case == "curve_new":
+                if case in ("barrier_new", "barrier_replace"):
+                    count = 750_000
+                    end = start_time + timedelta(days=count)
+                    times = fixed_interval_schedule(
+                        start_time=start_time, end_time=end, interval_days=1,
+                        observation_clock_time=time(), calendar=calendar,
+                    )
+                    barrier_terms = dict(
+                        option_type="call", strike=100, barrier_level=110,
+                        barrier_type="up_and_out", effective_time=start_time,
+                        expiry_time=end, observation_times=times,
+                    )
+                    if case == "barrier_new":
+                        operation = lambda: BarrierOption(**barrier_terms)
+                    else:
+                        barrier = BarrierOption(**barrier_terms)
+                        operation = lambda: barrier.replace(rebate=2)
+                elif case == "curve_new":
                     count = 250_000
                     times = fixed_interval_schedule(
                         start_time=start_time, end_time=start_time + timedelta(days=count),
@@ -445,7 +464,14 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 assert replacement.observation_schedule.times == tuple(
                     datetime(1, 1, day) for day in (2, 3, 4)
                 )
-                if case == "curve_new":
+                if case in ("barrier_new", "barrier_replace"):
+                    created = operation()
+                    assert len(created.observation_schedule) == count
+                    assert created.calendar == calendar
+                    if case == "barrier_replace":
+                        assert created.rebate == 2
+                        assert barrier.rebate == 0
+                elif case == "curve_new":
                     created = operation()
                     assert created.max_time == times[-1]
                     assert abs(created.factor(start_time, created.max_time) - factors[-1]) < 1e-15

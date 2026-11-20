@@ -1,5 +1,5 @@
+use crate::calendar::run_date_scan;
 use crate::conversions::{direction, real, timestamp};
-use crate::error::domain;
 use crate::instruments::barrier;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -213,6 +213,7 @@ binary_properties!(
     #[pyo3(signature = (*, option_type, strike, effective_time, expiry_time, barrier_level, barrier_type, payoff_type, payout=None, observation_times=None, touch_state=None, calendar=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     pub(crate) fn new(
+        py: Python<'_>,
         option_type: &Bound<'_, PyAny>,
         strike: &Bound<'_, PyAny>,
         effective_time: &Bound<'_, PyAny>,
@@ -241,10 +242,11 @@ binary_properties!(
         terms.touch_state = touch_state;
         terms.calendar =
             crate::calendar::observation_calendar(calendar, observation_times)?.unwrap_or_default();
-        Ok(Self(domain(match payoff {
+        let count = terms.observation_times.as_ref().map_or(0, Vec::len);
+        run_date_scan(py, count as u64, || match payoff {
             kiyosi::BinaryPayoff::Cash(payout) => kiyosi::BinaryBarrierOption::cash(terms, payout),
             kiyosi::BinaryPayoff::Asset => kiyosi::BinaryBarrierOption::asset(terms),
-        })?))
+        }).map(Self)
     },
     /// Return call or put payoff direction.
     #[getter]
@@ -318,6 +320,7 @@ binary_properties!(
     #[pyo3(signature = (*, effective_time, expiry_time, barrier_level, barrier_type, payoff_type, payout=None, settlement_timing=kiyosi::SettlementTiming::default(), observation_times=None, touch_state=None, calendar=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     pub(crate) fn new(
+        py: Python<'_>,
         effective_time: &Bound<'_, PyAny>,
         expiry_time: &Bound<'_, PyAny>,
         barrier_level: &Bound<'_, PyAny>,
@@ -345,10 +348,11 @@ binary_properties!(
         terms.touch_state = touch_state;
         terms.calendar =
             crate::calendar::observation_calendar(calendar, observation_times)?.unwrap_or_default();
-        Ok(Self(domain(match payoff {
+        let count = terms.observation_times.as_ref().map_or(0, Vec::len);
+        run_date_scan(py, count as u64, || match payoff {
             kiyosi::BinaryPayoff::Cash(payout) => kiyosi::TouchOption::cash(terms, payout),
             kiyosi::BinaryPayoff::Asset => kiyosi::TouchOption::asset(terms),
-        })?))
+        }).map(Self)
     },
     /// Return whether touching activates payment.
     #[getter]
