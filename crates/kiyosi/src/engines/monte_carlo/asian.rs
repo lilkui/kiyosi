@@ -257,7 +257,7 @@ impl MonteCarloAsianEngine {
         let carry = rate - dividend;
         let drift_rate = carry - 0.5 * sigma * sigma;
         let log_discount = model.risk_free_curve().log_factor(valuation, expiry)?;
-        let curves = if flat {
+        let curves = if flat || geometric || single {
             None
         } else {
             Some([
