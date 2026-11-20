@@ -1,6 +1,49 @@
 use kiyosi::*;
 
 #[test]
+fn tree_discounts_preserve_representable_prices_after_factor_rounding() -> Result<()> {
+    let (start, end) = dates();
+    let settings = BinomialSettings { step_count: 1 };
+    let sigma = 0.2_f64;
+    let probability = sigma.exp_m1() / (2.0 * sigma).exp_m1();
+    for (rate, amount) in [(744.0, 1e300_f64), (800.0, 1e300), (-800.0, 1e-300)] {
+        let context = market(amount, rate, rate, sigma);
+        let digital = DigitalOption::cash_or_nothing(OptionType::Call, amount, amount, start, end)?;
+        let vanilla = EuropeanOption::new(OptionType::Call, amount, start, end)?;
+        let barrier = BarrierOption::new(BarrierOptionTerms::new(
+            OptionType::Call,
+            amount,
+            start,
+            end,
+            2.0 * amount,
+            BarrierType::UpAndOut,
+        ))?;
+        let expected_cash = (amount.ln() + probability.ln() - rate).exp();
+        let expected_call = expected_cash * sigma.exp_m1();
+        for (actual, expected) in [
+            (
+                CoxRossRubinsteinDigitalEngine::new(settings)?.price(&digital, &context)?,
+                expected_cash,
+            ),
+            (
+                CoxRossRubinsteinVanillaEngine::new(settings)?.price(&vanilla, &context)?,
+                expected_call,
+            ),
+            (
+                CoxRossRubinsteinBarrierEngine::new(settings)?.price(&barrier, &context)?,
+                expected_call,
+            ),
+        ] {
+            assert!(
+                (actual / expected - 1.0).abs() < 1e-12,
+                "{rate}: {actual} != {expected}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn implied_volatility_recovers_tree_quotes_with_zero_or_tiny_carry() {
     let (start, end) = dates();
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();

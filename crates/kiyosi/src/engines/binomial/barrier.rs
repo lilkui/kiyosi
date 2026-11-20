@@ -236,18 +236,16 @@ impl CoxRossRubinsteinBarrierEngine {
                 } else {
                     0.0
                 };
-                for node in 0..=level {
-                    values[node] = discount * ((1.0 - p) * values[node] + p * values[node + 1]);
-                    if knock_in {
-                        vanilla[node] =
-                            discount * ((1.0 - p) * vanilla[node] + p * vanilla[node + 1]);
-                    }
-                    if observed[level] && breached(level, node) {
-                        values[node] = if knock_in { vanilla[node] } else { rebate };
-                    }
-                    if !values[node].is_finite() || knock_in && !vanilla[node].is_finite() {
-                        return Err(unstable());
-                    }
+                let nodes = &mut values[..level + 2];
+                let breached = |node| observed[level] && breached(level, node);
+                if discount.factor.is_normal() {
+                    rollback_level(nodes, &mut vanilla, rebate, breached, |lower, upper| {
+                        discount.rollback_normal(lower, upper, p)
+                    })?;
+                } else {
+                    rollback_level(nodes, &mut vanilla, rebate, breached, |lower, upper| {
+                        discount.rollback_scaled(lower, upper, p)
+                    })?;
                 }
             }
             if level == 1 {
@@ -282,6 +280,29 @@ impl CoxRossRubinsteinBarrierEngine {
         }
         Ok(result)
     }
+}
+
+fn rollback_level(
+    values: &mut [f64],
+    vanilla: &mut [f64],
+    rebate: f64,
+    breached: impl Fn(usize) -> bool,
+    rollback: impl Fn(f64, f64) -> f64,
+) -> Result<()> {
+    let knock_in = !vanilla.is_empty();
+    for node in 0..values.len() - 1 {
+        values[node] = rollback(values[node], values[node + 1]);
+        if knock_in {
+            vanilla[node] = rollback(vanilla[node], vanilla[node + 1]);
+        }
+        if breached(node) {
+            values[node] = if knock_in { vanilla[node] } else { rebate };
+        }
+        if !values[node].is_finite() || knock_in && !vanilla[node].is_finite() {
+            return Err(unstable());
+        }
+    }
+    Ok(())
 }
 
 impl PricingEngine<BarrierOption> for CoxRossRubinsteinBarrierEngine {

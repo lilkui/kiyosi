@@ -206,9 +206,13 @@ fn unstable() -> Error {
     clippy::float_cmp,
     reason = "Exact probability endpoints select degenerate trees; bounded node counts fit f64 and the mode is intentionally floored."
 )]
-fn european_levels(values: &[f64], p: f64, discount: f64, level: usize) -> Result<(f64, [f64; 3])> {
+fn european_levels(
+    values: &[f64],
+    p: f64,
+    log_discount: f64,
+    level: usize,
+) -> Result<(f64, [f64; 3])> {
     let steps = values.len() - 1;
-    let log_discount = discount.ln();
     if p == 0.0 || p == 1.0 {
         let first = if p == 1.0 { steps - level } else { 0 };
         return Ok((
@@ -360,9 +364,10 @@ fn native(
     // The log-space sum can price rare large payoffs whose discounted values overflow.
     let direct = no_early_exercise
         && (steps >= 256
+            || !discount.factor.is_normal()
             || !scaled(
                 values.iter().copied().fold(0.0, f64::max),
-                steps as f64 * discount.ln(),
+                steps as f64 * discount.log_factor,
             )
             .is_finite());
     if direct {
@@ -371,12 +376,12 @@ fn native(
         } else {
             usize::from(request.has(Greek::Delta))
         };
-        let (price, nodes) = european_levels(&values, p, discount, level)?;
+        let (price, nodes) = european_levels(&values, p, discount.log_factor, level)?;
         second = nodes;
         first = if level == 2 {
             [
-                discount * ((1.0 - p) * nodes[0] + p * nodes[1]),
-                discount * ((1.0 - p) * nodes[1] + p * nodes[2]),
+                discount.rollback(nodes[0], nodes[1], p),
+                discount.rollback(nodes[1], nodes[2], p),
             ]
         } else {
             [nodes[0], nodes[1]]
@@ -401,7 +406,7 @@ fn native(
                 node_spot *= up;
             }
             if payoff.is_american() && level == 0 {
-                let continuation = discount * ((1.0 - p) * values[0] + p * values[1]);
+                let continuation = discount.rollback(values[0], values[1], p);
                 if exercise(spot) > 0.0 && exercise(spot) > continuation {
                     let mut result = PricingResult::new(exercise(spot))?;
                     result.set(request, Greek::Delta, payoff.sign)?;
@@ -411,7 +416,7 @@ fn native(
             }
             let mut asset = node_spot;
             for index in 0..=level {
-                let continuation = discount * ((1.0 - p) * values[index] + p * values[index + 1]);
+                let continuation = discount.rollback(values[index], values[index + 1], p);
                 values[index] = if payoff.is_american() {
                     continuation.max(exercise(asset))
                 } else {
@@ -678,7 +683,36 @@ impl PricingEngine<DigitalOption> for CoxRossRubinsteinDigitalEngine {
     }
 }
 
-fn parameters(context: &PricingContext, dt: f64) -> Result<(f64, f64, f64, f64, f64)> {
+#[derive(Clone, Copy)]
+struct StepDiscount {
+    log_factor: f64,
+    factor: f64,
+}
+
+impl StepDiscount {
+    #[inline]
+    fn rollback(self, lower: f64, upper: f64, probability: f64) -> f64 {
+        if self.factor.is_normal() {
+            self.rollback_normal(lower, upper, probability)
+        } else {
+            self.rollback_scaled(lower, upper, probability)
+        }
+    }
+
+    fn rollback_normal(self, lower: f64, upper: f64, probability: f64) -> f64 {
+        self.factor * ((1.0 - probability) * lower + probability * upper)
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn rollback_scaled(self, lower: f64, upper: f64, probability: f64) -> f64 {
+        // Combine each node with its probability and discount before restoring its scale.
+        scaled(lower, self.log_factor + (-probability).ln_1p())
+            + scaled(upper, self.log_factor + probability.ln())
+    }
+}
+
+fn parameters(context: &PricingContext, dt: f64) -> Result<(f64, f64, f64, StepDiscount, f64)> {
     let (rate, dividend) = flat_rates(context)?;
     let width = context.natural_bsm_parameters()?.volatility() * dt.sqrt();
     tree_parameters(rate, (rate - dividend) * dt, width, dt)
@@ -693,18 +727,27 @@ fn tree_parameters(
     carry: f64,
     width: f64,
     dt: f64,
-) -> Result<(f64, f64, f64, f64, f64)> {
+) -> Result<(f64, f64, f64, StepDiscount, f64)> {
     let up = width.exp();
     let down = 1.0 / up;
-    let discount = (-rate * dt).exp();
+    let log_factor = -rate * dt;
     let p = (carry + width).exp_m1() / (2.0 * width).exp_m1();
     if !up.is_finite()
         || !down.is_finite()
         || up == down
-        || !discount.is_finite()
+        || !log_factor.is_finite()
         || !(0.0..=1.0).contains(&p)
     {
         return Err(unstable());
     }
-    Ok((width, up, down, discount, p))
+    Ok((
+        width,
+        up,
+        down,
+        StepDiscount {
+            log_factor,
+            factor: log_factor.exp(),
+        },
+        p,
+    ))
 }

@@ -19,6 +19,7 @@ from kiyosi import (
 from kiyosi.instruments import (
     AmericanOption,
     AssetOrNothingOption,
+    BarrierOption,
     CashOrNothingOption,
     EuropeanOption,
 )
@@ -30,6 +31,7 @@ from kiyosi.market import (
 from kiyosi.pricing import (
     AnalyticDigitalEngine,
     AnalyticEuropeanEngine,
+    CoxRossRubinsteinBarrierEngine,
     CoxRossRubinsteinDigitalEngine,
     CoxRossRubinsteinVanillaEngine,
     implied_volatility,
@@ -55,6 +57,38 @@ GREEKS = (
 )
 VANILLA = (EuropeanOption, AmericanOption)
 DIGITAL = (CashOrNothingOption, AssetOrNothingOption)
+
+
+@pytest.mark.parametrize(
+    ("rate", "amount"), [(744.0, 1e300), (800.0, 1e300), (-800.0, 1e-300)]
+)
+def test_tree_discounts_preserve_representable_prices_after_factor_rounding(
+    rate, amount
+):
+    sigma = 0.2
+    probability = math.expm1(sigma) / math.expm1(2 * sigma)
+    expected_cash = math.exp(math.log(amount) + math.log(probability) - rate)
+    expected_call = expected_cash * math.expm1(sigma)
+    snapshot = market(spot=amount, rate=rate, dividend=rate, sigma=sigma)
+    terms = {
+        "option_type": "call",
+        "strike": amount,
+        "effective_time": START,
+        "expiry_time": END,
+    }
+    digital = CashOrNothingOption(payout=amount, **terms)
+    vanilla = EuropeanOption(**terms)
+    barrier = BarrierOption(
+        barrier_type="up_and_out", barrier_level=2 * amount, **terms
+    )
+    for factory, option, expected in (
+        (CoxRossRubinsteinDigitalEngine, digital, expected_cash),
+        (CoxRossRubinsteinVanillaEngine, vanilla, expected_call),
+        (CoxRossRubinsteinBarrierEngine, barrier, expected_call),
+    ):
+        assert factory(step_count=1).price(option, snapshot) == pytest.approx(
+            expected, rel=1e-12, abs=0
+        )
 
 
 def contract(kind, direction="call", strike=100):
