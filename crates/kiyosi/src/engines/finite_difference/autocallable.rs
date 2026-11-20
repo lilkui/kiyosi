@@ -373,7 +373,7 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
                 &alive,
                 &mut next_alive,
                 &space,
-                middle,
+                [middle, 0.0],
                 key,
                 [alive[0] * discount, alive[size - 1] * discount],
             )?;
@@ -384,7 +384,7 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
                     &knocked,
                     &mut next_knocked,
                     &space,
-                    middle,
+                    [middle, 0.0],
                     key,
                     [knocked[0] * discount, knocked[size - 1] * discount],
                 )?;

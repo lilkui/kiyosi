@@ -3554,6 +3554,9 @@ class FiniteDifferenceDigitalEngine(
     strike. Surface coverage follows remaining stochastic evolution; rate
     coverage follows required future discounting. Automatic local-volatility
     domains require convergence checks.
+
+    Automatic domains with non-explicit schemes remove deterministic carry
+    and concentrate nodes around the adjusted strike when it fits the domain.
     """
 
 class _MonteCarloMethods[Instrument, StatisticsInstrument](_PricingMethods[Instrument]):

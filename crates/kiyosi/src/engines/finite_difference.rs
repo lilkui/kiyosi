@@ -354,25 +354,36 @@ fn solve_model<D: Diffusion>(
     let spot = context.spot_price();
     let model = context.model_parameters();
     let expiry = option.expiry_time();
-    let (market_risk, dividend) = diffusion::rate_curves(context, expiry, settings)?;
+    let (market_risk, market_dividend) = diffusion::rate_curves(context, expiry, settings)?;
     let automatic_concentration =
         concentrate && settings.scheme != FiniteDifferenceScheme::ExplicitEuler;
     let level = spot.max(payoff.strike);
     let upper = match settings.asset_upper_boundary {
         Some(upper) => upper,
         None if D::LOCAL || payoff.is_american() => {
-            diffusion_upper(level, context, expiry, &market_risk, &dividend)?
+            diffusion_upper(level, context, expiry, &market_risk, &market_dividend)?
         }
         None => 4.0 * level,
     };
     let mut risk = &market_risk;
-    if automatic_concentration && !payoff.is_american() && !D::LOCAL && !payoff.is_digital() {
-        // Long carry paths leave the fine cells near the strike. Remove carry from
-        // the spot coordinate, adjusting the terminal strike and discounting at yield.
-        let strike = scaled(payoff.strike, -context.forward_carry(expiry)?);
+    let mut dividend = &market_dividend;
+    let mut digital_log_carry = 0.0;
+    if automatic_concentration && !payoff.is_american() && (!D::LOCAL || payoff.is_digital()) {
+        // Keep the fine cells near the payoff kink as the underlying drifts.
+        let log_carry = context.forward_carry(expiry)?;
+        let strike = scaled(payoff.strike, -log_carry);
         if strike.is_normal() && strike < upper {
             payoff.strike = strike;
-            risk = &dividend;
+            if payoff.is_digital() {
+                digital_log_carry = log_carry;
+            }
+            // Cash digitals discount at the risk-free rate. Asset payoffs absorb
+            // the terminal carry and discount at the dividend yield instead.
+            if payoff.payout().is_some() {
+                dividend = risk;
+            } else {
+                risk = dividend;
+            }
         }
     }
     let mut space = SpatialGrid::new(
@@ -402,7 +413,14 @@ fn solve_model<D: Diffusion>(
             grid::concentrate(&mut space, vec![payoff.strike], scale)?;
         }
     }
-    let time_grid = diffusion::time_grid(context, expiry, settings, &market_risk, &dividend, &[])?;
+    let time_grid = diffusion::time_grid(
+        context,
+        expiry,
+        settings,
+        &market_risk,
+        &market_dividend,
+        &[],
+    )?;
     let rollback_steps = time_grid.rollback_steps(settings.scheme, &[])?;
     validate_work(space.count as u64, rollback_steps)?;
     let can_exercise = payoff.is_american()
@@ -427,7 +445,7 @@ fn solve_model<D: Diffusion>(
             theta,
             !payoff.is_american(),
             risk,
-            &dividend,
+            dividend,
         )?;
     }
     let mut old: Vec<_> = (0..=space.count)
@@ -509,7 +527,7 @@ fn solve_model<D: Diffusion>(
                 payoff::boundary_value(payoff, upper, [risk_log, dividend_log], diffusion, tau);
             if can_exercise {
                 high = high.max(crate::engines::deterministic::exercise_value(
-                    payoff, upper, current, time, risk, &dividend,
+                    payoff, upper, current, time, risk, dividend,
                 )?);
             }
             let low = if payoff.sign > 0.0 || (payoff.is_digital() && payoff.payout().is_none()) {
@@ -529,7 +547,7 @@ fn solve_model<D: Diffusion>(
                 &old,
                 &mut next,
                 &space,
-                middle,
+                [middle, digital_log_carry * (middle / time)],
                 [dt, weight, rate, q],
                 [low, high],
             )?;
@@ -1240,8 +1258,9 @@ impl FiniteDifferenceDigitalEngine {
     ///
     /// Rejects nonconstant rate curves before life validation, including at expiry.
     /// Accepts BSM or local volatility, with cell-averaged digital payoffs in both models.
-    /// Automatic domains concentrate nodes around the strike for non-explicit
-    /// schemes. Explicit upper boundaries use uniform spot grids.
+    /// Automatic domains with non-explicit schemes remove deterministic carry
+    /// and concentrate nodes around the adjusted strike when it fits the domain.
+    /// Explicit upper boundaries use uniform spot grids.
     /// See [`FiniteDifferenceVanillaEngine::price_with_greeks`] for context construction.
     ///
     /// # Errors

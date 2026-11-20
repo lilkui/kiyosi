@@ -4,7 +4,43 @@ from datetime import datetime
 import pytest
 from kiyosi import pricing
 from kiyosi.instruments import AssetOrNothingOption, CashOrNothingOption
-from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.market import (
+    BlackScholesMertonParameters,
+    LocalVolatilityParameters,
+    LocalVolatilitySurface,
+    PricingContext,
+)
+
+
+def test_finite_difference_digitals_resolve_low_volatility_with_carry():
+    start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+    rates = {"risk_free_rate": 0.05, "dividend_yield": 0.15}
+    sigma = 0.001
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(**rates, volatility=sigma),
+        spot_price=110,
+        valuation_time=start,
+    )
+    surface = LocalVolatilitySurface(
+        times=[start, end], spots=[80, 120], values=[[sigma, sigma]] * 2
+    )
+    local = context.replace(
+        model_parameters=LocalVolatilityParameters(**rates, surface=surface)
+    )
+    terms = {
+        "option_type": "call",
+        "strike": 100,
+        "effective_time": start,
+        "expiry_time": end,
+    }
+    engine = pricing.FiniteDifferenceDigitalEngine()
+    for option in (
+        CashOrNothingOption(**terms, payout=1),
+        AssetOrNothingOption(**terms),
+    ):
+        expected = pricing.AnalyticDigitalEngine().price(option, context)
+        for market in (context, local):
+            assert engine.price(option, market) == pytest.approx(expected, rel=0.10)
 
 
 def test_near_certain_digital_payout_allows_rollback_roundoff():

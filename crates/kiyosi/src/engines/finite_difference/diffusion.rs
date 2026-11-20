@@ -71,23 +71,25 @@ pub(super) trait Diffusion: Copy {
         old: &[f64],
         next: &mut [f64],
         space: &SpatialGrid,
-        middle: f64,
+        [middle, log_carry]: [f64; 2],
         key: [f64; 4],
         edges: [f64; 2],
     ) -> Result<()> {
         let scale = self.variance_rate(middle).sqrt();
         if Self::SPOT_DEPENDENT {
             let [dt, theta, rate, dividend] = key;
+            let carry = log_carry.exp();
             stepper.advance_local(
                 old,
                 next,
                 |i| {
-                    space.coefficients(
-                        i,
-                        rate,
-                        dividend,
-                        self.sigma(middle, space.asset(i)) * scale,
-                    )
+                    let node = space.asset(i);
+                    let spot = if carry.is_normal() {
+                        node * carry
+                    } else {
+                        super::scaled(node, log_carry)
+                    };
+                    space.coefficients(i, rate, dividend, self.sigma(middle, spot) * scale)
                 },
                 [dt, theta],
                 edges,

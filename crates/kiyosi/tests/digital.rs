@@ -17,6 +17,35 @@ fn market(spot: f64, rate: f64, dividend: f64, volatility: f64) -> PricingContex
 }
 
 #[test]
+fn finite_difference_digitals_resolve_low_volatility_with_carry() -> Result<()> {
+    let (start, end) = dates();
+    let sigma = 0.001;
+    let context = market(110.0, 0.05, 0.15, sigma);
+    let surface =
+        LocalVolatilitySurface::new(vec![start, end], vec![80.0, 120.0], vec![vec![sigma; 2]; 2])?;
+    let local = PricingContext::new(
+        LocalVolatilityParameters::new(0.05, 0.15, surface)?,
+        110.0,
+        start,
+    )?;
+    let engine = FiniteDifferenceDigitalEngine::default();
+    for option in [
+        DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 1.0, start, end)?,
+        DigitalOption::asset_or_nothing(OptionType::Call, 100.0, start, end)?,
+    ] {
+        let expected = AnalyticDigitalEngine.price(&option, &context)?;
+        for market in [&context, &local] {
+            let price = engine.price(&option, market)?;
+            assert!(
+                (price / expected - 1.0).abs() < 0.10,
+                "{price} vs {expected}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn low_volatility_preserves_nearby_quoted_forward_moneyness() -> Result<()> {
     let (start, end) = dates();
     let risk = RateTermStructure::new(start, vec![end], vec![0.9])?;

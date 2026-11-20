@@ -30,7 +30,7 @@ pub(super) fn march<D: Diffusion>(
                 &values,
                 &mut next,
                 space,
-                middle,
+                [middle, 0.0],
                 [dt, weight, risk.rate(middle), dividend.rate(middle)],
                 edges(current),
             )?;
@@ -115,7 +115,7 @@ pub(super) fn march_with_continuation<D: Diffusion>(
                 &continuation,
                 &mut next_continuation,
                 full_space,
-                middle,
+                [middle, 0.0],
                 key,
                 full_edges(current),
             )?;
@@ -124,7 +124,7 @@ pub(super) fn march_with_continuation<D: Diffusion>(
                 &values,
                 &mut next,
                 space,
-                middle,
+                [middle, 0.0],
                 key,
                 edges(current, &next_continuation),
             )?;

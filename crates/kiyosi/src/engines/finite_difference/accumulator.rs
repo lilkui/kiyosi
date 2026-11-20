@@ -278,7 +278,7 @@ fn solve_grid<D: Diffusion>(
                     values,
                     &mut next[layer],
                     &space,
-                    middle,
+                    [middle, 0.0],
                     [dt, weight, rate, q],
                     boundaries,
                 )?;

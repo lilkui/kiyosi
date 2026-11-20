@@ -231,6 +231,9 @@ fd_engine!(
     vanilla_short_pricing,
 );
 fd_engine!(
+    /// Automatic domains with non-explicit schemes remove deterministic carry
+    /// and concentrate nodes around the adjusted strike when it fits the domain.
+    ///
     FiniteDifferenceDigitalEngine,
     digital::DigitalInstrument<'_>,
     digital::with_digital,
