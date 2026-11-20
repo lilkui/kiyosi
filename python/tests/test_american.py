@@ -97,6 +97,20 @@ def test_american_quadrature_rejects_excessive_rollback_work(base_terms, make_ma
     )
 
 
+@pytest.mark.parametrize("direction", ["call", "put"])
+@pytest.mark.parametrize("tiny_rate", [1e-17, 1e-20])
+def test_american_approximation_preserves_the_near_zero_exercise_premium_limit(
+    base_engine, base_terms, make_market, direction, tiny_rate
+):
+    rate, dividend = (0.05, tiny_rate) if direction == "call" else (tiny_rate, 0.05)
+    context = make_market(rate=rate, dividend=dividend)
+    terms = dict(base_terms, option_type=direction)
+    expected = AnalyticEuropeanEngine().price(EuropeanOption(**terms), context)
+    assert base_engine.price(AmericanOption(**terms), context) == pytest.approx(
+        expected, rel=0, abs=1e-12
+    )
+
+
 def test_early_exercise_and_european_limits(base_engine, base_terms, make_market):
     for direction, spot, rate, dividend, expected in (
         ("call", 200, 0.03, 0.1, 100),

@@ -86,6 +86,28 @@ fn american_construction_and_replacement_validate_without_mutating() {
 }
 
 #[test]
+fn american_approximation_preserves_the_near_zero_exercise_premium_limit() -> Result<()> {
+    let (start, end) = (day(2025, 1, 1), day(2026, 1, 1));
+    for tiny_rate in [1e-17, 1e-20] {
+        for (direction, rate, dividend) in [
+            (OptionType::Call, 0.05, tiny_rate),
+            (OptionType::Put, tiny_rate, 0.05),
+        ] {
+            let context = market(100.0, rate, dividend, 0.2);
+            let american = AmericanOption::new(direction, 100.0, start, end)?;
+            let european = EuropeanOption::new(direction, 100.0, start, end)?;
+            let expected = AnalyticEuropeanEngine.price(&european, &context)?;
+            let actual = BjerksundStenslandVanillaEngine.price(&american, &context)?;
+            assert!(
+                (actual - expected).abs() < 1e-12,
+                "{direction:?}: {actual} != {expected}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn american_early_exercise_and_european_limits() {
     let (start, end) = (day(2025, 1, 1), day(2026, 1, 1));
     let engine = BjerksundStenslandVanillaEngine;

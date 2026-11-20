@@ -193,28 +193,29 @@ fn bjerksund_call(
         return Err(unsupported_boundary());
     }
     let variance = volatility * volatility;
-    let offset = carry - 0.5 * variance;
-    let root = offset.hypot(SQRT_2 * rate.sqrt() * volatility);
-    // Rationalize the positive-carry root to avoid cancellation.
-    let beta = if offset > 0.0 {
-        rate / (0.5 * root + 0.5 * offset)
+    let offset = carry + 0.5 * variance;
+    let root = offset.hypot(SQRT_2 * dividend.sqrt() * volatility);
+    // Solve for beta - 1 directly so small dividend yields retain a finite boundary.
+    let excess = if offset > 0.0 {
+        dividend / (0.5 * root + 0.5 * offset)
     } else {
         (root - offset) / variance
     };
-    if variance == 0.0 || !variance.is_finite() || !beta.is_finite() || beta <= 1.0 {
+    if variance == 0.0 || !variance.is_finite() || !excess.is_finite() || excess <= 0.0 {
         return Err(Error::ComputationFailure(
             "Bjerksund-Stensland exercise exponent is numerically unstable".into(),
         ));
     }
-    let b_inf = beta / (beta - 1.0) * strike;
+    let beta = 1.0 + excess;
+    let b_inf = strike + strike / excess;
     let b_zero = strike.max(rate / dividend * strike);
     let split_ratio = 0.5 * (5.0_f64.sqrt() - 1.0);
     let split_time = split_ratio * time;
     let scale = (strike / (b_inf - b_zero)) * (strike / b_zero);
     let h1 = -(carry * split_time + 2.0 * volatility * split_time.sqrt()) * scale;
     let h2 = -(carry * time + 2.0 * volatility * time.sqrt()) * scale;
-    let inner = b_zero + (b_inf - b_zero) * (1.0 - h1.exp());
-    let outer = b_zero + (b_inf - b_zero) * (1.0 - h2.exp());
+    let inner = b_zero - (b_inf - b_zero) * h1.exp_m1();
+    let outer = b_zero - (b_inf - b_zero) * h2.exp_m1();
     if inner <= strike || outer <= strike {
         return Err(unsupported_boundary());
     }
