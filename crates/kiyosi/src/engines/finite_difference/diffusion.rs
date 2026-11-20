@@ -7,34 +7,45 @@ use crate::{Error, LocalVolatilitySurface, Timestamp};
 // Dispatch outside the solver so each diffusion keeps its compile-time specialization.
 macro_rules! with_diffusion {
     ($context:ident, |$diffusion:ident| $price:expr) => {{
+        $crate::engines::finite_difference::diffusion::with_diffusion!(
+            $context,
+            None::<$crate::Timestamp>,
+            |$diffusion| $price
+        )
+    }};
+    ($context:ident, $horizon:expr, |$diffusion:ident| $price:expr) => {{
         use $crate::engines::finite_difference::{diffusion::LocalDiffusion, local_volatility};
+        let horizon = $horizon;
+        let business_time = $context
+            .model_parameters()
+            .variance_time_convention()
+            .calendar()
+            .is_some();
         if let Some(model) = local_volatility::local_model($context) {
-            let base = LocalDiffusion::new($context, model.surface());
-            if $context
-                .model_parameters()
-                .variance_time_convention()
-                .calendar()
-                .is_some()
-            {
+            let surface = model.surface();
+            let base = LocalDiffusion::new($context, surface);
+            if business_time {
                 let $diffusion =
                     $crate::engines::finite_difference::diffusion::BusinessDiffusion::new(
                         $context, base,
                     );
                 $price
-            } else if let Some($diffusion) = model.surface().constant_volatility() {
-                $price
             } else {
-                let $diffusion = base;
-                $price
+                let constant = if let Some(expiry) = horizon {
+                    surface.constant_volatility_between($context.valuation_time(), expiry)?
+                } else {
+                    surface.constant_volatility()
+                };
+                if let Some($diffusion) = constant {
+                    $price
+                } else {
+                    let $diffusion = base;
+                    $price
+                }
             }
         } else {
             let base = $context.bsm_parameters()?.volatility();
-            if $context
-                .model_parameters()
-                .variance_time_convention()
-                .calendar()
-                .is_some()
-            {
+            if business_time {
                 let $diffusion =
                     $crate::engines::finite_difference::diffusion::BusinessDiffusion::new(
                         $context, base,

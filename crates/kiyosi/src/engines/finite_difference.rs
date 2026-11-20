@@ -325,7 +325,7 @@ fn native(
             None,
         ));
     }
-    diffusion::with_diffusion!(context, |diffusion| {
+    diffusion::with_diffusion!(context, Some(option.expiry_time()), |diffusion| {
         native_model(
             option,
             payoff,
@@ -672,17 +672,21 @@ fn prepare_vanilla_state(
     {
         None
     } else {
-        Some(diffusion::with_diffusion!(context, |diffusion| {
-            solve_model(
-                option,
-                payoff,
-                context,
-                settings,
-                concentrate,
-                minimum_spot,
-                diffusion,
-            )
-        })?)
+        Some(diffusion::with_diffusion!(
+            context,
+            Some(option.expiry_time()),
+            |diffusion| {
+                solve_model(
+                    option,
+                    payoff,
+                    context,
+                    settings,
+                    concentrate,
+                    minimum_spot,
+                    diffusion,
+                )
+            }
+        )?)
     };
     let exercise = if grid.is_none() && payoff.is_american() && time > 0.0 {
         Some(crate::engines::deterministic::AmericanExercise::new(

@@ -152,6 +152,35 @@ impl LocalVolatilitySurface {
         (self.minimum.to_bits() == self.maximum.to_bits()).then_some(self.maximum)
     }
 
+    pub(crate) fn constant_volatility_between(
+        &self,
+        start: Timestamp,
+        end: Timestamp,
+    ) -> Result<Option<f64>> {
+        if self.validate_time(start).is_err() || self.validate_time(end).is_err() || start >= end {
+            return Ok(None);
+        }
+        if let Some(volatility) = self.constant_volatility() {
+            return Ok(Some(volatility));
+        }
+        // Include the rows that interpolate either edge of the requested interval.
+        let first = self.times.partition_point(|&time| time <= start) - 1;
+        let last = self.times.partition_point(|&time| time < end);
+        let columns = self.spots.len();
+        let rows = &self.values[first * columns..(last + 1) * columns];
+        let volatility = rows[0];
+        for chunk in rows.chunks(1024) {
+            cancellation::check()?;
+            if chunk
+                .iter()
+                .any(|value| value.to_bits() != volatility.to_bits())
+            {
+                return Ok(None);
+            }
+        }
+        Ok(Some(volatility))
+    }
+
     /// Interpolates sigma at an absolute time and positive spot.
     ///
     /// Price extrapolation uses the nearest price endpoint without moving the
