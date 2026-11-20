@@ -1219,7 +1219,6 @@ def test_asian_history_uses_optional_positive_averages(subtests):
             assert engine.price(seasoned, context) > 0
             assert seasoned.replace() == seasoned
             assert seasoned.replace(realized_average=None) == original
-            assert seasoned.replace(realized_average=None) == original
             for invalid in (0, -1, float("nan"), float("inf")):
                 with pytest.raises(InvalidInputError):
                     seasoned.replace(
