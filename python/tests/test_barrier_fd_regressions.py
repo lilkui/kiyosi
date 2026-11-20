@@ -11,6 +11,32 @@ from kiyosi.market import (
 )
 
 
+def test_continuous_barrier_resolves_low_volatility_near_the_edge():
+    start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+    option = BarrierOption(
+        option_type="call",
+        strike=95,
+        effective_time=start,
+        expiry_time=end,
+        barrier_level=99.9,
+        barrier_type="down_and_out",
+    )
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.05,
+            dividend_yield=0,
+            volatility=0.01,
+        ),
+        spot_price=100,
+        valuation_time=start,
+    )
+    expected = pricing.AnalyticBarrierEngine().price(option, context)
+    engine = pricing.FiniteDifferenceBarrierEngine()
+    saved = engine.solve(option, context, spot_range=(99.95, 100.05))
+    assert engine.price(option, context) == pytest.approx(expected, rel=0.005)
+    assert saved.price(100) == pytest.approx(expected, rel=0.005)
+
+
 def test_continuous_single_barriers_retain_exact_levels_near_knock_out(subtests):
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     parameters = BlackScholesMertonParameters(

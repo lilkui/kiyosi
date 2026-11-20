@@ -256,6 +256,12 @@ fn solve_grid<D: Diffusion>(
             if up { 0.0 } else { option.barrier_level() },
             upper_barrier.unwrap_or(if up { option.barrier_level() } else { upper }),
         )?;
+        if upper_barrier.is_none()
+            && !D::LOCAL
+            && settings.scheme != super::FiniteDifferenceScheme::ExplicitEuler
+        {
+            space.resolve_barrier(up, diffusion.sigma(0.0, 0.0), time, &risk, &dividend)?;
+        }
     }
     let observations =
         diffusion::observation_times(context.valuation_time(), expiry, option.observation_times())?;

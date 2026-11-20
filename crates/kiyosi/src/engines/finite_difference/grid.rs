@@ -137,6 +137,42 @@ impl SpatialGrid {
         Ok(())
     }
 
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "Grid counts are bounded by validated i32 settings."
+    )]
+    pub fn resolve_barrier(
+        &mut self,
+        up: bool,
+        sigma: f64,
+        time: f64,
+        risk: &Curve,
+        dividend: &Curve,
+    ) -> Result<()> {
+        let barrier = if up { self.upper } else { self.lower };
+        let variance = sigma * sigma;
+        let mut carry = 0.0_f64;
+        for (index, at) in std::iter::once(0.0)
+            .chain(risk.ends())
+            .chain(dividend.ends())
+            .enumerate()
+        {
+            if index % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
+            carry = carry.max((risk.rate(at) - dividend.rate(at)).abs());
+        }
+        let layer = (variance / carry) * barrier;
+        if layer < self.spacing {
+            // Resolve the boundary layer when the uniform stencil would add diffusion.
+            let scale = (2.0 * (sigma * time.sqrt()) * barrier)
+                .min(layer * (self.count as f64 / 32.0))
+                .max(f64::EPSILON.sqrt() * self.upper);
+            concentrate_levels(self, vec![barrier], scale)?;
+        }
+        Ok(())
+    }
+
     pub fn linear(&self, values: &[f64], asset: f64) -> f64 {
         let (index, weight) = self.locate(asset);
         (1.0 - weight) * values[index] + weight * values[index + 1]
@@ -395,19 +431,27 @@ impl SpatialGrid {
     }
 }
 
+pub(super) fn concentrate(space: &mut SpatialGrid, mut levels: Vec<f64>, scale: f64) -> Result<()> {
+    levels.retain(|&l| l > space.lower && l < space.upper);
+    concentrate_levels(space, levels, scale)
+}
+
 #[expect(
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
     clippy::cast_sign_loss,
-    reason = "Grid counts are bounded by validated i32 settings; allocation intentionally floors nonnegative proportions."
+    clippy::float_cmp,
+    reason = "Validated counts fit exactly; allocation floors proportions and exact endpoints select segment geometry."
 )]
-pub(super) fn concentrate(space: &mut SpatialGrid, mut levels: Vec<f64>, scale: f64) -> Result<()> {
-    levels.retain(|&l| l > 0.0 && l < space.upper);
+fn concentrate_levels(space: &mut SpatialGrid, mut levels: Vec<f64>, scale: f64) -> Result<()> {
     levels.sort_by(f64::total_cmp);
-    let gap = scale * (space.upper / scale).asinh() / space.count as f64;
-    let mut previous = 0.0;
+    levels.dedup();
+    let gap = scale * ((space.upper - space.lower) / scale).asinh() / space.count as f64;
+    let mut previous = space.lower;
     levels.retain(|&l| {
-        if l - previous < gap || space.upper - l < gap {
+        if l == space.lower || l == space.upper {
+            true
+        } else if l - previous < gap || space.upper - l < gap {
             false
         } else {
             previous = l;
@@ -417,13 +461,19 @@ pub(super) fn concentrate(space: &mut SpatialGrid, mut levels: Vec<f64>, scale: 
     if levels.is_empty() {
         return Ok(());
     }
-    let mut segments = vec![(0.0, levels[0], false, 1_usize, 0.0)];
+    let mut segments = Vec::new();
+    if levels[0] > space.lower {
+        segments.push((space.lower, levels[0], false, 1_usize, 0.0));
+    }
     for pair in levels.windows(2) {
         let middle = pair[0].midpoint(pair[1]);
         segments.push((pair[0], middle, true, 1, 0.0));
         segments.push((middle, pair[1], false, 1, 0.0));
     }
-    segments.push((levels[levels.len() - 1], space.upper, true, 1, 0.0));
+    let last = levels[levels.len() - 1];
+    if last < space.upper {
+        segments.push((last, space.upper, true, 1, 0.0));
+    }
     if segments.len() > space.count {
         return Ok(());
     }
@@ -453,9 +503,12 @@ pub(super) fn concentrate(space: &mut SpatialGrid, mut levels: Vec<f64>, scale: 
             spacing = spacing.min(width(a, b) / (steps as f64 - 0.5));
         }
     }
-    let mut nodes = vec![0.0];
+    let mut nodes = vec![space.lower];
     for (a, b, from_left, steps, _) in segments {
         for i in 1..=steps {
+            if i % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
             let x = spacing * if from_left { i } else { steps - i } as f64;
             let value = if i == steps {
                 b

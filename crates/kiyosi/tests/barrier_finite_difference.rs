@@ -1,6 +1,35 @@
 use kiyosi::*;
 
 #[test]
+fn continuous_barrier_resolves_low_volatility_near_the_edge() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_days(365)?;
+    let option = BarrierOption::new(BarrierOptionTerms::new(
+        OptionType::Call,
+        95.0,
+        start,
+        end,
+        99.9,
+        BarrierType::DownAndOut,
+    ))?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.0, 0.01)?,
+        100.0,
+        start,
+    )?;
+    let engine = FiniteDifferenceBarrierEngine::default();
+    let expected = AnalyticBarrierEngine.price(&option, &context)?;
+    let saved = engine.solve(&option, &context, 99.95..=100.05)?;
+    for actual in [engine.price(&option, &context)?, saved.price(100.0)?] {
+        assert!(
+            (actual - expected).abs() < 0.005 * expected,
+            "{actual} != {expected}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn earlier_knock_out_preserves_rebate_greeks_at_later_barrier() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let first = start.add_days(365)?;

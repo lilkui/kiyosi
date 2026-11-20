@@ -3,7 +3,7 @@
 import importlib
 import math
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import partial
 
 import pytest
@@ -50,6 +50,19 @@ def touch(payoff_type="cash", **changes):
     if payoff_type == "cash":
         terms["payout"] = 10
     return ins.TouchOption(**(terms | changes))
+
+
+def test_continuous_one_touch_resolves_low_volatility_near_the_edge():
+    option = touch(
+        barrier_level=100.1,
+        expiry_time=START + timedelta(days=7),
+        settlement_timing="at_hit",
+        payout=1,
+    )
+    context = market(rate=0, dividend=0.2, sigma=0.01)
+    expected = AnalyticBinaryBarrierEngine().price(option, context)
+    actual = FiniteDifferenceBinaryBarrierEngine().price(option, context)
+    assert actual == pytest.approx(expected, rel=0.02)
 
 
 def test_continuous_touch_settlements_match_analytics():

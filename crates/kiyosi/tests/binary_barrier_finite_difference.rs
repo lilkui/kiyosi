@@ -16,6 +16,26 @@ fn market() -> PricingContext {
 }
 
 #[test]
+fn continuous_one_touch_resolves_low_volatility_near_the_edge() -> Result<()> {
+    let start = start();
+    let mut terms = TouchOptionTerms::new(start, start.add_days(7)?, 100.1, BarrierType::UpAndIn);
+    terms.settlement_timing = SettlementTiming::AtHit;
+    let option = TouchOption::cash(terms, 1.0)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.0, 0.2, 0.01)?,
+        100.0,
+        start,
+    )?;
+    let expected = AnalyticBinaryBarrierEngine.price(&option, &context)?;
+    let actual = FiniteDifferenceBinaryBarrierEngine::default().price(&option, &context)?;
+    assert!(
+        (actual - expected).abs() < 0.02 * expected,
+        "{actual} != {expected}"
+    );
+    Ok(())
+}
+
+#[test]
 fn continuous_cash_binary_converges_to_analytic_price() {
     let option = BinaryBarrierOption::cash(
         BinaryBarrierTerms::new(
