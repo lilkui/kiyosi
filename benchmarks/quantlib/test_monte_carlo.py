@@ -83,7 +83,12 @@ class MonteCarloReportTests(unittest.TestCase):
                 check=False,
                 timeout=600,
             )
-            return result, json.loads(report.read_text())["cases"][0]
+            self.assertTrue(report.is_file(), result.stdout + result.stderr)
+            rows = json.loads(report.read_text())["cases"]
+            self.assertEqual([row["id"] for row in rows], [case["id"]])
+            row = rows[0]
+            self.assertCountEqual(row["backends"], ("kiyosi", "quantlib"))
+            return result, row
 
     def test_missing_seed_policy_prevents_timing(self):
         result, data = self.fixture(include_policy=False)
@@ -198,6 +203,12 @@ class MonteCarloNativeTests(unittest.TestCase):
                             native(binary, invalid, backend, 1)
 
     def test_committed_profiles_pass_live_ensemble_gate(self):
+        case_ids = (
+            "mc-european-call",
+            "mc-european-put",
+            "mc-barrier-down-out-call",
+            "mc-barrier-up-in-put",
+        )
         with tempfile.TemporaryDirectory() as directory:
             report = Path(directory) / "report.json"
             result = subprocess.run(
@@ -210,12 +221,7 @@ class MonteCarloNativeTests(unittest.TestCase):
                     str(HERE / "cases/monte_carlo.json"),
                     *(
                         argument
-                        for identifier in (
-                            "mc-european-call",
-                            "mc-european-put",
-                            "mc-barrier-down-out-call",
-                            "mc-barrier-up-in-put",
-                        )
+                        for identifier in case_ids
                         for argument in ("--case", identifier)
                     ),
                     "--report",
@@ -226,14 +232,17 @@ class MonteCarloNativeTests(unittest.TestCase):
                 check=False,
                 timeout=600,
             )
-            data = json.loads(report.read_text())
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-            self.assertEqual(len(data["cases"]), 4)
-            for case in data["cases"]:
-                for backend in case["backends"].values():
-                    ensemble = backend["seed_ensemble"]
-                    self.assertEqual(len(ensemble["samples"]), 32)
-                    self.assertTrue(ensemble["passed"], ensemble)
+            rows = json.loads(report.read_text())["cases"]
+            self.assertCountEqual([row["id"] for row in rows], case_ids)
+            for row in rows:
+                with self.subTest(case=row["id"]):
+                    self.assertCountEqual(row["backends"], ("kiyosi", "quantlib"))
+                    for name, backend in row["backends"].items():
+                        with self.subTest(backend=name):
+                            ensemble = backend["seed_ensemble"]
+                            self.assertEqual(len(ensemble["samples"]), 32)
+                            self.assertTrue(ensemble["passed"], ensemble)
 
 
 if __name__ == "__main__":

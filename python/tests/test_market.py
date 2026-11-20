@@ -119,13 +119,6 @@ def test_rounded_flat_nodes_explain_exact_constant_curve_requirement():
         pricing.CoxRossRubinsteinVanillaEngine(step_count=64).price(
             vanilla(), market(rate=curve)
         )
-    explicit = RateTermStructure.bounded_flat(0.05, reference_time=START, max_time=END)
-    assert explicit.exact_flat_rate == 0.05
-    assert math.isfinite(
-        pricing.CoxRossRubinsteinVanillaEngine(step_count=64).price(
-            vanilla(), market(rate=explicit)
-        )
-    )
 
 
 def test_bounded_flat_curves_preserve_exact_rates_coverage_and_engine_support():
@@ -158,7 +151,7 @@ def test_bounded_flat_curves_preserve_exact_rates_coverage_and_engine_support():
     option = EuropeanOption(
         option_type="call", strike=100, effective_time=start, expiry_time=end
     )
-    engine = pricing.CoxRossRubinsteinVanillaEngine()
+    engine = pricing.CoxRossRubinsteinVanillaEngine(step_count=1024)
     prices = [
         engine.price(
             option,
@@ -173,6 +166,8 @@ def test_bounded_flat_curves_preserve_exact_rates_coverage_and_engine_support():
         for rate in (curve, 0.05)
     ]
     assert prices[0] == prices[1]
+    # One-year at-the-money Black-Scholes-Merton call benchmark.
+    assert prices[0] == pytest.approx(9.227005508154036, rel=0, abs=0.005)
 
 
 def test_calendar_bounded_quotes_pause_on_closed_dates():

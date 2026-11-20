@@ -63,6 +63,7 @@ def test_forked_child_rejects_parallel_pool_and_can_price_serially():
     result = subprocess.run(
         [
             sys.executable,
+            "-E",
             "-c",
             textwrap.dedent("""
             import multiprocessing as mp
@@ -122,6 +123,7 @@ def test_process_pool_configuration_preserves_seeded_prices():
     result = subprocess.run(
         [
             sys.executable,
+            "-E",
             "-c",
             textwrap.dedent("""
                 from datetime import datetime
@@ -579,21 +581,20 @@ def test_implied_volatility_seed_sharing_failures_and_thread_invariance():
             upper_bound=4.0,
         )
     replay = unseeded.with_resolved_seed()
+    quote = replay.price(option, context)
     sigma = implied_volatility(
         replay,
         option,
         context,
-        9.227005508154036,
+        quote,
         lower_bound=0.1,
         upper_bound=0.4,
     )
-    assert 0.1 < sigma < 0.4
+    assert sigma == pytest.approx(0.2, rel=0, abs=1e-8)
     repriced = context.replace(
         model_parameters=context.model_parameters.replace(volatility=sigma)
     )
-    assert replay.price(option, repriced) == pytest.approx(
-        9.227005508154036, rel=0, abs=1e-8
-    )
+    assert replay.price(option, repriced) == pytest.approx(quote, rel=0, abs=1e-8)
     assert unseeded.seed is None
     assert context.model_parameters.volatility == 0.2
 
@@ -884,15 +885,16 @@ def test_all_sampling_combinations_replay_analytics_and_preserve_failure_state(
     )
     assert analysis.delta == pytest.approx(analysis.price / 100, rel=0, abs=1e-9)
     assert analysis.gamma == pytest.approx(0, rel=0, abs=1e-7)
+    replay = unseeded.with_resolved_seed()
     sigma = implied_volatility(
-        unseeded.with_resolved_seed(),
+        replay,
         option,
         context,
-        9.227005508154036,
+        replay.price(option, context),
         lower_bound=0.1,
         upper_bound=0.4,
     )
-    assert 0.1 < sigma < 0.4
+    assert sigma == pytest.approx(0.2, rel=0, abs=1e-8)
     assert unseeded.seed is None
     with ThreadPoolExecutor(max_workers=3) as pool:
         assert (

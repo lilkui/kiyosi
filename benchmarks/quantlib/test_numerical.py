@@ -96,6 +96,14 @@ class NumericalNativeTests(unittest.TestCase):
         )
 
     def test_all_committed_profiles_pass_real_native_accuracy_gate(self):
+        case_ids = (
+            "quadrature-bsm-european-call",
+            "quadrature-bsm-cash-call",
+            "quadrature-bsm-asset-put",
+            "crr-bsm-european-call",
+            "crr-bsm-american-put",
+            "crr-bsm-down-out-call",
+        )
         with tempfile.TemporaryDirectory() as directory:
             report = Path(directory) / "report.json"
             result = subprocess.run(
@@ -106,18 +114,7 @@ class NumericalNativeTests(unittest.TestCase):
                     "--price-only",
                     "--cases",
                     str(ROOT / "benchmarks/quantlib/cases/numerical.json"),
-                    *(
-                        arg
-                        for identifier in (
-                            "quadrature-bsm-european-call",
-                            "quadrature-bsm-cash-call",
-                            "quadrature-bsm-asset-put",
-                            "crr-bsm-european-call",
-                            "crr-bsm-american-put",
-                            "crr-bsm-down-out-call",
-                        )
-                        for arg in ("--case", identifier)
-                    ),
+                    *(arg for identifier in case_ids for arg in ("--case", identifier)),
                     "--report",
                     str(report),
                 ],
@@ -129,7 +126,7 @@ class NumericalNativeTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
             cases = json.loads(report.read_text())["cases"]
-            self.assertEqual(len(cases), 6)
+            self.assertCountEqual([case["id"] for case in cases], case_ids)
             for case in cases:
                 for backend in ("kiyosi", "quantlib"):
                     self.assertTrue(

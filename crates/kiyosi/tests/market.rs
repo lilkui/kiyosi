@@ -623,8 +623,8 @@ fn bulk_curve_factors_follow_scalar_overflow_and_underflow_rules() {
 #[test]
 fn bounded_flat_curves_preserve_exact_rates_coverage_and_engine_support() -> kiyosi::Result<()> {
     use kiyosi::{
-        BlackScholesMertonParameters, CoxRossRubinsteinVanillaEngine, EuropeanOption, OptionType,
-        PricingContext,
+        BinomialSettings, BlackScholesMertonParameters, CoxRossRubinsteinVanillaEngine,
+        EuropeanOption, OptionType, PricingContext,
     };
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = start.add_days(365)?;
@@ -665,10 +665,14 @@ fn bounded_flat_curves_preserve_exact_rates_coverage_and_engine_support() -> kiy
         100.0,
         start,
     )?;
-    let engine = CoxRossRubinsteinVanillaEngine::default();
-    assert_eq!(
-        engine.price(&option, &bounded)?,
-        engine.price(&option, &scalar)?
+    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 1024 })?;
+    let price = engine.price(&option, &bounded)?;
+    assert_eq!(price, engine.price(&option, &scalar)?);
+    // One-year at-the-money Black-Scholes-Merton call benchmark.
+    let reference = 9.227_005_508_154_036;
+    assert!(
+        (price - reference).abs() < 0.005,
+        "bounded-flat curve call: {price} vs {reference}"
     );
     Ok(())
 }

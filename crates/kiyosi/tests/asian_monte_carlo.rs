@@ -886,16 +886,31 @@ fn unseeded_analyses_pin_request_samples_without_mutation() {
         prepared.price(&option, &context).unwrap(),
         prepared.price(&option, &context).unwrap()
     );
-    let result = numerical_greeks(
-        &engine,
-        &option,
-        &context,
-        GreeksRequest::new([Greek::Delta, Greek::Vega]),
-        Default::default(),
-    )
+    let request = GreeksRequest::new([Greek::Delta, Greek::Vega]);
+    let result = numerical_greeks(&engine, &option, &context, request, Default::default()).unwrap();
+    let settings = engine.settings();
+    let replay = MonteCarloAsianEngine::new(MonteCarloGridSettings {
+        sampling: MonteCarloSettings {
+            seed: Some(
+                result
+                    .seed()
+                    .expect("stochastic analysis reports the request seed"),
+            ),
+            ..settings.sampling
+        },
+        ..settings
+    })
     .unwrap();
-    assert!((0.5..0.65).contains(&result.require(Greek::Delta).unwrap()));
-    assert!((18.0..28.0).contains(&result.require(Greek::Vega).unwrap()));
+    assert_eq!(
+        result,
+        numerical_greeks(&replay, &option, &context, request, Default::default()).unwrap()
+    );
+    result
+        .require(Greek::Delta)
+        .expect("the requested delta is available");
+    result
+        .require(Greek::Vega)
+        .expect("the requested vega is available");
     assert!(matches!(
         implied_volatility(
             &engine,
@@ -906,18 +921,21 @@ fn unseeded_analyses_pin_request_samples_without_mutation() {
         ),
         Err(Error::InvalidInput(_))
     ));
-    let replay = engine.with_resolved_seed().unwrap();
+    let quote = replay.price(&option, &context).unwrap();
     let sigma = implied_volatility(
         &replay,
         &option,
         &context,
-        5.25,
+        quote,
         ImpliedVolatilitySettings::new(0.1, 0.4),
     )
     .unwrap();
-    assert!((0.1..0.4).contains(&sigma));
+    assert!(
+        (sigma - 0.2).abs() < 1e-8,
+        "recovered Asian volatility {sigma}"
+    );
     let repriced = market(100.0, sigma, start);
-    assert!((replay.price(&option, &repriced).unwrap() - 5.25).abs() <= 1e-8);
+    assert!((replay.price(&option, &repriced).unwrap() - quote).abs() <= 1e-8);
     assert_eq!(engine.settings().sampling.seed, None);
 }
 

@@ -106,6 +106,8 @@ def test_structured_knock_out_uses_exact_quoted_forward():
         observation_clock_time=clock_time(),
         knock_out_observation_times=[end],
     )
+    # Daily observations run from January 2 through the following January 1.
+    assert len(accumulator.accumulation_schedule) == 365
     term = (end - start).total_seconds() / (365 * 86400)
     for spot, hit in (
         (math.nextafter(99, 0), False),
@@ -131,7 +133,7 @@ def test_structured_knock_out_uses_exact_quoted_forward():
             assert engine.price(phoenix, context) == pytest.approx(
                 factor * (1 + 0.2 * hit), abs=1e-12
             )
-        units = len(accumulator.accumulation_schedule) - hit
+        units = 365 - hit
         expected = units * (spot - 100 * factor)
         for engine in (
             pricing.QuadratureAccumulatorEngine(),

@@ -570,15 +570,16 @@ def test_analysis_protocols_solver_failures_and_owned_results(subtests):
             lower_bound=0.0,
             upper_bound=4.0,
         )
+        replay = unseeded.with_resolved_seed()
         solved = pricing.implied_volatility(
-            unseeded.with_resolved_seed(),
+            replay,
             instrument,
             context,
-            quote,
+            replay.price(instrument, context),
             lower_bound=0.1,
             upper_bound=0.4,
         )
-        assert 0.1 < solved < 0.4
+        assert solved == pytest.approx(0.2, rel=0, abs=1e-8)
         assert unseeded.seed is None
         result = engine.price_with_greeks(instrument, context, "delta")
         assert result.price == quote

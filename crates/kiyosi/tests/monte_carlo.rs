@@ -420,24 +420,19 @@ fn analyses_share_one_seed_and_solvers_recover_seeded_quotes() {
             .into(),
         )
         .unwrap();
-        let quote = if seed.is_some() {
-            engine.price(&option, &market()).unwrap()
-        } else {
-            9.227_005_508_154_036
-        };
+        let replay = engine.with_resolved_seed().unwrap();
+        let quote = replay.price(&option, &market()).unwrap();
         if seed.is_none() {
             assert!(matches!(
                 implied_volatility(&engine, &option, &market(), quote, settings),
                 Err(Error::InvalidInput(_))
             ));
         }
-        let replay = engine.with_resolved_seed().unwrap();
         let volatility = implied_volatility(&replay, &option, &market(), quote, settings).unwrap();
-        if seed.is_some() {
-            assert!((volatility - 0.2).abs() < 1e-8);
-        } else {
-            assert!(volatility > 0.1 && volatility < 0.4);
-        }
+        assert!(
+            (volatility - 0.2).abs() < 1e-8,
+            "seed {seed:?}: {volatility}"
+        );
         let repriced = market()
             .replace(PricingContextChanges {
                 model_parameters: Some(

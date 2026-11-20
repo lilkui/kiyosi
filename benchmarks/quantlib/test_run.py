@@ -204,6 +204,8 @@ class NativeRustTests(unittest.TestCase):
         self.assertAlmostEqual(data["price"], 9.227005508154036, places=11)
         self.assertEqual(data["iterations"], 100)
         self.assertGreater(data["elapsed_ns"], 0)
+
+    def test_unknown_native_family_is_rejected(self):
         result = subprocess.run(
             [str(self.executable), "family=unknown", "iterations=1"],
             text=True,
@@ -482,11 +484,24 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         case = report["cases"][0]
         self.assertEqual(case["ratio"], 1)
-        for backend in ("kiyosi", "quantlib"):
-            timing = case["backends"][backend]["timing"]
-            self.assertEqual(len(timing["samples"]), 15)
-            self.assertEqual(timing["median_ns"], 800000000)
-            self.assertEqual(timing["iqr_ns"], 700000000)
+        order = ["kiyosi", "quantlib"]
+        self.assertEqual(
+            case["sample_order"],
+            [order if i % 2 == 0 else order[::-1] for i in range(15)],
+        )
+        self.assertCountEqual(case["backends"], order)
+        for backend in order:
+            with self.subTest(backend=backend):
+                timing = case["backends"][backend]["timing"]
+                self.assertEqual(
+                    [
+                        sample["elapsed_ns"] // sample["iterations"]
+                        for sample in timing["samples"]
+                    ],
+                    [100_000_000 * i for i in range(1, 16)],
+                )
+                self.assertEqual(timing["median_ns"], 800_000_000)
+                self.assertEqual(timing["iqr_ns"], 700_000_000)
 
     def test_incompatible_native_version_fails(self):
         result, report = self.run_fixture(version="1.43")
@@ -513,11 +528,13 @@ class ReportTests(unittest.TestCase):
     def test_accuracy_failure_suppresses_ratio_and_fails(self):
         result, report = self.run_fixture(reference=11)
         self.assertEqual(result.returncode, 1, result.stderr)
-        self.assertIsNone(report["cases"][0]["ratio"])
-        self.assertEqual(report["cases"][0]["status"], "accuracy_failed")
-        self.assertEqual(
-            report["cases"][0]["backends"]["kiyosi"]["accuracy"]["absolute_error"], 1
-        )
+        row = report["cases"][0]
+        self.assertIsNone(row["ratio"])
+        self.assertEqual(row["status"], "accuracy_failed")
+        self.assertCountEqual(row["backends"], ("kiyosi", "quantlib"))
+        for backend in row["backends"].values():
+            self.assertEqual(backend["accuracy"]["absolute_error"], 1)
+            self.assertNotIn("timing", backend)
 
     def test_overflowing_price_error_still_writes_accuracy_report(self):
         result, report = self.run_fixture(
@@ -535,6 +552,7 @@ class ReportTests(unittest.TestCase):
         row = report["cases"][0]
         self.assertEqual(row["status"], "accuracy_failed")
         self.assertIsNone(row["ratio"])
+        self.assertCountEqual(row["backends"], ("kiyosi", "quantlib"))
         for backend in row["backends"].values():
             accuracy = backend["accuracy"]
             self.assertFalse(accuracy["passed"])

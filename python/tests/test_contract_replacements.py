@@ -538,11 +538,11 @@ def test_validation_representation_errors_and_failure_state(subtests):
             else "maturity_coupon_rate"
         )
         value = float("nan") if invalid == "maturity_coupon_rate" else -1
+        updates = {invalid: value}
+        if invalid == "payout" and isinstance(original, i.TouchOption):
+            updates["payoff_type"] = "cash"
         with subtests.test(contract=type(original).__name__):
             with pytest.raises(InvalidInputError):
-                updates = {invalid: value}
-                if invalid == "payout" and isinstance(original, i.TouchOption):
-                    updates["payoff_type"] = "cash"
                 original.replace(**updates)
             for field in fields:
                 with subtests.test(field=field), pytest.raises(TypeError):

@@ -61,10 +61,13 @@ class AmericanMonteCarloTests(unittest.TestCase):
                 check=False,
                 timeout=600,
             )
-            data = json.loads(report.read_text())["cases"][0]
             self.assertEqual(result.returncode, 1, result.stderr)
+            rows = json.loads(report.read_text())["cases"]
+            self.assertEqual([row["id"] for row in rows], [case["id"]])
+            data = rows[0]
             self.assertIsNone(data["ratio"])
             self.assertEqual(data["status"], "precision_failed")
+            self.assertCountEqual(data["backends"], ("kiyosi", "quantlib"))
             for name, backend in data["backends"].items():
                 ensemble = backend["seed_ensemble"]
                 self.assertFalse(ensemble["passed"])

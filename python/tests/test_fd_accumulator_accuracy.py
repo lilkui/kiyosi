@@ -5,14 +5,13 @@ from kiyosi import pricing
 from test_accumulator import contract, exposure, market, terminal_reference
 
 
-def test_market_greeks_and_implied_volatility_preserve_independent_results(subtests):
+def test_accumulator_joint_and_single_greek_requests_return_the_same_values(subtests):
     option = contract(datetime(2025, 4, 1))
     context = market(100.25, datetime(2025, 1, 4, 12))
     engine = pricing.FiniteDifferenceAccumulatorEngine(
         asset_step_count=80, time_step_count=80
     )
     joint = engine.price_with_greeks(option, context, greeks="all")
-    assert joint.theta is not None
     for greek in (
         "delta",
         "gamma",
@@ -28,7 +27,15 @@ def test_market_greeks_and_implied_volatility_preserve_independent_results(subte
         with subtests.test(greek=greek):
             single = engine.price_with_greeks(option, context, greek)
             assert single.price == joint.price
-            assert getattr(single, greek) == getattr(joint, greek)
+            assert single.require(greek) == joint.require(greek)
+
+
+def test_accumulator_implied_volatility_recovers_the_pricing_input():
+    option = contract(datetime(2025, 4, 1))
+    context = market(100.25, datetime(2025, 1, 4, 12))
+    engine = pricing.FiniteDifferenceAccumulatorEngine(
+        asset_step_count=80, time_step_count=80
+    )
     quote = engine.price(option, context)
     recovered = pricing.implied_volatility(
         engine,

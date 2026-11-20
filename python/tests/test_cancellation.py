@@ -52,9 +52,10 @@ def test_surface_value_export_polls_signals_before_returning_the_tuple():
     )
 
     exported = None
-    with pytest.raises(RequestInterrupted), cpu_interrupt() as arm:
+    with cpu_interrupt() as arm:
         arm()
-        exported = surface.values
+        with pytest.raises(RequestInterrupted):
+            exported = surface.values
     assert exported is None
     assert surface.volatility(start, 1) == 0.2
 
@@ -75,9 +76,10 @@ def test_timestamp_export_polls_signals_before_returning_the_tuple():
     )
 
     exported = None
-    with pytest.raises(RequestInterrupted), cpu_interrupt() as arm:
+    with cpu_interrupt() as arm:
         arm()
-        exported = schedule.times
+        with pytest.raises(RequestInterrupted):
+            exported = schedule.times
     assert exported is None
     assert schedule[:2].times == (start + timedelta(days=1), start + timedelta(days=2))
 
@@ -116,7 +118,7 @@ def test_greek_iterable_polls_signals_before_consuming_duplicates():
     )
     engine = AnalyticEuropeanEngine()
     expected = engine.price_with_greeks(contract, market, "delta")
-    with pytest.raises(RequestInterrupted), cpu_interrupt() as arm:
+    with cpu_interrupt() as arm, pytest.raises(RequestInterrupted):
         engine.price_with_greeks(contract, market, Names())
     assert length_hint(names) > 0
     assert engine.price_with_greeks(contract, market, ["delta", "delta"]) == expected
@@ -157,7 +159,7 @@ def test_autocallable_observation_iterable_polls_signals_before_consuming_record
         autocall_observations=[record],
         calendar=all_days_calendar(),
     )
-    with pytest.raises(RequestInterrupted), cpu_interrupt() as arm:
+    with cpu_interrupt() as arm, pytest.raises(RequestInterrupted):
         note.replace(autocall_observations=Observations())
     assert length_hint(records) > 0
     assert note.autocall_observations == (record,)
@@ -186,6 +188,7 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
     result = subprocess.run(
         [
             sys.executable,
+            "-E",
             "-c",
             textwrap.dedent("""
                         import signal
@@ -342,6 +345,7 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
     result = subprocess.run(
         [
             sys.executable,
+            "-E",
             "-c",
             textwrap.dedent("""
                 import signal
@@ -349,7 +353,7 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 import threading
                 from datetime import datetime, time, timedelta
                 from math import exp
-                from time import monotonic
+                from time import process_time
                 from kiyosi.instruments import (
                     Accumulator, AmericanOption, BarrierOption, KnockInObservation,
                     RangeAccrualOption, SnowballOption, autocallable_observations,
@@ -533,9 +537,9 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 try:
                     start.set()
                     try:
-                        deadline = monotonic() + 1
+                        deadline = process_time() + 1
                         # A short request can finish before the sender is scheduled.
-                        while monotonic() < deadline:
+                        while process_time() < deadline:
                             operation()
                     except StopOperation:
                         pass

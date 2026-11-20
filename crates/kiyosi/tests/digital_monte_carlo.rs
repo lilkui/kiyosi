@@ -415,8 +415,14 @@ fn odd_paths_and_shared_sample_sensitivities_and_solves_retain_seed() {
         ),
         Err(Error::InvalidInput(_))
     ));
+    let seeded = MonteCarloDigitalEngine::new(MonteCarloSettings {
+        seed: Some(42),
+        ..unseeded.sampling_settings()
+    })
+    .unwrap();
+    // The fixed analytic quote falls between attainable sampled cash payouts.
     let solved = implied_volatility(
-        &unseeded.with_resolved_seed().unwrap(),
+        &seeded,
         &option,
         &context,
         4.945_810_910_532_236,
@@ -424,7 +430,7 @@ fn odd_paths_and_shared_sample_sensitivities_and_solves_retain_seed() {
     );
     assert!(matches!(
         solved,
-        Err(Error::NonConvergence(_) | Error::RootNotBracketed(_))
+        Err(Error::NonConvergence(message)) if message.contains("without matching the observed price")
     ));
     assert_eq!(unseeded.sampling_settings().seed, None);
 }

@@ -261,25 +261,29 @@ def test_solvers_reject_fixed_cashflows_and_preserve_state():
             for at, level in zip([datetime(2025, 2, 3), END], [0, 0], strict=True)
         ],
     )
-    with pytest.raises(InvalidInputError):
-        implied_phoenix_coupon(unseeded, exposed, market(rate=0), 1.01)
-    for _ in range(3):
-        replay = unseeded.with_resolved_seed()
-        solved = implied_phoenix_coupon(
-            replay,
-            exposed,
-            market(rate=0),
-            1.01,
-            lower_bound=0,
-            upper_bound=0.5,
-            price_tolerance=1e-12,
-        )
-        assert solved["coupon_per_period"] > 0
-        assert solved["coupon_per_period"] < 0.5
-        assert replay.price(
-            exposed.replace(**solved),
-            market(rate=0),
-        ) == pytest.approx(1.01, rel=0, abs=1e-12)
+    zero_rate = market(rate=0)
+    replay = unseeded.with_resolved_seed()
+    expected_coupon = 0.01
+    quote = replay.price(
+        exposed.with_coupon(coupon_per_period=expected_coupon), zero_rate
+    )
+    with pytest.raises(InvalidInputError, match="with_resolved_seed"):
+        implied_phoenix_coupon(unseeded, exposed, zero_rate, quote)
+    solved = implied_phoenix_coupon(
+        replay,
+        exposed,
+        zero_rate,
+        quote,
+        lower_bound=0,
+        upper_bound=0.5,
+        price_tolerance=1e-12,
+    )
+    assert solved["coupon_per_period"] == pytest.approx(
+        expected_coupon, rel=0, abs=1e-12
+    )
+    assert replay.price(exposed.replace(**solved), zero_rate) == pytest.approx(
+        quote, rel=0, abs=1e-12
+    )
     assert unseeded.seed is None
     fixed = BinarySnowballOption(
         calendar=weekdays_calendar(),

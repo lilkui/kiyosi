@@ -95,12 +95,13 @@ class CoverageTests(unittest.TestCase):
         self.assertEqual(report["coverage"]["covered_cells"], 51)
         self.assertEqual(len(report["coverage"]["eligible_engines"]), 20)
         self.assertEqual(len(report["cases"]), 59)
-        self.assertTrue(
-            all(
-                all(cell["native_support"].values())
-                for cell in report["coverage"]["cells"]
-            )
-        )
+        cells = report["coverage"]["cells"]
+        self.assertEqual(len(cells), 51)
+        for cell in cells:
+            with self.subTest(cell=cell):
+                self.assertEqual(
+                    cell["native_support"], {"kiyosi": True, "quantlib": True}
+                )
 
     def test_deleted_cell_survives_as_explicit_missing_row(self):
         report = self.run_suite(

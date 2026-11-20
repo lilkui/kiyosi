@@ -424,9 +424,12 @@ def test_strict_expiry_and_solver_failures_leave_inputs_unchanged():
         lower_bound=0.0,
         upper_bound=4.0,
     )
-    with pytest.raises((NonConvergenceError, RootNotBracketedError)):
+    # The fixed analytic quote falls between attainable sampled cash payouts.
+    with pytest.raises(
+        NonConvergenceError, match="without matching the observed price"
+    ):
         pricing.implied_volatility(
-            unseeded.with_resolved_seed(),
+            unseeded.replace(seed=42),
             option,
             market(),
             4.945810910532236,

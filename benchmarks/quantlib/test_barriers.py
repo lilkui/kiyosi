@@ -8,74 +8,89 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from run import RUST_EXECUTABLE
+from run import HERE, ROOT, RUST_EXECUTABLE
 
-ROOT = Path(__file__).resolve().parents[2]
-HERE = Path(__file__).resolve().parent
+CASE_IDS = (
+    "barrier-down-out-call-rebate",
+    "barrier-up-in-put-rebate",
+    "binary-down-out-cash-call",
+    "binary-up-in-asset-put",
+    "touch-up-in-cash-hit",
+    "touch-up-in-cash-expiry",
+    "touch-up-out-cash-expiry",
+    "touch-up-in-asset-hit",
+    "touch-up-in-asset-expiry",
+    "touch-up-out-asset-expiry",
+    "double-barrier-out-call",
+    "double-barrier-in-put",
+    "double-touch-in-cash-expiry",
+    "double-touch-out-cash-expiry",
+)
 
 
 class NativeBarrierTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        directory = Path(cls.enterClassContext(tempfile.TemporaryDirectory()))
+        report = directory / "report.json"
+        quantlib = directory / "quantlib_bench"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(HERE / "run.py"),
+                "--quantlib-executable",
+                str(quantlib),
+                "--cases",
+                str(HERE / "cases/barriers.json"),
+                *(arg for identifier in CASE_IDS for arg in ("--case", identifier)),
+                "--references",
+                str(HERE / "references/barriers.json"),
+                "--target-ms",
+                "1",
+                "--report",
+                str(report),
+            ],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=600,
+        )
+        if result.returncode:
+            raise RuntimeError(result.stdout + result.stderr)
+        cls.rows = json.loads(report.read_text())["cases"]
+        cls.cases = {row["id"]: row for row in cls.rows}
+        cls.executables = {"kiyosi": RUST_EXECUTABLE, "quantlib": quantlib}
+
     def test_every_barrier_family_passes_shared_reference_and_fifteen_pairs(self):
-        with tempfile.TemporaryDirectory() as directory:
-            report = Path(directory) / "report.json"
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(HERE / "run.py"),
-                    "--cases",
-                    str(HERE / "cases/barriers.json"),
-                    *(
-                        arg
-                        for identifier in (
-                            "barrier-down-out-call-rebate",
-                            "barrier-up-in-put-rebate",
-                            "binary-down-out-cash-call",
-                            "binary-up-in-asset-put",
-                            "touch-up-in-cash-hit",
-                            "touch-up-in-cash-expiry",
-                            "touch-up-out-cash-expiry",
-                            "touch-up-in-asset-hit",
-                            "touch-up-in-asset-expiry",
-                            "touch-up-out-asset-expiry",
-                            "double-barrier-out-call",
-                            "double-barrier-in-put",
-                            "double-touch-in-cash-expiry",
-                            "double-touch-out-cash-expiry",
-                        )
-                        for arg in ("--case", identifier)
-                    ),
-                    "--references",
-                    str(HERE / "references/barriers.json"),
-                    "--target-ms",
-                    "1",
-                    "--report",
-                    str(report),
-                ],
-                cwd=ROOT,
-                text=True,
-                capture_output=True,
-                check=False,
-                timeout=600,
-            )
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            data = json.loads(report.read_text())
-            cases = {row["id"]: row for row in data["cases"]}
-            self.assertEqual(len(cases), 14)
-            # These identities check activation, unconditional survival payoff,
-            # asset transfer at continuous first passage, and payment discounting.
-            for backend in ("kiyosi", "quantlib"):
+        self.assertCountEqual([row["id"] for row in self.rows], CASE_IDS)
+        for row in self.rows:
+            with self.subTest(case=row["id"]):
+                self.assertEqual(row["status"], "passed")
+                self.assertIsNotNone(row["ratio"])
+                self.assertCountEqual(row["backends"], self.executables)
+                for name, backend in row["backends"].items():
+                    with self.subTest(backend=name):
+                        self.assertTrue(backend["accuracy"]["passed"])
+                        self.assertEqual(len(backend["timing"]["samples"]), 15)
+
+    def test_native_touch_payoffs_obey_parity_and_settlement_identities(self):
+        for backend in self.executables:
+            with self.subTest(backend=backend):
 
                 def price(identifier, backend=backend):
-                    return cases[identifier]["backends"][backend]["accuracy"]["price"]
+                    return self.cases[identifier]["backends"][backend]["accuracy"][
+                        "price"
+                    ]
 
-                for payoff, total in (
+                for payoff, discounted_total in (
                     ("cash", 10 * math.exp(-0.04)),
                     ("asset", 100 * math.exp(-0.01)),
                 ):
                     self.assertAlmostEqual(
                         price(f"touch-up-in-{payoff}-expiry")
                         + price(f"touch-up-out-{payoff}-expiry"),
-                        total,
+                        discounted_total,
                         places=10,
                     )
                 self.assertAlmostEqual(
@@ -84,6 +99,7 @@ class NativeBarrierTests(unittest.TestCase):
                     10 * math.exp(-0.04),
                     places=10,
                 )
+                # At first passage the asset transfer is worth the barrier level, 120.
                 self.assertAlmostEqual(
                     price("touch-up-in-asset-hit"),
                     12 * price("touch-up-in-cash-hit"),
@@ -92,18 +108,17 @@ class NativeBarrierTests(unittest.TestCase):
                 self.assertGreater(
                     price("touch-up-in-cash-hit"), price("touch-up-in-cash-expiry")
                 )
-            executables = {
-                "kiyosi": RUST_EXECUTABLE,
-                "quantlib": HERE / "build/quantlib_bench",
-            }
-            for backend, executable in executables.items():
-                case = cases["touch-up-in-cash-hit"]
+
+    def test_native_adapters_reject_spot_on_untouched_barrier(self):
+        case = self.cases["touch-up-in-cash-hit"]
+        for backend, executable in self.executables.items():
+            with self.subTest(backend=backend):
                 parameters = {
                     "family": case["family"],
                     "iterations": 1,
                     **case["inputs"],
                     **case["profiles"][backend],
-                    "spot": 120,
+                    "spot": case["inputs"]["barrier"],
                 }
                 invalid = subprocess.run(
                     [str(executable), *(f"{k}={v}" for k, v in parameters.items())],
@@ -114,8 +129,11 @@ class NativeBarrierTests(unittest.TestCase):
                 )
                 self.assertEqual(invalid.returncode, 1, invalid.stderr)
                 self.assertIn("untouched", invalid.stderr)
-            case = cases["double-barrier-out-call"]
-            for series in (2.5, -1, 1001):
+
+    def test_quantlib_rejects_invalid_double_barrier_series_counts(self):
+        case = self.cases["double-barrier-out-call"]
+        for series in (2.5, -1, 1001):
+            with self.subTest(series=series):
                 parameters = {
                     "family": case["family"],
                     "iterations": 1,
@@ -124,7 +142,7 @@ class NativeBarrierTests(unittest.TestCase):
                 }
                 invalid = subprocess.run(
                     [
-                        str(executables["quantlib"]),
+                        str(self.executables["quantlib"]),
                         *(f"{k}={v}" for k, v in parameters.items()),
                     ],
                     text=True,
@@ -134,11 +152,6 @@ class NativeBarrierTests(unittest.TestCase):
                 )
                 self.assertEqual(invalid.returncode, 1, invalid.stderr)
                 self.assertIn("series", invalid.stderr)
-            for row in cases.values():
-                self.assertEqual(row["status"], "passed")
-                self.assertIsNotNone(row["ratio"])
-                for backend in row["backends"].values():
-                    self.assertEqual(len(backend["timing"]["samples"]), 15)
 
 
 if __name__ == "__main__":

@@ -1096,6 +1096,8 @@ def test_built_in_pricing_requires_valuation_within_inclusive_contract_life(subt
         (
             pricing.AnalyticEuropeanEngine(),
             ins.EuropeanOption(option_type="call", strike=100, **life),
+            True,
+            5.0,
         )
     ]
     cases.extend(
@@ -1109,30 +1111,35 @@ def test_built_in_pricing_requires_valuation_within_inclusive_contract_life(subt
                 upper_bound=110,
                 **life,
             ),
+            False,
+            100 * coupon / 365,
         )
         for coupon in (0, 0.1)
     )
-    for engine, option in cases:
+    for engine, option, allows_pre_effective, expected_price in cases:
         for at, valid in (
-            (
-                start - timedelta(microseconds=1),
-                isinstance(option, ins.EuropeanOption),
-            ),
+            (start - timedelta(microseconds=1), allows_pre_effective),
             (start, True),
             (end, True),
             (end + timedelta(microseconds=1), False),
         ):
             context = market.PricingContext(
                 model_parameters=market.BlackScholesMertonParameters(
-                    risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+                    risk_free_rate=0, dividend_yield=0, volatility=0
                 ),
-                spot_price=100,
+                spot_price=105,
                 valuation_time=at,
             )
-            with subtests.test(instrument=type(option).__name__, at=at):
+            with subtests.test(
+                instrument=type(option).__name__, at=at, expected_price=expected_price
+            ):
                 if valid:
-                    assert engine.price(option, context) >= 0
-                    assert engine.price_with_greeks(option, context, "delta").price >= 0
+                    price = engine.price(option, context)
+                    assert price == pytest.approx(expected_price, rel=0, abs=1e-12)
+                    assert (
+                        engine.price_with_greeks(option, context, "delta").price
+                        == price
+                    )
                 else:
                     with pytest.raises(InvalidInputError):
                         engine.price(option, context)

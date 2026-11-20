@@ -681,36 +681,49 @@ fn built_in_pricing_requires_valuation_within_inclusive_contract_life() -> Resul
     let before = Timestamp::new(Date::new(2024, 12, 31)?, 23, 59, 59, 999_999)?;
     let after = Timestamp::new(end.date(), 0, 0, 0, 1)?;
     macro_rules! check {
-        ($engine:expr, $option:expr) => {{
+        ($engine:expr, $option:expr, $allows_pre_effective:expr, $expected_price:expr) => {{
             let engine = $engine;
             let option = $option;
             for (at, valid) in [
-                (before, option.valuation_start().is_none()),
+                (before, $allows_pre_effective),
                 (start, true),
                 (end, true),
                 (after, false),
             ] {
                 let context = PricingContext::new(
-                    BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?,
-                    100.0,
+                    BlackScholesMertonParameters::new(0.0, 0.0, 0.0)?,
+                    105.0,
                     at,
                 )?;
                 let price = engine.price(&option, &context);
                 let greeks =
                     engine.price_with_greeks(&option, &context, GreeksRequest::new([Greek::Delta]));
                 if valid {
-                    assert!(price?.is_finite());
-                    assert!(greeks?.price().is_finite());
+                    let expected = $expected_price;
+                    let price = price?;
+                    assert!(
+                        (price - expected).abs() < 1e-12,
+                        "at {at:?}: {price} vs {expected}"
+                    );
+                    assert_eq!(greeks?.price(), price, "at {at:?}");
                 } else {
-                    assert!(matches!(price, Err(Error::InvalidInput(_))));
-                    assert!(matches!(greeks, Err(Error::InvalidInput(_))));
+                    assert!(
+                        matches!(price, Err(Error::InvalidInput(_))),
+                        "at {at:?}: {price:?}"
+                    );
+                    assert!(
+                        matches!(greeks, Err(Error::InvalidInput(_))),
+                        "at {at:?}: {greeks:?}"
+                    );
                 }
             }
         }};
     }
     check!(
         AnalyticEuropeanEngine,
-        EuropeanOption::new(OptionType::Call, 100.0, start, end)?
+        EuropeanOption::new(OptionType::Call, 100.0, start, end)?,
+        true,
+        5.0
     );
     for coupon in [0.0, 0.1] {
         check!(
@@ -723,7 +736,9 @@ fn built_in_pricing_requires_valuation_within_inclusive_contract_life() -> Resul
                 start,
                 end,
                 (end).time_of_day()
-            ))?
+            ))?,
+            false,
+            100.0 * coupon / 365.0
         );
     }
     Ok(())

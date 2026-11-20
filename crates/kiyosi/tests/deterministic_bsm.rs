@@ -126,15 +126,17 @@ fn structured_knock_out_uses_exact_quoted_forward() -> Result<()> {
         knock_out_observation_times: Some(vec![end]),
         ..AccumulatorTerms::new(100.0, 128.0, 1.0, 1.0, start, end, end.time_of_day())
     })?;
-    let units_before_expiry =
-        f64::from(u32::try_from(accumulator.accumulation_schedule()?.len() - 1).unwrap());
+    // Daily observations run from January 2 through the following January 1.
+    assert_eq!(accumulator.accumulation_schedule()?.len(), 365);
+    let units_before_expiry = 364.0;
+    let coupon_year_fraction = 364.5 / 365.0;
     for (spot, hit) in [
         (libm::nextafter(99.0, 0.0), false),
         (99.0, true),
         (libm::nextafter(99.0, f64::INFINITY), true),
     ] {
         let context = PricingContext::new(model.clone(), spot, start)?;
-        let expected = factor * (1.0 + f64::from(hit) * 0.2 * start.years_until(end));
+        let expected = factor * (1.0 + f64::from(hit) * 0.2 * coupon_year_fraction);
         let price = QuadratureAutocallableEngine::default().price(&note, &context)?;
         assert!((price - expected).abs() < 1e-12);
         let expected = (units_before_expiry + f64::from(!hit)) * (spot - 100.0 * factor);

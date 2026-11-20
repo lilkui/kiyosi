@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from typing import ClassVar
 
-from run import RUST_EXECUTABLE, command, rust_build_command
+from run import RUST_EXECUTABLE, command, load_entries, rust_build_command
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -124,16 +124,9 @@ class FiniteDifferenceTests(unittest.TestCase):
                 )
 
     def test_all_product_profiles_against_independent_references(self):
-        cases = json.loads(
-            (ROOT / "benchmarks/quantlib/cases/fd_bsm.json").read_text()
-        )["cases"]
-        references = {
-            row["id"]: row
-            for row in json.loads(
-                (ROOT / "benchmarks/quantlib/references/fd_bsm.json").read_text()
-            )["cases"]
-        }
-        for case in cases:
+        cases = load_entries(ROOT / "benchmarks/quantlib/cases/fd_bsm.json")
+        references = load_entries(ROOT / "benchmarks/quantlib/references/fd_bsm.json")
+        for case in cases.values():
             with self.subTest(case=case["id"]):
                 params = {
                     "family": case["family"],
@@ -237,6 +230,7 @@ class QuantLibFiniteDifferenceTests(FiniteDifferenceTests):
             case = json.loads(report.read_text())["cases"][0]
             self.assertEqual(case["status"], "accuracy_failed")
             self.assertIsNone(case["ratio"])
+            self.assertCountEqual(case["backends"], ("kiyosi", "quantlib"))
             for backend in case["backends"].values():
                 self.assertFalse(backend["accuracy"]["passed"])
                 self.assertNotIn("timing", backend)

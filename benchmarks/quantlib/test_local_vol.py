@@ -143,6 +143,7 @@ class QuantLibLocalVolatilityTests(LocalVolatilityTests):
             self.assertEqual(row["status"], "accuracy_failed")
             self.assertIsNone(row["ratio"])
             self.assertEqual(row["inputs"]["surface_start_low"], 0.30)
+            self.assertCountEqual(row["backends"], ("kiyosi", "quantlib"))
             for backend in row["backends"].values():
                 self.assertNotIn("timing", backend)
 
