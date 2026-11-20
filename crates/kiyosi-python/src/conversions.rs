@@ -369,7 +369,13 @@ pub(crate) fn python_timestamps<'py>(
         py,
         times
             .iter()
-            .map(|&time| python_timestamp(py, time))
+            .enumerate()
+            .map(|(index, &time)| {
+                if index % 1024 == 0 {
+                    py.check_signals()?;
+                }
+                python_timestamp(py, time)
+            })
             .collect::<PyResult<Vec<_>>>()?,
     )
 }

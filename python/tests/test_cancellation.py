@@ -9,6 +9,42 @@ import pytest
 
 
 @pytest.mark.skipif(not hasattr(signal, "setitimer"), reason="requires an OS alarm")
+def test_timestamp_export_polls_signals_before_returning_the_tuple():
+    from datetime import datetime, time, timedelta
+
+    from kiyosi.market import all_days_calendar, fixed_interval_schedule
+
+    start = datetime(1, 1, 1)
+    schedule = fixed_interval_schedule(
+        start_time=start,
+        end_time=start + timedelta(days=1_000_000),
+        interval_days=1,
+        observation_clock_time=time(),
+        calendar=all_days_calendar(),
+    )
+
+    class StopExport(Exception):
+        pass
+
+    def stop(*_):
+        raise StopExport
+
+    original_handler = signal.signal(signal.SIGALRM, stop)
+    exported = None
+    stopped = False
+    try:
+        signal.setitimer(signal.ITIMER_REAL, 0.005)
+        exported = schedule.times
+    except StopExport:
+        stopped = True
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, original_handler)
+    assert stopped and exported is None
+    assert schedule[:2].times == (start + timedelta(days=1), start + timedelta(days=2))
+
+
+@pytest.mark.skipif(not hasattr(signal, "setitimer"), reason="requires an OS alarm")
 def test_greek_iterable_polls_signals_before_consuming_duplicates():
     from datetime import datetime
     from itertools import repeat
