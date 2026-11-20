@@ -1862,7 +1862,7 @@ class AnalyticHestonEuropeanEngine(_PricingMethods[EuropeanOption]):
         Finite nonnegative relative tolerance; defaults to 1e-8.
     max_evaluations : int, optional
         Positive request-wide characteristic-function budget; defaults to
-        10000.
+        20,000.
 
     Raises
     ------
@@ -1874,11 +1874,10 @@ class AnalyticHestonEuropeanEngine(_PricingMethods[EuropeanOption]):
     Supports HestonParameters and EuropeanOption only, including zero variance
     parameters and correlation endpoints. Deterministic rates may be curves.
     The target price error is absolute_tolerance + relative_tolerance *
-    abs(price). Integration accepts when the estimated quadrature error plus
-    the analytic bound on the remaining tail is at most one quarter of that
-    target. The budget counts Heston and control-variate characteristic
-    function evaluations. Expiry and deterministic-variance branches
-    need no evaluations. Requested Greeks have status "unsupported";
+    abs(price). Integration accepts when the estimated quadrature error is
+    at most one quarter of that target. The budget counts Heston and
+    control-variate characteristic-function evaluations. Expiry and deterministic-variance
+    branches need no evaluations. Requested Greeks have status "unsupported";
     implied-parameter solvers raise UnsupportedOperationError. Pricing releases
     the GIL for core computation, with independent state for concurrent calls.
     """

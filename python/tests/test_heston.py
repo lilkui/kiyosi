@@ -225,6 +225,26 @@ def test_rare_large_variance_does_not_hide_the_fourier_tail(subtests):
             )
 
 
+def test_default_heston_budget_prices_high_correlation_call():
+    parameters = model(
+        risk_free_rate=0.03,
+        dividend_yield=0.01,
+        initial_variance=0.028,
+        long_run_variance=0.018,
+        mean_reversion_speed=1.6,
+        vol_of_vol=1.1,
+        correlation=0.996,
+    )
+    instrument = option(strike=130, expiry_time=START + timedelta(days=94))
+    market = context(parameters)
+    with pytest.raises(NonConvergenceError):
+        AnalyticHestonEuropeanEngine(max_evaluations=1).price(instrument, market)
+    # QuantLib 1.44 OptimalCV with exp-sinh integration.
+    assert AnalyticHestonEuropeanEngine().price(instrument, market) == pytest.approx(
+        0.42490801689046853, rel=0, abs=1e-8
+    )
+
+
 def test_prices_match_converged_quantlib_references(subtests):
     engine = AnalyticHestonEuropeanEngine()
     refined = AnalyticHestonEuropeanEngine(
@@ -429,7 +449,7 @@ def test_numerical_controls_native_conversions_and_failure_state(subtests):
             engine.relative_tolerance,
             engine.max_evaluations,
         )
-    ) == ((1e-8, 1e-8, 10000))
+    ) == ((1e-8, 1e-8, 20_000))
     for name in ("absolute_tolerance", "relative_tolerance"):
         assert (
             inspect.signature(AnalyticHestonEuropeanEngine).parameters[name].kind

@@ -57,6 +57,34 @@ fn heston_matches_quantlib_and_put_call_parity() {
 }
 
 #[test]
+fn default_heston_budget_prices_high_correlation_call() -> Result<()> {
+    let start = dates().0;
+    let option = EuropeanOption::new(OptionType::Call, 130.0, start, start.add_days(94)?)?;
+    let market = context(HestonParameters::new(HestonParameterInputs {
+        risk_free_rate: 0.03.into(),
+        dividend_yield: 0.01.into(),
+        initial_variance: 0.028,
+        long_run_variance: 0.018,
+        mean_reversion_speed: 1.6,
+        vol_of_vol: 1.1,
+        correlation: 0.996,
+    })?);
+    let limited = AnalyticHestonEuropeanEngine::new(HestonIntegrationSettings {
+        max_evaluations: 1,
+        ..Default::default()
+    })?;
+    assert!(matches!(
+        limited.price(&option, &market),
+        Err(Error::NonConvergence(_))
+    ));
+    // QuantLib 1.44 OptimalCV with exp-sinh integration.
+    let reference = 0.424_908_016_890_468_53;
+    let price = AnalyticHestonEuropeanEngine::default().price(&option, &market)?;
+    assert!((price - reference).abs() < 1e-8, "{price} != {reference}");
+    Ok(())
+}
+
+#[test]
 fn deterministic_variance_prices_survive_overflowing_discounted_legs() -> Result<()> {
     let (start, end) = dates();
     let engine = AnalyticHestonEuropeanEngine::default();

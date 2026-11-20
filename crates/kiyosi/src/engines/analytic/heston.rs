@@ -23,7 +23,7 @@ pub struct HestonIntegrationSettings {
     /// Caps characteristic-function calculations across the entire price request.
     ///
     /// Counts both Heston and control-variate characteristic-function evaluations.
-    /// Defaults to 10,000. Expiry and deterministic-variance branches consume no evaluations.
+    /// Defaults to 20,000. Expiry and deterministic-variance branches consume no evaluations.
     pub max_evaluations: usize,
 }
 
@@ -32,7 +32,7 @@ impl Default for HestonIntegrationSettings {
         Self {
             absolute_tolerance: 1e-8,
             relative_tolerance: 1e-8,
-            max_evaluations: 10_000,
+            max_evaluations: 20_000,
         }
     }
 }
@@ -121,7 +121,7 @@ impl AnalyticHestonEuropeanEngine {
     /// })?;
     /// let context = PricingContext::new(model, 100.0, start.into())?;
     /// let engine = AnalyticHestonEuropeanEngine::new(HestonIntegrationSettings::default())?;
-    /// assert_eq!(engine.settings().max_evaluations, 10_000);
+    /// assert_eq!(engine.settings().max_evaluations, 20_000);
     /// assert!(engine.price(&option, &context)? > 0.0);
     /// # Ok(()) }
     /// ```
