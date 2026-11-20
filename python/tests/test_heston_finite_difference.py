@@ -322,15 +322,6 @@ def test_expiry_applicability_errors_and_state(subtests):
     ):
         with subtests.test(controls=controls), pytest.raises(InvalidInputError):
             FiniteDifferenceHestonVanillaEngine(**controls).price(option(), snapshot)
-    broken = FiniteDifferenceHestonVanillaEngine(
-        asset_step_count=3,
-        variance_step_count=3,
-        time_step_count=1,
-        asset_upper_boundary=1e308,
-    )
-    for _ in range(2):
-        with pytest.raises(ComputationFailureError):
-            broken.price(option(), snapshot)
     extreme = context(
         model(
             risk_free_rate=0,
@@ -344,8 +335,9 @@ def test_expiry_applicability_errors_and_state(subtests):
     )
     put = option(option_type="put", strike=1e-200)
     assert AnalyticHestonEuropeanEngine().price(put, extreme) > 0.9e-200
-    with pytest.raises(ComputationFailureError):
-        engine.price(put, extreme)
+    for _ in range(2):
+        with pytest.raises(ComputationFailureError):
+            engine.price(put, extreme)
     assert snapshot.model_parameters == saved_model
     assert snapshot.spot_price == 100
     assert engine.time_step_count == 400
@@ -356,6 +348,16 @@ def test_expiry_applicability_errors_and_state(subtests):
         engine.price(
             option(), end.replace(model_parameters=model(risk_free_rate=short))
         )
+
+
+def test_coarse_wide_asset_grid_keeps_heston_price_within_payoff_bounds():
+    engine = FiniteDifferenceHestonVanillaEngine(
+        asset_step_count=3,
+        variance_step_count=3,
+        time_step_count=1,
+        asset_upper_boundary=1e308,
+    )
+    assert 0 < engine.price(option(), context()) <= 100 * math.exp(-0.02)
 
 
 def test_shared_engine_concurrency_and_price_scaling(subtests):

@@ -333,7 +333,11 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
     }
     let mut space = SpatialGrid::new(settings.asset_step_count, [lower, upper], highest)?;
     if settings.scheme != FiniteDifferenceScheme::ExplicitEuler {
-        let scale = (0.001 * (nearest * 365.0).min(1.0).sqrt()).max(64.0 * f64::EPSILON);
+        // Avoid resolving a tiny fraction of the diffusion width and amplifying roundoff in gamma.
+        let diffusion_scale = 0.01 * diffusion.sigma(0.0, highest) * nearest.sqrt();
+        let scale = (0.001 * (nearest * 365.0).min(1.0).sqrt())
+            .max(diffusion_scale)
+            .max(64.0 * f64::EPSILON);
         super::grid::concentrate(&mut space, levels, scale)?;
     }
     if !D::LOCAL {

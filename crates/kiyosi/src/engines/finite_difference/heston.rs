@@ -741,14 +741,13 @@ impl Operator {
                     variance[k] += c * values[k + self.nx];
                 }
                 if j > 0 && self.rows > 1 {
-                    let mut cross = 0.0;
-                    for (dj, &wj) in self.dv[j].iter().enumerate() {
-                        let row = (j + dj - 1) * self.nx;
-                        let slope = self.dx[i][0] * (values[row + i - 1] - values[row + i])
-                            + self.dx[i][2] * (values[row + i + 1] - values[row + i]);
-                        cross += wj * slope;
-                    }
-                    mixed[k] = self.mixed[k] * cross;
+                    // Difference across variance first so shared asset boundaries cancel exactly.
+                    let [left, center, right] = [k - 1, k, k + 1].map(|index| {
+                        self.dv[j][0] * (values[index - self.nx] - values[index])
+                            + self.dv[j][2] * (values[index + self.nx] - values[index])
+                    });
+                    mixed[k] = self.mixed[k]
+                        * (self.dx[i][0] * (left - center) + self.dx[i][2] * (right - center));
                 }
             }
         }

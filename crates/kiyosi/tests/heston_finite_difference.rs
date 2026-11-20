@@ -420,7 +420,7 @@ fn expiry_and_validation_order_preserve_input_state() {
 }
 
 #[test]
-fn numerical_failure_is_distinct_from_invalid_model_inputs() {
+fn coarse_wide_asset_grid_keeps_heston_price_within_payoff_bounds() {
     let (start, end) = dates();
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
     let engine = FiniteDifferenceHestonVanillaEngine::new(HestonFiniteDifferenceSettings {
@@ -431,10 +431,14 @@ fn numerical_failure_is_distinct_from_invalid_model_inputs() {
         ..Default::default()
     })
     .unwrap();
-    assert!(matches!(
-        engine.price(&option, &context(0.3, -0.7)),
-        Err(Error::ComputationFailure(_))
-    ));
+    let actual = engine.price(&option, &context(0.3, -0.7)).unwrap();
+    let discounted_spot = 100.0 * (-0.02_f64).exp();
+    assert!(actual > 0.0 && actual <= discounted_spot, "price={actual}");
+}
+
+#[test]
+fn numerical_failure_is_distinct_from_invalid_model_inputs() {
+    let (start, end) = dates();
     let model = HestonParameters::new(kiyosi::HestonParameterInputs {
         risk_free_rate: 0.0.into(),
         dividend_yield: 0.0.into(),
