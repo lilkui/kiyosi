@@ -260,7 +260,14 @@ fn solve_grid<D: Diffusion>(
             && !D::LOCAL
             && settings.scheme != super::FiniteDifferenceScheme::ExplicitEuler
         {
-            space.resolve_barrier(up, diffusion.sigma(0.0, 0.0), time, &risk, &dividend)?;
+            space.resolve_barrier(
+                up,
+                contract.digital.map(DigitalOption::strike),
+                diffusion.sigma(0.0, 0.0),
+                time,
+                &risk,
+                &dividend,
+            )?;
         }
     }
     let observations =

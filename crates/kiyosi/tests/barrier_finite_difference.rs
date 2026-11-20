@@ -1,6 +1,39 @@
 use kiyosi::*;
 
 #[test]
+fn short_continuous_barrier_resolves_diffusion_and_strike() -> Result<()> {
+    let start = Date::new(2025, 1, 6)?.start_of_day();
+    let end = start.add_days(1)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.04, 0.01, 0.05)?,
+        99.5,
+        start,
+    )?;
+    let engine = FiniteDifferenceBarrierEngine::default();
+    for rebate in [0.0, 3.0] {
+        let mut terms = BarrierOptionTerms::new(
+            OptionType::Call,
+            100.0,
+            start,
+            end,
+            99.0,
+            BarrierType::DownAndOut,
+        );
+        terms.rebate = rebate;
+        let option = BarrierOption::new(terms)?;
+        let expected = AnalyticBarrierEngine.price(&option, &context)?;
+        let saved = engine.solve(&option, &context, 99.4..=99.6)?;
+        for actual in [engine.price(&option, &context)?, saved.price(99.5)?] {
+            assert!(
+                (actual - expected).abs() < 0.001 * expected,
+                "rebate={rebate}: {actual} != {expected}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn continuous_barrier_resolves_low_volatility_near_the_edge() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = start.add_days(365)?;

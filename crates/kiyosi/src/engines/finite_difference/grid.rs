@@ -144,6 +144,7 @@ impl SpatialGrid {
     pub fn resolve_barrier(
         &mut self,
         up: bool,
+        strike: Option<f64>,
         sigma: f64,
         time: f64,
         risk: &Curve,
@@ -163,12 +164,18 @@ impl SpatialGrid {
             carry = carry.max((risk.rate(at) - dividend.rate(at)).abs());
         }
         let layer = (variance / carry) * barrier;
-        if layer < self.spacing {
-            // Resolve the boundary layer when the uniform stencil would add diffusion.
-            let scale = (2.0 * (sigma * time.sqrt()) * barrier)
+        let width = (sigma * time.sqrt()) * barrier;
+        let narrow = width < self.spacing;
+        if narrow || layer < self.spacing {
+            let mut levels = vec![barrier];
+            if narrow {
+                // Short diffusion widths need fine cells at the payoff kink as well as the barrier.
+                levels.extend(strike.filter(|&level| level > self.lower && level < self.upper));
+            }
+            let scale = (if narrow { width } else { 2.0 * width })
                 .min(layer * (self.count as f64 / 32.0))
                 .max(f64::EPSILON.sqrt() * self.upper);
-            concentrate_levels(self, vec![barrier], scale)?;
+            concentrate_levels(self, levels, scale)?;
         }
         Ok(())
     }

@@ -11,6 +11,32 @@ from kiyosi.market import (
 )
 
 
+@pytest.mark.parametrize("rebate", (0, 3))
+def test_short_continuous_barrier_resolves_diffusion_and_strike(rebate):
+    start, end = datetime(2025, 1, 6), datetime(2025, 1, 7)
+    option = BarrierOption(
+        option_type="call",
+        strike=100,
+        effective_time=start,
+        expiry_time=end,
+        barrier_level=99,
+        barrier_type="down_and_out",
+        rebate=rebate,
+    )
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.04, dividend_yield=0.01, volatility=0.05
+        ),
+        spot_price=99.5,
+        valuation_time=start,
+    )
+    expected = pricing.AnalyticBarrierEngine().price(option, context)
+    engine = pricing.FiniteDifferenceBarrierEngine()
+    saved = engine.solve(option, context, spot_range=(99.4, 99.6))
+    assert engine.price(option, context) == pytest.approx(expected, rel=0.001)
+    assert saved.price(99.5) == pytest.approx(expected, rel=0.001)
+
+
 def test_continuous_barrier_resolves_low_volatility_near_the_edge():
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     option = BarrierOption(

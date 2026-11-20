@@ -502,7 +502,14 @@ fn solve_grid<D: Diffusion>(
                 if up { terms.barrier_level() } else { upper },
             )?;
             if !D::LOCAL && settings.scheme != super::FiniteDifferenceScheme::ExplicitEuler {
-                space.resolve_barrier(up, volatility.sigma(0.0, 0.0), time, &risk, &dividend)?;
+                space.resolve_barrier(
+                    up,
+                    Some(terms.strike()),
+                    volatility.sigma(0.0, 0.0),
+                    time,
+                    &risk,
+                    &dividend,
+                )?;
             }
         }
     }
