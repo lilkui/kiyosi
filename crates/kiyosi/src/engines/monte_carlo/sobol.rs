@@ -84,10 +84,12 @@ pub(super) fn validate_dimensions(dimensions: usize) -> Result<()> {
 impl SobolSequence {
     pub(super) fn new(dimensions: usize, seed: u64) -> Result<Self> {
         validate_dimensions(dimensions)?;
+        crate::cancellation::check()?;
         let mut directions = vec![0; dimensions * BITS];
         let mut shifts = Vec::with_capacity(dimensions);
         let mut polynomial = POLYNOMIAL_DATA.as_slice();
         for dimension in 0..dimensions {
+            crate::cancellation::check()?;
             let mut raw = [0u64; BITS];
             if dimension == 0 {
                 for (column, value) in raw.iter_mut().enumerate() {
@@ -275,6 +277,21 @@ fn inverse_normal_cdf(probability: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cancelled_sobol_setup_stops_before_returning_a_sequence() {
+        let token = crate::CancellationToken::default();
+        let result = token.run(|| {
+            token.cancel();
+            let result = SobolSequence::new(21_201, 42);
+            assert!(matches!(
+                &result,
+                Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted
+            ));
+            result
+        });
+        assert!(matches!(result, Err(Error::Io(_))));
+    }
 
     fn sample_bits(sequence: &SobolSequence, dimensions: usize) -> Vec<u64> {
         let mut cursor = sequence.cursor(256);
