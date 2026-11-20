@@ -228,10 +228,7 @@ impl ShortPricing {
             .nodes()
             .len()
             .max(model.dividend_curve().nodes().len());
-        request.is_short(
-            self != Self::Never && curve_nodes <= SHORT_CURVE_NODES,
-            curve_nodes,
-        )
+        request.is_short(self != Self::Never && curve_nodes <= SHORT_CURVE_NODES)
     }
 }
 
@@ -269,7 +266,7 @@ pub(crate) trait PricingRequest<R>: Copy + Sync {
     fn is_scalar_price(self) -> bool {
         false
     }
-    fn is_short(self, _short_pricing: bool, _curve_nodes: usize) -> bool {
+    fn is_short(self, _short_pricing: bool) -> bool {
         false
     }
     fn evaluate<I: kiyosi::OptionContract>(
@@ -285,7 +282,7 @@ impl PricingRequest<f64> for ScalarRequest {
         matches!(self, Self::Price)
     }
 
-    fn is_short(self, short_pricing: bool, _curve_nodes: usize) -> bool {
+    fn is_short(self, short_pricing: bool) -> bool {
         short_pricing && self.is_scalar_price()
     }
 
@@ -348,7 +345,7 @@ impl NativeGreeksRequest {
 }
 
 impl PricingRequest<kiyosi::PricingResult> for NativeGreeksRequest {
-    fn is_short(self, short_pricing: bool, _curve_nodes: usize) -> bool {
+    fn is_short(self, short_pricing: bool) -> bool {
         short_pricing
     }
 
@@ -405,9 +402,8 @@ impl PricingRequest<kiyosi::PricingResult> for NumericalGreeksRequest {
 pub(crate) struct GreekMethodRequest;
 
 impl PricingRequest<kiyosi::GreekMethod> for GreekMethodRequest {
-    fn is_short(self, _short_pricing: bool, curve_nodes: usize) -> bool {
-        // Flat-rate applicability checks may scan every curve node.
-        curve_nodes <= SHORT_CURVE_NODES
+    fn is_short(self, _short_pricing: bool) -> bool {
+        true
     }
 
     fn evaluate<I: kiyosi::OptionContract>(
@@ -436,6 +432,7 @@ mod tests {
         let context = kiyosi::PricingContext::new(model, 100.0, start)?;
         assert!(ShortPricing::Scalar.allows_inline(ScalarRequest::Price, &context));
         assert!(!ShortPricing::WholeCurves.allows_inline(ScalarRequest::Price, &context));
+        assert!(ShortPricing::Never.allows_inline(GreekMethodRequest, &context));
         let greeks = NativeGreeksRequest {
             request: kiyosi::GreeksRequest::all(),
             settings: Default::default(),
@@ -454,23 +451,14 @@ mod tests {
             observed_price: 10.0,
             settings: kiyosi::ImpliedVolatilitySettings::new(0.1, 0.3),
         };
-        for curve_nodes in [0, 1, 1024, 1025] {
-            for short_pricing in [false, true] {
-                let short_pricing = short_pricing && curve_nodes <= SHORT_CURVE_NODES;
-                assert_eq!(
-                    GreekMethodRequest.is_short(short_pricing, curve_nodes),
-                    curve_nodes <= SHORT_CURVE_NODES,
-                );
-                assert!(!solver.is_short(short_pricing, curve_nodes));
-                assert!(!NumericalGreeksRequest(greeks).is_short(short_pricing, curve_nodes));
-                assert_eq!(
-                    ScalarRequest::Price.is_short(short_pricing, curve_nodes),
-                    short_pricing
-                );
-                assert_eq!(greeks.is_short(short_pricing, curve_nodes), short_pricing);
-                assert!(!SeededPriceRequest.is_short(short_pricing, curve_nodes));
-                assert!(!StatisticsRequest.is_short(short_pricing, curve_nodes));
-            }
+        for short_pricing in [false, true] {
+            assert!(GreekMethodRequest.is_short(short_pricing));
+            assert!(!solver.is_short(short_pricing));
+            assert!(!NumericalGreeksRequest(greeks).is_short(short_pricing));
+            assert_eq!(ScalarRequest::Price.is_short(short_pricing), short_pricing);
+            assert_eq!(greeks.is_short(short_pricing), short_pricing);
+            assert!(!SeededPriceRequest.is_short(short_pricing));
+            assert!(!StatisticsRequest.is_short(short_pricing));
         }
     }
 }
