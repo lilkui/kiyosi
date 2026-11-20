@@ -665,16 +665,19 @@ macro_rules! snowball_coupon {
     ($($terms:ty),+) => {$(
         impl SnowballCouponTerms for $terms {}
         impl sealed::SnowballCoupon for $terms {
-            fn with_coupon(&self, coupon: f64, convention: crate::CouponQuoteConvention) -> Self {
+            fn with_coupon(&self, coupon: f64, convention: crate::CouponQuoteConvention) -> Result<Self> {
                 let mut terms = self.clone();
                 let shift = coupon - terms.autocall_observations.first().map_or(0.0, |record| record.coupon_rate().unwrap_or_default());
-                for record in &mut terms.autocall_observations {
-                    record.coupon_rate += shift;
+                for chunk in terms.autocall_observations.chunks_mut(1024) {
+                    crate::cancellation::check()?;
+                    for record in chunk {
+                        record.coupon_rate += shift;
+                    }
                 }
                 if convention == crate::CouponQuoteConvention::ShiftMaturityCoupon {
                     terms.maturity_coupon_rate += shift;
                 }
-                terms
+                Ok(terms)
             }
         }
     )+};
@@ -728,7 +731,7 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
         first_observation_coupon: f64,
         convention: crate::CouponQuoteConvention,
     ) -> Result<Self> {
-        Self::new(self.0.with_coupon(first_observation_coupon, convention))
+        Self::new(self.0.with_coupon(first_observation_coupon, convention)?)
     }
 }
 
@@ -741,7 +744,11 @@ mod sealed {
         fn view(&self) -> View<'_>;
     }
     pub trait SnowballCoupon: Sized {
-        fn with_coupon(&self, coupon: f64, convention: crate::CouponQuoteConvention) -> Self;
+        fn with_coupon(
+            &self,
+            coupon: f64,
+            convention: crate::CouponQuoteConvention,
+        ) -> crate::Result<Self>;
     }
     #[derive(Clone, Copy)]
     pub struct Downside {
@@ -942,6 +949,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// Returns [`Error::InvalidInput`] for invalid numeric terms or
     /// product-incompatible observation fields, reversed life, or empty, unordered
     /// or out-of-life observations.
+    /// Cancellation returns [`Error::Io`] with [`std::io::ErrorKind::Interrupted`].
     /// Inputs are consumed on failure.
     ///
     /// # Examples
@@ -984,7 +992,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         let view = terms.view();
         view.validate()?;
         view.validate_calendar()?;
-        let mut events: Vec<_> = view
+        let events = view
             .autocall_observations
             .iter()
             .map(|record| ObservationEvent {
@@ -1015,10 +1023,22 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
                         coupon: Some(*record),
                         coupon_rate: 0.0,
                     }),
-            )
-            .collect();
-        events.sort_unstable_by_key(|event| event.time);
-        events.dedup_by(|later, earlier| {
+            );
+        let mut sorted = Vec::with_capacity(
+            view.autocall_observations.len()
+                + view.knock_out_observations.len()
+                + view.coupon_observations.len(),
+        );
+        for (index, event) in events.enumerate() {
+            if index % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
+            sorted.push(event);
+        }
+        crate::cancellation::check()?;
+        sorted.sort_unstable_by_key(|event| event.time);
+        crate::cancellation::check()?;
+        sorted.dedup_by(|later, earlier| {
             if later.time != earlier.time {
                 return false;
             }
@@ -1026,7 +1046,8 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
             earlier.coupon = earlier.coupon.or(later.coupon);
             true
         });
-        Ok(Self(terms, events))
+        crate::cancellation::check()?;
+        Ok(Self(terms, sorted))
     }
 
     /// Borrows the contract's monitoring calendar; see [`Self::new`].
@@ -1425,18 +1446,21 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
 
 impl sealed::View<'_> {
     fn validate_calendar(&self) -> Result<()> {
-        if self
+        for time in self
             .autocall_observations
             .iter()
             .map(|record| record.time)
             .chain(self.knock_out_observations.iter().map(|record| record.time))
             .chain(self.coupon_observations.iter().map(|record| record.time))
-            .any(|time| !self.calendar.is_trading_day(time.date()))
         {
-            return Err(Error::InvalidInput(
-                "observation is not a trading day".into(),
-            ));
+            crate::cancellation::check()?;
+            if !self.calendar.is_trading_day(time.date()) {
+                return Err(Error::InvalidInput(
+                    "observation is not a trading day".into(),
+                ));
+            }
         }
+        crate::cancellation::check()?;
         if self
             .knock_in
             .is_some_and(|ki| ki.observation == KnockInObservation::AtExpiry)
@@ -1499,6 +1523,31 @@ impl sealed::View<'_> {
         Ok(())
     }
 
+    fn validate_observation_times(
+        &self,
+        times: impl ExactSizeIterator<Item = Timestamp>,
+    ) -> Result<()> {
+        if times.len() == 0 {
+            return Err(Error::InvalidInput("empty observation schedule".into()));
+        }
+        let mut previous = None;
+        for (index, time) in times.enumerate() {
+            if index % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
+            if time < self.effective_time
+                || time > self.expiry_time
+                || previous.is_some_and(|previous| previous >= time)
+            {
+                return Err(Error::InvalidInput(
+                    "observations must be ordered within life".into(),
+                ));
+            }
+            previous = Some(time);
+        }
+        Ok(())
+    }
+
     fn validate(&self) -> Result<()> {
         let terms = self;
         if let Some(d) = terms.downside() {
@@ -1535,47 +1584,26 @@ impl sealed::View<'_> {
         if terms.expiry_time < terms.effective_time {
             return Err(Error::InvalidInput("expiry precedes effective date".into()));
         }
-        let validate_times = |times: Vec<Timestamp>| -> Result<()> {
-            if times.is_empty() {
-                return Err(Error::InvalidInput("empty observation schedule".into()));
-            }
-            if times
-                .iter()
-                .any(|&time| time < terms.effective_time || time > terms.expiry_time)
-                || times.windows(2).any(|pair| pair[0] >= pair[1])
-            {
-                return Err(Error::InvalidInput(
-                    "observations must be ordered within life".into(),
-                ));
-            }
-            Ok(())
-        };
         if matches!(terms.coupon, Coupon::Phoenix(_)) {
-            validate_times(
+            terms.validate_observation_times(
                 terms
                     .knock_out_observations
                     .iter()
-                    .map(|record| record.time)
-                    .collect(),
+                    .map(|record| record.time),
             )?;
-            validate_times(
-                terms
-                    .coupon_observations
-                    .iter()
-                    .map(|record| record.time)
-                    .collect(),
+            terms.validate_observation_times(
+                terms.coupon_observations.iter().map(|record| record.time),
             )?;
         } else {
-            validate_times(
-                terms
-                    .autocall_observations
-                    .iter()
-                    .map(|record| record.time)
-                    .collect(),
+            terms.validate_observation_times(
+                terms.autocall_observations.iter().map(|record| record.time),
             )?;
         }
-        for record in terms.autocall_observations {
-            record.validate()?;
+        for chunk in terms.autocall_observations.chunks(1024) {
+            crate::cancellation::check()?;
+            for record in chunk {
+                record.validate()?;
+            }
         }
         terms.validate_history(terms.barrier_state)?;
         if let Some(ki) = terms.knock_in {

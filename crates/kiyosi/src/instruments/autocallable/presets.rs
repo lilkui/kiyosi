@@ -198,12 +198,15 @@ impl SnowballPresetTerms {
         let observations = self
             .autocall_times
             .into_iter()
-            .map(|date| AutocallableObservation {
-                time: date,
-                knock_out_level: self.knock_out_level,
-                coupon_rate: self.coupon_rate,
+            .map(|date| {
+                crate::cancellation::check()?;
+                Ok(AutocallableObservation {
+                    time: date,
+                    knock_out_level: self.knock_out_level,
+                    coupon_rate: self.coupon_rate,
+                })
             })
-            .collect();
+            .collect::<Result<_>>()?;
         let mut terms = SnowballTerms::new(
             self.coupon_rate,
             self.initial_spot,
@@ -226,6 +229,7 @@ impl SnowballPresetTerms {
                 knock_out_level_decrement,
             } => {
                 for (i, r) in terms.autocall_observations.iter_mut().enumerate() {
+                    crate::cancellation::check()?;
                     r.knock_out_level -= i as f64 * knock_out_level_decrement;
                 }
             }
@@ -234,6 +238,7 @@ impl SnowballPresetTerms {
                 knock_out_level_decrement,
             } => {
                 for (i, r) in terms.autocall_observations.iter_mut().enumerate() {
+                    crate::cancellation::check()?;
                     r.knock_out_level -= i as f64 * knock_out_level_decrement;
                     r.coupon_rate -= i as f64 * coupon_rate_decrement;
                 }
@@ -298,6 +303,7 @@ fn staged_coupons(
         }
     }
     for record in &mut terms.autocall_observations {
+        crate::cancellation::check()?;
         record.coupon_rate = stages
             .iter()
             .find(|(end, _)| record.time <= *end)
@@ -485,7 +491,10 @@ impl PhoenixPresetTerms {
         let coupon_observations = self
             .autocall_times
             .iter()
-            .map(|&time| super::CouponObservation::new(time, coupon_barrier))
+            .map(|&time| {
+                crate::cancellation::check()?;
+                super::CouponObservation::new(time, coupon_barrier)
+            })
             .collect::<Result<_>>()?;
         let knock_out_observations = self
             .autocall_times
@@ -493,6 +502,7 @@ impl PhoenixPresetTerms {
             .skip(self.lockout_periods)
             .enumerate()
             .map(|(i, &time)| {
+                crate::cancellation::check()?;
                 super::KnockOutObservation::new(time, self.knock_out_level - i as f64 * decrement)
             })
             .collect::<Result<_>>()?;

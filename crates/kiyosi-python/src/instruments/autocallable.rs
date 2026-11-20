@@ -1,4 +1,4 @@
-use crate::calendar::TradingCalendar;
+use crate::calendar::{TradingCalendar, run_date_scan};
 use crate::conversions::{
     integer_usize, python_timestamp, python_tuple, real, reals, supplied, timestamp, timestamps,
 };
@@ -10,10 +10,19 @@ use pyo3::types::PyTuple;
 // Signature order and conversion order are separate to preserve boundary failures.
 macro_rules! autocallable_properties {
     ($name:ident,
-     @replace $changes:ident [$($parameter:ident),+]
+     @replace $changes:ident [$($parameter:ident),+] [$($observations:ident),+]
      {$($field:ident => $convert:expr),+ $(,)?}
      [$(#[$replacement_doc:meta])*],
      $($extra:item),* $(,)?) => {
+        impl $name {
+            fn replace_observations(&self, py: Python<'_>, changes: kiyosi::$changes) -> PyResult<Self> {
+                let count: usize = [$(
+                    changes.$observations.as_deref().unwrap_or_else(|| self.0.$observations()).len()
+                ),+].into_iter().sum();
+                run_date_scan(py, count as u64, || self.0.replace(changes)).map(Self)
+            }
+        }
+
         value_methods!(@documented $name, $changes, [$($parameter),+],
             {$($field: $field.map($convert).transpose()?),+}, [$(#[$replacement_doc])*], {
             $($extra)*
@@ -57,7 +66,7 @@ macro_rules! autocallable_properties {
             fn expiry_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
                 python_timestamp(py, self.0.expiry_time())
             }
-        });
+        }, py => Self::replace_observations);
     };
 }
 
@@ -67,7 +76,7 @@ macro_rules! snowball_properties {
      $($extra:item),* $(,)?) => {
         autocallable_properties! {
             $name,
-            @replace $changes $parameters $conversions $documentation,
+            @replace $changes $parameters [autocall_observations] $conversions $documentation,
             $($extra,)*
             fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
                 let value = slf.borrow();
@@ -132,10 +141,15 @@ macro_rules! snowball_properties {
             #[pyo3(signature = (first_observation_coupon, *, quote_convention))]
             fn with_coupon(
                 &self,
+                py: Python<'_>,
                 first_observation_coupon: &Bound<'_, PyAny>,
                 quote_convention: &Bound<'_, PyAny>,
             ) -> PyResult<Self> {
-                Ok(Self(domain(self.0.with_coupon(real(first_observation_coupon)?, coupon_convention(quote_convention)?))?))
+                let coupon = real(first_observation_coupon)?;
+                let convention = coupon_convention(quote_convention)?;
+                run_date_scan(py, self.0.autocall_observations().len() as u64, || {
+                    self.0.with_coupon(coupon, convention)
+                }).map(Self)
             }
         }
     };
@@ -647,6 +661,7 @@ macro_rules! snowball_preset {
         #[pyo3(signature = (*, $coupon, initial_spot, knock_in_level, $level, $($extra,)* autocall_times, effective_time, expiry_time, $($clock,)? barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar=crate::conversions::OMITTED))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only preset terms")]
         pub(crate) fn $name(
+            py: Python<'_>,
             $coupon: &Bound<'_, PyAny>,
             initial_spot: &Bound<'_, PyAny>,
             knock_in_level: &Bound<'_, PyAny>,
@@ -677,7 +692,7 @@ macro_rules! snowball_preset {
             terms.annual_rebate_rate = annual_rebate_rate;
             terms.calendar = crate::calendar::observation_calendar(calendar, Some(autocall_times))?.unwrap_or_default();
 
-            Ok(SnowballOption(domain(terms.expand($preset))?))
+            run_date_scan(py, terms.autocall_times.len() as u64, || terms.expand($preset)).map(SnowballOption)
         }
     };
     (@clock $clock:ident) => { Some(crate::conversions::clock_time($clock)?) };
@@ -951,6 +966,7 @@ snowball_properties! {
     #[pyo3(signature = (*, maturity_coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation, effective_time, expiry_time, autocall_observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
+        py: Python<'_>,
         maturity_coupon_rate: &Bound<'_, PyAny>,
         initial_spot: &Bound<'_, PyAny>,
         knock_in_level: &Bound<'_, PyAny>,
@@ -986,7 +1002,8 @@ snowball_properties! {
         terms.rebate_rate = rebate_rate;
         terms.annual_rebate_rate = annual_rebate_rate;
 
-        Ok(Self(domain(kiyosi::SnowballOption::new(terms))?))
+        let count = terms.autocall_observations.len();
+        run_date_scan(py, count as u64, || kiyosi::SnowballOption::new(terms)).map(Self)
     },
     /// Return positive reference spot used to normalize downside losses.
     #[getter]
@@ -1119,6 +1136,7 @@ snowball_properties! {
     #[pyo3(signature = (*, maturity_coupon_rate, effective_time, expiry_time, autocall_observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
+        py: Python<'_>,
         maturity_coupon_rate: &Bound<'_, PyAny>,
         effective_time: &Bound<'_, PyAny>,
         expiry_time: &Bound<'_, PyAny>,
@@ -1144,7 +1162,8 @@ snowball_properties! {
         terms.rebate_rate = rebate_rate;
         terms.annual_rebate_rate = annual_rebate_rate;
 
-        Ok(Self(domain(kiyosi::BinarySnowballOption::new(terms))?))
+        let count = terms.autocall_observations.len();
+        run_date_scan(py, count as u64, || kiyosi::BinarySnowballOption::new(terms)).map(Self)
     },
 }
 
@@ -1263,6 +1282,7 @@ snowball_properties! {
     #[pyo3(signature = (*, maturity_coupon_rate, minimum_coupon_rate, knock_in_level, knock_in_observation, effective_time, expiry_time, autocall_observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
+        py: Python<'_>,
         maturity_coupon_rate: &Bound<'_, PyAny>,
         minimum_coupon_rate: &Bound<'_, PyAny>,
         knock_in_level: &Bound<'_, PyAny>,
@@ -1294,7 +1314,8 @@ snowball_properties! {
         terms.rebate_rate = rebate_rate;
         terms.annual_rebate_rate = annual_rebate_rate;
 
-        Ok(Self(domain(kiyosi::TernarySnowballOption::new(terms))?))
+        let count = terms.autocall_observations.len();
+        run_date_scan(py, count as u64, || kiyosi::TernarySnowballOption::new(terms)).map(Self)
     },
     /// Return positive strict downside threshold.
     #[getter]
@@ -1380,6 +1401,7 @@ pub(crate) struct PhoenixOption(pub kiyosi::PhoenixOption);
 autocallable_properties! {
     PhoenixOption,
     @replace PhoenixOptionChanges [coupon_per_period, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation, barrier_state, principal_redemption_ratio, rebate_rate, annual_rebate_rate, effective_time, expiry_time, knock_out_observations, coupon_observations, calendar]
+    [knock_out_observations, coupon_observations]
     {
         calendar => |v| v.extract::<TradingCalendar>().map(|v| v.0),
         coupon_per_period => crate::conversions::real,
@@ -1451,6 +1473,7 @@ autocallable_properties! {
     #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation, effective_time, expiry_time, knock_out_observations, coupon_observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
+        py: Python<'_>,
         #[pyo3(from_py_with = real)] coupon_per_period: f64,
         initial_spot: &Bound<'_, PyAny>,
         knock_in_level: &Bound<'_, PyAny>,
@@ -1488,7 +1511,8 @@ autocallable_properties! {
         terms.rebate_rate = rebate_rate;
         terms.annual_rebate_rate = annual_rebate_rate;
 
-        Ok(Self(domain(kiyosi::PhoenixOption::new(terms))?))
+        let count = terms.knock_out_observations.len() + terms.coupon_observations.len();
+        run_date_scan(py, count as u64, || kiyosi::PhoenixOption::new(terms)).map(Self)
     },
     /// Return a note with the supplied periodic coupon rate.
     ///
@@ -1514,9 +1538,11 @@ autocallable_properties! {
     #[pyo3(signature = (*, coupon_per_period))]
     fn with_coupon(
         &self,
+        py: Python<'_>,
         #[pyo3(from_py_with = real)] coupon_per_period: f64,
     ) -> PyResult<Self> {
-        Ok(Self(domain(self.0.with_coupon(coupon_per_period))?))
+        let count = self.0.knock_out_observations().len() + self.0.coupon_observations().len();
+        run_date_scan(py, count as u64, || self.0.with_coupon(coupon_per_period)).map(Self)
     },
     /// Return copied Phoenix coupon thresholds in observation order.
     #[getter]
@@ -1667,6 +1693,7 @@ macro_rules! phoenix_preset {
         #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, $knock_out, $($extra,)* $($clock,)? autocall_times, effective_time, expiry_time, lockout_periods=kiyosi::DEFAULT_PHOENIX_LOCKOUT_PERIODS, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar=crate::conversions::OMITTED))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only preset terms")]
         pub(crate) fn $name(
+            py: Python<'_>,
             coupon_per_period: &Bound<'_, PyAny>,
             initial_spot: &Bound<'_, PyAny>,
             knock_in_level: &Bound<'_, PyAny>,
@@ -1700,7 +1727,7 @@ macro_rules! phoenix_preset {
             terms.annual_rebate_rate = annual_rebate_rate;
             terms.calendar = crate::calendar::observation_calendar(calendar, Some(autocall_times))?.unwrap_or_default();
 
-            Ok(PhoenixOption(domain(terms.expand($preset))?))
+            run_date_scan(py, terms.autocall_times.len() as u64, || terms.expand($preset)).map(PhoenixOption)
         }
     };
 }

@@ -1,4 +1,8 @@
 use kiyosi::*;
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 
 fn date(month: u32, day: u32) -> Timestamp {
     Date::new(2025, month, day).unwrap().start_of_day()
@@ -13,6 +17,44 @@ fn market(spot: f64, valuation: Timestamp) -> PricingContext {
 }
 fn observations() -> Vec<AutocallableObservation> {
     autocallable_observations(&[date(4, 1)], &[110.0], Some(&[0.08]), None).unwrap()
+}
+
+#[test]
+fn autocallable_construction_stops_calendar_validation_on_cancellation() -> Result<()> {
+    let start = date(1, 1);
+    let end = start.add_days(10_000)?;
+    let observations = (1..=10_000)
+        .map(|day| AutocallableObservation::snowball(start.add_days(day)?, 110.0, 0.05))
+        .collect::<Result<Vec<_>>>()?;
+    let token = CancellationToken::default();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let calendar = TradingCalendar::new(
+        {
+            let token = token.clone();
+            let calls = Arc::clone(&calls);
+            move |_| {
+                if calls.fetch_add(1, Ordering::Relaxed) == 0 {
+                    token.cancel();
+                }
+                true
+            }
+        },
+        365,
+    )?;
+    let result = token.run(|| {
+        BinarySnowballOption::new(BinarySnowballTerms::new(
+            0.05,
+            start,
+            end,
+            observations,
+            calendar,
+        ))
+    });
+    assert!(
+        matches!(result, Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted)
+    );
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+    Ok(())
 }
 
 #[test]
