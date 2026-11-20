@@ -103,7 +103,8 @@ impl FiniteDifferenceSolution {
         } else {
             GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Speed])
         };
-        let query_work = if context.valuation_time() < instrument.expiry_time()
+        let query_work = if backend.queries_may_scan_calendar()
+            && context.valuation_time() < instrument.expiry_time()
             && context
                 .model_parameters()
                 .variance_time_convention()
@@ -416,6 +417,10 @@ pub(super) trait Backend<I>: PartialEq + Send + Sync + 'static {
 
     fn query_work(&self, _instrument: &I, _context: &PricingContext) -> usize {
         0
+    }
+
+    fn queries_may_scan_calendar(&self) -> bool {
+        true
     }
 
     fn evaluate(

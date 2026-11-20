@@ -333,6 +333,24 @@ fn local_volatility_and_heston_keep_model_capabilities() {
 }
 
 #[test]
+fn saved_business_time_vanilla_grid_queries_are_bounded() -> Result<()> {
+    let (start, end) = dates();
+    let valuation = start.add_days(3)?;
+    let clock = VarianceTimeConvention::Business(TradingCalendar::weekdays());
+    let model =
+        BlackScholesMertonParameters::new_with_variance_time_convention(0.05, 0.02, 0.2, clock)?;
+    let context = PricingContext::new(model, 100.0, valuation)?;
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let engine = FiniteDifferenceVanillaEngine::default();
+    let solution = engine.solve(&option, &context, 80.0..=120.0)?;
+    let result = solution.price_with_greeks(100.0, GreeksRequest::new([Greek::Delta]), None)?;
+    assert_eq!(solution.query_work(), 0);
+    close(result.price(), engine.price(&option, &context)?, 0.001);
+    assert!((0.5..0.6).contains(&result.require(Greek::Delta)?));
+    Ok(())
+}
+
+#[test]
 fn saved_deterministic_american_uses_dense_exercise_intervals() -> Result<()> {
     let start = dates().0;
     let times = (1..=1200)

@@ -595,7 +595,15 @@ impl<I: OptionContract> solution::Backend<I> for VanillaState {
         )
     }
 
+    fn queries_may_scan_calendar(&self) -> bool {
+        self.grid.is_none()
+    }
+
     fn at_spot_discontinuity(&self, option: &I, context: &PricingContext, radius: f64) -> bool {
+        // A stored grid already establishes that variance remains before expiry.
+        if self.grid.is_some() {
+            return false;
+        }
         if let Some(exercise) = &self.exercise {
             exercise
                 .at_spot_discontinuity(context, radius)
