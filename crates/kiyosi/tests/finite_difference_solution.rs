@@ -83,32 +83,35 @@ fn log_grid_respects_discounted_asset_digital_cap_with_carry() -> Result<()> {
 fn automatic_european_grid_resolves_low_volatility_with_strong_carry() -> Result<()> {
     let start = dates().0;
     let end = start.add_days(730)?;
-    let market = PricingContext::new(
-        BlackScholesMertonParameters::new(0.15, -0.03, 0.01)?,
-        70.0,
-        start,
-    )?;
     let vanilla = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
-    let engine = FiniteDifferenceVanillaEngine::default();
-    let expected = AnalyticEuropeanEngine.price(&vanilla, &market)?;
-    close(engine.price(&vanilla, &market)?, expected, 0.001);
-    close(
-        engine.solve(&vanilla, &market, 68.0..=72.0)?.price(70.0)?,
-        expected,
-        0.001,
-    );
-    let engine = FiniteDifferenceDigitalEngine::default();
-    for digital in [
+    let digitals = [
         DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 100.0, start, end)?,
         DigitalOption::asset_or_nothing(OptionType::Call, 100.0, start, end)?,
-    ] {
-        let expected = AnalyticDigitalEngine.price(&digital, &market)?;
-        close(engine.price(&digital, &market)?, expected, 0.001);
+    ];
+    for volatility in [0.01, 0.012_720, 0.012_735] {
+        let market = PricingContext::new(
+            BlackScholesMertonParameters::new(0.15, -0.03, volatility)?,
+            70.0,
+            start,
+        )?;
+        let engine = FiniteDifferenceVanillaEngine::default();
+        let expected = AnalyticEuropeanEngine.price(&vanilla, &market)?;
+        close(engine.price(&vanilla, &market)?, expected, 0.001);
         close(
-            engine.solve(&digital, &market, 68.0..=72.0)?.price(70.0)?,
+            engine.solve(&vanilla, &market, 68.0..=72.0)?.price(70.0)?,
             expected,
             0.001,
         );
+        let engine = FiniteDifferenceDigitalEngine::default();
+        for digital in &digitals {
+            let expected = AnalyticDigitalEngine.price(digital, &market)?;
+            close(engine.price(digital, &market)?, expected, 0.001);
+            close(
+                engine.solve(digital, &market, 68.0..=72.0)?.price(70.0)?,
+                expected,
+                0.001,
+            );
+        }
     }
     Ok(())
 }

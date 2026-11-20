@@ -111,7 +111,8 @@ def test_log_grid_respects_discounted_asset_digital_cap_with_carry():
     )
 
 
-def test_automatic_european_grid_resolves_low_volatility_with_strong_carry():
+@pytest.mark.parametrize("volatility", (0.01, 0.012_720, 0.012_735))
+def test_automatic_european_grid_resolves_low_volatility_with_strong_carry(volatility):
     terms = {
         "option_type": "call",
         "strike": 100,
@@ -120,7 +121,7 @@ def test_automatic_european_grid_resolves_low_volatility_with_strong_carry():
     }
     snapshot = PricingContext(
         model_parameters=BlackScholesMertonParameters(
-            risk_free_rate=0.15, dividend_yield=-0.03, volatility=0.01
+            risk_free_rate=0.15, dividend_yield=-0.03, volatility=volatility
         ),
         spot_price=70,
         valuation_time=START,

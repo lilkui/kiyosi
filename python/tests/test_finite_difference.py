@@ -233,6 +233,7 @@ def test_materially_negative_prices_fail_instead_of_being_clipped(scale):
     engine = FiniteDifferenceVanillaEngine(
         asset_step_count=20,
         time_step_count=3,
+        asset_upper_boundary=600 * scale,
     )
     assert_rejection(ComputationFailureError, engine.price, option, context)
     assert_rejection(

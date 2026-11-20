@@ -3500,8 +3500,9 @@ class FiniteDifferenceVanillaEngine(
 
     The grid uses log spot and an automatically selected positive lower boundary.
     Automatic domains with non-explicit schemes concentrate nodes around the strike.
-    For drift-dominated European contracts with constant volatility, automatic
-    Rannacher grids can sample the exact lognormal transition.
+    Automatic Rannacher grids for European contracts with constant volatility
+    shift the terminal strike by the deterministic carry and apply the
+    corresponding discount after rollback.
     """
 
 class FiniteDifferenceDigitalEngine(
@@ -3559,8 +3560,8 @@ class FiniteDifferenceDigitalEngine(
 
     The grid uses log spot and an automatically selected positive lower boundary.
     Automatic domains with non-explicit schemes concentrate nodes around the strike.
-    For drift-dominated contracts with constant volatility, automatic Rannacher
-    grids can sample the exact lognormal transition.
+    Automatic Rannacher grids with constant volatility shift the terminal strike
+    by the deterministic carry and apply the corresponding discount after rollback.
     """
 
 class _MonteCarloMethods[Instrument, StatisticsInstrument](_PricingMethods[Instrument]):

@@ -98,6 +98,7 @@ fn materially_negative_prices_fail_instead_of_being_clipped() {
         let engine = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
             asset_step_count: 20,
             time_step_count: 3,
+            asset_upper_boundary: Some(600.0 * scale),
             ..Default::default()
         })
         .unwrap();
