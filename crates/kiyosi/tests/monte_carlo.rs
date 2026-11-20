@@ -20,6 +20,69 @@ fn market() -> PricingContext {
 }
 
 #[test]
+fn vanilla_sampling_discounts_before_the_terminal_growth_overflows() -> Result<()> {
+    let option = contract(OptionType::Call).replace(EuropeanOptionChanges {
+        strike: Some(0.5),
+        ..Default::default()
+    })?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(720.0, 0.0, 0.2)?,
+        1e-305,
+        option.effective_time(),
+    )?;
+    let engine = MonteCarloVanillaEngine::new(
+        MonteCarloSettings {
+            path_count: 16_384,
+            seed: Some(42),
+            antithetic: true,
+            ..Default::default()
+        }
+        .into(),
+    )?;
+    let estimate = engine.price_with_statistics(&option, &context)?;
+    let reference = AnalyticEuropeanEngine.price(&option, &context)?;
+    assert!((estimate.price() / reference - 1.0).abs() < 0.001);
+    assert_eq!(
+        estimate.price().to_bits(),
+        engine.price(&option, &context)?.to_bits()
+    );
+    assert!(estimate.standard_error().is_some_and(|error| error > 0.0));
+    Ok(())
+}
+
+#[test]
+fn high_variance_sampling_preserves_the_discounted_tail_value() -> Result<()> {
+    let option = contract(OptionType::Call).replace(EuropeanOptionChanges {
+        strike: Some(1.0),
+        ..Default::default()
+    })?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(800.0, 0.0, 40.0)?,
+        1e308,
+        option.effective_time(),
+    )?;
+    let engine = MonteCarloVanillaEngine::new(
+        MonteCarloSettings {
+            path_count: 1,
+            seed: Some(42),
+            sampling: MonteCarloSampling::Sobol,
+            ..Default::default()
+        }
+        .into(),
+    )?;
+    let price = engine.price(&option, &context)?;
+    assert!((price / 5.805_502_904_230_645e-42 - 1.0).abs() < 1e-12);
+    assert_eq!(
+        price.to_bits(),
+        engine
+            .price_with_statistics(&option, &context)?
+            .price()
+            .to_bits()
+    );
+    Ok(())
+}
+
+#[test]
 fn solver_seed_policy_covers_every_monte_carlo_contract_family() -> Result<()> {
     for seed in [None, Some(0), Some(u64::MAX)] {
         let settings = MonteCarloSettings {
@@ -687,7 +750,7 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
     assert!(matches!(
         kiyosi::numerical_greeks(
             &engine,
-            &option,
+            &contract(OptionType::Put),
             &context,
             GreeksRequest::new([Greek::Rho]),
             NumericalShiftSettings {
@@ -1126,7 +1189,7 @@ fn every_sampling_combination_replays_analytics_across_threads_and_failures() {
             assert!(matches!(
                 kiyosi::numerical_greeks(
                     &engine,
-                    &option,
+                    &contract(OptionType::Put),
                     &context,
                     GreeksRequest::new([Greek::Rho]),
                     NumericalShiftSettings {
@@ -1183,7 +1246,7 @@ fn antithetic_companion_failures_preserve_engine_and_inputs() {
     let context = market()
         .replace(PricingContextChanges {
             model_parameters: Some(
-                BlackScholesMertonParameters::new(0.5, 0.0, 1.0)
+                BlackScholesMertonParameters::new(0.5, -0.6, 1.0)
                     .unwrap()
                     .into(),
             ),

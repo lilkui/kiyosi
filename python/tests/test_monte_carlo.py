@@ -32,6 +32,26 @@ from support.terminal import assert_terminal_greeks
 from test_binomial import END, GREEKS, START, market
 
 
+def test_vanilla_sampling_discounts_before_the_terminal_growth_overflows():
+    option = contract(strike=0.5)
+    context = market(spot=1e-305, rate=720, dividend=0, sigma=0.2)
+    engine = MonteCarloVanillaEngine(path_count=16_384, seed=42, antithetic=True)
+    estimate = engine.price_with_statistics(option, context)
+    reference = AnalyticEuropeanEngine().price(option, context)
+    assert abs(estimate.price / reference - 1) < 0.001
+    assert estimate.price == engine.price(option, context)
+    assert estimate.standard_error > 0
+
+
+def test_high_variance_sampling_preserves_the_discounted_tail_value():
+    option = contract(strike=1)
+    context = market(spot=1e308, rate=800, dividend=0, sigma=40)
+    engine = MonteCarloVanillaEngine(path_count=1, seed=42, sampling="sobol")
+    price = engine.price(option, context)
+    assert price == pytest.approx(5.805502904230645e-42, rel=1e-12, abs=0)
+    assert engine.price_with_statistics(option, context).price == price
+
+
 def contract(direction="call", strike=100):
     return EuropeanOption(
         option_type=direction, strike=strike, effective_time=START, expiry_time=END
@@ -421,7 +441,7 @@ def test_expiry_validation_failures_and_ownership():
     assert_rejection(
         ComputationFailureError,
         partial(numerical_greeks, engine),
-        option,
+        option.replace(option_type="put"),
         context,
         "rho",
         rate_shift=1000,
@@ -831,7 +851,7 @@ def test_all_sampling_combinations_replay_analytics_and_preserve_failure_state(
     with pytest.raises(ComputationFailureError) as error:
         numerical_greeks(
             engine,
-            option,
+            option.replace(option_type="put"),
             context,
             "rho",
             rate_shift=1000,
@@ -1015,10 +1035,10 @@ def test_companion_failure_and_domain_validation_preserve_sampling_state():
                 engine.price_with_greeks(option, node, [])
             assert type(error.value) is UnsupportedOperationError
             assert engine.price(option, context) == baseline
-    # First Sobol path is finite; its opposite overflows, so the paired call fails.
+    # The first Sobol path prices successfully, and adding its opposite overflows the mean.
     context = market().replace(
         model_parameters=BlackScholesMertonParameters(
-            risk_free_rate=0.5, dividend_yield=0, volatility=1
+            risk_free_rate=0.5, dividend_yield=-0.6, volatility=1
         ),
         spot_price=1.7e308,
     )

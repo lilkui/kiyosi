@@ -938,12 +938,12 @@ impl MonteCarloVanillaEngine {
         option: &EuropeanOption,
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
-        let (sample, pairs, log_discount, seed) = self.sample(option, context, true)?;
+        let (sample, pairs, log_scale, seed) = self.sample(option, context, true)?;
         estimate(
             self.settings.sampling,
             sample,
             pairs,
-            log_discount,
+            log_scale,
             context.valuation_time() == option.expiry_time()
                 || crate::engines::deterministic::enabled(context),
             seed,
@@ -999,24 +999,56 @@ impl MonteCarloVanillaEngine {
         }
         let moneyness =
             context.log_forward_moneyness(expiry, option.strike(), carry) - half_variance;
-        let (total, pairs, seed) =
-            path_samples(self.settings.sampling, 1, statistics, |normals| {
-                let increment = diffusion.mul_add(normals[0], drift);
-                let terminal = context.spot_price() * increment.exp();
-                if !terminal.is_finite() || terminal <= 0.0 {
+        // Accumulate in units of the discounted paying leg so even an overflowing
+        // individual payoff can contribute to a representable mean and standard error.
+        let log_scale = if sign > 0.0 {
+            context.spot_price().ln() - dividend * time
+        } else {
+            option.strike().ln() - rate * time
+        };
+        if sign > 0.0 && diffusion > 25.0 {
+            // A wide distribution can underflow in units of spot. Scale these
+            // samples to their observed peak, replaying the same draws for statistics.
+            let settings = self.settings.sampling.with_resolved_seed()?;
+            let log_payoff = |normal| {
+                let distance = diffusion.mul_add(normal, moneyness);
+                if distance > 0.0 {
+                    diffusion.mul_add(normal, log_scale - half_variance)
+                        + (-(-distance).exp_m1()).ln()
+                } else {
+                    f64::NEG_INFINITY
+                }
+            };
+            // Prices below exp(-746) round to zero, even if every sample pays.
+            let ([peak], _, _) = path_samples(settings, 1, false, |normals| {
+                let log_value = log_payoff(normals[0]);
+                if log_value > f64::MAX || log_value.is_nan() {
                     return Err(unstable());
                 }
-                let distance = diffusion.mul_add(normals[0], moneyness);
-                let payoff = if distance.abs() < 0.5 {
-                    option.strike() * distance.exp_m1()
-                } else {
-                    terminal - option.strike()
-                };
-                Ok([(sign * payoff).max(0.0)])
+                Ok([(log_value + 746.0).max(0.0)])
             })?;
-        let [total] = total;
-        let [pairs] = pairs;
-        Ok((total, pairs, -rate * time, Some(seed)))
+            let log_scale = peak.scale - 746.0;
+            let ([total], [pairs], seed) = path_samples(settings, 1, statistics, |normals| {
+                Ok([(log_payoff(normals[0]) - log_scale).exp()])
+            })?;
+            return Ok((total, pairs, log_scale, Some(seed)));
+        }
+        let ([total], [pairs], seed) =
+            path_samples(self.settings.sampling, 1, statistics, |normals| {
+                let distance = diffusion.mul_add(normals[0], moneyness);
+                let payoff = if sign * distance <= 0.0 {
+                    0.0
+                } else if sign < 0.0 {
+                    -distance.exp_m1()
+                } else {
+                    -(-distance).exp_m1() * diffusion.mul_add(normals[0], -half_variance).exp()
+                };
+                if !payoff.is_finite() {
+                    return Err(unstable());
+                }
+                Ok([payoff])
+            })?;
+        Ok((total, pairs, log_scale, Some(seed)))
     }
 }
 
@@ -1026,8 +1058,8 @@ impl PricingEngine for MonteCarloVanillaEngine {
         option: &EuropeanOption,
         context: &PricingContext,
     ) -> Result<(f64, Option<u64>)> {
-        let (sample, _, discount, seed) = self.sample(option, context, false)?;
-        Ok((scaled_value(sample.scale, sample.mean, discount)?, seed))
+        let (sample, _, log_scale, seed) = self.sample(option, context, false)?;
+        Ok((scaled_value(sample.scale, sample.mean, log_scale)?, seed))
     }
     fn price_with_statistics(
         &self,
@@ -1047,8 +1079,7 @@ impl PricingEngine for MonteCarloVanillaEngine {
         prepare_seeded_request!(self, self.settings.sampling)
     }
     fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
-        let (sample, _, log_discount, _) = self.sample(option, context, false)?;
-        scaled_value(sample.scale, sample.mean, log_discount)
+        Ok(self.price_with_seed(option, context)?.0)
     }
 }
 
