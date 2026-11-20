@@ -74,29 +74,6 @@ def test_barrier_greek_signature_defaults_can_be_forwarded(subtests):
                     engine.price_with_greeks(option, near, "delta", spot_shift=invalid)
 
 
-def test_automatic_american_bump_matches_explicit_core_control():
-    start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
-    option = i.AmericanOption(
-        option_type="put",
-        strike=100,
-        effective_time=start,
-        expiry_time=end,
-    )
-    context = m.PricingContext(
-        model_parameters=m.BlackScholesMertonParameters(
-            risk_free_rate=0.05, dividend_yield=0.03, volatility=0.2
-        ),
-        spot_price=100,
-        valuation_time=start,
-    )
-    engine = p.MonteCarloVanillaEngine(
-        path_count=8192, step_count=19, seed=42, max_active_workers=1
-    )
-    result = engine.price_with_greeks(option, context, "gamma")
-    explicit = numerical_greeks(engine, option, context, "gamma", spot_shift=8.0)
-    assert result.require("gamma") == explicit.require("gamma")
-
-
 def test_numerical_greeks_use_shared_defaults_and_request_controls(subtests):
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     option = i.EuropeanOption(

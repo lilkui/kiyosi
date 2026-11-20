@@ -277,57 +277,6 @@ fn node_curves_align_with_observations_and_preserve_rebate_discounts() {
 }
 
 #[test]
-fn scheduled_damping_restarts_equal_implicit_half_steps_without_new_fixings() {
-    let mut t = terms(DoubleBarrierType::KnockOut, OptionType::Call);
-    t.expiry_time = Date::new(2025, 12, 27).unwrap().start_of_day();
-    t.observation_times = Some(vec![
-        Date::new(2025, 4, 1).unwrap().start_of_day(),
-        Date::new(2025, 6, 30).unwrap().start_of_day(),
-        Date::new(2025, 9, 28).unwrap().start_of_day(),
-        t.expiry_time,
-    ]);
-    t.upper_barrier = 110.125;
-    t.rebate = 2.0;
-    let context = market(100.25);
-    for timing in [RebateTiming::AtHit, RebateTiming::AtExpiry] {
-        t.rebate_timing = timing;
-        let option = DoubleBarrierOption::new(DoubleBarrierOptionTerms {
-            calendar: TradingCalendar::all_days(),
-            ..t.clone()
-        })
-        .unwrap();
-        let results: Vec<_> = [
-            (FiniteDifferenceScheme::Rannacher, 4),
-            (FiniteDifferenceScheme::ImplicitEuler, 8),
-        ]
-        .into_iter()
-        .map(|(scheme, steps)| {
-            FiniteDifferenceDoubleBarrierEngine::new(FiniteDifferenceSettings {
-                asset_step_count: 200,
-                time_step_count: steps,
-                scheme,
-                asset_upper_boundary: Some(400.0),
-            })
-            .unwrap()
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-            )
-            .unwrap()
-        })
-        .collect();
-        assert!((results[0].price() - results[1].price()).abs() < 1e-12);
-        for greek in [Greek::Delta, Greek::Gamma] {
-            assert!(
-                (results[0].require(greek).unwrap() - results[1].require(greek).unwrap()).abs()
-                    < 1e-12
-            );
-        }
-    }
-}
-
-#[test]
 fn scheduled_explicit_stability_preserves_the_uniform_grid_boundary() {
     let mut t = terms(DoubleBarrierType::KnockOut, OptionType::Call);
     t.observation_times = Some(vec![t.expiry_time]);

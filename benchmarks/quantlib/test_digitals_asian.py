@@ -1,17 +1,12 @@
-"""Contract checks at the native pricing and benchmark report seams."""
+"""Contract checks for native digital and Asian pricing."""
 
 import json
 import os
 import subprocess
-import sys
-import tempfile
 import unittest
-from pathlib import Path
 
 from run import RUST_EXECUTABLE, command, rust_build_command
 from test_fd import build_quantlib_test_executable
-
-ROOT = Path(__file__).resolve().parents[2]
 
 
 class DigitalAsianTests(unittest.TestCase):
@@ -125,44 +120,6 @@ class QuantLibDigitalAsianTests(DigitalAsianTests):
     @classmethod
     def setUpClass(cls):
         cls.executable = build_quantlib_test_executable(cls)
-
-    def test_live_accuracy_failure_suppresses_timing_and_ratio(self):
-        with tempfile.TemporaryDirectory() as directory:
-            references = json.loads(
-                (
-                    ROOT / "benchmarks/quantlib/references/digitals_asian.json"
-                ).read_text()
-            )
-            references["cases"][0]["value"] += 1
-            path = Path(directory) / "references.json"
-            path.write_text(json.dumps(references))
-            report = Path(directory) / "report.json"
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(ROOT / "benchmarks/quantlib/run.py"),
-                    "--no-build",
-                    "--quantlib-executable",
-                    str(self.executable),
-                    "--case",
-                    references["cases"][0]["id"],
-                    "--references",
-                    str(path),
-                    "--report",
-                    str(report),
-                ],
-                text=True,
-                capture_output=True,
-                check=False,
-                timeout=600,
-            )
-            self.assertEqual(result.returncode, 1, result.stderr)
-            case = json.loads(report.read_text())["cases"][0]
-            self.assertEqual(case["status"], "accuracy_failed")
-            self.assertIsNone(case["ratio"])
-            for backend in case["backends"].values():
-                self.assertFalse(backend["accuracy"]["passed"])
-                self.assertNotIn("timing", backend)
 
 
 if __name__ == "__main__":

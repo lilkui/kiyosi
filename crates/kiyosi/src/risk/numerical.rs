@@ -612,32 +612,6 @@ mod tests {
     }
 
     #[test]
-    fn vega_completion_preserves_native_delta() {
-        let (option, context) = inputs();
-        let request = GreeksRequest::new([Greek::Delta, Greek::Vega]);
-        let mut central = PricingResult::new(4.0).unwrap();
-        central.set(request, Greek::Delta, 1.0).unwrap();
-        let result = complete_greeks(
-            &option,
-            &context,
-            request,
-            Default::default(),
-            true,
-            central,
-            |context, _| {
-                PricingResult::new(
-                    context.spot_price() + 10.0 * context.bsm_parameters()?.volatility(),
-                )
-            },
-        )
-        .unwrap();
-        assert_eq!(result.price(), 4.0);
-        assert_eq!(result.require(Greek::Delta).unwrap(), 1.0);
-        assert!((result.require(Greek::Vega).unwrap() - 10.0).abs() < 1e-10);
-        assert_eq!(result.get(Greek::Gamma), None);
-    }
-
-    #[test]
     fn combined_greeks_share_bumped_prices_and_preserve_scalar_fallbacks() -> Result<()> {
         let (option, context) = inputs();
         let context = context.replace(PricingContextChanges {

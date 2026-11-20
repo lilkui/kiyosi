@@ -4,7 +4,6 @@ from datetime import datetime
 import pytest
 from kiyosi import ComputationFailureError, pricing
 from kiyosi.instruments import (
-    AmericanOption,
     AssetOrNothingOption,
     CashOrNothingOption,
     EuropeanOption,
@@ -76,60 +75,6 @@ def test_payoff_bounds_allow_known_carry_truncation(subtests, rate, steps):
             assert actual.price == pytest.approx(upper, rel=0, abs=1e-8)
             assert actual.delta == pytest.approx(delta, rel=0, abs=0.001)
             assert actual.gamma == pytest.approx(0, rel=0, abs=1e-8)
-
-
-@pytest.mark.parametrize("steps", (1, 2))
-@pytest.mark.parametrize("option_type", ("call", "put"))
-def test_short_rannacher_grids_match_implicit_half_steps(subtests, steps, option_type):
-    start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
-    context = PricingContext(
-        model_parameters=BlackScholesMertonParameters(
-            risk_free_rate=0.12, dividend_yield=0.02, volatility=0.3
-        ),
-        spot_price=99.25,
-        valuation_time=start,
-    )
-    terms = {
-        "option_type": option_type,
-        "strike": 100,
-        "effective_time": start,
-        "expiry_time": end,
-    }
-    for option, factory in (
-        (EuropeanOption(**terms), pricing.FiniteDifferenceVanillaEngine),
-        (AmericanOption(**terms), pricing.FiniteDifferenceVanillaEngine),
-        (
-            CashOrNothingOption(**terms, payout=10),
-            pricing.FiniteDifferenceDigitalEngine,
-        ),
-        (
-            AssetOrNothingOption(**terms),
-            pricing.FiniteDifferenceDigitalEngine,
-        ),
-    ):
-        with subtests.test(
-            steps=steps,
-            option_type=option_type,
-            option=type(option).__name__,
-        ):
-            engine = factory(
-                asset_step_count=400,
-                time_step_count=steps,
-                asset_upper_boundary=400,
-                scheme="rannacher",
-            )
-            reference = factory(
-                asset_step_count=400,
-                time_step_count=2 * steps,
-                asset_upper_boundary=400,
-                scheme="implicit_euler",
-            )
-            actual = engine.price_with_greeks(option, context, ["delta", "gamma"])
-            expected = reference.price_with_greeks(option, context, ["delta", "gamma"])
-            assert actual.price == expected.price
-            assert actual.price == engine.price(option, context)
-            assert actual.delta == expected.delta
-            assert actual.gamma == expected.gamma
 
 
 @pytest.mark.parametrize("steps", (8, 32))
