@@ -99,6 +99,24 @@ def test_cash_digital_keeps_finite_price_when_discounted_payout_overflows():
         assert engine.price(large, context) == pytest.approx(expected, rel=1e-12)
 
 
+@pytest.mark.parametrize("rate,dividend", [(0.125, 0), (0, 0.125)])
+def test_implied_volatility_keeps_the_only_admissible_endpoint(rate, dividend):
+    option = contract(EuropeanOption)
+    context = market(rate=rate, dividend=dividend, sigma=0.125)
+    engine = CoxRossRubinsteinVanillaEngine(step_count=1)
+    quote = engine.price(option, context)
+    assert (
+        implied_volatility(
+            engine, option, context, quote, lower_bound=0.0625, upper_bound=0.125
+        )
+        == 0.125
+    )
+    with pytest.raises(RootNotBracketedError):
+        implied_volatility(
+            engine, option, context, quote + 1, lower_bound=0.0625, upper_bound=0.125
+        )
+
+
 def test_one_step_gamma_falls_back_after_log_space_pricing():
     option = contract(EuropeanOption, strike=100_000)
     context = market(spot=100_000, rate=-700, dividend=-700)

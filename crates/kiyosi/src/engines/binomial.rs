@@ -166,13 +166,26 @@ fn prepare_implied(
     let (rate, dividend) = flat_rates(context)?;
     let dt = time_step(option, context, tree)?;
     if dt > 0.0 {
-        // The solver checks exact zero separately; positive trials need distinct factors.
-        let width = ((rate - dividend) * dt).abs().max(f64::EPSILON);
-        let minimum = libm::nextafter(width / dt.sqrt(), f64::INFINITY);
+        let carry = (rate - dividend) * dt;
+        let root = dt.sqrt();
+        let valid = |volatility| tree_parameters(rate, carry, volatility * root, dt).is_ok();
+        if valid(settings.lower_bound) {
+            return Ok(settings);
+        }
+        // The solver checks zero separately; positive trials need distinct factors.
+        let minimum = carry.abs().max(f64::EPSILON) / root;
         if minimum.is_finite() {
+            let minimum = if valid(minimum) {
+                minimum
+            } else {
+                libm::nextafter(minimum, f64::INFINITY)
+            };
             settings.lower_bound = settings.lower_bound.max(minimum);
         }
-        if settings.lower_bound >= settings.upper_bound {
+        if settings.lower_bound > settings.upper_bound && valid(settings.upper_bound) {
+            settings.lower_bound = settings.upper_bound;
+        }
+        if settings.lower_bound > settings.upper_bound {
             return Err(Error::RootNotBracketed(
                 "volatility bounds exclude the tree domain".into(),
             ));
@@ -665,17 +678,26 @@ impl PricingEngine<DigitalOption> for CoxRossRubinsteinDigitalEngine {
     }
 }
 
+fn parameters(context: &PricingContext, dt: f64) -> Result<(f64, f64, f64, f64, f64)> {
+    let (rate, dividend) = flat_rates(context)?;
+    let width = context.natural_bsm_parameters()?.volatility() * dt.sqrt();
+    tree_parameters(rate, (rate - dividend) * dt, width, dt)
+}
+
 #[expect(
     clippy::float_cmp,
     reason = "Exactly collapsed up/down factors make the tree unrepresentable."
 )]
-fn parameters(context: &PricingContext, dt: f64) -> Result<(f64, f64, f64, f64, f64)> {
-    let (rate, dividend) = flat_rates(context)?;
-    let width = context.natural_bsm_parameters()?.volatility() * dt.sqrt();
+fn tree_parameters(
+    rate: f64,
+    carry: f64,
+    width: f64,
+    dt: f64,
+) -> Result<(f64, f64, f64, f64, f64)> {
     let up = width.exp();
     let down = 1.0 / up;
     let discount = (-rate * dt).exp();
-    let p = ((rate - dividend) * dt + width).exp_m1() / (2.0 * width).exp_m1();
+    let p = (carry + width).exp_m1() / (2.0 * width).exp_m1();
     if !up.is_finite()
         || !down.is_finite()
         || up == down

@@ -42,6 +42,26 @@ fn implied_volatility_recovers_tree_quotes_with_zero_or_tiny_carry() {
 }
 
 #[test]
+fn implied_volatility_keeps_the_only_admissible_endpoint() -> Result<()> {
+    let (start, end) = dates();
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 1 })?;
+    for (rate, dividend) in [(0.125, 0.0), (0.0, 0.125)] {
+        let context = market(100.0, rate, dividend, 0.125);
+        let quote = engine.price(&option, &context)?;
+        let bracket = ImpliedVolatilitySettings::new(0.0625, 0.125);
+        assert!(
+            (implied_volatility(&engine, &option, &context, quote, bracket)? - 0.125).abs() < 1e-16
+        );
+        assert!(matches!(
+            implied_volatility(&engine, &option, &context, quote + 1.0, bracket),
+            Err(Error::RootNotBracketed(_))
+        ));
+    }
+    Ok(())
+}
+
+#[test]
 fn implied_volatility_rejects_a_price_jump_without_a_matching_quote() {
     let (start, end) = dates();
     let option = DigitalOption::cash_or_nothing(OptionType::Call, 110.0, 10.0, start, end).unwrap();

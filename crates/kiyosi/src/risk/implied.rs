@@ -169,17 +169,12 @@ fn solve<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     }
     let s = engine.prepare_implied_volatility(option, context, s)?;
     let (mut a, mut b) = (s.lower_bound, s.upper_bound);
-    let (mut fa, mut fb) = (
-        if a == 0.0 {
-            match zero_residual {
-                Some(value) => value,
-                None => evaluate(a)?,
-            }
-        } else {
-            evaluate(a)?
-        },
-        evaluate(b)?,
-    );
+    let mut fa = if let Some(value) = zero_residual.filter(|_| a == 0.0) {
+        value
+    } else {
+        evaluate(a)?
+    };
+    let mut fb = if a == b { fa } else { evaluate(b)? };
     require_identifiable()?;
     if fa.abs() <= s.price_tolerance {
         return Ok(a);
