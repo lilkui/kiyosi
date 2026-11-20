@@ -180,15 +180,19 @@ fn settlement_through_prefix(
 ) -> Result<(Settlement, Timestamp)> {
     let prefix =
         deterministic::barrier_prefix(contract.monitoring, contract.upper_barrier, context)?;
-    let spot = prefix
+    if let Some(hit) = prefix
         .hit
-        .as_ref()
-        .map_or(context.spot_price(), |hit| hit.spot);
-    let mut settlement =
-        contract.settlement_with_state((prefix.prior, prefix.touched, prefix.finished), spot);
-    if let (Settlement::Value(value), Some(hit)) = (&mut settlement, prefix.hit) {
-        *value = scaled(*value, hit.log_discount);
+        .filter(|_| contract.timing == SettlementTiming::AtHit)
+    {
+        return Ok((
+            Settlement::Value(hit.discounted_payout(contract.payout)),
+            prefix.end,
+        ));
     }
+    let settlement = contract.settlement_with_state(
+        (prefix.prior, prefix.touched, prefix.finished),
+        context.spot_price(),
+    );
     Ok((settlement, prefix.end))
 }
 

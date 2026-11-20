@@ -477,6 +477,44 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
 }
 
 #[test]
+fn deterministic_scheduled_touch_discounts_before_scaling() -> Result<()> {
+    let start = day(2025, 1, 4);
+    let fixing = start.add_days(1)?;
+    let expiry = start.add_days(3)?;
+    let mut terms = TouchOptionTerms::new(start, expiry, 120.0, BarrierType::UpAndIn);
+    terms.calendar = TradingCalendar::all_days();
+    terms.observation_times = Some(vec![fixing]);
+    terms.settlement_timing = SettlementTiming::AtHit;
+    let asset = TouchOption::asset(terms.clone())?;
+    let cash = TouchOption::cash(terms, 1e300)?;
+    let deterministic = PricingContext::new(
+        BlackScholesMertonParameters::new(365_000.0, 7.3, 0.0)?,
+        100.0,
+        start,
+    )?;
+    let weekend_prefix = PricingContext::new(
+        BlackScholesMertonParameters::new_with_variance_time_convention(
+            365_000.0,
+            7.3,
+            0.2,
+            VarianceTimeConvention::Business(TradingCalendar::weekdays()),
+        )?,
+        100.0,
+        start,
+    )?;
+    for (option, expected) in [
+        (asset, 100.0 * (-0.02_f64).exp()),
+        (cash, 1e300 * (-500.0_f64).exp() * (-500.0_f64).exp()),
+    ] {
+        let analytic = AnalyticBinaryBarrierEngine.price(&option, &deterministic)?;
+        let fd = FiniteDifferenceBinaryBarrierEngine::default().price(&option, &weekend_prefix)?;
+        assert!((analytic / expected - 1.0).abs() < 1e-12);
+        assert!((fd / expected - 1.0).abs() < 1e-12);
+    }
+    Ok(())
+}
+
+#[test]
 fn first_hit_and_scheduled_prices_retain_scaled_tails() {
     let engine = AnalyticBinaryBarrierEngine;
     for up in [false, true] {

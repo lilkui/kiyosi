@@ -17,9 +17,11 @@ from kiyosi.market import (
     PricingContext,
     RateTermStructure,
     all_days_calendar,
+    weekdays_calendar,
 )
 from kiyosi.pricing import (
     AnalyticBinaryBarrierEngine,
+    FiniteDifferenceBinaryBarrierEngine,
     implied_volatility,
     numerical_greeks,
 )
@@ -353,6 +355,36 @@ def test_touch_payoffs_select_all_barrier_types_and_validate_settlement(
                     payoff_type, barrier_type=invalid
                 ),
             )
+
+
+def test_deterministic_scheduled_touch_discounts_before_scaling():
+    start = datetime(2025, 1, 4)
+    terms = {
+        "effective_time": start,
+        "expiry_time": start + timedelta(days=3),
+        "calendar": all_days_calendar(),
+        "observation_times": [start + timedelta(days=1)],
+        "settlement_timing": "at_hit",
+    }
+    deterministic = make_context(time=start, rate=365_000, dividend=7.3, sigma=0)
+    weekend_prefix = deterministic.replace(
+        model_parameters=deterministic.model_parameters.replace(
+            volatility=0.2,
+            variance_time_convention="business",
+            calendar=weekdays_calendar(),
+        )
+    )
+    for option, expected in [
+        (make_touch("asset", **terms), 100 * math.exp(-0.02)),
+        (
+            make_touch("cash", payout=1e300, **terms),
+            1e300 * math.exp(-500) * math.exp(-500),
+        ),
+    ]:
+        analytic = AnalyticBinaryBarrierEngine().price(option, deterministic)
+        fd = FiniteDifferenceBinaryBarrierEngine().price(option, weekend_prefix)
+        assert analytic / expected == pytest.approx(1, rel=0, abs=1e-12)
+        assert fd / expected == pytest.approx(1, rel=0, abs=1e-12)
 
 
 def test_scheduled_boundaries_history_and_owned_dates():

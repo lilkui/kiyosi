@@ -506,8 +506,16 @@ pub(super) fn continuation_context(
 }
 
 pub(super) struct Touch {
-    pub spot: f64,
     pub log_discount: f64,
+    discounted_asset: f64,
+}
+
+impl Touch {
+    pub(super) fn discounted_payout(&self, payout: Option<f64>) -> f64 {
+        payout.map_or(self.discounted_asset, |cash| {
+            scaled_cash(cash, self.log_discount)
+        })
+    }
 }
 
 pub(super) struct BarrierPrefix {
@@ -680,6 +688,22 @@ fn first_touch(
         }
     };
     let start = context.valuation_time();
+    let fixing_touch = |time, level, distance: f64, log_discount| -> Result<Touch> {
+        let discounted_asset = if distance == 0.0 {
+            scaled_cash(level, log_discount)
+        } else {
+            // An observed asset is worth spot discounted by dividends, even if its forward overflows.
+            let dividend = context
+                .model_parameters()
+                .dividend_curve()
+                .log_factor(start, time)?;
+            scaled_cash(initial, dividend)
+        };
+        Ok(Touch {
+            log_discount,
+            discounted_asset,
+        })
+    };
     let mut advance = forward_factors(context);
     if monitoring.observation_mode() == ObservationMode::Scheduled {
         let times = monitoring.observation_times();
@@ -687,14 +711,7 @@ fn first_touch(
         for &time in times[first..].iter().take_while(|&&time| time <= end) {
             let (value, log_discount) = advance(time)?;
             if let Some((level, distance)) = hit(time, value) {
-                return Ok(Some(Touch {
-                    spot: if distance == 0.0 {
-                        level
-                    } else {
-                        spot_after_carry(initial, value)?
-                    },
-                    log_discount,
-                }));
+                return fixing_touch(time, level, distance, log_discount).map(Some);
             }
         }
         return Ok(None);
@@ -703,14 +720,7 @@ fn first_touch(
     for pair in times.windows(2) {
         let (x, a) = advance(pair[0])?;
         if let Some((level, distance)) = hit(pair[0], x) {
-            return Ok(Some(Touch {
-                spot: if distance == 0.0 {
-                    level
-                } else {
-                    spot_after_carry(initial, x)?
-                },
-                log_discount: a,
-            }));
+            return fixing_touch(pair[0], level, distance, a).map(Some);
         }
         let (y, b) = advance(pair[1])?;
         if let Some((level, distance)) = hit(pair[1], y) {
@@ -721,8 +731,8 @@ fn first_touch(
                 fraction.mul_add(b - a, a)
             };
             return Ok(Some(Touch {
-                spot: level,
                 log_discount,
+                discounted_asset: scaled_cash(level, log_discount),
             }));
         }
     }
@@ -792,10 +802,7 @@ pub(super) fn binary(contract: &Contract<'_>, context: &PricingContext) -> Resul
             }
             if contract.timing == SettlementTiming::AtHit {
                 let touch = touch.ok_or_else(invalid)?;
-                return checked(scaled_cash(
-                    contract.payout.unwrap_or(touch.spot),
-                    touch.log_discount,
-                ));
+                return checked(touch.discounted_payout(contract.payout));
             }
         }
     }
