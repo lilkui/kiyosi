@@ -123,7 +123,7 @@ fn default_upper(
             .max(option.knock_out_level())
             .max(context.spot_price()),
         context,
-        context.valuation_time().years_until(option.expiry_time()),
+        option.expiry_time(),
         risk,
         dividend,
     )

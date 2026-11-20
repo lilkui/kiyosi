@@ -474,7 +474,7 @@ fn solve_grid<D: Diffusion>(
             default.max(diffusion_upper(
                 context.spot_price().max(terms.strike()),
                 context,
-                time,
+                expiry,
                 &risk,
                 &dividend,
             )?)

@@ -209,27 +209,15 @@ fn flat_rates(context: &PricingContext) -> Result<()> {
     Ok(())
 }
 
-fn automatic_upper(
-    payoff: Payoff,
-    context: &PricingContext,
-    time: f64,
-    risk: &Curve,
-    dividend: &Curve,
-) -> Result<f64> {
-    let relevant = context.spot_price().max(payoff.strike);
-    if !payoff.is_american() {
-        return Ok(4.0 * relevant);
-    }
-    diffusion_upper(relevant, context, time, risk, dividend)
-}
-
 fn diffusion_upper(
     relevant: f64,
     context: &PricingContext,
-    time: f64,
+    horizon: Timestamp,
     risk: &Curve,
     dividend: &Curve,
 ) -> Result<f64> {
+    let start = context.valuation_time();
+    let time = start.years_until(horizon);
     let sigma = match context.model_parameters() {
         crate::ModelParameters::Heston(_) => {
             return Err(Error::UnsupportedOperation(
@@ -237,21 +225,33 @@ fn diffusion_upper(
             ));
         }
         crate::ModelParameters::BlackScholesMerton(m) => m.volatility(),
+        crate::ModelParameters::LocalVolatility(m)
+            if m.surface().times().first() == Some(&start)
+                && m.surface().times().last() == Some(&horizon) =>
+        {
+            m.surface().maximum_volatility()
+        }
         crate::ModelParameters::LocalVolatility(m) => {
             let surface = m.surface();
-            let start = context.valuation_time();
             let offset = surface.times()[0].years_until(start);
             let mut maximum: f64 = 0.0;
             // Bilinear sigma peaks at a spot/time node or a clipped time endpoint.
-            for &spot in surface.spots() {
-                maximum = maximum
-                    .max(surface.at_year(offset, spot))
-                    .max(surface.at_year(offset + time, spot));
+            for spots in surface.spots().chunks(1024) {
+                crate::cancellation::check()?;
+                for &spot in spots {
+                    maximum = maximum
+                        .max(surface.at_year(offset, spot))
+                        .max(surface.at_year(offset + time, spot));
+                }
             }
             for (&node, row) in surface.times().iter().zip(surface.values()) {
+                crate::cancellation::check()?;
                 let elapsed = start.years_until(node);
                 if elapsed > 0.0 && elapsed < time {
-                    maximum = row.iter().copied().fold(maximum, f64::max);
+                    for values in row.chunks(1024) {
+                        crate::cancellation::check()?;
+                        maximum = values.iter().copied().fold(maximum, f64::max);
+                    }
                 }
             }
             maximum
@@ -357,10 +357,10 @@ fn solve_model<D: Diffusion>(
     let (risk, dividend) = diffusion::rate_curves(context, expiry, settings)?;
     let upper = match settings.asset_upper_boundary {
         Some(upper) => upper,
-        None if D::LOCAL => {
-            diffusion_upper(spot.max(payoff.strike), context, time, &risk, &dividend)?
+        None if D::LOCAL || payoff.is_american() => {
+            diffusion_upper(spot.max(payoff.strike), context, expiry, &risk, &dividend)?
         }
-        None => automatic_upper(payoff, context, time, &risk, &dividend)?,
+        None => 4.0 * spot.max(payoff.strike),
     };
     let mut space = SpatialGrid::new(
         settings,
@@ -1279,5 +1279,38 @@ impl PricingEngine<DigitalOption> for FiniteDifferenceDigitalEngine {
                 )
             },
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{CancellationToken, Date, LocalVolatilityParameters, LocalVolatilitySurface};
+
+    #[test]
+    fn partial_surface_bound_scan_checks_cancellation() -> Result<()> {
+        let start = Date::new(2025, 1, 1)?.start_of_day();
+        let horizon = start.add_days(180)?;
+        let surface = LocalVolatilitySurface::new(
+            vec![start, start.add_days(365)?],
+            vec![80.0, 120.0],
+            vec![vec![0.2, 0.3], vec![0.4, 0.5]],
+        )?;
+        let model = LocalVolatilityParameters::new(0.0, 0.0, surface)?;
+        let context = PricingContext::new(model, 100.0, start)?;
+        let curve = Curve::new(context.model_parameters().risk_free_curve(), start, horizon)?;
+        let token = CancellationToken::default();
+        let result = token.run(|| {
+            token.cancel();
+            let result = diffusion_upper(100.0, &context, horizon, &curve, &curve);
+            assert!(
+                matches!(result, Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted)
+            );
+            Ok(())
+        });
+        assert!(
+            matches!(result, Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted)
+        );
+        Ok(())
     }
 }

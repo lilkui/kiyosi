@@ -232,7 +232,9 @@ fn solve_grid<D: Diffusion>(
                     .digital
                     .map_or(option.barrier_level(), DigitalOption::strike),
             );
-            upper.max(diffusion_upper(relevant, context, time, &risk, &dividend)?)
+            upper.max(diffusion_upper(
+                relevant, context, horizon, &risk, &dividend,
+            )?)
         } else {
             upper
         }

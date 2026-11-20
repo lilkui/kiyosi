@@ -297,7 +297,7 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
         None => diffusion_upper(
             highest.max(context.spot_price()),
             context,
-            time,
+            expiry,
             &risk,
             &dividend,
         )?,
