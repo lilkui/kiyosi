@@ -159,17 +159,14 @@ impl SpatialGrid {
         clippy::cast_precision_loss,
         reason = "Grid counts are bounded by validated i32 settings."
     )]
-    pub fn resolve_barrier(
+    pub fn resolve_barriers(
         &mut self,
-        up: bool,
+        barriers: [Option<f64>; 2],
         strike: Option<f64>,
-        sigma: f64,
         time: f64,
-        risk: &Curve,
-        dividend: &Curve,
+        [risk, dividend]: [&Curve; 2],
+        volatility_at: impl Fn(f64) -> f64,
     ) -> Result<()> {
-        let barrier = if up { self.upper } else { self.lower };
-        let variance = sigma * sigma;
         let mut carry = 0.0_f64;
         for (index, at) in std::iter::once(0.0)
             .chain(risk.ends())
@@ -181,21 +178,30 @@ impl SpatialGrid {
             }
             carry = carry.max((risk.rate(at) - dividend.rate(at)).abs());
         }
-        let layer = (variance / carry) * barrier;
-        let width = (sigma * time.sqrt()) * barrier;
         // A single cell across a diffusion width or drift layer still smears the payoff.
         let resolved_width = 8.0 * self.spacing;
-        let narrow = width < resolved_width;
-        if narrow || layer < resolved_width {
-            let mut levels = vec![barrier];
-            if narrow {
-                // Short diffusion widths need fine cells at the payoff kink as well as the barrier.
+        let mut scale = f64::INFINITY;
+        let mut resolve_strike = false;
+        for barrier in barriers.into_iter().flatten() {
+            let sigma = volatility_at(barrier);
+            let layer = (sigma * sigma / carry) * barrier;
+            let width = (sigma * time.sqrt()) * barrier;
+            let narrow = width < resolved_width;
+            if narrow || layer < resolved_width {
+                resolve_strike |= narrow;
+                scale = scale.min(
+                    (if narrow { width } else { 2.0 * width })
+                        .min(layer * (self.count as f64 / 32.0)),
+                );
+            }
+        }
+        if scale.is_finite() {
+            // Refining either edge must keep fine cells at the opposite barrier.
+            let mut levels: Vec<_> = barriers.into_iter().flatten().collect();
+            if resolve_strike {
                 levels.extend(strike.filter(|&level| level > self.lower && level < self.upper));
             }
-            let scale = (if narrow { width } else { 2.0 * width })
-                .min(layer * (self.count as f64 / 32.0))
-                .max(f64::EPSILON.sqrt() * self.upper);
-            concentrate_levels(self, levels, scale)?;
+            concentrate_levels(self, levels, scale.max(f64::EPSILON.sqrt() * self.upper))?;
         }
         Ok(())
     }

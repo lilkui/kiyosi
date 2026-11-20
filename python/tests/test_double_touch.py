@@ -16,7 +16,7 @@ from kiyosi import (
     UnsupportedOperationError,
     pricing,
 )
-from kiyosi.instruments import DoubleTouchOption, TouchOption
+from kiyosi.instruments import DoubleBarrierOption, DoubleTouchOption, TouchOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
@@ -55,6 +55,50 @@ def market(spot=100, *, time=START, volatility=0.2, rate=0.03, dividend=0.01):
         spot_price=spot,
         valuation_time=time,
     )
+
+
+def test_short_double_barriers_resolve_a_near_boundary():
+    quote = market(volatility=0.02, rate=0, dividend=0)
+    terms = {
+        "effective_time": START,
+        "expiry_time": START + timedelta(minutes=15),
+        "lower_barrier": 99.98,
+        "upper_barrier": 125,
+        "barrier_type": "knock_in",
+    }
+    touch = DoubleTouchOption(**terms, payout=100)
+    barrier = DoubleBarrierOption(**terms, option_type="call", strike=95)
+    for instrument, engine, analytic, tolerance in (
+        (
+            touch,
+            pricing.FiniteDifferenceDoubleTouchEngine(),
+            pricing.AnalyticDoubleTouchEngine(),
+            0.01,
+        ),
+        (
+            barrier,
+            pricing.FiniteDifferenceDoubleBarrierEngine(),
+            pricing.AnalyticDoubleBarrierEngine(),
+            0.001,
+        ),
+    ):
+        assert engine.price(instrument, quote) == pytest.approx(
+            analytic.price(instrument, quote), rel=0, abs=tolerance
+        )
+
+
+def test_double_barrier_refinement_preserves_the_opposite_boundary():
+    quote = market(volatility=0.017, rate=0.02, dividend=0.083)
+    instrument = contract(
+        lower_barrier=57.5,
+        upper_barrier=100.016,
+        expiry_time=START + timedelta(days=5 * 365),
+        payout=100,
+    )
+    reference = pricing.AnalyticDoubleTouchEngine().price(instrument, quote)
+    assert pricing.FiniteDifferenceDoubleTouchEngine().price(
+        instrument, quote
+    ) == pytest.approx(reference, rel=0, abs=0.25)
 
 
 def test_analytic_touch_payments_require_only_the_settlement_curve():

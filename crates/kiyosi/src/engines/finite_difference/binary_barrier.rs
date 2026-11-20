@@ -256,16 +256,13 @@ fn solve_grid<D: Diffusion>(
             if up { 0.0 } else { option.barrier_level() },
             upper_barrier.unwrap_or(if up { option.barrier_level() } else { upper }),
         )?;
-        if upper_barrier.is_none()
-            && settings.scheme != super::FiniteDifferenceScheme::ExplicitEuler
-        {
-            space.resolve_barrier(
-                up,
+        if settings.scheme != super::FiniteDifferenceScheme::ExplicitEuler {
+            space.resolve_barriers(
+                [Some(option.barrier_level()), upper_barrier],
                 contract.digital.map(DigitalOption::strike),
-                diffusion.sigma(0.0, option.barrier_level()),
                 time,
-                &risk,
-                &dividend,
+                [&risk, &dividend],
+                |level| diffusion.sigma(0.0, level),
             )?;
         }
     }

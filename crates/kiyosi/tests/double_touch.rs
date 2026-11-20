@@ -20,6 +20,69 @@ fn market(spot: f64) -> PricingContext {
 }
 
 #[test]
+fn short_double_barriers_resolve_a_near_boundary() -> Result<()> {
+    let start = Date::new(2025, 1, 2)?.start_of_day();
+    let end = start.add_micros(15 * 60 * 1_000_000)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.0, 0.0, 0.02)?,
+        100.0,
+        start,
+    )?;
+    let touch = DoubleTouchOption::cash(
+        DoubleTouchOptionTerms::new(start, end, 99.98, 125.0, DoubleBarrierType::KnockIn),
+        100.0,
+    )?;
+    let barrier = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(
+        OptionType::Call,
+        95.0,
+        start,
+        end,
+        99.98,
+        125.0,
+        DoubleBarrierType::KnockIn,
+    ))?;
+    let touch_engine = FiniteDifferenceDoubleTouchEngine::default();
+    let barrier_engine = FiniteDifferenceDoubleBarrierEngine::default();
+    for (price, reference, tolerance) in [
+        (
+            touch_engine.price(&touch, &context)?,
+            AnalyticDoubleTouchEngine.price(&touch, &context)?,
+            0.01,
+        ),
+        (
+            barrier_engine.price(&barrier, &context)?,
+            AnalyticDoubleBarrierEngine.price(&barrier, &context)?,
+            0.001,
+        ),
+    ] {
+        assert!(
+            (price - reference).abs() < tolerance,
+            "double barrier {price} vs {reference}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn double_barrier_refinement_preserves_the_opposite_boundary() -> Result<()> {
+    let start = Date::new(2025, 1, 2)?.start_of_day();
+    let end = start.add_days(5 * 365)?;
+    let model = BlackScholesMertonParameters::new(0.02, 0.083, 0.017)?;
+    let context = PricingContext::new(model, 100.0, start)?;
+    let touch = DoubleTouchOption::cash(
+        DoubleTouchOptionTerms::new(start, end, 57.5, 100.016, DoubleBarrierType::KnockIn),
+        100.0,
+    )?;
+    let reference = AnalyticDoubleTouchEngine.price(&touch, &context)?;
+    let price = FiniteDifferenceDoubleTouchEngine::default().price(&touch, &context)?;
+    assert!(
+        (price - reference).abs() < 0.25,
+        "double touch {price} vs {reference}"
+    );
+    Ok(())
+}
+
+#[test]
 fn narrow_continuous_double_no_touch_preserves_nonnegative_prices() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = start.add_days(7)?;
