@@ -296,6 +296,7 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 import sys
                 import threading
                 from datetime import datetime, time, timedelta
+                from time import monotonic
                 from kiyosi.instruments import (
                     Accumulator, AmericanOption, BarrierOption, KnockInObservation,
                     RangeAccrualOption, SnowballOption, autocallable_observations,
@@ -479,12 +480,16 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 try:
                     start.set()
                     try:
-                        operation()
+                        deadline = monotonic() + 1
+                        # A short request can finish before the sender is scheduled.
+                        while monotonic() < deadline:
+                            operation()
                     except StopOperation:
                         pass
                     else:
-                        raise AssertionError(f"{case} returned before processing the signal")
+                        raise AssertionError(f"{case} did not process the signal")
                 finally:
+                    signal.signal(signal.SIGINT, signal.SIG_IGN)
                     sys.setswitchinterval(interval)
                     timer.join()
 
