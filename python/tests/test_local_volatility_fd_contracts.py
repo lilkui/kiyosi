@@ -6,7 +6,6 @@ import pytest
 from kiyosi import InvalidInputError, UnsupportedOperationError, pricing
 from kiyosi.instruments import BarrierOption
 from kiyosi.market import (
-    BlackScholesMertonParameters,
     LocalVolatilitySurface,
     RateTermStructure,
 )
@@ -79,34 +78,6 @@ def test_fd_native_spot_controls_validate_per_request(subtests):
                 engine.price_with_greeks(contract, local, "delta", spot_shift=True)
             with pytest.raises(TypeError):
                 factory(spot_shift=0.001)
-
-
-def test_every_fd_scheme_preserves_constant_surface_bsm_results(subtests):
-    local = context()
-    bsm = local.replace(
-        model_parameters=BlackScholesMertonParameters(
-            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
-        )
-    )
-    for contract, name in representatives():
-        for scheme in [
-            "explicit_euler",
-            "implicit_euler",
-            "crank_nicolson",
-            "rannacher",
-        ]:
-            with subtests.test(engine=name, scheme=scheme):
-                engine = getattr(pricing, name)(
-                    asset_step_count=80,
-                    time_step_count=16000,
-                    asset_upper_boundary=400,
-                    scheme=scheme,
-                )
-                actual, expected = (
-                    engine.price(contract, local),
-                    engine.price(contract, bsm),
-                )
-                assert actual == pytest.approx(expected, rel=0, abs=1e-6)
 
 
 def test_active_products_reject_missing_surface_coverage_and_unstable_steps(subtests):

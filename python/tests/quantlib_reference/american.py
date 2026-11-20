@@ -64,10 +64,10 @@ def measure(inputs, name, grid=GRIDS[-1], scale=1):
     ) / (2 * h * unit)
 
 
-def reference(inputs):
+def reference(inputs, measures):
     outputs, metadata = {}, {}
     unavailable = exclusions(inputs)
-    for name in g.MEASURES:
+    for name in measures:
         metadata[f"unit_{name}"] = g.UNITS[name]
         if name in unavailable:
             metadata[f"unavailable_{name}"] = unavailable[name]

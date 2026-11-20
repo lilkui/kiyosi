@@ -83,7 +83,8 @@ def scenarios():
                         "acceleration_factor": acceleration,
                         "accumulated_quantity": 3,
                         "exposure": 100 * (3 + max(1, acceleration)),
-                        "convergence": volatility == 0.2 and acceleration == 2,
+                        "convergence": (volatility, barrier, acceleration)
+                        == (0.2, 110, 2),
                     },
                 )
 

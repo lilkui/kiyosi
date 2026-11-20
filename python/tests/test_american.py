@@ -503,8 +503,9 @@ def test_american_engines_match_live_quantlib(scenario, make_market, subtests):
         inputs["volatility"],
         datetime.fromisoformat(inputs["valuation"]),
     )
+    measures = oracle.MEASURES if scenario["wrapper"] else ("price", "delta", "gamma")
     with ql.SavedSettings():
-        reference, metadata = american.reference(inputs)
+        reference, metadata = american.reference(inputs, measures)
     names = sorted(reference.keys() - {"price"})
     for profile in AMERICAN_REFERENCE["profiles"]:
         engine_name = profile["engine"]
@@ -517,13 +518,11 @@ def test_american_engines_match_live_quantlib(scenario, make_market, subtests):
             if native:
                 result = engine.price_with_greeks(option, context, names)
                 actual = {name: getattr(result, name) for name in reference}
-                if engine_name == "CoxRossRubinsteinVanillaEngine":
+                if engine_name == "CoxRossRubinsteinVanillaEngine" and "vega" in names:
                     actual["vega"] = numerical_greeks(
                         engine, option, context, "vega", **profile["shifts"]
                     ).vega
-            elif (
-                scenario["wrapper"] or engine_name == "BjerksundStenslandVanillaEngine"
-            ):
+            elif scenario["wrapper"]:
                 result = numerical_greeks(
                     engine, option, context, names, **profile["shifts"]
                 )

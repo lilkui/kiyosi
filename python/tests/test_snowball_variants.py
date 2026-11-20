@@ -257,7 +257,7 @@ def test_existing_quantlib_terminal_portfolios(subtests):
             )
 
 
-def test_all_eight_presets_match_explicit_terms_prices_and_analysis(subtests):
+def test_all_eight_presets_match_explicit_terms(subtests):
     dates = [datetime(2025, 2, 3), datetime(2025, 3, 3), END]
     common = {
         "initial_spot": 100,
@@ -367,8 +367,7 @@ def test_all_eight_presets_match_explicit_terms_prices_and_analysis(subtests):
             "every_trading_day",
         ),
     ]
-    engine = QuadratureAutocallableEngine(asset_step_count=128)
-    ctx = market(100, datetime(2025, 1, 15))
+    engine = QuadratureAutocallableEngine()
     for name, extra, levels, coupons, maturity, upper, lower, mode in cases:
         with subtests.test(preset=name):
             actual = getattr(instruments, name)(
@@ -401,27 +400,13 @@ def test_all_eight_presets_match_explicit_terms_prices_and_analysis(subtests):
                 ),
             )
             assert actual == explicit
-            assert engine.price(actual, ctx) == engine.price(explicit, ctx)
-            mc = MonteCarloAutocallableEngine(path_count=128, seed=42)
-            assert mc.price(actual, ctx) == mc.price(explicit, ctx)
-            for note in (actual, explicit):
-                result = numerical_greeks(
-                    engine,
-                    note,
-                    ctx,
-                    ["delta", "vega"],
-                    spot_shift=0.25,
-                )
-                assert result.delta is not None
-                assert result.vega is not None
             if mode == "at_expiry":
-                for note in (actual, explicit):
-                    assert_rejection(
-                        InvalidInputError,
-                        lambda note=note: engine.price(
-                            note.replace(barrier_state="knocked_in"), market(100, START)
-                        ),
-                    )
+                assert_rejection(
+                    InvalidInputError,
+                    engine.price,
+                    actual.replace(barrier_state="knocked_in"),
+                    market(100, START),
+                )
             else:
                 assert actual.replace(
                     barrier_state="knocked_in",

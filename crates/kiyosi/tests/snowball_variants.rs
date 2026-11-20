@@ -280,10 +280,10 @@ fn ternary_strict_knock_in_pays_floor_and_rejects_floor_above_coupon() {
 }
 
 #[test]
-fn every_preset_expands_to_explicit_validated_terms_and_prices() {
+fn every_preset_expands_to_explicit_validated_terms() {
     let dates = vec![date(2, 3), date(3, 3), date(4, 1)];
     let base = SnowballPresetTerms::new(
-        0.08,
+        0.125,
         100.0,
         80.0,
         110.0,
@@ -296,8 +296,8 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
         (
             SnowballPreset::Standard,
             [110.0; 3],
-            [0.08; 3],
-            0.08,
+            [0.125; 3],
+            0.125,
             100.0,
             0.0,
             KnockInObservation::EveryTradingDay {
@@ -307,8 +307,8 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
         (
             SnowballPreset::European,
             [110.0; 3],
-            [0.08; 3],
-            0.08,
+            [0.125; 3],
+            0.125,
             100.0,
             0.0,
             KnockInObservation::AtExpiry,
@@ -318,8 +318,8 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
                 knock_out_level_decrement: 2.0,
             },
             [110.0, 108.0, 106.0],
-            [0.08; 3],
-            0.08,
+            [0.125; 3],
+            0.125,
             100.0,
             0.0,
             KnockInObservation::EveryTradingDay {
@@ -328,12 +328,12 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
         ),
         (
             SnowballPreset::BothDown {
-                coupon_rate_decrement: 0.01,
+                coupon_rate_decrement: 0.03125,
                 knock_out_level_decrement: 2.0,
             },
             [110.0, 108.0, 106.0],
-            [0.08, 0.07, 0.06],
-            0.06,
+            [0.125, 0.09375, 0.0625],
+            0.0625,
             100.0,
             0.0,
             KnockInObservation::EveryTradingDay {
@@ -345,7 +345,7 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
                 maturity_coupon_rate: -0.02,
             },
             [110.0; 3],
-            [0.08; 3],
+            [0.125; 3],
             -0.02,
             100.0,
             0.0,
@@ -358,8 +358,8 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
                 final_knock_out_level: 95.0,
             },
             [110.0, 110.0, 95.0],
-            [0.08; 3],
-            0.08,
+            [0.125; 3],
+            0.125,
             100.0,
             0.0,
             KnockInObservation::EveryTradingDay {
@@ -369,8 +369,8 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
         (
             SnowballPreset::Otm { upper_strike: 90.0 },
             [110.0; 3],
-            [0.08; 3],
-            0.08,
+            [0.125; 3],
+            0.125,
             90.0,
             0.0,
             KnockInObservation::EveryTradingDay {
@@ -380,8 +380,8 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
         (
             SnowballPreset::LossCapped { lower_strike: 60.0 },
             [110.0; 3],
-            [0.08; 3],
-            0.08,
+            [0.125; 3],
+            0.125,
             100.0,
             60.0,
             KnockInObservation::EveryTradingDay {
@@ -389,9 +389,8 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
             },
         ),
     ];
-    let engine = QuadratureAutocallableEngine::default();
     for (preset, levels, coupons, maturity, upper, lower, mode) in cases {
-        let mut explicit = SnowballTerms::new(
+        let explicit = SnowballTerms::new(
             maturity,
             100.0,
             80.0,
@@ -400,40 +399,15 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
             date(1, 1),
             date(4, 1),
             autocallable_observations(&dates, &levels, Some(&coupons), None).unwrap(),
-            kiyosi::KnockInObservation::EveryTradingDay {
-                observation_clock_time: (date(4, 1)).time_of_day(),
-            },
+            mode,
             TradingCalendar::weekdays(),
         );
-        explicit.knock_in_observation = mode;
 
         let expected = SnowballOption::new(explicit).unwrap();
         let mut input = base.clone();
         input.knock_in_observation_clock_time = expected.observation_clock_time();
         let actual = input.expand(preset).unwrap();
-        for (a, b) in actual
-            .autocall_observations()
-            .iter()
-            .zip(expected.autocall_observations())
-        {
-            assert_eq!(a.time(), b.time());
-            assert!((a.knock_out_level() - b.knock_out_level()).abs() < 1e-14);
-            assert!((a.coupon_rate().unwrap() - b.coupon_rate().unwrap()).abs() < 1e-14);
-        }
-        assert_eq!(actual.terms().knock_in_observation, mode);
-        assert_eq!(
-            actual.observation_clock_time(),
-            expected.observation_clock_time()
-        );
-        assert!((actual.terms().maturity_coupon_rate - maturity).abs() < 1e-14);
-        assert_eq!(actual.terms().upper_strike, upper);
-        assert_eq!(actual.terms().lower_strike, lower);
-        let context = market(100.0, date(1, 1));
-        assert!(
-            (engine.price(&actual, &context).unwrap() - engine.price(&expected, &context).unwrap())
-                .abs()
-                < 1e-12
-        );
+        assert_eq!(actual, expected, "{preset:?}");
     }
 }
 
