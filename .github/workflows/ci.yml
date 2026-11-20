@@ -59,6 +59,9 @@ jobs:
       - run: uv run --no-project --with ruff -- ruff check python examples/python tools
       - run: uv run --no-project --with ruff -- ruff format --check python examples/python tools
       - run: uv run --no-project --with ty -- ty check --extra-search-path python/src --error unused-ignore-comment python/src python/tests/typing
+      - name: Check benchmark coverage and report handling
+        working-directory: benchmarks/quantlib
+        run: python3 -m unittest test_coverage test_run.CommandTests test_run.ReportWriteTests test_run.ReportTests
 
   distributions:
     strategy:
