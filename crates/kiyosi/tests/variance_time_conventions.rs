@@ -54,6 +54,27 @@ fn business_time_counts_fractional_trading_dates_with_fixed_basis() {
 }
 
 #[test]
+fn all_days_365_matches_natural_clock_for_constant_surface() -> Result<()> {
+    let start = instant(2026, 11, 13, 12);
+    let end = start.add_days(3)?;
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let surface =
+        LocalVolatilitySurface::new(vec![start, end], vec![50.0, 150.0], vec![vec![0.3; 2]; 2])?;
+    let natural = LocalVolatilityParameters::new(0.07, 0.02, surface)?;
+    let business = natural.replace(LocalVolatilityParameterChanges {
+        variance_time_convention: Some(VarianceTimeConvention::Business(
+            TradingCalendar::all_days(),
+        )),
+        ..Default::default()
+    })?;
+    let engine = FiniteDifferenceVanillaEngine::default();
+    let expected = engine.price(&option, &PricingContext::new(natural, 100.0, start)?)?;
+    let actual = engine.price(&option, &PricingContext::new(business, 100.0, start)?)?;
+    assert!((actual - expected).abs() <= 1e-10, "{actual} != {expected}");
+    Ok(())
+}
+
+#[test]
 fn model_defaults_replacement_and_calendar_validation_preserve_units() {
     let model = BlackScholesMertonParameters::new(0.05, 0.02, 0.2).unwrap();
     assert_eq!(

@@ -20,7 +20,9 @@ macro_rules! with_diffusion {
             .model_parameters()
             .variance_time_convention()
             .calendar()
-            .is_some();
+            .is_some_and(|calendar| {
+                horizon.is_none() || *calendar != $crate::TradingCalendar::all_days()
+            });
         if let Some(model) = local_volatility::local_model($context) {
             let surface = model.surface();
             let base = LocalDiffusion::new($context, surface);
