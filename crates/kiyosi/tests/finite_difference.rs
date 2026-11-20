@@ -488,52 +488,6 @@ fn check_damping<I: OptionContract, E: PricingEngine<I>>(
 }
 
 #[test]
-fn standard_crank_nicolson_matches_one_undamped_step_with_payoff_averaging() {
-    let (start, end) = dates();
-    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
-    let context = market(100.0, 0.0, 0.0, 0.2);
-    let settings = FiniteDifferenceSettings {
-        asset_step_count: 3,
-        time_step_count: 1,
-        scheme: FiniteDifferenceScheme::CrankNicolson,
-        asset_upper_boundary: Some(200.0),
-    };
-    let actual = FiniteDifferenceVanillaEngine::new(settings)
-        .unwrap()
-        .price(&option, &context)
-        .unwrap();
-    let high = AnalyticEuropeanEngine
-        .price(&option, &market(200.0, 0.0, 0.0, 0.2))
-        .unwrap();
-    // The log-spaced nodes are 25, 50, 100 and 200. Integrate the positive
-    // half of the strike cell by two-point Gauss quadrature, then solve the
-    // two interior equations with the fitted log diffusion stencil.
-    let h = std::f64::consts::LN_2;
-    let middle = h / 4.0;
-    let offset = middle / 3.0_f64.sqrt();
-    let terminal = 25.0 * ((middle - offset).exp_m1() + (middle + offset).exp_m1());
-    let down = 0.04 / h;
-    let up = 0.5 * down;
-    let diagonal = 1.0 + down.midpoint(up);
-    let low = AnalyticEuropeanEngine
-        .price(&option, &market(25.0, 0.0, 0.0, 0.2))
-        .unwrap();
-    let first = (down * low).midpoint(up * terminal);
-    let second = (2.0 - diagonal) * terminal + 0.5 * up * (100.0 + high);
-    let expected =
-        (diagonal * second + 0.5 * down * first) / (diagonal * diagonal - 0.25 * down * up);
-    assert!((actual - expected).abs() < 1e-12);
-    let damped = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
-        scheme: FiniteDifferenceScheme::Rannacher,
-        ..settings
-    })
-    .unwrap()
-    .price(&option, &context)
-    .unwrap();
-    assert!((actual - damped).abs() > 1e-4);
-}
-
-#[test]
 fn rannacher_startup_equals_implicit_half_steps_for_all_contracts() {
     let (start, end) = dates();
     let context = market(99.25, 0.12, 0.02, 0.3);

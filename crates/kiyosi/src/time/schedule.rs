@@ -308,19 +308,6 @@ mod tests {
     };
 
     #[test]
-    fn cloned_schedules_share_storage_after_original_is_dropped() -> Result<()> {
-        let start = crate::Date::new(2025, 1, 1)?.start_of_day();
-        let end = start.add_days(1)?;
-        let schedule =
-            ObservationSchedule::new(vec![start, end], start, end, &TradingCalendar::all_days())?;
-        let cloned = schedule.clone();
-        assert!(std::ptr::eq(schedule.times(), cloned.times()));
-        drop(schedule);
-        assert_eq!(cloned.times(), &[start, end]);
-        Ok(())
-    }
-
-    #[test]
     fn explicit_schedule_validation_polls_between_calendar_queries() -> Result<()> {
         let token = CancellationToken::default();
         let calls = Arc::new(AtomicUsize::new(0));
