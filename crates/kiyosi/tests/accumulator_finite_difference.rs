@@ -21,6 +21,34 @@ fn market(spot: f64, at: Timestamp) -> PricingContext {
 }
 
 #[test]
+fn accumulator_calendar_queries_scale_with_observations() -> Result<()> {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    let start = day(1, 6);
+    let end = start.add_days(365)?;
+    let calls = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&calls);
+    let calendar = TradingCalendar::new(
+        move |_| {
+            counter.fetch_add(1, Ordering::Relaxed);
+            true
+        },
+        365,
+    )?;
+    let option = Accumulator::new(AccumulatorTerms {
+        calendar,
+        ..AccumulatorTerms::new(100.0, 120.0, 1.0, 2.0, start, end, start.time_of_day())
+    })?;
+    FiniteDifferenceAccumulatorEngine::default().price(&option, &market(100.0, start))?;
+    let count = calls.load(Ordering::Relaxed);
+    assert!(count <= 2 * 366 + 8, "made {count} calendar queries");
+    Ok(())
+}
+
+#[test]
 fn weekend_accumulator_knock_out_precedes_stochastic_pricing() -> Result<()> {
     let start = Date::new(2026, 11, 14)?.start_of_day();
     let knock_out = start.date().at_time(TimeOfDay::new(15, 0, 0, 0)?);

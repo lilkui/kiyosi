@@ -243,16 +243,12 @@ fn solve_grid<D: Diffusion>(
             ]
         }
     };
+    let observe = option.observes_knock_out(expiry);
+    let accumulate = option.accumulates_at(expiry, option.calendar());
     let [slope, intercept] = &mut layers;
     for (i, (slope, intercept)) in slope.iter_mut().zip(intercept).enumerate() {
         let value = super::grid::project_in_coordinates(&space, &breaks, i, |asset| {
-            event(
-                asset,
-                option.unit_payoff(asset),
-                0.0,
-                option.observes_knock_out(option.expiry_time()),
-                option.accumulates_at(option.expiry_time(), option.calendar()),
-            )
+            event(asset, option.unit_payoff(asset), 0.0, observe, accumulate)
         });
         *slope = value[0];
         *intercept = value[1];
@@ -286,19 +282,15 @@ fn solve_grid<D: Diffusion>(
             }
         }
         if let Ok(event_index) = trading.binary_search_by(|t| t.total_cmp(&grid.times[step])) {
-            let observe = option.observes_knock_out(dates[event_index]);
+            let date = dates[event_index];
+            let observe = option.observes_knock_out(date);
+            let accumulate = option.accumulates_at(date, option.calendar());
             for i in 0..=space.count {
                 // Project only the event jump to preserve smooth continuation.
                 let correction = super::grid::project_in_coordinates(&space, &breaks, i, |asset| {
                     let slope = space.linear(&layers[0], asset);
                     let intercept = space.linear(&layers[1], asset);
-                    let value = event(
-                        asset,
-                        slope,
-                        intercept,
-                        observe,
-                        option.accumulates_at(dates[event_index], option.calendar()),
-                    );
+                    let value = event(asset, slope, intercept, observe, accumulate);
                     [value[0] - slope, value[1] - intercept]
                 });
                 for layer in 0..count {
