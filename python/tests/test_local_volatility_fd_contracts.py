@@ -4,9 +4,12 @@ from datetime import datetime, timedelta
 
 import pytest
 from kiyosi import InvalidInputError, UnsupportedOperationError, pricing
-from kiyosi.instruments import BarrierOption
+from kiyosi.instruments import BarrierOption, BinaryBarrierOption
 from kiyosi.market import (
+    BlackScholesMertonParameters,
+    LocalVolatilityParameters,
     LocalVolatilitySurface,
+    PricingContext,
     RateTermStructure,
 )
 from test_local_volatility import END, START, context, surface
@@ -24,6 +27,54 @@ def representatives():
             ):
                 found.add(name)
                 yield contract, name
+
+
+def test_wide_local_knock_in_grids_resolve_the_continuation_payoff():
+    expiry = START + timedelta(days=5 * 365)
+    bsm = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.03, volatility=0.85
+        ),
+        spot_price=100,
+        valuation_time=START,
+    )
+    local = bsm.replace(
+        model_parameters=LocalVolatilityParameters(
+            risk_free_rate=0.05,
+            dividend_yield=0.03,
+            surface=LocalVolatilitySurface(
+                times=[START, expiry], spots=[80, 120], values=[[0.85, 0.85]] * 2
+            ),
+        )
+    )
+    terms = {
+        "option_type": "call",
+        "strike": 100,
+        "effective_time": START,
+        "expiry_time": expiry,
+        "barrier_level": 101,
+        "barrier_type": "up_and_in",
+    }
+    barrier = BarrierOption(**terms)
+    binary = BinaryBarrierOption(**terms, payoff_type="cash", payout=100)
+    for instrument, engine, analytic in (
+        (
+            barrier,
+            pricing.FiniteDifferenceBarrierEngine(),
+            pricing.AnalyticBarrierEngine(),
+        ),
+        (
+            binary,
+            pricing.FiniteDifferenceBinaryBarrierEngine(),
+            pricing.AnalyticBinaryBarrierEngine(),
+        ),
+    ):
+        expected = pytest.approx(analytic.price(instrument, bsm), rel=0, abs=0.02)
+        assert engine.price(instrument, local) == expected
+        assert (
+            engine.solve(instrument, local, spot_range=(99, 100.5)).price(100)
+            == expected
+        )
 
 
 def test_native_spot_bump_recovers_local_barrier_greeks_without_changing_price():

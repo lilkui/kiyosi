@@ -514,10 +514,15 @@ fn local_digital_knock_in<D: Diffusion>(
 ) -> Result<Vec<f64>> {
     let digital = contract.digital.ok_or_else(unstable)?;
     let payoff = Payoff::digital(digital);
-    let full = SpatialGrid::new(settings, upper, 0.0, digital.strike())?;
     let time = *grid.times.last().ok_or_else(unstable)?;
     let scheduled = contract.monitoring.observation_mode() == ObservationMode::Scheduled;
     let level = contract.monitoring.barrier_level();
+    let full = SpatialGrid::knock_in_continuation(
+        settings,
+        upper,
+        digital.strike(),
+        diffusion.sigma(0.0, digital.strike()) * time.sqrt(),
+    )?;
     let knocked = |asset| {
         if contract.monitoring.barrier_type().is_up() {
             asset >= level

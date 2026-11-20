@@ -689,11 +689,11 @@ fn solve_grid<D: Diffusion>(
     };
     let mut values = if local_in {
         // Evolve activation directly to avoid cancellation between independently meshed prices.
-        let full_space = SpatialGrid::new(
+        let full_space = SpatialGrid::knock_in_continuation(
             settings,
             upper,
-            0.0,
-            context.spot_price().max(terms.strike()),
+            terms.strike(),
+            volatility.sigma(0.0, terms.strike()) * time.sqrt(),
         )?;
         let continuation: Vec<_> = (0..=full_space.count)
             .map(|i| {

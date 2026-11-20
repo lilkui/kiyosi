@@ -87,6 +87,24 @@ pub(super) struct Spline {
 }
 
 impl SpatialGrid {
+    pub fn knock_in_continuation(
+        settings: FiniteDifferenceSettings,
+        upper: f64,
+        strike: f64,
+        diffusion_width: f64,
+    ) -> Result<Self> {
+        let mut space = Self::new(settings, upper, 0.0, strike)?;
+        let scale = strike * (0.1 * diffusion_width).max(1e-4);
+        // A wide full domain can otherwise put the first interior node beyond the payoff kink.
+        if settings.scheme != FiniteDifferenceScheme::ExplicitEuler
+            && scale > 0.0
+            && space.spacing > scale
+        {
+            concentrate(&mut space, vec![strike], scale)?;
+        }
+        Ok(space)
+    }
+
     #[expect(
         clippy::cast_precision_loss,
         clippy::cast_sign_loss,

@@ -41,6 +41,76 @@ fn request() -> GreeksRequest {
 }
 
 #[test]
+fn wide_local_knock_in_grids_resolve_the_continuation_payoff() -> Result<()> {
+    let (start, _) = dates();
+    let end = start.add_days(5 * 365)?;
+    let bsm = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.03, 0.85)?,
+        100.0,
+        start,
+    )?;
+    let local = PricingContext::new(
+        LocalVolatilityParameters::new(
+            0.05,
+            0.03,
+            LocalVolatilitySurface::new(
+                vec![start, end],
+                vec![80.0, 120.0],
+                vec![vec![0.85; 2]; 2],
+            )?,
+        )?,
+        100.0,
+        start,
+    )?;
+    let barrier = BarrierOption::new(BarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        start,
+        end,
+        101.0,
+        BarrierType::UpAndIn,
+    ))?;
+    let binary = BinaryBarrierOption::cash(
+        BinaryBarrierTerms::new(
+            OptionType::Call,
+            100.0,
+            start,
+            end,
+            101.0,
+            BarrierType::UpAndIn,
+        ),
+        100.0,
+    )?;
+    let vanilla_engine = FiniteDifferenceBarrierEngine::default();
+    let binary_engine = FiniteDifferenceBinaryBarrierEngine::default();
+    let expected = [
+        AnalyticBarrierEngine.price(&barrier, &bsm)?,
+        AnalyticBinaryBarrierEngine.price(&binary, &bsm)?,
+    ];
+    let scalar = [
+        vanilla_engine.price(&barrier, &local)?,
+        binary_engine.price(&binary, &local)?,
+    ];
+    let saved = [
+        vanilla_engine
+            .solve(&barrier, &local, 99.0..=100.5)?
+            .price(100.0)?,
+        binary_engine
+            .solve(&binary, &local, 99.0..=100.5)?
+            .price(100.0)?,
+    ];
+    for actual in [scalar, saved] {
+        for (actual, expected) in actual.into_iter().zip(expected) {
+            assert!(
+                (actual - expected).abs() < 0.02,
+                "knock-in {actual} vs {expected}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn native_spot_bump_recovers_local_barrier_greeks_without_changing_price() -> Result<()> {
     let (start, end) = dates();
     let context = local(119.995, end, false);
