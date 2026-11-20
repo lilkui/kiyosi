@@ -165,8 +165,10 @@ impl SpatialGrid {
         }
         let layer = (variance / carry) * barrier;
         let width = (sigma * time.sqrt()) * barrier;
-        let narrow = width < self.spacing;
-        if narrow || layer < self.spacing {
+        // A single cell across a diffusion width or drift layer still smears the payoff.
+        let resolved_width = 8.0 * self.spacing;
+        let narrow = width < resolved_width;
+        if narrow || layer < resolved_width {
             let mut levels = vec![barrier];
             if narrow {
                 // Short diffusion widths need fine cells at the payoff kink as well as the barrier.

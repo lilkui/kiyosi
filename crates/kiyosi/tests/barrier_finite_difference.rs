@@ -1,6 +1,39 @@
 use kiyosi::*;
 
 #[test]
+fn nearby_grid_sizes_resolve_narrow_up_and_out_payoff() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let option = BarrierOption::new(BarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        start,
+        start.add_days(30)?,
+        100.15,
+        BarrierType::UpAndOut,
+    ))?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.03, 0.01, 0.005)?,
+        99.9,
+        start,
+    )?;
+    let expected = AnalyticBarrierEngine.price(&option, &context)?;
+    for asset_step_count in [799, 800] {
+        let engine = FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings {
+            asset_step_count,
+            ..Default::default()
+        })?;
+        let saved = engine.solve(&option, &context, 99.89..=99.91)?;
+        for actual in [engine.price(&option, &context)?, saved.price(99.9)?] {
+            assert!(
+                (actual - expected).abs() < 0.005 * expected,
+                "asset steps={asset_step_count}: {actual} != {expected}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn short_continuous_barrier_resolves_diffusion_and_strike() -> Result<()> {
     let start = Date::new(2025, 1, 6)?.start_of_day();
     let end = start.add_days(1)?;

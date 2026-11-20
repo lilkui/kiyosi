@@ -11,6 +11,31 @@ from kiyosi.market import (
 )
 
 
+@pytest.mark.parametrize("asset_steps", (799, 800))
+def test_nearby_grid_sizes_resolve_narrow_up_and_out_payoff(asset_steps):
+    start, end = datetime(2025, 1, 1), datetime(2025, 1, 31)
+    option = BarrierOption(
+        option_type="call",
+        strike=100,
+        effective_time=start,
+        expiry_time=end,
+        barrier_level=100.15,
+        barrier_type="up_and_out",
+    )
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.03, dividend_yield=0.01, volatility=0.005
+        ),
+        spot_price=99.9,
+        valuation_time=start,
+    )
+    expected = pricing.AnalyticBarrierEngine().price(option, context)
+    engine = pricing.FiniteDifferenceBarrierEngine(asset_step_count=asset_steps)
+    saved = engine.solve(option, context, spot_range=(99.89, 99.91))
+    assert engine.price(option, context) == pytest.approx(expected, rel=0.005)
+    assert saved.price(99.9) == pytest.approx(expected, rel=0.005)
+
+
 @pytest.mark.parametrize("rebate", (0, 3))
 def test_short_continuous_barrier_resolves_diffusion_and_strike(rebate):
     start, end = datetime(2025, 1, 6), datetime(2025, 1, 7)
