@@ -2427,7 +2427,8 @@ class QuadratureVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
     options. American calls with nonnegative rates and nonpositive dividend
     yields use the analytic European price. With one exercise interval,
     American pricing takes the greater of immediate exercise and the analytic
-    European price without using a spatial grid. Requires flat-rate BSM parameters.
+    European price without using a spatial grid. With more intervals both
+    values are lower bounds on the rollback price. Requires flat-rate BSM parameters.
     Check spatial, time and
     integration-extent convergence separately; fixed-grid completion does not
     estimate error. Higher Greeks near exercise boundaries also require bump

@@ -64,6 +64,7 @@ impl QuadratureVanillaSettings {
 /// Other American pricing integrates cubic continuation curves on a strike-centered
 /// log-price grid, with linear interpolation in cells whose cubic control values
 /// exceed the endpoint range, and exercise at valuation, uniform time points and expiry.
+/// American prices are bounded below by immediate exercise and the analytic European price.
 /// The last interval integrates the terminal payoff with exact Gaussian moments.
 /// In-the-money tails extend the edge values linearly in the asset; opposite
 /// tails are zero. This boundary approximation requires domain convergence checks.
@@ -180,7 +181,9 @@ macro_rules! vanilla_pricing {
                     return Err(invalid_transition());
                 }
                 if $american {
-                    american_price(payoff, context, time, drift, width, rate, self.settings)
+                    let price = american_price(payoff, context, time, drift, width, rate, self.settings)?;
+                    $(let price = price.max(crate::AnalyticEuropeanEngine.price(option.$vanilla(), context)?);)?
+                    Ok(price)
                 } else {
                     let forward =
                         context.log_forward_moneyness(option.expiry_time(), payoff.strike, carry);

@@ -164,6 +164,19 @@ fn american_call_without_early_exercise_preserves_deep_tail() -> Result<()> {
 }
 
 #[test]
+fn american_quadrature_retains_european_lower_bound() -> Result<()> {
+    let start = dates().0;
+    let end = start.add_days(3650)?;
+    let context = market(100.0, -0.02, 0.0, 1.5);
+    let american = AmericanOption::new(OptionType::Call, 100.0, start, end)?;
+    let european = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let price = QuadratureVanillaEngine::default().price(&american, &context)?;
+    let floor = AnalyticEuropeanEngine.price(&european, &context)?;
+    assert!(price >= floor, "American value {price} is below {floor}");
+    Ok(())
+}
+
+#[test]
 fn american_prices_refine_toward_independent_tree_with_negative_carry() {
     let (start, end) = dates();
     let reference =

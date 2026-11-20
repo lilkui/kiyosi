@@ -408,6 +408,19 @@ def test_american_quadrature_rejects_an_oversized_grid_before_rollback():
         engine.price(contract(AmericanOption, "put"), market())
 
 
+def test_american_quadrature_retains_european_lower_bound():
+    terms = {
+        "option_type": "call",
+        "strike": 100,
+        "effective_time": START,
+        "expiry_time": START + timedelta(days=3650),
+    }
+    context = market(100, -0.02, 0, 1.5)
+    floor = pricing.AnalyticEuropeanEngine().price(EuropeanOption(**terms), context)
+    price = pricing.QuadratureVanillaEngine().price(AmericanOption(**terms), context)
+    assert price >= floor
+
+
 def test_european_quadrature_counts_panels_across_sections():
     engine = pricing.QuadratureVanillaEngine(asset_step_count=125_000_001)
     instrument = contract(EuropeanOption, "call")
