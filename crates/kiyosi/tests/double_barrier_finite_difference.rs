@@ -22,7 +22,7 @@ fn market(spot: f64) -> PricingContext {
 }
 
 #[test]
-fn negative_narrow_band_price_requires_a_stable_scheme() {
+fn default_scheme_preserves_narrow_double_barrier_prices() {
     let mut t = terms(DoubleBarrierType::KnockOut, OptionType::Call);
     t.lower_barrier = 99.5;
     t.upper_barrier = 100.5;
@@ -33,20 +33,19 @@ fn negative_narrow_band_price_requires_a_stable_scheme() {
         time_step_count: 400,
         ..Default::default()
     };
-    assert!(matches!(
-        FiniteDifferenceDoubleBarrierEngine::new(settings)
-            .unwrap()
-            .price(&option, &market(100.0)),
-        Err(Error::ComputationFailure(_))
-    ));
-    let stable = FiniteDifferenceDoubleBarrierEngine::new(FiniteDifferenceSettings {
-        scheme: FiniteDifferenceScheme::ImplicitEuler,
-        ..settings
-    })
-    .unwrap()
-    .price(&option, &market(100.0))
-    .unwrap();
-    assert!((0.0..1e-8).contains(&stable));
+    for scheme in [
+        FiniteDifferenceScheme::Rannacher,
+        FiniteDifferenceScheme::ImplicitEuler,
+    ] {
+        let price = FiniteDifferenceDoubleBarrierEngine::new(FiniteDifferenceSettings {
+            scheme,
+            ..settings
+        })
+        .unwrap()
+        .price(&option, &market(100.0))
+        .unwrap();
+        assert!((0.0..1e-8).contains(&price), "{scheme:?}: {price}");
+    }
 }
 
 #[test]

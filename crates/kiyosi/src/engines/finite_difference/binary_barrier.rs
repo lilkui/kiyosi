@@ -267,8 +267,12 @@ fn solve_grid<D: Diffusion>(
         diffusion::observation_times(context.valuation_time(), expiry, option.observation_times())?;
     let grid = diffusion::time_grid(context, horizon, settings, &risk, &dividend, &observations)?;
     let digital_knock_in = knock_in && contract.digital.is_some();
+    let implicit_fallback = !scheduled
+        && upper_barrier.is_some()
+        && settings.scheme == super::FiniteDifferenceScheme::Rannacher;
     if !(D::LOCAL && digital_knock_in) {
-        let mut steps = grid.rollback_steps(settings.scheme, &observations)?;
+        let mut steps =
+            grid.rollback_steps(settings.scheme, &observations)? + u64::from(implicit_fallback);
         if digital_knock_in {
             steps += grid.rollback_steps(settings.scheme, &[])?;
         }
@@ -418,6 +422,7 @@ fn solve_grid<D: Diffusion>(
             } else {
                 &[]
             },
+            implicit_fallback,
             |current| edges(current, events),
             observe,
         )
@@ -575,6 +580,7 @@ fn local_digital_knock_in<D: Diffusion>(
         settings.scheme,
         [risk, dividend],
         if scheduled { observations } else { &[] },
+        false,
         full_edges,
         edges,
         observe,

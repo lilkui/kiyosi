@@ -514,10 +514,14 @@ fn solve_grid<D: Diffusion>(
     let grid = diffusion::time_grid(context, expiry, settings, &risk, &dividend, &observations)?;
     let knock_in = terms.barrier_type().is_knock_in();
     let local_in = D::LOCAL && knock_in;
+    let implicit_fallback = !scheduled
+        && upper_barrier.is_some()
+        && settings.scheme == super::FiniteDifferenceScheme::Rannacher;
     if !local_in {
-        let mut steps = grid.rollback_steps(settings.scheme, &observations)?;
+        let retry = u64::from(implicit_fallback);
+        let mut steps = grid.rollback_steps(settings.scheme, &observations)? + retry;
         if knock_in {
-            steps += grid.rollback_steps(settings.scheme, &[])?;
+            steps += grid.rollback_steps(settings.scheme, &[])? + retry;
         }
         validate_work(space.count as u64, steps)?;
     }
@@ -665,6 +669,7 @@ fn solve_grid<D: Diffusion>(
             } else {
                 &[]
             },
+            implicit_fallback,
             |current| {
                 if events {
                     edges(current)
@@ -723,6 +728,7 @@ fn solve_grid<D: Diffusion>(
             settings.scheme,
             [&risk, &dividend],
             if scheduled { &observations } else { &[] },
+            implicit_fallback,
             |current| {
                 let cash = scaled(terms.strike(), risk.log_factor(current, time));
                 if sign > 0.0 {

@@ -754,6 +754,28 @@ def test_node_curves_and_early_at_hit_curve_horizon(early):
         )
 
 
+@pytest.mark.parametrize(
+    "spot,lower,upper,rate,dividend,volatility",
+    [(100, 99.9, 100.1, 0.05, 0.02, 0.2), (120, 119.88, 126, 0.15, -0.1, 1)],
+    ids=["narrow-band", "high-volatility"],
+)
+def test_narrow_continuous_double_no_touch_preserves_nonnegative_prices(
+    spot, lower, upper, rate, dividend, volatility
+):
+    expiry_time = START + timedelta(days=7)
+    option = contract(
+        "knock_out",
+        expiry_time=expiry_time,
+        lower_barrier=lower,
+        upper_barrier=upper,
+    )
+    context = market(spot, rate=rate, dividend=dividend, volatility=volatility)
+    engine = pricing.FiniteDifferenceDoubleTouchEngine()
+    saved = engine.solve(option, context, spot_range=(spot - 0.05, spot + 0.05))
+    assert 0 <= engine.price(option, context) <= 1e-12
+    assert 0 <= saved.price(spot) <= 1e-12
+
+
 def test_narrow_band_tiny_volatility_settings_and_concurrency():
     engine = pricing.FiniteDifferenceDoubleTouchEngine(
         asset_step_count=160, time_step_count=800

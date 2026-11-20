@@ -9,7 +9,6 @@ from itertools import product
 import pytest
 import QuantLib as ql
 from kiyosi import (
-    ComputationFailureError,
     InvalidInputError,
     MissingHistoryError,
     RootNotBracketedError,
@@ -576,21 +575,15 @@ def test_edge_grid_refinement_preserves_independent_reference_limits():
     assert errors[-1] < 1e-6
 
 
-def test_negative_narrow_band_price_requires_a_stable_scheme():
+def test_default_scheme_preserves_narrow_double_barrier_prices():
     option = contract(lower_barrier=99.5, upper_barrier=100.5, strike=90)
-    engine = pricing.FiniteDifferenceDoubleBarrierEngine(
-        asset_step_count=80,
-        time_step_count=400,
-    )
-    with pytest.raises(ComputationFailureError):
-        engine.price(option, market())
-    stable = pricing.FiniteDifferenceDoubleBarrierEngine(
-        asset_step_count=80,
-        time_step_count=400,
-        scheme="implicit_euler",
-    )
-    assert stable.price(option, market()) >= 0
-    assert stable.price(option, market()) < 1e-8
+    for scheme in ("rannacher", "implicit_euler"):
+        engine = pricing.FiniteDifferenceDoubleBarrierEngine(
+            asset_step_count=80,
+            time_step_count=400,
+            scheme=scheme,
+        )
+        assert 0 <= engine.price(option, market()) < 1e-8
 
 
 def test_grid_validation_calendar_and_shared_instance_concurrency():

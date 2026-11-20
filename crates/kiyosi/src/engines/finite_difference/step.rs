@@ -12,9 +12,10 @@ pub(super) fn march<D: Diffusion>(
     space: &SpatialGrid,
     grid: &TimeGrid,
     diffusion: D,
-    scheme: FiniteDifferenceScheme,
+    mut scheme: FiniteDifferenceScheme,
     [risk, dividend]: [&Curve; 2],
     observations: &[f64],
+    implicit_fallback: bool,
     edges: impl Fn(f64) -> [f64; 2],
     observe: impl Fn(&mut [f64], f64),
 ) -> Result<Vec<f64>> {
@@ -25,15 +26,28 @@ pub(super) fn march<D: Diffusion>(
         crate::cancellation::check()?;
         for (current, dt, weight) in grid.substeps(step, scheme, &mut damping) {
             let middle = current + 0.5 * dt;
-            diffusion.advance(
-                &mut stepper,
-                &values,
-                &mut next,
-                space,
-                [middle, 0.0],
-                [dt, weight, risk.rate(middle), dividend.rate(middle)],
-                edges(current),
-            )?;
+            let boundaries = edges(current);
+            let mut key = [dt, weight, risk.rate(middle), dividend.rate(middle)];
+            loop {
+                diffusion.advance(
+                    &mut stepper,
+                    &values,
+                    &mut next,
+                    space,
+                    [middle, 0.0],
+                    key,
+                    boundaries,
+                )?;
+                if !use_implicit_fallback(
+                    &mut scheme,
+                    implicit_fallback,
+                    key[1],
+                    &next[1..space.count],
+                ) {
+                    break;
+                }
+                key[1] = scheme.theta();
+            }
             std::mem::swap(&mut values, &mut next);
         }
         if observations
@@ -45,6 +59,24 @@ pub(super) fn march<D: Diffusion>(
         }
     }
     Ok(values)
+}
+
+fn use_implicit_fallback(
+    scheme: &mut FiniteDifferenceScheme,
+    enabled: bool,
+    weight: f64,
+    interior: &[f64],
+) -> bool {
+    if enabled
+        && *scheme == FiniteDifferenceScheme::Rannacher
+        && weight < 1.0
+        && interior.iter().any(|&value| value < 0.0)
+    {
+        // Keep damping the oscillation after retrying this step.
+        *scheme = FiniteDifferenceScheme::ImplicitEuler;
+        return true;
+    }
+    false
 }
 
 struct Factors {
@@ -84,9 +116,10 @@ pub(super) fn march_with_continuation<D: Diffusion>(
     full_space: &SpatialGrid,
     grid: &TimeGrid,
     diffusion: D,
-    scheme: FiniteDifferenceScheme,
+    mut scheme: FiniteDifferenceScheme,
     [risk, dividend]: [&Curve; 2],
     observations: &[f64],
+    implicit_fallback: bool,
     full_edges: impl Fn(f64) -> [f64; 2],
     edges: impl Fn(f64, &[f64]) -> [f64; 2],
     observe: impl Fn(&mut [f64], &[f64], f64),
@@ -98,7 +131,7 @@ pub(super) fn march_with_continuation<D: Diffusion>(
     )?;
     validate_work(
         (space.count + full_space.count) as u64,
-        grid.rollback_steps(scheme, observations)?,
+        grid.rollback_steps(scheme, observations)? + u64::from(implicit_fallback),
     )?;
     let mut next = vec![0.0; values.len()];
     let mut next_continuation = vec![0.0; continuation.len()];
@@ -109,25 +142,37 @@ pub(super) fn march_with_continuation<D: Diffusion>(
         crate::cancellation::check()?;
         for (current, dt, weight) in grid.substeps(step, scheme, &mut damping) {
             let middle = current + 0.5 * dt;
-            let key = [dt, weight, risk.rate(middle), dividend.rate(middle)];
-            diffusion.advance(
-                &mut full_stepper,
-                &continuation,
-                &mut next_continuation,
-                full_space,
-                [middle, 0.0],
-                key,
-                full_edges(current),
-            )?;
-            diffusion.advance(
-                &mut stepper,
-                &values,
-                &mut next,
-                space,
-                [middle, 0.0],
-                key,
-                edges(current, &next_continuation),
-            )?;
+            let boundaries = full_edges(current);
+            let mut key = [dt, weight, risk.rate(middle), dividend.rate(middle)];
+            loop {
+                diffusion.advance(
+                    &mut full_stepper,
+                    &continuation,
+                    &mut next_continuation,
+                    full_space,
+                    [middle, 0.0],
+                    key,
+                    boundaries,
+                )?;
+                diffusion.advance(
+                    &mut stepper,
+                    &values,
+                    &mut next,
+                    space,
+                    [middle, 0.0],
+                    key,
+                    edges(current, &next_continuation),
+                )?;
+                if !use_implicit_fallback(
+                    &mut scheme,
+                    implicit_fallback,
+                    key[1],
+                    &next[1..space.count],
+                ) {
+                    break;
+                }
+                key[1] = scheme.theta();
+            }
             std::mem::swap(&mut continuation, &mut next_continuation);
             std::mem::swap(&mut values, &mut next);
         }

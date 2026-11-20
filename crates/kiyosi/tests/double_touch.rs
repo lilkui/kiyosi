@@ -20,6 +20,32 @@ fn market(spot: f64) -> PricingContext {
 }
 
 #[test]
+fn narrow_continuous_double_no_touch_preserves_nonnegative_prices() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_days(7)?;
+    let engine = FiniteDifferenceDoubleTouchEngine::default();
+    for (spot, lower, upper, rate, dividend, volatility) in [
+        (100.0, 99.9, 100.1, 0.05, 0.02, 0.2),
+        (120.0, 119.88, 126.0, 0.15, -0.1, 1.0),
+    ] {
+        let model = BlackScholesMertonParameters::new(rate, dividend, volatility)?;
+        let context = PricingContext::new(model, spot, start)?;
+        let touch = DoubleTouchOption::cash(
+            DoubleTouchOptionTerms::new(start, end, lower, upper, DoubleBarrierType::KnockOut),
+            1.0,
+        )?;
+        let saved = engine.solve(&touch, &context, (spot - 0.05)..=(spot + 0.05))?;
+        for actual in [engine.price(&touch, &context)?, saved.price(spot)?] {
+            assert!(
+                (0.0..=1e-12).contains(&actual),
+                "unexpected survival value {actual} at {spot}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn analytic_touch_payments_require_only_the_settlement_curve() -> Result<()> {
     let terms = terms(DoubleBarrierType::KnockIn);
     let start = terms.effective_time;

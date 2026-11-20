@@ -37,6 +37,8 @@ pub enum FiniteDifferenceScheme {
     ///
     /// Replaces each of the first two intervals with two implicit Euler half-steps,
     /// restarting after scheduled barrier, accumulator and autocallable observations.
+    /// Continuous double barriers retry a Crank-Nicolson step that produces a
+    /// negative interior price and continue the rollback with implicit Euler.
     #[default]
     Rannacher,
 }
