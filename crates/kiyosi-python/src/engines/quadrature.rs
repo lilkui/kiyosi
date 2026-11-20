@@ -144,7 +144,8 @@ quadrature_engine!(
     /// -----
     /// Uses Simpson integration for European options and Gaussian backward
     /// induction with piecewise cubic continuation interpolation for American
-    /// options. Requires flat-rate BSM parameters.
+    /// options. American calls with nonnegative rates and nonpositive dividend
+    /// yields use the analytic European price. Requires flat-rate BSM parameters.
     /// Check spatial, time and
     /// integration-extent convergence separately; fixed-grid completion does not
     /// estimate error. Higher Greeks near exercise boundaries also require bump

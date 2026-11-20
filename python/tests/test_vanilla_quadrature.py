@@ -299,6 +299,17 @@ def test_american_negative_carry_and_european_limit(direction, spot, rate, divid
         assert price == pytest.approx(european, rel=0, abs=0.0005)
 
 
+def test_american_call_without_early_exercise_preserves_deep_tail():
+    start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+    context = market(1e20, 0.05, 0, 0.1, valuation=start)
+    option = AmericanOption(
+        option_type="call", strike=2.5e20, effective_time=start, expiry_time=end
+    )
+    assert pricing.QuadratureVanillaEngine().price(option, context) == pytest.approx(
+        3.98590645571204, abs=1e-10, rel=0
+    )
+
+
 def test_american_volga_and_dividend_rho_match_quantlib_bumps():
     engine = pricing.QuadratureVanillaEngine(
         asset_step_count=768,

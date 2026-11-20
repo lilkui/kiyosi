@@ -137,6 +137,16 @@ fn american_one_interval_is_exercise_now_or_at_expiry() {
 }
 
 #[test]
+fn american_call_without_early_exercise_preserves_deep_tail() -> Result<()> {
+    let (start, end) = dates();
+    let context = market(1e20, 0.05, 0.0, 0.1);
+    let option = AmericanOption::new(OptionType::Call, 2.5e20, start, end)?;
+    let price = QuadratureVanillaEngine::default().price(&option, &context)?;
+    assert!((price - 3.985_906_455_712_04).abs() < 1e-10, "{price}");
+    Ok(())
+}
+
+#[test]
 fn american_prices_refine_toward_independent_tree_with_negative_carry() {
     let (start, end) = dates();
     let reference =

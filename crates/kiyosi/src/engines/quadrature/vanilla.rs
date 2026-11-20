@@ -58,8 +58,9 @@ impl QuadratureVanillaSettings {
 /// Prices European and American vanilla options by flat-rate BSM quadrature.
 ///
 /// European pricing uses composite Simpson integration split at the strike.
-/// American pricing integrates cubic continuation curves on a strike-centered
-/// log-price grid, with linear interpolation in cells whose cubic control values
+/// American calls use the analytic European price when rates are nonnegative
+/// and dividend yields are nonpositive. Other American pricing integrates cubic
+/// continuation curves on a strike-centered log-price grid, with linear interpolation in cells whose cubic control values
 /// exceed the endpoint range, and exercise at valuation, uniform time points and expiry.
 /// The last interval integrates the terminal payoff with exact Gaussian moments.
 /// In-the-money tails extend the edge values linearly in the asset; opposite
@@ -140,7 +141,7 @@ impl QuadratureVanillaEngine {
 }
 
 macro_rules! vanilla_pricing {
-    ($option:ty, $american:expr) => {
+    ($option:ty, $american:literal $(, $vanilla:ident)?) => {
         impl PricingEngine<$option> for QuadratureVanillaEngine {
             fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
                 flat_rates(context).map(|_| ())
@@ -159,6 +160,11 @@ macro_rules! vanilla_pricing {
                 if time == 0.0 {
                     return checked(payoff.value(context.spot_price()));
                 }
+                $(
+                    if payoff.sign > 0.0 && rate >= 0.0 && dividend <= 0.0 {
+                        return crate::AnalyticEuropeanEngine.price(option.$vanilla(), context);
+                    }
+                )?
                 let sigma = context.natural_bsm_parameters()?.volatility();
                 let width = sigma * time.sqrt();
                 let carry = (rate - dividend) * time;
@@ -190,7 +196,7 @@ macro_rules! vanilla_pricing {
     };
 }
 vanilla_pricing!(EuropeanOption, false);
-vanilla_pricing!(AmericanOption, true);
+vanilla_pricing!(AmericanOption, true, vanilla);
 
 fn invalid_transition() -> Error {
     Error::ComputationFailure(
