@@ -124,8 +124,7 @@ impl MonteCarloAutocallableEngine {
         option: &AutocallableNote<T>,
         context: &PricingContext,
     ) -> Result<f64> {
-        let (sample, _, _, _) = self.sample(option, context, false)?;
-        scaled_value(sample.scale, sample.mean, 0.0)
+        Ok(self.price_with_seed(option, context)?.0)
     }
 
     /// Returns a price with optional standard error and asymptotic 95% confidence interval.
