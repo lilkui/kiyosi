@@ -179,73 +179,56 @@ def test_time_space_and_extent_converge_separately():
     ) == pricing.QuadratureVanillaEngine(time_step_count=400).price(european, context)
 
 
-def test_quantlib_european_and_american_reference_profiles(subtests):
+def test_quantlib_european_profile(subtests):
     oracle.require_version()
-    american_config = oracle.load_fixture("american.json")
-    for kind, rows, profiles, reference_fn in (
-        (
-            EuropeanOption,
-            oracle.load_fixture("scenarios.json")["scenarios"],
-            oracle.load_fixture("numerical_engines.json")["profiles"],
-            oracle.reference,
-        ),
-        (
-            AmericanOption,
-            american_config["scenarios"],
-            american_config["profiles"],
-            american.reference,
-        ),
-    ):
-        profile = next(p for p in profiles if p["engine"] == "QuadratureVanillaEngine")
-        engine = pricing.QuadratureVanillaEngine(**profile["settings"])
-        for scenario in rows:
-            inputs = scenario["inputs"]
-            option = kind(
-                option_type=inputs["option"],
-                strike=inputs["strike"],
-                effective_time=datetime.fromisoformat(inputs["effective_time"]),
-                expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
-            )
-            context = market(
-                inputs["spot"],
-                inputs["rate"],
-                inputs["dividend"],
-                inputs["volatility"],
-                datetime.fromisoformat(inputs["valuation"]),
-            )
-            with ql.SavedSettings():
-                reference, metadata = reference_fn(inputs)
-            if kind is EuropeanOption and oracle.exclusions(inputs):
-                reference = {
-                    k: v
-                    for k, v in reference.items()
-                    if k in ("price", "delta", "gamma")
-                }
-            wrapped = (
-                scenario["wrapper"]
-                if kind is AmericanOption
-                else inputs["spot"] == 100 and inputs["expiry_time"] == "2026-01-06"
-            )
-            names = sorted(reference.keys() - {"price"}) if wrapped else []
-            result = (
-                numerical_greeks(engine, option, context, names, **profile["shifts"])
-                if names
-                else None
-            )
-            for name, expected in reference.items():
-                if name != "price" and name not in names:
-                    continue
-                with subtests.test(case=scenario["case_id"], measure=name):
-                    assert (
-                        getattr(result, name)
-                        if result is not None
-                        else engine.price(option, context)
-                    ) == pytest.approx(
-                        expected,
-                        rel=0,
-                        abs=profile["numerical_tolerances"][name]
-                        + metadata[f"uncertainty_{name}"],
-                    )
+    profile = next(
+        p
+        for p in oracle.load_fixture("numerical_engines.json")["profiles"]
+        if p["engine"] == "QuadratureVanillaEngine"
+    )
+    engine = pricing.QuadratureVanillaEngine(**profile["settings"])
+    for scenario in oracle.load_fixture("scenarios.json")["scenarios"]:
+        inputs = scenario["inputs"]
+        option = EuropeanOption(
+            option_type=inputs["option"],
+            strike=inputs["strike"],
+            effective_time=datetime.fromisoformat(inputs["effective_time"]),
+            expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
+        )
+        context = market(
+            inputs["spot"],
+            inputs["rate"],
+            inputs["dividend"],
+            inputs["volatility"],
+            datetime.fromisoformat(inputs["valuation"]),
+        )
+        with ql.SavedSettings():
+            reference, metadata = oracle.reference(inputs)
+        if oracle.exclusions(inputs):
+            reference = {
+                k: v for k, v in reference.items() if k in ("price", "delta", "gamma")
+            }
+        wrapped = inputs["spot"] == 100 and inputs["expiry_time"] == "2026-01-06"
+        names = sorted(reference.keys() - {"price"}) if wrapped else []
+        result = (
+            numerical_greeks(engine, option, context, names, **profile["shifts"])
+            if names
+            else None
+        )
+        for name, expected in reference.items():
+            if name != "price" and name not in names:
+                continue
+            with subtests.test(case=scenario["case_id"], measure=name):
+                assert (
+                    getattr(result, name)
+                    if result is not None
+                    else engine.price(option, context)
+                ) == pytest.approx(
+                    expected,
+                    rel=0,
+                    abs=profile["numerical_tolerances"][name]
+                    + metadata[f"uncertainty_{name}"],
+                )
 
 
 @pytest.mark.parametrize("kind", (EuropeanOption, AmericanOption))

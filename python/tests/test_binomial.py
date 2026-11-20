@@ -683,77 +683,56 @@ def test_shared_and_distinct_instances_support_concurrent_pricing(kind):
             assert sigma == pytest.approx(0.2, rel=0, abs=1e-6)
 
 
-def test_existing_quantlib_european_and_american_profiles(subtests):
+def test_quantlib_european_profile(subtests):
     oracle = importlib.import_module("quantlib_reference.oracle")
-    american = importlib.import_module("quantlib_reference.american")
     oracle.require_version()
-    european_profile = next(
+    profile = next(
         p
         for p in oracle.load_fixture("numerical_engines.json")["profiles"]
         if p["engine"] == "CoxRossRubinsteinVanillaEngine"
     )
-    american_config = oracle.load_fixture("american.json")
-    american_profile = next(
-        p
-        for p in american_config["profiles"]
-        if p["engine"] == "CoxRossRubinsteinVanillaEngine"
-    )
-    european_scenarios = oracle.load_fixture("scenarios.json")["scenarios"]
-    for kind, rows, profile in (
-        (EuropeanOption, european_scenarios, european_profile),
-        (AmericanOption, american_config["scenarios"], american_profile),
-    ):
-        engine = CoxRossRubinsteinVanillaEngine(**profile["settings"])
-        for scenario in rows:
-            inputs = scenario["inputs"]
-            option = kind(
-                option_type=inputs["option"],
-                strike=inputs["strike"],
-                effective_time=datetime.fromisoformat(inputs["effective_time"]),
-                expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
+    engine = CoxRossRubinsteinVanillaEngine(**profile["settings"])
+    for scenario in oracle.load_fixture("scenarios.json")["scenarios"]:
+        inputs = scenario["inputs"]
+        option = EuropeanOption(
+            option_type=inputs["option"],
+            strike=inputs["strike"],
+            effective_time=datetime.fromisoformat(inputs["effective_time"]),
+            expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
+        )
+        context = market(
+            inputs["spot"],
+            inputs["rate"],
+            inputs["dividend"],
+            inputs["volatility"],
+            datetime.fromisoformat(inputs["valuation"]),
+        )
+        with ql.SavedSettings():
+            reference, metadata = oracle.reference(inputs)
+        if oracle.exclusions(inputs):
+            # The numerical profile excludes wide-bump near-expiry stencils.
+            reference = {
+                name: value
+                for name, value in reference.items()
+                if name in ("price", "delta", "gamma")
+            }
+        names = sorted(reference.keys() - {"price"})
+        result = engine.price_with_greeks(option, context, names)
+        if "vega" in reference:
+            vega = numerical_greeks(
+                engine, option, context, "vega", **profile["shifts"]
+            ).vega
+        for name, expected in reference.items():
+            budget = (
+                profile["tolerances"]
+                if name in ("price", "delta", "gamma")
+                else profile["numerical_tolerances"]
             )
-            context = market(
-                inputs["spot"],
-                inputs["rate"],
-                inputs["dividend"],
-                inputs["volatility"],
-                datetime.fromisoformat(inputs["valuation"]),
-            )
-            with ql.SavedSettings():
-                reference, metadata = (
-                    oracle.reference(inputs)
-                    if kind is EuropeanOption
-                    else american.reference(inputs)
+            with subtests.test(case=scenario["case_id"], measure=name):
+                assert (
+                    vega if name == "vega" else getattr(result, name)
+                ) == pytest.approx(
+                    expected,
+                    rel=0,
+                    abs=budget[name] + metadata[f"uncertainty_{name}"],
                 )
-            if kind is EuropeanOption and oracle.exclusions(inputs):
-                # The numerical profile excludes wide-bump near-expiry stencils.
-                reference = {
-                    name: value
-                    for name, value in reference.items()
-                    if name in ("price", "delta", "gamma")
-                }
-            names = sorted(reference.keys() - {"price"})
-            result = engine.price_with_greeks(option, context, names)
-            volatility_greek = numerical_greeks(
-                engine,
-                option,
-                context,
-                "vega",
-                **profile["shifts"],
-            )
-            for name, expected in reference.items():
-                budget = (
-                    profile["tolerances"]
-                    if name in ("price", "delta", "gamma")
-                    else profile["numerical_tolerances"]
-                )
-                with subtests.test(kind=kind, case=scenario["case_id"], measure=name):
-                    assert (
-                        volatility_greek.vega
-                        if name == "vega"
-                        else getattr(result, name)
-                    ) == pytest.approx(
-                        expected,
-                        rel=0,
-                        abs=budget[name] + metadata[f"uncertainty_{name}"],
-                    )

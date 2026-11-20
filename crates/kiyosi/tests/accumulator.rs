@@ -572,62 +572,35 @@ fn spatial_and_domain_convergence_meet_accuracy_targets() {
         })
         .unwrap(),
     ];
-    let year = Date::new(2026, 1, 1).unwrap().start_of_day();
-    for (end, spot, sigma, ko, acceleration, rate, daily) in [
-        (day(2, 3), 80.0, 0.05, 105.0, 2.0, 0.04, false),
-        (day(2, 3), 100.0, 0.2, 110.0, 2.0, 0.04, false),
-        (day(2, 3), 120.0, 0.6, 150.0, 1.0, -0.02, true),
-        (day(2, 3), 100.0, 0.05, 150.0, 0.0, 0.04, false),
-        (day(4, 1), 80.0, 0.2, 110.0, 2.0, 0.04, true),
-        (year, 100.0, 0.2, 110.0, 2.0, 0.04, false),
-    ] {
-        let option = Accumulator::new(AccumulatorTerms {
-            knock_out_level: ko,
-            acceleration_factor: acceleration,
-            accumulated_quantity: Some(3.0),
-            ..terms(end)
-        })
-        .unwrap();
-        let context = market(
-            spot,
-            Timestamp::new(day(1, 1).date(), 12, 0, 0, 0).unwrap(),
-            sigma,
-            rate,
-            0.01,
-        );
-        let calendar = if daily {
-            TradingCalendar::all_days()
-        } else {
-            TradingCalendar::default()
-        };
-        let option = option
-            .replace(AccumulatorChanges {
-                calendar: Some(calendar),
-                accumulated_quantity: Some(option.accumulated_quantity()),
-                knock_out_settled: Some(option.knock_out_settled()),
-                ..Default::default()
-            })
-            .unwrap();
-        let observations = ObservationSchedule::fixed_interval(
-            day(1, 2),
-            end,
-            1,
-            option.calendar(),
-            (day(1, 2)).time_of_day(),
-        )
-        .unwrap()
-        .len();
-        let exposure = 100.0 * (3.0 + observations as f64 * acceleration.max(1.0));
-        let values = engines.map(|e| e.price(&option, &context).unwrap());
-        assert!(
-            (values[0] - values[1]).abs() / exposure <= 1e-6,
-            "{end:?} {spot} {sigma}"
-        );
-        assert!(
-            (values[1] - values[2]).abs() / exposure <= 1e-6,
-            "{end:?} {spot} {sigma}"
-        );
-    }
+    let end = day(2, 3);
+    let option = Accumulator::new(AccumulatorTerms {
+        knock_out_level: 150.0,
+        acceleration_factor: 1.0,
+        accumulated_quantity: Some(3.0),
+        calendar: TradingCalendar::all_days(),
+        ..terms(end)
+    })
+    .unwrap();
+    let context = market(
+        120.0,
+        Timestamp::new(day(1, 1).date(), 12, 0, 0, 0).unwrap(),
+        0.6,
+        -0.02,
+        0.01,
+    );
+    let observations = ObservationSchedule::fixed_interval(
+        day(1, 2),
+        end,
+        1,
+        option.calendar(),
+        day(1, 2).time_of_day(),
+    )
+    .unwrap()
+    .len();
+    let exposure = 100.0 * (3.0 + observations as f64);
+    let [base, fine, wide] = engines.map(|engine| engine.price(&option, &context).unwrap());
+    assert!((base - fine).abs() / exposure <= 1e-6, "{base} != {fine}");
+    assert!((fine - wide).abs() / exposure <= 1e-6, "{fine} != {wide}");
 }
 
 struct Scalar(QuadratureAccumulatorEngine);

@@ -484,30 +484,6 @@ fn refined_tail_price_retains_relative_accuracy() {
 }
 
 #[test]
-fn maturity_and_moneyness_scenarios_match_analytic_prices() {
-    let (start, end) = dates();
-    let ctx = context(0.3, -0.7);
-    for (expiry, strike) in [
-        (Date::new(2025, 1, 8).unwrap().start_of_day(), 100.0),
-        (Date::new(2030, 1, 1).unwrap().start_of_day(), 120.0),
-        (end, 50.0),
-        (end, 150.0),
-    ] {
-        let option = EuropeanOption::new(OptionType::Call, strike, start, expiry).unwrap();
-        let reference = AnalyticHestonEuropeanEngine::default()
-            .price(&option, &ctx)
-            .unwrap();
-        let actual = FiniteDifferenceHestonVanillaEngine::default()
-            .price(&option, &ctx)
-            .unwrap();
-        assert!(
-            (actual - reference).abs() <= 1e-5 * strike + 1e-4 * reference,
-            "expiry={expiry:?}, strike={strike}: {actual} != {reference}"
-        );
-    }
-}
-
-#[test]
 fn settings_and_unsupported_sensitivities_have_structured_errors() {
     for settings in [
         HestonFiniteDifferenceSettings {

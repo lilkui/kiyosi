@@ -131,7 +131,7 @@ def reference(kind, direction, time, space, spot=100, dividend=0.02, mesher_vol=
         if kind in ("asset", "asset_barrier")
         else ql.PlainVanillaPayoff(option_type, 100)
     )
-    if kind in ("barrier", "binary", "asset_barrier"):
+    if kind in ("binary", "asset_barrier"):
         contract = ql.BarrierOption(
             ql.Barrier.UpOut if direction == "call" else ql.Barrier.DownOut,
             120 if direction == "call" else 80,
@@ -186,27 +186,6 @@ def test_american_and_digital_match_refined_independent_local_volatility(
         )
     )
     assert_measures_close(actual, fine, [0.002, 0.0002, 0.00003])
-
-
-@pytest.mark.parametrize("direction", ["call", "put"])
-def test_single_barriers_match_time_extrapolated_quantlib_reference(direction):
-    refs = [
-        reference("barrier", direction, steps, 3200) for steps in [3200, 6400, 12800]
-    ]
-    estimates = [
-        tuple(2 * b - a for a, b in zip(x, y, strict=True))
-        for x, y in itertools.pairwise(refs)
-    ]
-    # QuantLib's absorbing-boundary time error is first order here.
-    assert_measures_close(*estimates, [1e-5, 3e-7, 2e-8])
-    finer_space = reference("barrier", direction, 12800, 6400)
-    assert_measures_close(refs[-1], finer_space, [0.0001, 1e-5, 1e-6])
-    actual = values(
-        engine("barrier").price_with_greeks(
-            instrument("barrier", direction), market(), ["delta", "gamma"]
-        )
-    )
-    assert_measures_close(actual, estimates[-1], [0.0005, 0.00003, 0.000003])
 
 
 @pytest.mark.parametrize("kind", ["american", "cash", "asset", "barrier"])

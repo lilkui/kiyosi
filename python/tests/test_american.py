@@ -15,6 +15,7 @@ from kiyosi import (
     NonConvergenceError,
     RootNotBracketedError,
     UnsupportedOperationError,
+    pricing,
 )
 from kiyosi.instruments import AmericanOption, CashOrNothingOption, EuropeanOption
 from kiyosi.market import (
@@ -29,6 +30,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
+from quantlib_reference import american, oracle
 from support.assertions import assert_rejection
 from support.terminal import assert_terminal_greeks
 
@@ -479,47 +481,68 @@ def test_analysis_rejects_protocols_and_unsupported_pairs(
         )
 
 
-def test_live_quantlib_refinement_and_existing_error_budgets(
-    base_engine, make_market, subtests
-):
-    american = importlib.import_module("quantlib_reference.american")
-    oracle = importlib.import_module("quantlib_reference.oracle")
+AMERICAN_REFERENCE = oracle.load_fixture("american.json")
+
+
+@pytest.mark.parametrize(
+    "scenario", AMERICAN_REFERENCE["scenarios"], ids=lambda row: row["case_id"]
+)
+def test_american_engines_match_live_quantlib(scenario, make_market, subtests):
     oracle.require_version()
-    config = oracle.load_fixture("american.json")
-    profile = next(
-        p
-        for p in config["profiles"]
-        if p["engine"] == "BjerksundStenslandVanillaEngine"
+    inputs = scenario["inputs"]
+    option = AmericanOption(
+        option_type=inputs["option"],
+        strike=inputs["strike"],
+        effective_time=datetime.fromisoformat(inputs["effective_time"]),
+        expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
     )
-    for scenario in config["scenarios"]:
-        inputs = scenario["inputs"]
-        option = AmericanOption(
-            option_type=inputs["option"],
-            strike=inputs["strike"],
-            effective_time=datetime.fromisoformat(inputs["effective_time"]),
-            expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
+    context = make_market(
+        inputs["spot"],
+        inputs["rate"],
+        inputs["dividend"],
+        inputs["volatility"],
+        datetime.fromisoformat(inputs["valuation"]),
+    )
+    with ql.SavedSettings():
+        reference, metadata = american.reference(inputs)
+    names = sorted(reference.keys() - {"price"})
+    for profile in AMERICAN_REFERENCE["profiles"]:
+        engine_name = profile["engine"]
+        engine = getattr(pricing, engine_name)(**profile["settings"])
+        native = engine_name in (
+            "CoxRossRubinsteinVanillaEngine",
+            "FiniteDifferenceVanillaEngine",
         )
-        context = make_market(
-            inputs["spot"],
-            inputs["rate"],
-            inputs["dividend"],
-            inputs["volatility"],
-            datetime.fromisoformat(inputs["valuation"]),
-        )
-        with ql.SavedSettings():
-            reference, uncertainty = american.reference(inputs)
-        names = sorted(reference.keys() - {"price"})
-        result = numerical_greeks(
-            base_engine, option, context, names, **profile["shifts"]
-        )
-        assert result.price == pytest.approx(
-            reference["price"], rel=0, abs=profile["tolerances"]["price"]
-        )
-        for name in names:
-            with subtests.test(case=scenario["case_id"], measure=name):
-                assert getattr(result, name) == pytest.approx(
-                    reference[name],
-                    rel=0,
-                    abs=profile["numerical_tolerances"][name]
-                    + uncertainty[f"uncertainty_{name}"],
+        with subtests.test(engine=engine_name):
+            if native:
+                result = engine.price_with_greeks(option, context, names)
+                actual = {name: getattr(result, name) for name in reference}
+                if engine_name == "CoxRossRubinsteinVanillaEngine":
+                    actual["vega"] = numerical_greeks(
+                        engine, option, context, "vega", **profile["shifts"]
+                    ).vega
+            elif (
+                scenario["wrapper"] or engine_name == "BjerksundStenslandVanillaEngine"
+            ):
+                result = numerical_greeks(
+                    engine, option, context, names, **profile["shifts"]
                 )
+                actual = {name: getattr(result, name) for name in reference}
+            else:
+                actual = {"price": engine.price(option, context)}
+
+            for name, value in actual.items():
+                if name == "price" and engine_name in (
+                    "BjerksundStenslandVanillaEngine",
+                    "MonteCarloVanillaEngine",
+                ):
+                    tolerance = profile["tolerances"][name]
+                else:
+                    budget = (
+                        "tolerances"
+                        if native and name in ("price", "delta", "gamma")
+                        else "numerical_tolerances"
+                    )
+                    tolerance = profile[budget][name] + metadata[f"uncertainty_{name}"]
+                with subtests.test(measure=name):
+                    assert value == pytest.approx(reference[name], rel=0, abs=tolerance)

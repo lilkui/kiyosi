@@ -647,64 +647,48 @@ def test_shared_and_distinct_engines_support_concurrent_analysis(kind):
         )
 
 
-def test_existing_quantlib_european_and_american_profiles(subtests):
+def test_quantlib_european_profile(subtests):
     oracle = importlib.import_module("quantlib_reference.oracle")
-    american = importlib.import_module("quantlib_reference.american")
     oracle.require_version()
-    european_profile = next(
+    profile = next(
         p
         for p in oracle.load_fixture("numerical_engines.json")["profiles"]
         if p["engine"] == "FiniteDifferenceVanillaEngine"
     )
-    american_config = oracle.load_fixture("american.json")
-    american_profile = next(
-        p
-        for p in american_config["profiles"]
-        if p["engine"] == "FiniteDifferenceVanillaEngine"
-    )
-    european_scenarios = oracle.load_fixture("scenarios.json")["scenarios"]
-    for kind, rows, profile in (
-        (EuropeanOption, european_scenarios, european_profile),
-        (AmericanOption, american_config["scenarios"], american_profile),
-    ):
-        engine = FiniteDifferenceVanillaEngine(**profile["settings"])
-        for scenario in rows:
-            inputs = scenario["inputs"]
-            if kind is EuropeanOption and oracle.exclusions(inputs):
-                continue
-            option = kind(
-                option_type=inputs["option"],
-                strike=inputs["strike"],
-                effective_time=datetime.fromisoformat(inputs["effective_time"]),
-                expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
+    engine = FiniteDifferenceVanillaEngine(**profile["settings"])
+    for scenario in oracle.load_fixture("scenarios.json")["scenarios"]:
+        inputs = scenario["inputs"]
+        if oracle.exclusions(inputs):
+            continue
+        option = EuropeanOption(
+            option_type=inputs["option"],
+            strike=inputs["strike"],
+            effective_time=datetime.fromisoformat(inputs["effective_time"]),
+            expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
+        )
+        context = market(
+            inputs["spot"],
+            inputs["rate"],
+            inputs["dividend"],
+            inputs["volatility"],
+            datetime.fromisoformat(inputs["valuation"]),
+        )
+        with ql.SavedSettings():
+            reference, metadata = oracle.reference(inputs)
+        names = sorted(reference.keys() - {"price"})
+        result = engine.price_with_greeks(option, context, names)
+        for name, expected in reference.items():
+            budget = (
+                profile["tolerances"]
+                if name in ("price", "delta", "gamma")
+                else profile["numerical_tolerances"]
             )
-            context = market(
-                inputs["spot"],
-                inputs["rate"],
-                inputs["dividend"],
-                inputs["volatility"],
-                datetime.fromisoformat(inputs["valuation"]),
-            )
-            with ql.SavedSettings():
-                reference, metadata = (
-                    oracle.reference(inputs)
-                    if kind is EuropeanOption
-                    else american.reference(inputs)
+            with subtests.test(case=scenario["case_id"], measure=name):
+                assert getattr(result, name) == pytest.approx(
+                    expected,
+                    rel=0,
+                    abs=budget[name] + metadata[f"uncertainty_{name}"],
                 )
-            names = sorted(reference.keys() - {"price"})
-            result = engine.price_with_greeks(option, context, names)
-            for name, expected in reference.items():
-                budget = (
-                    profile["tolerances"]
-                    if name in ("price", "delta", "gamma")
-                    else profile["numerical_tolerances"]
-                )
-                with subtests.test(kind=kind, case=scenario["case_id"], measure=name):
-                    assert getattr(result, name) == pytest.approx(
-                        expected,
-                        rel=0,
-                        abs=budget[name] + metadata[f"uncertainty_{name}"],
-                    )
 
 
 def test_existing_quantlib_digital_profiles(subtests):

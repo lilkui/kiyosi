@@ -1,6 +1,5 @@
 """American least-squares Monte Carlo through the installed public API."""
 
-import importlib
 import math
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -8,7 +7,6 @@ from datetime import datetime, timedelta
 from functools import partial
 
 import pytest
-import QuantLib as ql
 from kiyosi import (
     ComputationFailureError,
     InvalidInputError,
@@ -362,54 +360,6 @@ def test_validation_representations_and_failure_state():
     assert context.model_parameters.volatility == 0.2
     with pytest.raises(AttributeError):
         engine.step_count = 2
-
-
-def test_live_quantlib_refinement_and_existing_error_budgets(subtests):
-    american = importlib.import_module("quantlib_reference.american")
-    oracle = importlib.import_module("quantlib_reference.oracle")
-    oracle.require_version()
-    config = oracle.load_fixture("american.json")
-    profile = next(
-        p for p in config["profiles"] if p["engine"] == "MonteCarloVanillaEngine"
-    )
-    engine = MonteCarloVanillaEngine(**profile["settings"])
-    for scenario in config["scenarios"]:
-        inputs = scenario["inputs"]
-        option = AmericanOption(
-            option_type=inputs["option"],
-            strike=inputs["strike"],
-            effective_time=datetime.fromisoformat(inputs["effective_time"]),
-            expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
-        )
-        context = market(
-            spot=inputs["spot"],
-            rate=inputs["rate"],
-            dividend=inputs["dividend"],
-            sigma=inputs["volatility"],
-            valuation=datetime.fromisoformat(inputs["valuation"]),
-        )
-        with ql.SavedSettings():
-            reference, uncertainty = american.reference(inputs)
-        # Wide bumps cross exercise boundaries near expiry.
-        names = sorted(reference.keys() - {"price"}) if scenario["wrapper"] else []
-        result = (
-            numerical_greeks(engine, option, context, names, **profile["shifts"])
-            if names
-            else None
-        )
-        assert (
-            result.price if result is not None else engine.price(option, context)
-        ) == pytest.approx(
-            reference["price"], rel=0, abs=profile["tolerances"]["price"]
-        )
-        for name in names:
-            with subtests.test(case=scenario["case_id"], measure=name):
-                assert getattr(result, name) == pytest.approx(
-                    reference[name],
-                    rel=0,
-                    abs=profile["numerical_tolerances"][name]
-                    + uncertainty[f"uncertainty_{name}"],
-                )
 
 
 @pytest.mark.parametrize("scale,seed", ((0.01, 1), (1, 7), (100, 42)))

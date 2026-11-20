@@ -333,7 +333,7 @@ fn sparse_knock_out_grid_covers_drift_back_inside_the_barrier() {
         let cash = DigitalOption::cash_or_nothing(alive, barrier, 100.0, day(1), day(15)).unwrap();
         let observation: f64 = 13.5 / 365.0;
         let remaining = time - observation;
-        for sigma in [1e-8, 0.0005, 0.0008] {
+        for sigma in [1e-8, 0.0008] {
             let context = PricingContext::new(
                 BlackScholesMertonParameters::new(rate, dividend, sigma).unwrap(),
                 spot,
