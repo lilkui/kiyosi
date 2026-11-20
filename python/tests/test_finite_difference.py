@@ -49,6 +49,45 @@ FACTORIES = (
 SCHEMES = ("explicit_euler", "implicit_euler", "crank_nicolson", "rannacher")
 
 
+@pytest.mark.parametrize("micros", [1, 1_000_000])
+@pytest.mark.parametrize(("direction", "rate"), [("call", 0.05), ("put", 0)])
+def test_automatic_american_grids_resolve_the_strike_before_expiry(
+    micros, direction, rate
+):
+    expiry = START + timedelta(microseconds=micros)
+    terms = {
+        "option_type": direction,
+        "strike": 100,
+        "effective_time": START,
+        "expiry_time": expiry,
+    }
+    context = market(spot=100, rate=rate, dividend=0, sigma=0.2)
+    european = EuropeanOption(**terms)
+    american = AmericanOption(**terms)
+    expected = AnalyticEuropeanEngine().price(european, context)
+    engine = FiniteDifferenceVanillaEngine()
+    assert engine.price(american, context) == pytest.approx(expected, rel=0.01)
+    saved = engine.solve(american, context, spot_range=(99.9, 100.1))
+    assert saved.price(100) == pytest.approx(expected, rel=0.01)
+
+
+def test_automatic_american_vega_uses_consistent_strike_concentration():
+    terms = {
+        "option_type": "call",
+        "strike": 100,
+        "effective_time": START,
+        "expiry_time": START + timedelta(hours=3),
+    }
+    context = market(spot=100, rate=0.05, dividend=0, sigma=0.200097)
+    actual = FiniteDifferenceVanillaEngine().price_with_greeks(
+        AmericanOption(**terms), context, "vega", volatility_shift=1e-5
+    )
+    expected = AnalyticEuropeanEngine().price_with_greeks(
+        EuropeanOption(**terms), context, "vega"
+    )
+    assert actual.vega == pytest.approx(expected.vega, abs=0.01, rel=0)
+
+
 @pytest.mark.parametrize(("rate", "dividend"), [(0.1, 0), (0, 0.1)])
 @pytest.mark.parametrize("direction", ["call", "put"])
 def test_automatic_european_grid_resolves_low_volatility_at_the_forward_strike(

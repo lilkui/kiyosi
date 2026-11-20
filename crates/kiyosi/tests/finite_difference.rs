@@ -17,6 +17,54 @@ fn market(spot: f64, rate: f64, dividend: f64, sigma: f64) -> PricingContext {
 }
 
 #[test]
+fn automatic_american_grids_resolve_the_strike_before_expiry() -> Result<()> {
+    let (start, _) = dates();
+    let engine = FiniteDifferenceVanillaEngine::default();
+    for micros in [1, 1_000_000] {
+        let end = start.add_micros(micros)?;
+        // Without dividends a call at positive rates matches European exercise.
+        // At zero carry and rates a put also gains nothing from early exercise.
+        for (direction, rate) in [(OptionType::Call, 0.05), (OptionType::Put, 0.0)] {
+            let context = market(100.0, rate, 0.0, 0.2);
+            let american = AmericanOption::new(direction, 100.0, start, end)?;
+            let european = EuropeanOption::new(direction, 100.0, start, end)?;
+            let expected = AnalyticEuropeanEngine.price(&european, &context)?;
+            let saved = engine.solve(&american, &context, 99.9..=100.1)?;
+            for actual in [engine.price(&american, &context)?, saved.price(100.0)?] {
+                assert!(
+                    (actual / expected - 1.0).abs() < 0.01,
+                    "{direction:?} at {micros} microseconds: {actual} != {expected}"
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn automatic_american_vega_uses_consistent_strike_concentration() -> Result<()> {
+    let (start, _) = dates();
+    let end = start.add_micros(3 * 3_600_000_000)?;
+    let context = market(100.0, 0.05, 0.0, 0.200_097);
+    let american = AmericanOption::new(OptionType::Call, 100.0, start, end)?;
+    let european = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let request = GreeksRequest::new([Greek::Vega]);
+    let actual = FiniteDifferenceVanillaEngine::default().price_with_greeks_with_settings(
+        &american,
+        &context,
+        request,
+        NumericalShiftSettings {
+            volatility_shift: Some(1e-5),
+            ..Default::default()
+        },
+    )?;
+    let expected = AnalyticEuropeanEngine.price_with_greeks(&european, &context, request)?;
+    let (actual, expected) = (actual.require(Greek::Vega)?, expected.require(Greek::Vega)?);
+    assert!((actual - expected).abs() < 0.01, "{actual} != {expected}");
+    Ok(())
+}
+
+#[test]
 fn american_upper_boundary_includes_intermediate_exercise() -> Result<()> {
     let (start, end) = dates();
     let exercise = start.add_days(182)?;

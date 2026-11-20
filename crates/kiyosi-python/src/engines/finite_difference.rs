@@ -222,6 +222,8 @@ fd_engine!(
     /// With automatic domains and non-explicit schemes, European BSM grids
     /// under Actual/365 Fixed remove deterministic carry and concentrate
     /// around the carry-adjusted strike when it fits the domain.
+    /// American grids with automatic domains and non-explicit schemes concentrate
+    /// around the strike.
     ///
     FiniteDifferenceVanillaEngine,
     binomial::VanillaInstrument<'_>,

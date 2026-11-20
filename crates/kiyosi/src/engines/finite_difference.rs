@@ -355,9 +355,8 @@ fn solve_model<D: Diffusion>(
     let model = context.model_parameters();
     let expiry = option.expiry_time();
     let (market_risk, dividend) = diffusion::rate_curves(context, expiry, settings)?;
-    let concentrated = !payoff.is_american()
-        && concentrate
-        && settings.scheme != FiniteDifferenceScheme::ExplicitEuler;
+    let automatic_concentration =
+        concentrate && settings.scheme != FiniteDifferenceScheme::ExplicitEuler;
     let level = spot.max(payoff.strike);
     let upper = match settings.asset_upper_boundary {
         Some(upper) => upper,
@@ -367,7 +366,7 @@ fn solve_model<D: Diffusion>(
         None => 4.0 * level,
     };
     let mut risk = &market_risk;
-    if concentrated && !D::LOCAL && !payoff.is_digital() {
+    if automatic_concentration && !payoff.is_american() && !D::LOCAL && !payoff.is_digital() {
         // Long carry paths leave the fine cells near the strike. Remove carry from
         // the spot coordinate, adjusting the terminal strike and discounting at yield.
         let strike = scaled(payoff.strike, -context.forward_carry(expiry)?);
@@ -386,9 +385,19 @@ fn solve_model<D: Diffusion>(
         },
         level,
     )?;
-    if concentrated {
-        let width = diffusion.sigma(0.0, spot) * time.sqrt();
-        let scale = payoff.strike * (0.1 * width).max(1e-4);
+    if automatic_concentration {
+        let sigma_spot = if payoff.is_american() {
+            payoff.strike
+        } else {
+            spot
+        };
+        let width = diffusion.sigma(0.0, sigma_spot) * time.sqrt();
+        let minimum = if payoff.is_digital() {
+            1e-4
+        } else {
+            f64::EPSILON
+        };
+        let scale = payoff.strike * (0.1 * width).max(minimum);
         if scale > 0.0 && scale.is_finite() {
             grid::concentrate(&mut space, vec![payoff.strike], scale)?;
         }
@@ -456,10 +465,14 @@ fn solve_model<D: Diffusion>(
             }
         })
         .collect();
-    let exercise = if can_exercise {
+    let exercise = if !can_exercise {
+        Vec::new()
+    } else if space.nodes.is_empty() {
         old.clone()
     } else {
-        Vec::new()
+        (0..=space.count)
+            .map(|i| payoff.value(space.asset(i)))
+            .collect::<Vec<_>>()
     };
     let mut next = vec![0.0; old.len()];
     let mut stepper = diffusion.stepper(space.count);
@@ -937,13 +950,11 @@ engine_settings!(
     /// Local-volatility boundaries use asymptotic values with American exercise where applicable; automatic domains
     /// use the surface maximum volatility and require domain convergence checks.
     /// Unsupported combinations return [`Error::UnsupportedOperation`], even at expiry.
-    /// Accepts flat or nonconstant rate curves. American automatic domains expand with volatility
-    /// and maturity and use sinh coordinates. With automatic domains, non-explicit
-    /// European grids concentrate nodes around the strike. Under Actual/365 Fixed
-    /// BSM, these grids remove deterministic carry and concentrate around the
-    /// carry-adjusted strike when the adjusted strike fits the domain.
-    /// Explicit upper boundaries retain uniform European spot grids.
-    /// Both grids use cell-averaged terminal payoff kinks.
+    /// Accepts flat or nonconstant rate curves. Automatic domains concentrate nodes
+    /// around the strike for non-explicit schemes. Under Actual/365 Fixed BSM, European
+    /// grids also remove deterministic carry when the adjusted strike fits the domain.
+    /// Explicit upper boundaries use uniform European spot grids and American sinh grids.
+    /// European and concentrated American grids use cell-averaged terminal payoff kinks.
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// ## Errors
