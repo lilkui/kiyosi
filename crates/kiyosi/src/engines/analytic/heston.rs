@@ -1,4 +1,4 @@
-use std::f64::consts::PI;
+use std::{cmp::Ordering, collections::BinaryHeap, f64::consts::PI};
 
 use num_complex::Complex64;
 
@@ -406,6 +406,28 @@ struct Panel {
     error: f64,
 }
 
+impl PartialEq for Panel {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl Eq for Panel {}
+
+impl PartialOrd for Panel {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Panel {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.error
+            .total_cmp(&other.error)
+            .then_with(|| other.left.total_cmp(&self.left))
+    }
+}
+
 // The embedded 7/15 Gauss-Kronrod rule samples neither infinite-range endpoint.
 #[expect(
     clippy::float_cmp,
@@ -495,27 +517,22 @@ fn integrate(
     scale: f64,
 ) -> Result<f64> {
     let normalized_base = base / scale;
-    let mut panels = Vec::new();
+    let mut panels = BinaryHeap::new();
+    let mut sum = Sum::default();
+    let mut error = Sum::default();
     let ends = [0.0, 0.25, 0.5, 0.75, 0.9, 0.99, 1.0];
     for pair in ends.windows(2) {
-        panels.push(panel(f, pair[0], pair[1])?);
+        let panel = panel(f, pair[0], pair[1])?;
+        sum.add(panel.value);
+        error.add(panel.error);
+        panels.push(panel);
     }
     loop {
-        let mut sum = Sum::default();
-        let mut error = Sum::default();
-        let mut worst = 0;
-        for (i, p) in panels.iter().enumerate() {
-            sum.add(p.value);
-            error.add(p.error);
-            if p.error > panels[worst].error {
-                worst = i;
-            }
-        }
         let correction = sum.total();
         let tolerance = settings.absolute_tolerance / scale
             + settings.relative_tolerance * (normalized_base + correction).abs();
         let estimated_error = error.total();
-        if !correction.is_finite() || !estimated_error.is_finite() {
+        if !correction.is_finite() || !estimated_error.is_finite() || estimated_error < 0.0 {
             return Err(computation());
         }
         if estimated_error <= 0.25 * tolerance {
@@ -526,9 +543,15 @@ fn integrate(
                 result => return result,
             }
         }
-        let old = panels.swap_remove(worst);
+        let old = panels.pop().ok_or_else(computation)?;
         let mid = old.left.midpoint(old.right);
-        panels.push(panel(f, old.left, mid)?);
-        panels.push(panel(f, mid, old.right)?);
+        sum.add(-old.value);
+        error.add(-old.error);
+        for (left, right) in [(old.left, mid), (mid, old.right)] {
+            let panel = panel(f, left, right)?;
+            sum.add(panel.value);
+            error.add(panel.error);
+            panels.push(panel);
+        }
     }
 }
