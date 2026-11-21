@@ -91,6 +91,10 @@ See [`examples/`](examples/) for more detailed usage.
 
 Abbreviations: FD = finite differences; MC = Monte Carlo simulation.
 
+## Benchmarks
+
+View the results in the [Kiyosi vs. QuantLib benchmark report](https://lilkui.github.io/kiyosi/reports/quantlib-benchmark.html), or see [`benchmarks/quantlib/`](benchmarks/quantlib/) to reproduce them locally.
+
 ## Disclaimer
 
 This project is for research and educational purposes only; validate results independently before production use. This library does not commit to freezing its public API and may undergo major refactoring for a better design.

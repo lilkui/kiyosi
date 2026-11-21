@@ -89,6 +89,10 @@ print(f"Implied volatility: {sigma:.2%}")  # Implied volatility: 20.00%
 | 累购、累沽 | BSM、局部波动率 | 数值积分、有限差分、蒙特卡洛模拟 |
 | 区间累计 | BSM | 解析解（区间概率求和） |
 
+## 基准测试
+
+基准测试结果见 [Kiyosi 与 QuantLib 性能对比报告](https://lilkui.github.io/kiyosi/reports/quantlib-benchmark.html)；如需在本地复现，请参阅 [`benchmarks/quantlib/`](benchmarks/quantlib/)。
+
 ## 免责声明
 
 本项目仅供研究与学习，用于生产环境前请自行验证。本库不承诺冻结公开 API，可能为优化设计而大幅重构。
