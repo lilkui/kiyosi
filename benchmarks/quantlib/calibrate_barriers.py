@@ -1,29 +1,35 @@
 """Record installed-native accuracy and exposed series refinement (no timing)."""
 
 import json
-import subprocess
 
-from run import HERE, prebuilt_rust_executable
+from run import (
+    DEFAULT_QUANTLIB_EXECUTABLE,
+    HERE,
+    NATIVE_TIMEOUT_SECONDS,
+    accuracy,
+    command,
+    load_entries,
+    native,
+    prebuilt_rust_executable,
+    write_report,
+)
 
 
 def main():
-    cases = json.loads((HERE / "cases/barriers.json").read_text())["cases"]
-    references = {
-        row["id"]: row
-        for row in json.loads((HERE / "references/barriers.json").read_text())["cases"]
-    }
+    cases = load_entries(HERE / "cases/barriers.json")
+    references = load_entries(HERE / "references/barriers.json")
     executables = {
         "kiyosi": prebuilt_rust_executable(),
-        "quantlib": HERE / "build/quantlib_bench",
+        "quantlib": DEFAULT_QUANTLIB_EXECUTABLE,
     }
     versions = {
         backend: json.loads(
-            subprocess.check_output([str(executable), "--info"], text=True)
+            command([str(executable), "--info"], timeout=NATIVE_TIMEOUT_SECONDS)
         )
         for backend, executable in executables.items()
     }
     rows = []
-    for case in cases:
+    for case in cases.values():
         evidence = {}
         for backend, executable in executables.items():
             refinements = []
@@ -36,28 +42,18 @@ def main():
                 profile = dict(case["profiles"][backend])
                 if count is not None:
                     profile["series"] = count
-                parameters = dict(
-                    family=case["family"], iterations=1, **case["inputs"], **profile
-                )
-                output = json.loads(
-                    subprocess.check_output(
-                        [
-                            str(executable),
-                            *(f"{key}={value}" for key, value in parameters.items()),
-                        ],
-                        text=True,
+                probe = case | {"profiles": {backend: profile}}
+                price = native(executable, probe, backend, 1)["price"]
+                check = accuracy(price, references[case["id"]], case["error_budget"])
+                if not check["passed"]:
+                    raise RuntimeError(
+                        f"{case['id']}/{backend}: accuracy failed: {check}"
                     )
-                )
-                error = abs(output["price"] - references[case["id"]]["value"])
-                assert (
-                    error + references[case["id"]]["uncertainty"]
-                    <= case["error_budget"]
-                )
                 refinements.append(
                     {
                         "profile": profile,
-                        "price": output["price"],
-                        "absolute_error": error,
+                        "price": price,
+                        "absolute_error": check["absolute_error"],
                     }
                 )
             evidence[backend] = refinements
@@ -68,17 +64,14 @@ def main():
                 "backends": evidence,
             }
         )
-    (HERE / "calibration/barriers.json").write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "versions": versions,
-                "cases": rows,
-                "protocol": "Native public price requests after construction; QuantLib forced recalculate+NPV; 3 warmups, iterations=1; full 15-pair timing verified separately through test_barriers.py.",
-            },
-            indent=2,
-        )
-        + "\n"
+    write_report(
+        HERE / "calibration/barriers.json",
+        {
+            "schema_version": 1,
+            "versions": versions,
+            "cases": rows,
+            "protocol": "Native public price requests after construction; QuantLib forced recalculate+NPV; 3 warmups, iterations=1; full 15-pair timing verified separately through test_barriers.py.",
+        },
     )
 
 
