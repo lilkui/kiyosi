@@ -75,6 +75,51 @@ fn all_days_365_matches_natural_clock_for_constant_surface() -> Result<()> {
 }
 
 #[test]
+fn all_days_365_matches_natural_clock_for_barriers_and_continuations() -> Result<()> {
+    let start = instant(2025, 1, 1, 0);
+    let end = start.add_days(365)?;
+    let natural = BlackScholesMertonParameters::new(0.05, 0.02, 1.0)?;
+    let business = natural.replace(BlackScholesMertonParameterChanges {
+        variance_time_convention: Some(VarianceTimeConvention::Business(
+            TradingCalendar::all_days(),
+        )),
+        ..Default::default()
+    })?;
+    let natural = PricingContext::new(natural, 100.0, start)?;
+    let business = PricingContext::new(business, 100.0, start)?;
+    let option = BarrierOption::new(BarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        start,
+        end,
+        80.0,
+        BarrierType::DownAndOut,
+    ))?;
+    let barrier = FiniteDifferenceBarrierEngine::default();
+    let expected = barrier.price(&option, &natural)?;
+    assert!((barrier.price(&option, &business)? - expected).abs() <= 1e-10);
+
+    let binary = BinaryBarrierOption::cash(
+        BinaryBarrierTerms::new(
+            OptionType::Call,
+            100.0,
+            start,
+            end,
+            110.0,
+            BarrierType::DownAndIn,
+        ),
+        10.0,
+    )?;
+    let engine = FiniteDifferenceBinaryBarrierEngine::default();
+    let digital = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end)?;
+    let expected = AnalyticDigitalEngine.price(&digital, &natural)?;
+    assert!((engine.price(&binary, &business)? - expected).abs() <= 1e-10);
+    let solution = engine.solve(&binary, &business, 99.0..=101.0)?;
+    assert!((solution.price(100.0)? - expected).abs() <= 1e-10);
+    Ok(())
+}
+
+#[test]
 fn model_defaults_replacement_and_calendar_validation_preserve_units() {
     let model = BlackScholesMertonParameters::new(0.05, 0.02, 0.2).unwrap();
     assert_eq!(

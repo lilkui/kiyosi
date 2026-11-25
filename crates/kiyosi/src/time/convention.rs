@@ -103,6 +103,11 @@ impl VarianceTimeConvention {
         }
     }
 
+    pub(crate) fn uses_actual365_clock(&self) -> bool {
+        self.calendar()
+            .is_none_or(|calendar| *calendar == TradingCalendar::all_days())
+    }
+
     pub(crate) fn require_actual365(&self) -> Result<()> {
         if matches!(self, Self::Business(_)) {
             return Err(Error::UnsupportedOperation(

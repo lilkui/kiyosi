@@ -1,8 +1,38 @@
+use std::borrow::Cow;
+
 use super::{
     Curve, FiniteDifferenceScheme, FiniteDifferenceSettings, PricingContext, Result, SpatialGrid,
     Stepper, TimeGrid, local_volatility, prepare_rate_curves, validate_work, validate_workspace,
 };
-use crate::{Error, LocalVolatilitySurface, Timestamp};
+use crate::{
+    BlackScholesMertonParameterChanges, Error, LocalVolatilitySurface, ModelParameters,
+    PricingContextChanges, Timestamp, VarianceTimeConvention,
+};
+
+pub(super) fn uses_business_time(context: &PricingContext) -> bool {
+    !context
+        .model_parameters()
+        .variance_time_convention()
+        .uses_actual365_clock()
+}
+
+// Analytic continuations accept the Actual/365 Fixed convention at their API boundary.
+pub(super) fn analytic_context(context: &PricingContext) -> Result<Cow<'_, PricingContext>> {
+    if let ModelParameters::BlackScholesMerton(model) = context.model_parameters() {
+        let clock = model.variance_time_convention();
+        if clock.calendar().is_some() && clock.uses_actual365_clock() {
+            let model = model.replace(BlackScholesMertonParameterChanges {
+                variance_time_convention: Some(VarianceTimeConvention::Actual365Fixed),
+                ..Default::default()
+            })?;
+            return Ok(Cow::Owned(context.replace(PricingContextChanges {
+                model_parameters: Some(model.into()),
+                ..Default::default()
+            })?));
+        }
+    }
+    Ok(Cow::Borrowed(context))
+}
 
 // Dispatch outside the solver so each diffusion keeps its compile-time specialization.
 macro_rules! with_diffusion {
@@ -16,13 +46,8 @@ macro_rules! with_diffusion {
     ($context:ident, $horizon:expr, |$diffusion:ident| $price:expr) => {{
         use $crate::engines::finite_difference::{diffusion::LocalDiffusion, local_volatility};
         let horizon = $horizon;
-        let business_time = $context
-            .model_parameters()
-            .variance_time_convention()
-            .calendar()
-            .is_some_and(|calendar| {
-                horizon.is_none() || *calendar != $crate::TradingCalendar::all_days()
-            });
+        let business_time =
+            $crate::engines::finite_difference::diffusion::uses_business_time($context);
         if let Some(model) = local_volatility::local_model($context) {
             let surface = model.surface();
             let base = LocalDiffusion::new($context, surface);

@@ -123,7 +123,7 @@ impl Contract for BarrierOption {
         self
     }
     fn resolved_price(&self, context: &PricingContext) -> Result<Option<f64>> {
-        resolved_price(self, context)
+        resolved_price(self, diffusion::analytic_context(context)?.as_ref())
     }
     fn payoff_requires_touch(&self) -> bool {
         self.payoff_requires_touch()
@@ -137,7 +137,10 @@ impl Contract for DoubleBarrierOption {
         Some(self.upper_barrier())
     }
     fn resolved_price(&self, context: &PricingContext) -> Result<Option<f64>> {
-        crate::engines::analytic::double_barrier::resolved_price(self, context)
+        crate::engines::analytic::double_barrier::resolved_price(
+            self,
+            diffusion::analytic_context(context)?.as_ref(),
+        )
     }
     fn payoff_requires_touch(&self) -> bool {
         self.payoff_requires_touch()
@@ -339,12 +342,7 @@ fn native_barrier(
 }
 
 pub(super) fn uses_local_diffusion(context: &PricingContext) -> bool {
-    local_volatility::local_model(context).is_some()
-        || context
-            .model_parameters()
-            .variance_time_convention()
-            .calendar()
-            .is_some()
+    local_volatility::local_model(context).is_some() || diffusion::uses_business_time(context)
 }
 
 pub(super) fn evaluate_after_prefix(

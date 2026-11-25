@@ -180,6 +180,41 @@ def test_all_days_365_matches_natural_clock_and_keeps_surface_dates():
     assert business.surface.volatility(FRIDAY + timedelta(days=1), 100) == 0.3
 
 
+def test_all_days_365_matches_natural_clock_for_barriers_and_continuations():
+    start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+    natural = bsm(risk_free_rate=0.05, volatility=1.0)
+    business = natural.replace(
+        variance_time_convention="business", calendar=all_days_calendar()
+    )
+    natural, business = context(natural, start), context(business, start)
+    terms = {
+        "option_type": "call",
+        "strike": 100,
+        "effective_time": start,
+        "expiry_time": end,
+    }
+    option = ins.BarrierOption(**terms, barrier_level=80, barrier_type="down_and_out")
+    barrier = pricing.FiniteDifferenceBarrierEngine()
+    assert barrier.price(option, business) == pytest.approx(
+        barrier.price(option, natural), rel=0, abs=1e-10
+    )
+
+    binary = ins.BinaryBarrierOption(
+        **terms,
+        barrier_level=110,
+        barrier_type="down_and_in",
+        payoff_type="cash",
+        payout=10,
+    )
+    digital = ins.CashOrNothingOption(**terms, payout=10)
+    expected = pricing.AnalyticDigitalEngine().price(digital, natural)
+    engine = pricing.FiniteDifferenceBinaryBarrierEngine()
+    assert engine.price(binary, business) == pytest.approx(expected, rel=0, abs=1e-10)
+    assert engine.solve(binary, business, spot_range=(99, 101)).price(
+        100
+    ) == pytest.approx(expected, rel=0, abs=1e-10)
+
+
 def test_changing_local_volatility_uses_natural_dates_and_business_variance():
     surface = LocalVolatilitySurface(
         times=[FRIDAY, MONDAY], spots=[50, 150], values=[[0.2, 0.2], [0.5, 0.5]]

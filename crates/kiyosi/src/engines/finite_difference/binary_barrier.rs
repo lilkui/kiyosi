@@ -141,7 +141,8 @@ fn native(
                     )?
                     .0);
                 }
-                AnalyticDigitalEngine.price(digital, context)?
+                AnalyticDigitalEngine
+                    .price(digital, diffusion::analytic_context(context)?.as_ref())?
             } else {
                 let model = context.model_parameters();
                 let curve = if contract.payout.is_some() {
@@ -657,7 +658,10 @@ impl<I: BinaryInstrument> super::solution::Backend<I> for BinaryState {
                             saved, digital, context, request, shifts,
                         );
                     }
-                    return PricingResult::new(AnalyticDigitalEngine.price(digital, context)?);
+                    return PricingResult::new(
+                        AnalyticDigitalEngine
+                            .price(digital, diffusion::analytic_context(context)?.as_ref())?,
+                    );
                 }
                 let curve = if contract.payout.is_some() {
                     context.model_parameters().risk_free_curve()

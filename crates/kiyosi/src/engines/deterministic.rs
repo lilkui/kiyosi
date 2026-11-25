@@ -30,7 +30,10 @@ pub(crate) fn enabled_until(context: &PricingContext, end: Timestamp) -> Result<
         return Ok(false);
     }
     let clock = context.model_parameters().variance_time_convention();
-    Ok(clock.calendar().is_some() && clock.variance_start(context.valuation_time(), end)? == end)
+    Ok(
+        !clock.uses_actual365_clock()
+            && clock.variance_start(context.valuation_time(), end)? == end,
+    )
 }
 
 fn invalid() -> Error {
