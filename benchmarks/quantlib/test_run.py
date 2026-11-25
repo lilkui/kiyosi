@@ -153,6 +153,41 @@ class CommandTests(unittest.TestCase):
             ):
                 self.assertEqual(prebuilt_rust_executable(evidence), executable)
 
+    def test_prebuilt_adapter_requires_both_artifact_fingerprints_to_match(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            rust = root / "recorded-rust"
+            quantlib = root / "custom-quantlib"
+            executables = {"kiyosi": rust, "quantlib": quantlib}
+            for path in executables.values():
+                path.write_bytes(b"original artifact")
+            evidence = {
+                "executables": {
+                    backend: fingerprint(path) for backend, path in executables.items()
+                }
+            }
+            build_evidence_path(quantlib).write_text(json.dumps(evidence))
+            target = root / "configured-target"
+            with (
+                patch("run.shutil.which", return_value="/tools/cargo"),
+                patch(
+                    "run.command",
+                    return_value=json.dumps({"target_directory": str(target)}),
+                ) as cargo,
+            ):
+                self.assertEqual(
+                    prebuilt_rust_executable(quantlib_executable=quantlib), rust
+                )
+                cargo.assert_not_called()
+                for backend, path in executables.items():
+                    with self.subTest(backend=backend):
+                        path.write_bytes(b"replacement artifact")
+                        self.assertEqual(
+                            prebuilt_rust_executable(quantlib_executable=quantlib),
+                            target / "release/quantlib_bench",
+                        )
+                        path.write_bytes(b"original artifact")
+
     def test_missing_native_executable_writes_failed_report(self):
         with tempfile.TemporaryDirectory() as directory:
             report = Path(directory) / "report.json"
@@ -434,10 +469,10 @@ class ReportTests(unittest.TestCase):
                     "--no-build",
                     *(
                         []
-                        if rust_from_build
+                        if rust_from_build and not rebuild_rust
                         else [
                             "--rust-executable",
-                            f"./{native.name}" if relative_executables else str(native),
+                            f"./{rust.name}" if relative_executables else str(rust),
                         ]
                     ),
                     "--quantlib-executable",
@@ -486,7 +521,7 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(report["cases"][0]["status"], "passed")
         self.assertEqual(report["build"]["source"], source)
 
-    def test_no_build_marks_a_replaced_adapter_build_record_unavailable(self):
+    def test_no_build_allows_an_explicit_replaced_adapter_without_build_evidence(self):
         result, report = self.run_fixture(
             extra=("--price-only",),
             build_source={"revision": "build-revision", "dirty_state": ""},

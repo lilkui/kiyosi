@@ -181,18 +181,23 @@ def build_rust(binary="quantlib_bench", *, timeout=None):
     raise RuntimeError(f"Cargo did not report the {binary} executable")
 
 
-def prebuilt_rust_executable(build_evidence=None):
-    """Prefer the executable path reported by Cargo at build time."""
+def prebuilt_rust_executable(
+    build_evidence=None, *, quantlib_executable=DEFAULT_QUANTLIB_EXECUTABLE
+):
+    """Use the recorded Rust path when both adapters match the build record."""
     if build_evidence is None:
-        build_evidence = read_build_evidence(DEFAULT_QUANTLIB_EXECUTABLE)
+        build_evidence = read_build_evidence(quantlib_executable)
     if isinstance(build_evidence, dict):
         try:
             recorded = Path(build_evidence["executables"]["kiyosi"]["path"])
-        except (KeyError, TypeError):
-            pass
-        else:
             if recorded.is_absolute() and recorded.is_file():
-                return recorded
+                executables = {"kiyosi": recorded, "quantlib": quantlib_executable}
+                if isinstance(
+                    verified_build_evidence(build_evidence, executables), dict
+                ):
+                    return recorded
+        except (KeyError, TypeError, OSError):
+            pass
     target = ROOT / "target"
     if shutil.which("cargo"):
         metadata = json.loads(
@@ -666,7 +671,7 @@ def main(argv=None):
         if args.no_build:
             report["build"] = read_build_evidence(args.quantlib_executable)
             rust_executable = args.rust_executable or prebuilt_rust_executable(
-                report["build"]
+                report["build"], quantlib_executable=args.quantlib_executable
             )
         else:
             if args.rust_executable is not None:

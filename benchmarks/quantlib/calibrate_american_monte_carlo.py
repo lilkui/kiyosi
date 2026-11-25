@@ -26,7 +26,7 @@ def main():
     quantlib = HERE / "build/quantlib_bench"
     evidence = read_build_evidence(quantlib)
     executables = {
-        "kiyosi": prebuilt_rust_executable(evidence),
+        "kiyosi": prebuilt_rust_executable(evidence, quantlib_executable=quantlib),
         "quantlib": quantlib,
     }
     document = {
