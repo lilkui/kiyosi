@@ -1,8 +1,8 @@
 use super::{
-    BLOCK_SIZE, Error, EuropeanOption, GreeksRequest, Moments, MonteCarloSampling,
+    BLOCK_SIZE, BlockRunner, Error, EuropeanOption, GreeksRequest, Moments, MonteCarloSampling,
     MonteCarloVanillaEngine, NumericalShiftSettings, OptionType, Pcg32, PricingContext,
-    PricingEngine, PricingResult, Result, check_path_step, run_blocks, sample_normal, scaled_value,
-    sobol, unstable,
+    PricingEngine, PricingResult, Result, check_path_step, sample_normal, scaled_value, sobol,
+    unstable,
 };
 use crate::{AmericanOption, BlackScholesMertonParameterChanges, Greek, PricingContextChanges};
 
@@ -17,6 +17,13 @@ fn american_workspace<T>(capacity: usize) -> Result<Vec<T>> {
         )
     })?;
     Ok(buffer)
+}
+
+#[derive(Default)]
+struct ExerciseBlock {
+    spots: Vec<f64>,
+    cash: Vec<f64>,
+    regression: [[f64; 4]; 3],
 }
 
 impl MonteCarloVanillaEngine {
@@ -138,19 +145,22 @@ impl MonteCarloVanillaEngine {
         };
         let block_count = samples.div_ceil(BLOCK_SIZE);
         let mut blocks = american_workspace(block_count)?;
-        blocks.resize_with(block_count, Vec::new);
-        let mut cash_flows = american_workspace(paths)?;
-        run_blocks(&mut blocks, settings.max_active_workers, |block| {
-            let mut generator = Pcg32::new(seed, block as u64);
+        blocks.resize_with(block_count, ExerciseBlock::default);
+        let runner = BlockRunner::new(block_count, settings.max_active_workers)?;
+        runner.run(&mut blocks, |block_index, block| {
+            let mut generator = Pcg32::new(seed, block_index as u64);
             let mut cursor = sobol
                 .as_ref()
-                .map(|sequence| sequence.cursor(block * BLOCK_SIZE));
+                .map(|sequence| sequence.cursor(block_index * BLOCK_SIZE));
             let mut spare = None;
-            let begin = block * BLOCK_SIZE;
-            let end = ((block + 1) * BLOCK_SIZE).min(samples);
-            let mut values = american_workspace(
-                (end - begin) * intervals * if settings.antithetic { 2 } else { 1 },
-            )?;
+            let begin = block_index * BLOCK_SIZE;
+            let end = ((block_index + 1) * BLOCK_SIZE).min(samples);
+            let paired = if settings.antithetic {
+                end.min(paths / 2).saturating_sub(begin)
+            } else {
+                0
+            };
+            let mut values = american_workspace((end - begin + paired) * intervals)?;
             for path in begin..end {
                 crate::cancellation::check()?;
                 let paired = settings.antithetic && path < paths / 2;
@@ -178,38 +188,52 @@ impl MonteCarloVanillaEngine {
                     cursor.next_path();
                 }
             }
-            Ok(values)
+            let mut cash = american_workspace(end - begin + paired)?;
+            cash.extend(
+                values
+                    .chunks_exact(intervals)
+                    .map(|path| payoff(path[intervals - 1])),
+            );
+            block.spots = values;
+            block.cash = cash;
+            Ok(())
         })?;
-        let rows = || {
-            blocks
-                .iter()
-                .flat_map(|block| block.chunks_exact(intervals))
-        };
-        cash_flows.extend(rows().map(|path| payoff(path[intervals - 1])));
+        let strike = option.strike();
         for step in (0..intervals - 1).rev() {
-            crate::cancellation::check()?;
+            runner.run(&mut blocks, |_, block| {
+                let mut matrix = [[0.0; 4]; 3];
+                for (path, cash) in block.spots.chunks_exact(intervals).zip(&mut block.cash) {
+                    *cash *= discount;
+                    if !cash.is_finite() {
+                        return Err(unstable());
+                    }
+                    if payoff(path[step]) > 0.0 {
+                        let x = path[step] / strike;
+                        let square = x * x;
+                        let target = *cash / strike;
+                        matrix[0][0] += 1.0;
+                        matrix[0][1] += x;
+                        matrix[0][2] += square;
+                        matrix[1][1] += square;
+                        matrix[1][2] += x * square;
+                        matrix[2][2] += square * square;
+                        matrix[0][3] += target;
+                        matrix[1][3] += x * target;
+                        matrix[2][3] += square * target;
+                    }
+                }
+                block.regression = matrix;
+                Ok(())
+            })?;
+            // Merge fixed blocks in path order, independent of the worker count.
             let mut matrix = [[0.0; 4]; 3];
-            for (index, (path, cash)) in rows().zip(&mut cash_flows).enumerate() {
-                if index % 1024 == 0 {
-                    crate::cancellation::check()?;
-                }
-                *cash *= discount;
-                if !cash.is_finite() {
-                    return Err(unstable());
-                }
-                if payoff(path[step]) > 0.0 {
-                    let x = path[step] / option.strike();
-                    let square = x * x;
-                    let target = *cash / option.strike();
-                    matrix[0][0] += 1.0;
-                    matrix[0][1] += x;
-                    matrix[0][2] += square;
-                    matrix[1][1] += square;
-                    matrix[1][2] += x * square;
-                    matrix[2][2] += square * square;
-                    matrix[0][3] += target;
-                    matrix[1][3] += x * target;
-                    matrix[2][3] += square * target;
+            for block in &blocks {
+                for (sum, partial) in matrix
+                    .iter_mut()
+                    .flatten()
+                    .zip(block.regression.iter().flatten())
+                {
+                    *sum += partial;
                 }
             }
             if matrix[0][0] == 0.0 {
@@ -222,27 +246,31 @@ impl MonteCarloVanillaEngine {
             matrix[2][0] = matrix[0][2];
             matrix[2][1] = matrix[1][2];
             let coefficients = solve_quadratic(matrix).ok_or_else(unstable)?;
-            for (index, (path, cash)) in rows().zip(&mut cash_flows).enumerate() {
-                if index % 1024 == 0 {
-                    crate::cancellation::check()?;
+            runner.run(&mut blocks, |_, block| {
+                for (path, cash) in block.spots.chunks_exact(intervals).zip(&mut block.cash) {
+                    let intrinsic = payoff(path[step]);
+                    if intrinsic <= 0.0 {
+                        continue;
+                    }
+                    let x = path[step] / strike;
+                    let continuation =
+                        coefficients[0] + x * (coefficients[1] + x * coefficients[2]);
+                    if !continuation.is_finite() {
+                        return Err(unstable());
+                    }
+                    if intrinsic / strike > continuation {
+                        *cash = intrinsic;
+                    }
                 }
-                let intrinsic = payoff(path[step]);
-                if intrinsic <= 0.0 {
-                    continue;
-                }
-                let x = path[step] / option.strike();
-                let continuation = coefficients[0] + x * (coefficients[1] + x * coefficients[2]);
-                if !continuation.is_finite() {
-                    return Err(unstable());
-                }
-                if intrinsic / option.strike() > continuation {
-                    *cash = intrinsic;
-                }
-            }
+                Ok(())
+            })?;
         }
         let mut mean = Moments::default();
-        for cash in cash_flows {
-            mean.add(cash, false);
+        for block in blocks {
+            crate::cancellation::check()?;
+            for cash in block.cash {
+                mean.add(cash, false);
+            }
         }
         Ok((
             scaled_value(mean.scale, mean.mean, -rate * dt)?.max(immediate),

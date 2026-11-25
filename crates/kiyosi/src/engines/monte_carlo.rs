@@ -1518,54 +1518,78 @@ fn sample_normal(
     }
 }
 
-#[expect(
-    clippy::cast_sign_loss,
-    reason = "Settings validate nonnegative thread counts before selecting workers."
-)]
 fn run_blocks<T: Send>(
     partials: &mut [T],
     max_active_workers: i32,
     simulate: impl Fn(usize) -> Result<T> + Sync,
 ) -> Result<()> {
-    let available = thread::available_parallelism().map_or(1, std::num::NonZero::get);
-    let workers = if max_active_workers == 0 {
-        available
-    } else {
-        (max_active_workers as usize).min(available)
-    }
-    .min(partials.len());
-    if workers <= 1 {
-        for (block, partial) in partials.iter_mut().enumerate() {
-            crate::cancellation::check()?;
-            *partial = simulate(block)?;
-        }
-        return Ok(());
-    }
-    let pool = worker_pool(available)?;
-    let chunk_size = partials
-        .len()
-        .div_ceil(workers.min(pool.current_num_threads()));
-    let tokens = crate::cancellation::current();
-    let failed = AtomicBool::new(false);
-    pool.install(|| {
-        // Each chunk runs sequentially, keeping the number of active workers within the cap.
-        partials
-            .par_chunks_mut(chunk_size)
-            .enumerate()
-            .try_for_each(|(chunk, values)| {
-                crate::cancellation::with_tokens(tokens.clone(), || {
-                    for (index, value) in values.iter_mut().enumerate() {
-                        if failed.load(Ordering::Relaxed) {
-                            break;
-                        }
-                        crate::cancellation::check()?;
-                        *value = simulate(chunk * chunk_size + index)
-                            .inspect_err(|_| failed.store(true, Ordering::Relaxed))?;
-                    }
-                    Ok(())
-                })
-            })
+    BlockRunner::new(partials.len(), max_active_workers)?.run(partials, |block, value| {
+        *value = simulate(block)?;
+        Ok(())
     })
+}
+
+struct BlockRunner {
+    parallel: Option<(Arc<rayon::ThreadPool>, usize)>,
+}
+
+impl BlockRunner {
+    #[expect(
+        clippy::cast_sign_loss,
+        reason = "Settings validate nonnegative thread counts before selecting workers."
+    )]
+    fn new(blocks: usize, max_active_workers: i32) -> Result<Self> {
+        let available = thread::available_parallelism().map_or(1, std::num::NonZero::get);
+        let workers = if max_active_workers == 0 {
+            available
+        } else {
+            (max_active_workers as usize).min(available)
+        }
+        .min(blocks);
+        let parallel = if workers <= 1 {
+            None
+        } else {
+            let pool = worker_pool(available)?;
+            let chunk_size = blocks.div_ceil(workers.min(pool.current_num_threads()));
+            Some((pool, chunk_size))
+        };
+        Ok(Self { parallel })
+    }
+
+    fn run<T: Send>(
+        &self,
+        blocks: &mut [T],
+        apply: impl Fn(usize, &mut T) -> Result<()> + Sync,
+    ) -> Result<()> {
+        let Some((pool, chunk_size)) = &self.parallel else {
+            for (index, block) in blocks.iter_mut().enumerate() {
+                crate::cancellation::check()?;
+                apply(index, block)?;
+            }
+            return Ok(());
+        };
+        let tokens = crate::cancellation::current();
+        let failed = AtomicBool::new(false);
+        pool.install(|| {
+            // Each chunk runs sequentially, keeping the number of active workers within the cap.
+            blocks
+                .par_chunks_mut(*chunk_size)
+                .enumerate()
+                .try_for_each(|(chunk, blocks)| {
+                    crate::cancellation::with_tokens(tokens.clone(), || {
+                        for (index, block) in blocks.iter_mut().enumerate() {
+                            if failed.load(Ordering::Relaxed) {
+                                break;
+                            }
+                            crate::cancellation::check()?;
+                            apply(chunk * chunk_size + index, block)
+                                .inspect_err(|_| failed.store(true, Ordering::Relaxed))?;
+                        }
+                        Ok(())
+                    })
+                })
+        })
+    }
 }
 
 #[derive(Default)]
