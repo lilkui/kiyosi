@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import calibrate_local_vol
 from calibrate_fd import domain_probes
 from compare_fd_accuracy import main as compare_fd_accuracy
 from run import load_entries
@@ -16,6 +17,41 @@ HERE = Path(__file__).resolve().parent
 
 
 class CoverageTests(unittest.TestCase):
+    def test_local_vol_calibration_timeout_preserves_complete_report(self):
+        cases = load_entries(HERE / "cases/fd_local_vol.json")
+        references = load_entries(HERE / "references/fd_local_vol.json")
+        previous = (HERE / "calibration/fd_local_vol.json").read_bytes()
+        points = {
+            point["spot"]: point["expected"]
+            for point in json.loads(previous)["surface_points"]
+        }
+        first = next(iter(cases))
+
+        def native(_executable, case, backend, _iterations):
+            if case["id"] == "surface":
+                return {"price": points[case["inputs"]["query_spot"]]}
+            if case["id"] != first:
+                raise TimeoutError("second case timed out")
+            price = references[first]["value"]
+            if case["profiles"][backend]["space"] == 10:
+                price += 1
+            return {"price": price}
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            report = root / "calibration/fd_local_vol.json"
+            report.parent.mkdir()
+            report.write_bytes(previous)
+            with (
+                patch.object(calibrate_local_vol, "HERE", root),
+                patch("run.load_entries", side_effect=[cases, references]),
+                patch("run.prebuilt_rust_executable", return_value=root / "kiyosi"),
+                patch("run.native", side_effect=native),
+                self.assertRaisesRegex(TimeoutError, "second case timed out"),
+            ):
+                calibrate_local_vol.main()
+            self.assertEqual(report.read_bytes(), previous)
+
     def test_fd_accuracy_times_each_distinct_comparison_once(self):
         measurement = {
             "status": "passed",

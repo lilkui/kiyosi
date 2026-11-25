@@ -1,7 +1,6 @@
 """Retain native local-volatility profile and supplied-surface agreement evidence."""
 
 import copy
-import json
 from pathlib import Path
 
 import run
@@ -131,10 +130,8 @@ def main():
             assert not measurements["coarse_rejected"]["passed"], (case["id"], backend)
             row["backends"][backend] = measurements
         evidence["cases"].append(row)
-        (HERE / "calibration/fd_local_vol.json").write_text(
-            json.dumps(evidence, indent=2) + "\n"
-        )
         print(case["id"], flush=True)
+    run.write_report(HERE / "calibration/fd_local_vol.json", evidence)
 
 
 if __name__ == "__main__":

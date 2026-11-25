@@ -15,6 +15,7 @@ from run import (
     read_build_evidence,
     seed_ensemble,
     verified_build_evidence,
+    write_report,
 )
 
 
@@ -42,7 +43,6 @@ def main():
         "experiments": [],
         "development_timing": "Potentially contended by concurrent calibration; final suite measures quiet timing",
     }
-    output = HERE / "calibration/american_monte_carlo.json"
     for backend, executable in executables.items():
         profiles = [
             ("baseline", {"path_count": 65536, "step_count": 50}),
@@ -92,8 +92,6 @@ def main():
                     "maximum_absolute": max(map(abs, deltas)),
                 }
             document["experiments"].append(row)
-            document["wall_seconds"] = time.monotonic() - started
-            output.write_text(json.dumps(document, indent=2, allow_nan=False) + "\n")
             print(
                 backend,
                 dimension,
@@ -110,12 +108,13 @@ def main():
                 flush=True,
             )
 
+    document["wall_seconds"] = time.monotonic() - started
     document["selected_profiles"] = case["profiles"]
     document["selection_rule"] = (
         "Select the smallest tested pricing path count that passes the ensemble and timing-seed gates. "
         "Independent refinements select 50 exercise intervals and 32768 QuantLib calibration paths."
     )
-    output.write_text(json.dumps(document, indent=2, allow_nan=False) + "\n")
+    write_report(HERE / "calibration/american_monte_carlo.json", document)
     reference["provenance"]["lsm_refinement"] = {
         "source": "calibration/american_monte_carlo.json",
         "experiments": [
@@ -130,11 +129,9 @@ def main():
             for row in document["experiments"]
         ],
     }
-    (HERE / "references/american_monte_carlo.json").write_text(
-        json.dumps(
-            {"schema_version": 1, "cases": [reference]}, indent=2, allow_nan=False
-        )
-        + "\n"
+    write_report(
+        HERE / "references/american_monte_carlo.json",
+        {"schema_version": 1, "cases": [reference]},
     )
 
 

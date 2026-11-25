@@ -14,6 +14,7 @@ from run import (
     read_build_evidence,
     seed_ensemble,
     verified_build_evidence,
+    write_report,
 )
 
 
@@ -56,7 +57,6 @@ def main():
     }
     checks = analytic_checks(cases, references, executables)
     rows = []
-    output = HERE / "calibration/monte_carlo.json"
     for case in cases.values():
         for backend, executable in executables.items():
             profiles = [{"path_count": paths} for paths in (65536, 131072, 262144)]
@@ -86,21 +86,6 @@ def main():
                         "repeatable": timing_batch["price"] == repeat["price"],
                     }
                 )
-                document = {
-                    "schema_version": 1,
-                    "build_evidence": build_evidence,
-                    "libraries": libraries,
-                    "validation_seed_policy": "Validation uses 1009 + 97*i for i=0..31, set before inspecting results. Timing uses seed 1729.",
-                    "prior_collision_evidence": "monte_carlo_seed_collision.json",
-                    "protocol": "methodology.md#monte-carlo; budget and seeds declared before profile selection",
-                    "references": references,
-                    "analytic_cross_checks": checks,
-                    "experiments": rows,
-                    "wall_seconds": time.monotonic() - started,
-                }
-                output.write_text(
-                    json.dumps(document, indent=2, allow_nan=False) + "\n"
-                )
                 print(
                     case["id"],
                     backend,
@@ -118,14 +103,21 @@ def main():
                     flush=True,
                 )
 
-    document["selected_profiles"] = {
-        case["id"]: case["profiles"]
-        for case in load_entries(HERE / "cases/monte_carlo.json").values()
+    document = {
+        "schema_version": 1,
+        "build_evidence": build_evidence,
+        "libraries": libraries,
+        "validation_seed_policy": "Validation uses 1009 + 97*i for i=0..31, set before inspecting results. Timing uses seed 1729.",
+        "prior_collision_evidence": "monte_carlo_seed_collision.json",
+        "protocol": "methodology.md#monte-carlo; budget and seeds declared before profile selection",
+        "references": references,
+        "analytic_cross_checks": checks,
+        "experiments": rows,
+        "wall_seconds": time.monotonic() - started,
+        "selected_profiles": {case["id"]: case["profiles"] for case in cases.values()},
+        "selection_rule": "Select the smallest tested path count that passes the ensemble and timing-seed gates. Barrier pricing uses one interval.",
     }
-    document["selection_rule"] = (
-        "Select the smallest tested path count that passes the ensemble and timing-seed gates. Barrier pricing uses one interval."
-    )
-    output.write_text(json.dumps(document, indent=2, allow_nan=False) + "\n")
+    write_report(HERE / "calibration/monte_carlo.json", document)
 
 
 if __name__ == "__main__":
