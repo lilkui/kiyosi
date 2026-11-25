@@ -172,12 +172,13 @@ impl FiniteDifferenceSolution {
     /// Propagates [`Self::price`] errors, without partial output or mutation.
     /// All spot domains are validated before evaluation.
     pub fn price_many(&self, spot_prices: &[f64]) -> Result<Vec<f64>> {
-        spot_prices.iter().try_for_each(|&spot| {
-            crate::cancellation::check()?;
-            self.validate_spot(spot)
-        })?;
-        crate::cancellation::check()?;
-        spot_prices.iter().map(|&spot| self.price(spot)).collect()
+        self.validate_spots(spot_prices)?;
+        let request = GreeksRequest::new([]);
+        let shifts = NumericalShiftSettings::default();
+        spot_prices
+            .iter()
+            .map(|&spot| Ok(self.evaluate(spot, request, shifts)?.price()))
+            .collect()
     }
 
     /// Evaluates price and requested spot Greeks on the saved solution.
@@ -192,10 +193,6 @@ impl FiniteDifferenceSolution {
     ///
     /// Propagates [`Self::price`] errors and returns [`Error::InvalidInput`] for a
     /// nonpositive or non-finite explicit shift, even for unused controls.
-    #[expect(
-        clippy::float_cmp,
-        reason = "Exact equality verifies a representably symmetric spot stencil."
-    )]
     pub fn price_with_greeks(
         &self,
         spot_price: f64,
@@ -208,6 +205,19 @@ impl FiniteDifferenceSolution {
         };
         shifts.validate()?;
         self.validate_spot(spot_price)?;
+        self.evaluate(spot_price, request, shifts)
+    }
+
+    #[expect(
+        clippy::float_cmp,
+        reason = "Exact equality verifies a representably symmetric spot stencil."
+    )]
+    fn evaluate(
+        &self,
+        spot_price: f64,
+        request: GreeksRequest,
+        shifts: NumericalShiftSettings,
+    ) -> Result<PricingResult> {
         crate::cancellation::check()?;
         let context = at_spot(&self.context, spot_price)?;
         let active = GreeksRequest::new(
@@ -306,24 +316,28 @@ impl FiniteDifferenceSolution {
         request: GreeksRequest,
         spot_shift: Option<f64>,
     ) -> Result<Vec<PricingResult>> {
-        NumericalShiftSettings {
+        let shifts = NumericalShiftSettings {
             spot_shift,
             ..Default::default()
-        }
-        .validate()?;
-        spot_prices.iter().try_for_each(|&spot| {
-            crate::cancellation::check()?;
-            self.validate_spot(spot)
-        })?;
-        crate::cancellation::check()?;
+        };
+        shifts.validate()?;
+        self.validate_spots(spot_prices)?;
         spot_prices
             .iter()
-            .map(|&spot| self.price_with_greeks(spot, request, spot_shift))
+            .map(|&spot| self.evaluate(spot, request, shifts))
             .collect()
     }
 
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
         self.value.at_spot_discontinuity(context, radius)
+    }
+
+    fn validate_spots(&self, spot_prices: &[f64]) -> Result<()> {
+        for &spot in spot_prices {
+            crate::cancellation::check()?;
+            self.validate_spot(spot)?;
+        }
+        crate::cancellation::check()
     }
 
     fn validate_spot(&self, spot: f64) -> Result<()> {
