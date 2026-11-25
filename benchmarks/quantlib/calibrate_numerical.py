@@ -214,6 +214,8 @@ def main():
                     counts += (8191, 8192)
                 profiles = [{"step_count": count} for count in counts]
             for profile in profiles:
+                if profile == case["profiles"][backend]:
+                    continue
                 refined = copy.deepcopy(case)
                 refined["profiles"][backend] = profile
                 result = native(binary, refined, backend, 1)

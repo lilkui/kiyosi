@@ -29,15 +29,6 @@
             },
             {
               "profile": {
-                "asset_step_count": 512,
-                "integration_standard_deviations": 8,
-                "time_step_count": 1
-              },
-              "price": 9.22700551645186,
-              "absolute_error": 8.297812215118938e-09
-            },
-            {
-              "profile": {
                 "asset_step_count": 1024,
                 "integration_standard_deviations": 8,
                 "time_step_count": 1
@@ -53,15 +44,6 @@
               },
               "price": 9.227005508186414,
               "absolute_error": 3.2366997970711964e-11
-            },
-            {
-              "profile": {
-                "asset_step_count": 512,
-                "integration_standard_deviations": 8,
-                "time_step_count": 1
-              },
-              "price": 9.22700551645186,
-              "absolute_error": 8.297812215118938e-09
             },
             {
               "profile": {
@@ -118,14 +100,6 @@
             },
             {
               "profile": {
-                "asset_step_count": 512,
-                "integration_standard_deviations": 8
-              },
-              "price": 3.9781677378982785,
-              "absolute_error": 6.766143201275554e-10
-            },
-            {
-              "profile": {
                 "asset_step_count": 1024,
                 "integration_standard_deviations": 8
               },
@@ -139,14 +113,6 @@
               },
               "price": 3.9781677385722456,
               "absolute_error": 2.6472157799162233e-12
-            },
-            {
-              "profile": {
-                "asset_step_count": 512,
-                "integration_standard_deviations": 8
-              },
-              "price": 3.9781677378982785,
-              "absolute_error": 6.766143201275554e-10
             },
             {
               "profile": {
@@ -201,14 +167,6 @@
             },
             {
               "profile": {
-                "asset_step_count": 512,
-                "integration_standard_deviations": 8
-              },
-              "price": 25.203418560128803,
-              "absolute_error": 1.3427030154389286e-08
-            },
-            {
-              "profile": {
                 "asset_step_count": 1024,
                 "integration_standard_deviations": 8
               },
@@ -222,14 +180,6 @@
               },
               "price": 25.203418573503328,
               "absolute_error": 5.2505555458992603e-11
-            },
-            {
-              "profile": {
-                "asset_step_count": 512,
-                "integration_standard_deviations": 8
-              },
-              "price": 25.203418560128803,
-              "absolute_error": 1.3427030154389286e-08
             },
             {
               "profile": {
@@ -293,13 +243,6 @@
               },
               "price": 9.230619065750256,
               "absolute_error": 0.0036135575962088495
-            },
-            {
-              "profile": {
-                "step_count": 512
-              },
-              "price": 9.223209535667928,
-              "absolute_error": 0.003795972486118515
             },
             {
               "profile": {
@@ -373,13 +316,6 @@
               },
               "price": 9.230582703819456,
               "absolute_error": 0.0035771956654091497
-            },
-            {
-              "profile": {
-                "step_count": 512
-              },
-              "price": 9.22317324359916,
-              "absolute_error": 0.003832264554887388
             },
             {
               "profile": {
@@ -464,13 +400,6 @@
             },
             {
               "profile": {
-                "step_count": 512
-              },
-              "price": 6.658861951346935,
-              "absolute_error": 0.0018225945465202287
-            },
-            {
-              "profile": {
                 "step_count": 1023
               },
               "price": 6.662411834367835,
@@ -541,13 +470,6 @@
               },
               "price": 6.6641464097729735,
               "absolute_error": 0.003461863879517857
-            },
-            {
-              "profile": {
-                "step_count": 512
-              },
-              "price": 6.65888065671518,
-              "absolute_error": 0.001803889178275675
             },
             {
               "profile": {
@@ -660,13 +582,6 @@
             },
             {
               "profile": {
-                "step_count": 2048
-              },
-              "price": 9.138495032229448,
-              "absolute_error": 0.005188595731327794
-            },
-            {
-              "profile": {
                 "step_count": 4095
               },
               "price": 9.138781677381044,
@@ -751,13 +666,6 @@
               },
               "price": 9.140331961409737,
               "absolute_error": 0.007025524911616898
-            },
-            {
-              "profile": {
-                "step_count": 2048
-              },
-              "price": 9.138485999863484,
-              "absolute_error": 0.005179563365363293
             },
             {
               "profile": {
