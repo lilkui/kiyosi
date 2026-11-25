@@ -29,8 +29,8 @@ def main(argv=None):
         (args.updated_executable or run.prebuilt_rust_executable()).resolve(),
     )
     info = {
-        key: json.loads(run.command([str(executable), "--info"]))
-        for key, executable in [("kiyosi", baseline), ("quantlib", updated)]
+        executable: json.loads(run.command([str(executable), "--info"]))
+        for executable in dict.fromkeys((baseline, updated))
     }
     evidence = {
         "schema_version": 1,
@@ -73,7 +73,7 @@ def main(argv=None):
                     references[case["id"]],
                     {"kiyosi": baseline, "quantlib": executable},
                     SimpleNamespace(price_only=False, target_ms=20),
-                    info,
+                    {"kiyosi": info[baseline], "quantlib": info[executable]},
                 )
                 if measurement["status"] != "passed":
                     row["comparisons"][name] = {"failure": measurement}

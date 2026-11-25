@@ -90,6 +90,59 @@ class CoverageTests(unittest.TestCase):
         )
         self.assertGreater(continuation["continuation_constant_spacing"]["space"], 800)
 
+    def test_fd_call_policy_uses_baseline_capabilities_for_both_runs(self):
+        references = load_entries(HERE / "references")
+
+        def native(_executable, case, backend, iterations):
+            price = references[case["id"]]["value"]
+            if backend == "kiyosi":
+                price -= 0.00001
+            return {"price": price, "elapsed_ns": 20_000_000, "iterations": iterations}
+
+        with tempfile.TemporaryDirectory() as directory:
+            baseline = Path(directory) / "baseline"
+            updated = Path(directory) / "updated"
+            report = Path(directory) / "comparison.json"
+            baseline.touch()
+            updated.touch()
+            with (
+                patch(
+                    "compare_fd_accuracy.os.sched_getaffinity",
+                    return_value={0},
+                    create=True,
+                ),
+                patch("compare_fd_accuracy.os.sched_setaffinity", create=True),
+                patch(
+                    "run.command",
+                    side_effect=[
+                        json.dumps({"families": ["fd_bsm", "fd_local_vol"]}),
+                        json.dumps({"families": ["fd_local_vol"]}),
+                        "revision",
+                        "cpu",
+                    ],
+                ),
+                patch("run.native", side_effect=native),
+                self.assertRaises(SystemExit),
+            ):
+                compare_fd_accuracy(
+                    [
+                        "--baseline-executable",
+                        str(baseline),
+                        "--updated-executable",
+                        str(updated),
+                        "--report",
+                        str(report),
+                    ]
+                )
+            document = json.loads(report.read_text())
+        comparisons = next(
+            row["comparisons"]
+            for row in document["cases"]
+            if row["id"] == "fd-bsm-european-call"
+        )
+        self.assertTrue(comparisons["call_policy"]["accuracy_improved"])
+        self.assertEqual(comparisons["core_explicit"]["failure"]["status"], "unsupported")
+
     def run_suite(
         self, *, remove=(), patch=None, missing_family=None, missing_reference=None
     ):
