@@ -1,7 +1,7 @@
 use super::grid::{SpatialGrid, Spline, TimeGrid, concentrate, project_payoff, spot_floor};
 use super::{Payoff, WORKSPACE_BUDGET, invalid_grid, prepare_rate_curves, unstable, validate_work};
 use crate::engines::analytic::heston::integrated_variance;
-use crate::engines::deterministic::{self, AmericanExercise, exercise_value};
+use crate::engines::deterministic::{self, AmericanExercise, ExerciseBoundaries};
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{checked_with_scale, scaled_cash};
 use crate::{
@@ -359,14 +359,6 @@ fn prepare(
         &[],
         |steps| validate_grid(steps, curve_bytes),
     )?;
-    if payoff.is_american() {
-        let knots = risk.ends().len() + dividend.ends().len() - 2;
-        if knots.saturating_mul(times.widths.len()).saturating_mul(2) > 25_000_000 {
-            return Err(invalid_grid(
-                "American Heston exercise boundary exceeds 25 million curve-knot visits; reduce time steps or curve nodes",
-            ));
-        }
-    }
     let width = integrated.sqrt();
     let tail_width = width.max(0.35 * model.vol_of_vol() * time);
     let lower = spot_floor(
@@ -444,6 +436,13 @@ fn prepare(
     let mut second = vec![0.0; length];
     let mut predictor = vec![0.0; length];
     let mut stage = vec![0.0; length];
+    let boundaries = ExerciseBoundaries::new(
+        payoff,
+        [lower, upper],
+        time,
+        [&risk, &dividend],
+        times.widths.len(),
+    )?;
     let mut op = Operator::new(&asset, variance.as_deref());
     for step in (0..times.widths.len()).rev() {
         crate::cancellation::check()?;
@@ -453,10 +452,7 @@ fn prepare(
         let middle = a.midpoint(b);
         let rate = risk.rate(middle);
         let q = dividend.rate(middle);
-        let edges = [
-            exercise_value(payoff, lower, a, time, &risk, &dividend)?,
-            exercise_value(payoff, upper, a, time, &risk, &dividend)?,
-        ];
+        let edges = boundaries.at(a)?;
         if edges.iter().any(|x| !x.is_finite()) {
             return Err(unstable());
         }

@@ -341,38 +341,135 @@ fn discounted_intrinsic(
 }
 
 // Discounted deterministic intrinsic values also supply the far-asset asymptote.
-pub(super) fn exercise_value(
+pub(super) struct ExerciseBoundaries<'a> {
     payoff: Payoff,
-    spot: f64,
-    start: f64,
+    assets: [f64; 2],
     end: f64,
-    risk: &Curve,
-    dividend: &Curve,
-) -> Result<f64> {
-    let knots = if payoff.is_american() && start < end && (spot > 0.0 || payoff.sign < 0.0) {
-        exercise_knots(start, end, risk, dividend)
-    } else {
-        Vec::new()
-    };
-    exercise_value_on_knots(
-        payoff,
-        spot,
-        start,
-        end,
-        [risk, dividend],
-        knots.into_iter().chain([end]).map(|time| (time, None)),
-        None,
-    )
+    curves: [&'a Curve; 2],
+    knots: Vec<f64>,
+    rules: [BoundaryRule; 2],
 }
 
-fn exercise_knots(start: f64, end: f64, risk: &Curve, dividend: &Curve) -> Vec<f64> {
-    let mut knots: Vec<_> = risk
-        .ends_between(start, end)
-        .chain(dividend.ends_between(start, end))
-        .collect();
-    knots.sort_by(f64::total_cmp);
-    knots.dedup();
-    knots
+#[derive(Clone, Copy)]
+enum BoundaryRule {
+    Zero,
+    Immediate,
+    Expiry,
+    Scan,
+}
+
+impl<'a> ExerciseBoundaries<'a> {
+    pub fn new(
+        payoff: Payoff,
+        assets: [f64; 2],
+        end: f64,
+        [risk, dividend]: [&'a Curve; 2],
+        steps: usize,
+    ) -> Result<Self> {
+        let curves = [risk, dividend];
+        let mut knots = Vec::new();
+        let mut rules = [BoundaryRule::Expiry; 2];
+        if payoff.is_american() {
+            let mut carry = [0.0_f64; 2];
+            for t in risk.ends().chain(dividend.ends()) {
+                crate::cancellation::check()?;
+                let log_carry = dividend.log_factor(0.0, t) - risk.log_factor(0.0, t);
+                if !log_carry.is_finite() {
+                    carry = [f64::NEG_INFINITY, f64::INFINITY];
+                    break;
+                }
+                carry[0] = carry[0].min(log_carry);
+                carry[1] = carry[1].max(log_carry);
+            }
+            let [r, q] = curves.map(Curve::rate_bounds);
+            let thresholds = if r[0] > 0.0 && q[0] > 0.0 {
+                [log_ratio(r[0], q[1]), log_ratio(r[1], q[0])]
+            } else {
+                [f64::NEG_INFINITY, f64::INFINITY]
+            };
+            let width = carry[1] - carry[0];
+            rules = assets.map(|asset| {
+                let center = log_ratio(asset, payoff.strike);
+                // Stay away from ties and preserve the general path for extreme discounts.
+                let margin = 1e-10 * (1.0 + center.abs() + carry[0].abs() + carry[1].abs());
+                let low = center - width - margin;
+                let high = center + width + margin;
+                let call = payoff.sign > 0.0;
+                if (call && high < 0.0) || (!call && low > 0.0) {
+                    BoundaryRule::Zero
+                } else if (call && low > thresholds[1]) || (!call && high < thresholds[0]) {
+                    BoundaryRule::Immediate
+                } else if (call && high < thresholds[0]) || (!call && low > thresholds[1]) {
+                    BoundaryRule::Expiry
+                } else {
+                    BoundaryRule::Scan
+                }
+            });
+            let scans = rules
+                .iter()
+                .filter(|rule| matches!(rule, BoundaryRule::Scan))
+                .count();
+            if scans != 0 {
+                let count = risk.ends().len() + dividend.ends().len() - 2;
+                if count.saturating_mul(steps).saturating_mul(scans) > 25_000_000 {
+                    return Err(crate::Error::InvalidInput(
+                        "American exercise boundary exceeds 25 million curve-knot visits; reduce time steps or curve nodes".into(),
+                    ));
+                }
+                knots.extend(risk.ends_between(0.0, end));
+                knots.extend(dividend.ends_between(0.0, end));
+                knots.sort_unstable_by(f64::total_cmp);
+                knots.dedup();
+            }
+        }
+        Ok(Self {
+            payoff,
+            assets,
+            end,
+            curves,
+            knots,
+            rules,
+        })
+    }
+
+    pub fn at(&self, start: f64) -> Result<[f64; 2]> {
+        let [risk, dividend] = self.curves;
+        let mut values = [0.0; 2];
+        for ((value, spot), rule) in values.iter_mut().zip(self.assets).zip(self.rules) {
+            *value = match rule {
+                BoundaryRule::Zero => 0.0,
+                BoundaryRule::Immediate => self.payoff.value(spot),
+                BoundaryRule::Expiry => {
+                    let r = risk.log_factor(start, self.end);
+                    let d = dividend.log_factor(start, self.end);
+                    discounted_intrinsic(
+                        self.payoff,
+                        spot,
+                        d,
+                        r,
+                        log_ratio(spot, self.payoff.strike) + (d - r),
+                    )?
+                }
+                BoundaryRule::Scan => {
+                    let first = self.knots.partition_point(|&knot| knot <= start);
+                    exercise_value_on_knots(
+                        self.payoff,
+                        spot,
+                        start,
+                        self.end,
+                        self.curves,
+                        self.knots[first..]
+                            .iter()
+                            .copied()
+                            .chain([self.end])
+                            .map(|time| (time, None)),
+                        None,
+                    )?
+                }
+            };
+        }
+        Ok(values)
+    }
 }
 
 #[expect(

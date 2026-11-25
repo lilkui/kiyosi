@@ -414,14 +414,17 @@ fn solve_model<D: Diffusion>(
             || payoff.sign < 0.0
             || dividend.rate(0.0) > 0.0
             || risk.rate(0.0) < 0.0);
-    if can_exercise {
-        let knots = (risk.ends().len() + dividend.ends().len() - 2) as u64;
-        if knots.saturating_mul(rollback_steps).saturating_mul(2) > 25_000_000 {
-            return Err(invalid_grid(
-                "American exercise boundary exceeds 25 million curve-knot visits; reduce time steps or curve nodes",
-            ));
-        }
-    }
+    let exercise_boundaries = if can_exercise {
+        Some(crate::engines::deterministic::ExerciseBoundaries::new(
+            payoff,
+            [lower, upper],
+            time,
+            [&risk, &dividend],
+            usize::try_from(rollback_steps).unwrap_or(usize::MAX),
+        )?)
+    } else {
+        None
+    };
     let theta = settings.scheme.theta();
     if !D::LOCAL && !payoff.is_digital() {
         time_grid.validate_stability(&space, diffusion.sigma(0.0, 0.0), theta, &risk, &dividend)?;
@@ -475,11 +478,9 @@ fn solve_model<D: Diffusion>(
                     tau,
                 )
             });
-            if can_exercise {
-                for (edge, asset) in edges.iter_mut().zip([lower, upper]) {
-                    *edge = edge.max(crate::engines::deterministic::exercise_value(
-                        payoff, asset, current, time, &risk, &dividend,
-                    )?);
+            if let Some(boundaries) = &exercise_boundaries {
+                for (edge, floor) in edges.iter_mut().zip(boundaries.at(current)?) {
+                    *edge = edge.max(floor);
                 }
             }
             diffusion.advance(

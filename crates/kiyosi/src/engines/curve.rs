@@ -114,6 +114,13 @@ impl Curve {
         })
     }
 
+    pub fn rate_bounds(&self) -> [f64; 2] {
+        self.segments.iter().fold(
+            [f64::INFINITY, f64::NEG_INFINITY],
+            |[low, high], segment| [low.min(segment.rate), high.max(segment.rate)],
+        )
+    }
+
     pub fn rate(&self, time: f64) -> f64 {
         self.segments[self
             .segments

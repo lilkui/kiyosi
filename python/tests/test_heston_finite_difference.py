@@ -498,5 +498,8 @@ def test_american_heston_dense_curves_preserve_price_and_bound_boundary_work():
     assert engine.price(contract, market(2000, 0.000005)) == pytest.approx(
         flat, rel=0, abs=0.002
     )
+    assert engine.price(contract, market(6000, 0.000005)) == pytest.approx(
+        flat, rel=0, abs=0.002
+    )
     with pytest.raises(InvalidInputError, match="exercise boundary"):
-        engine.price(contract, market(6000, 0.000005))
+        engine.price(contract, market(6000, 0.00002))

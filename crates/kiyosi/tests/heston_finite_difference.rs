@@ -568,8 +568,10 @@ fn american_heston_dense_curves_preserve_price_and_bound_boundary_work() -> kiyo
         flat > 0.0 && (perturbed - flat).abs() < 0.002,
         "{perturbed} != {flat}"
     );
+    let dense = engine.price(&option, &market(6000, 0.000_005)?)?;
+    assert!((dense - flat).abs() < 0.002, "{dense} != {flat}");
     assert!(matches!(
-        engine.price(&option, &market(6000, 0.000_005)?),
+        engine.price(&option, &market(6000, 0.000_02)?),
         Err(Error::InvalidInput(message)) if message.contains("exercise boundary")
     ));
     Ok(())
