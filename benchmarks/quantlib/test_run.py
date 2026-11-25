@@ -131,7 +131,7 @@ class CommandTests(unittest.TestCase):
                 ) as cargo,
             ):
                 self.assertEqual(
-                    prebuilt_rust_executable(), target / "release/quantlib_bench"
+                    prebuilt_rust_executable({}), target / "release/quantlib_bench"
                 )
             self.assertEqual(cargo.call_args.args[0][:2], ["cargo", "metadata"])
 
@@ -313,6 +313,7 @@ class ReportTests(unittest.TestCase):
         runtime_name=None,
         build_source=None,
         relative_executables=False,
+        rust_from_build=False,
     ):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -334,6 +335,12 @@ class ReportTests(unittest.TestCase):
                 f" print(json.dumps({batch!r} if {batch is not None!r} else {{'price':10,'elapsed_ns':n*latency,'iterations':n,'warmup_iterations':3}}))\n"
             )
             native.chmod(0o755)
+            rust = native
+            if rust_from_build:
+                rust = root / "x86_64-unknown-linux-gnu/release/quantlib_bench"
+                rust.parent.mkdir(parents=True)
+                rust.write_bytes(native.read_bytes())
+                rust.chmod(0o755)
             case = {
                 "id": "fixture",
                 "family": "european_bsm",
@@ -384,9 +391,10 @@ class ReportTests(unittest.TestCase):
                     json.dumps(
                         {
                             "source": build_source,
-                            "executables": dict.fromkeys(
-                                ("kiyosi", "quantlib"), fingerprint(native)
-                            ),
+                            "executables": {
+                                "kiyosi": fingerprint(rust),
+                                "quantlib": fingerprint(native),
+                            },
                         }
                     )
                 )
@@ -403,8 +411,14 @@ class ReportTests(unittest.TestCase):
                     sys.executable,
                     *runner,
                     "--no-build",
-                    "--rust-executable",
-                    f"./{native.name}" if relative_executables else str(native),
+                    *(
+                        []
+                        if rust_from_build
+                        else [
+                            "--rust-executable",
+                            f"./{native.name}" if relative_executables else str(native),
+                        ]
+                    ),
                     "--quantlib-executable",
                     native.name if relative_executables else str(native),
                     "--cases",
@@ -441,6 +455,15 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(report["source"]["revision"], "checkout-revision")
         self.assertEqual(report["build"]["source"], build_source)
+
+    def test_no_build_uses_the_recorded_target_specific_artifact(self):
+        source = {"revision": "build-revision", "dirty_state": ""}
+        result, report = self.run_fixture(
+            extra=("--price-only",), build_source=source, rust_from_build=True
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(report["cases"][0]["status"], "passed")
+        self.assertEqual(report["build"]["source"], source)
 
     def test_default_rejects_incomplete_manifest_with_explicit_required_rows(self):
         result, report = self.run_fixture(complete=True)

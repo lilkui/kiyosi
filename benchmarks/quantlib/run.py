@@ -22,6 +22,7 @@ from suite_coverage import REQUIRED, audit, matches
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
+DEFAULT_QUANTLIB_EXECUTABLE = HERE / "build/quantlib_bench"
 BACKENDS = ("kiyosi", "quantlib")
 NATIVE_TIMEOUT_SECONDS = 120
 
@@ -107,6 +108,21 @@ def build_evidence_path(executable):
     return executable.with_name(f"{executable.name}.build.json")
 
 
+def read_build_evidence(quantlib_executable):
+    """Read the build record associated with a QuantLib adapter."""
+    try:
+        evidence = json.loads(
+            build_evidence_path(quantlib_executable).read_text(),
+            parse_constant=reject_constant,
+            parse_float=finite_float,
+        )
+    except FileNotFoundError:
+        return "unavailable: no build record for supplied executables"
+    if not isinstance(evidence, dict):
+        raise TypeError("build record must be a JSON object")
+    return evidence
+
+
 def load_entries(path):
     """Load unique scenario/reference IDs from one file or sorted fragments."""
     entries = {}
@@ -156,8 +172,18 @@ def build_rust(binary="quantlib_bench", *, timeout=None):
     raise RuntimeError(f"Cargo did not report the {binary} executable")
 
 
-def prebuilt_rust_executable():
-    """Find the default prebuilt adapter in Cargo's configured target directory."""
+def prebuilt_rust_executable(build_evidence=None):
+    """Prefer the executable path reported by Cargo at build time."""
+    if build_evidence is None:
+        build_evidence = read_build_evidence(DEFAULT_QUANTLIB_EXECUTABLE)
+    if isinstance(build_evidence, dict):
+        try:
+            recorded = Path(build_evidence["executables"]["kiyosi"]["path"])
+        except (KeyError, TypeError):
+            pass
+        else:
+            if recorded.is_absolute():
+                return recorded
     target = ROOT / "target"
     if shutil.which("cargo"):
         metadata = json.loads(
@@ -530,7 +556,7 @@ def main(argv=None):
         help="Rust executable to use with --no-build",
     )
     parser.add_argument(
-        "--quantlib-executable", type=Path, default=HERE / "build/quantlib_bench"
+        "--quantlib-executable", type=Path, default=DEFAULT_QUANTLIB_EXECUTABLE
     )
     parser.add_argument(
         "--quantlib-config",
@@ -629,16 +655,9 @@ def main(argv=None):
                     )
         references = load_entries(args.references)
         if args.no_build:
-            rust_executable = args.rust_executable or prebuilt_rust_executable()
-            build_file = build_evidence_path(args.quantlib_executable)
-            report["build"] = (
-                json.loads(
-                    build_file.read_text(),
-                    parse_constant=reject_constant,
-                    parse_float=finite_float,
-                )
-                if build_file.exists()
-                else "unavailable: executables supplied with --no-build"
+            report["build"] = read_build_evidence(args.quantlib_executable)
+            rust_executable = args.rust_executable or prebuilt_rust_executable(
+                report["build"]
             )
         else:
             if args.rust_executable is not None:
