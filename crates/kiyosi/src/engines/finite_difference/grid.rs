@@ -8,9 +8,18 @@ pub(super) fn project_in_coordinates<const N: usize>(
     index: usize,
     value: impl Fn(f64) -> [f64; N],
 ) -> [f64; N] {
+    project_grid_node(space, breaks, index, |spot, _| value(spot))
+}
+
+pub(super) fn project_grid_node<const N: usize>(
+    space: &SpatialGrid,
+    breaks: &[f64],
+    index: usize,
+    value: impl Fn(f64, Option<usize>) -> [f64; N],
+) -> [f64; N] {
     let center = space.nodes[index];
     if index == 0 || index == space.count {
-        return value(space.asset(index));
+        return value(space.asset(index), Some(index));
     }
     project_interval(
         [
@@ -24,9 +33,9 @@ pub(super) fn project_in_coordinates<const N: usize>(
             .map(|&b| space.coordinate(b)),
         |x| {
             if x.to_bits() == center.to_bits() {
-                value(space.asset(index))
+                value(space.asset(index), Some(index))
             } else {
-                value(space.asset_of_coordinate(x))
+                value(space.asset_of_coordinate(x), None)
             }
         },
     )

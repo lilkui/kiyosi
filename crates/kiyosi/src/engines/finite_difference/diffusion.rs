@@ -118,6 +118,23 @@ pub(super) trait Diffusion: Copy {
         key: [f64; 4],
         edges: [f64; 2],
     ) -> Result<()> {
+        self.advance_layers(stepper, [old], [next], space, middle, key, [edges])
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "shared operator and layer inputs"
+    )]
+    fn advance_layers<const N: usize>(
+        self,
+        stepper: &mut Stepper,
+        old: [&[f64]; N],
+        next: [&mut [f64]; N],
+        space: &SpatialGrid,
+        middle: f64,
+        key: [f64; 4],
+        edges: [[f64; 2]; N],
+    ) -> Result<()> {
         let scale = self.variance_rate(middle).sqrt();
         if let Some((surface, offset)) = self.surface() {
             stepper.advance_local(
@@ -130,14 +147,11 @@ pub(super) trait Diffusion: Copy {
                 edges,
             )
         } else {
-            stepper.advance(
-                old,
-                next,
-                space,
-                self.sigma(middle, 0.0) * scale,
-                key,
-                edges,
-            )
+            let sigma = self.sigma(middle, 0.0) * scale;
+            for ((old, next), edges) in old.into_iter().zip(next).zip(edges) {
+                stepper.advance(old, next, space, sigma, key, edges)?;
+            }
+            Ok(())
         }
     }
 }

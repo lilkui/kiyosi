@@ -3,7 +3,7 @@ use super::{
     FiniteDifferenceSettings, Greek, GreeksRequest, NumericalShiftSettings, OptionContract,
     PricingContext, PricingEngine, PricingResult, Result, SpatialGrid, TimeGrid, analysis,
     diffusion, diffusion_upper,
-    grid::{Spline, project_in_coordinates},
+    grid::{Spline, project_grid_node, project_in_coordinates},
     local_volatility,
     solution::Backend,
     validate_work, validate_workspace,
@@ -400,28 +400,33 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
             let key = [dt, weight, rate, q];
             let discount = (-rate * dt).exp();
             let dividend_discount = (-q * dt).exp();
-            diffusion.advance(
-                &mut stepper,
-                &alive,
-                &mut next_alive,
-                &space,
-                middle,
-                key,
-                space.discount_affine_edges(&alive, discount, dividend_discount),
-            )?;
-            std::mem::swap(&mut alive, &mut next_alive);
+            let alive_edges = space.discount_affine_edges(&alive, discount, dividend_discount);
             if layered {
-                diffusion.advance(
+                diffusion.advance_layers(
                     &mut stepper,
-                    &knocked,
-                    &mut next_knocked,
+                    [&alive, &knocked],
+                    [&mut next_alive, &mut next_knocked],
                     &space,
                     middle,
                     key,
-                    space.discount_affine_edges(&knocked, discount, dividend_discount),
+                    [
+                        alive_edges,
+                        space.discount_affine_edges(&knocked, discount, dividend_discount),
+                    ],
                 )?;
                 std::mem::swap(&mut knocked, &mut next_knocked);
+            } else {
+                diffusion.advance(
+                    &mut stepper,
+                    &alive,
+                    &mut next_alive,
+                    &space,
+                    middle,
+                    key,
+                    alive_edges,
+                )?;
             }
+            std::mem::swap(&mut alive, &mut next_alive);
         }
         let time = grid.times[step];
         let record = event(note, time, context).filter(|_| time > 0.0);
@@ -439,13 +444,12 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
             }
             // Project only the jump correction, leaving smooth daily continuation unchanged.
             for i in 0..size {
-                let correction = project_in_coordinates(&space, &breaks, i, |asset| {
-                    let a = space.linear(&alive, asset);
-                    let k = if layered {
-                        space.linear(&knocked, asset)
-                    } else {
-                        0.0
+                let correction = project_grid_node(&space, &breaks, i, |asset, node| {
+                    let value = |layer: &[f64]| {
+                        node.map_or_else(|| space.linear(layer, asset), |index| layer[index])
                     };
+                    let a = value(&alive);
+                    let k = if layered { value(&knocked) } else { 0.0 };
                     let coupon =
                         record.map_or(0.0, |r| note.observation_coupon(r, |level| asset >= level));
                     if let Some(r) =

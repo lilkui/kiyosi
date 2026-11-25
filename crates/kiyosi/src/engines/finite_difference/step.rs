@@ -233,15 +233,15 @@ impl Stepper {
         clippy::too_many_arguments,
         reason = "local step uses a fixed grid and dynamic surface and boundary inputs"
     )]
-    pub fn advance_local(
+    pub fn advance_local<const N: usize>(
         &mut self,
-        old: &[f64],
-        next: &mut [f64],
+        old: [&[f64]; N],
+        next: [&mut [f64]; N],
         space: &SpatialGrid,
         surface: &crate::LocalVolatilitySurface,
         [time, scale]: [f64; 2],
         [dt, theta, rate, dividend]: [f64; 4],
-        boundaries: [f64; 2],
+        boundaries: [[f64; 2]; N],
     ) -> Result<()> {
         if self.local.is_none() {
             self.local = Some(crate::market::LocalVolatilityProjection::new(
@@ -272,7 +272,10 @@ impl Stepper {
                 }
             }
         }
-        self.apply(old, next, dt, theta, boundaries, 0)
+        for ((old, next), boundaries) in old.into_iter().zip(next).zip(boundaries) {
+            self.apply(old, next, dt, theta, boundaries, 0)?;
+        }
+        Ok(())
     }
 
     #[expect(
