@@ -237,13 +237,23 @@ impl CoxRossRubinsteinBarrierEngine {
                     0.0
                 };
                 let nodes = &mut values[..level + 2];
-                let breached = |node| observed[level] && breached(level, node);
+                let live = if observed[level] {
+                    let boundary =
+                        barrier_boundary(level + 1, |node| breached(level, node) != upper);
+                    if upper {
+                        0..boundary
+                    } else {
+                        boundary..level + 1
+                    }
+                } else {
+                    0..level + 1
+                };
                 if discount.factor.is_normal() {
-                    rollback_level(nodes, &mut vanilla, rebate, breached, |lower, upper| {
+                    rollback_level(nodes, &mut vanilla, rebate, live, |lower, upper| {
                         discount.rollback_normal(lower, upper, p)
                     })?;
                 } else {
-                    rollback_level(nodes, &mut vanilla, rebate, breached, |lower, upper| {
+                    rollback_level(nodes, &mut vanilla, rebate, live, |lower, upper| {
                         discount.rollback_scaled(lower, upper, p)
                     })?;
                 }
@@ -282,25 +292,48 @@ impl CoxRossRubinsteinBarrierEngine {
     }
 }
 
+fn barrier_boundary(count: usize, below: impl Fn(usize) -> bool) -> usize {
+    let mut low = 0;
+    let mut high = count;
+    while low < high {
+        let middle = low.midpoint(high);
+        if below(middle) {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    low
+}
+
 fn rollback_level(
     values: &mut [f64],
     vanilla: &mut [f64],
     rebate: f64,
-    breached: impl Fn(usize) -> bool,
+    live: std::ops::Range<usize>,
     rollback: impl Fn(f64, f64) -> f64,
 ) -> Result<()> {
-    let knock_in = !vanilla.is_empty();
-    for node in 0..values.len() - 1 {
-        values[node] = rollback(values[node], values[node + 1]);
-        if knock_in {
-            vanilla[node] = rollback(vanilla[node], vanilla[node + 1]);
+    let count = values.len() - 1;
+    let pass = |nodes: &mut [f64]| {
+        for i in 0..nodes.len() - 1 {
+            nodes[i] = rollback(nodes[i], nodes[i + 1]);
         }
-        if breached(node) {
-            values[node] = if knock_in { vanilla[node] } else { rebate };
-        }
-        if !values[node].is_finite() || knock_in && !vanilla[node].is_finite() {
-            return Err(unstable());
-        }
+    };
+    pass(&mut values[live.start..=live.end]);
+    if vanilla.is_empty() {
+        values[..live.start].fill(rebate);
+        values[live.end..count].fill(rebate);
+    } else {
+        pass(&mut vanilla[..=count]);
+        values[..live.start].copy_from_slice(&vanilla[..live.start]);
+        values[live.end..count].copy_from_slice(&vanilla[live.end..count]);
+    }
+    if values[..count]
+        .iter()
+        .chain(vanilla.iter().take(count))
+        .any(|value| !value.is_finite())
+    {
+        return Err(unstable());
     }
     Ok(())
 }
