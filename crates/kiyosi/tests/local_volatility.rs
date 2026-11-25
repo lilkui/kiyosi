@@ -770,7 +770,7 @@ fn every_fd_engine_keeps_schemes_coverage_and_explicit_stability_contracts() {
             0.06,
             start,
             end,
-            autocallable_observations(&[end], &[120.0], Some(&[0.08]), None).unwrap(),
+            autocallable_observations(&[end], &[120.0], &[0.08]).unwrap(),
             TradingCalendar::weekdays()
         ))
         .unwrap()

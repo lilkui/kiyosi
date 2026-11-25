@@ -4,7 +4,7 @@ use crate::conversions::{
     timestamp, timestamps,
 };
 use crate::error::domain;
-use pyo3::exceptions::{PyTypeError, PyValueError};
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
@@ -117,7 +117,7 @@ macro_rules! snowball_properties {
             /// Return copied annual knock-out coupons in observation order.
             #[getter]
             fn knock_out_coupon_rates<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-                python_tuple(py, self.0.autocall_observations(), |r| Ok(r.coupon_rate().unwrap_or_default()))
+                python_tuple(py, self.0.autocall_observations(), |r| Ok(r.coupon_rate()))
             },
             /// Return finite annual maturity coupon rate in decimal units.
             #[getter]
@@ -289,8 +289,39 @@ pub(crate) fn records(values: &Bound<'_, PyAny>) -> PyResult<Vec<kiyosi::Autocal
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct AutocallableObservation(pub kiyosi::AutocallableObservation);
-#[pymethods]
-impl AutocallableObservation {
+value_methods!(@documented AutocallableObservation, AutocallableObservationChanges,
+    [time, knock_out_level, coupon_rate],
+    {
+        time: time.map(timestamp).transpose()?,
+        knock_out_level: knock_out_level.map(real).transpose()?,
+        coupon_rate: coupon_rate.map(real).transpose()?,
+    },
+    [
+        /// Return a validated observation with the supplied fields replaced.
+        ///
+        /// Omission or Ellipsis retains a field.
+        ///
+        /// Parameters
+        /// ----------
+        /// time : datetime.datetime, optional
+        ///     Observation timestamp.
+        /// knock_out_level : float, optional
+        ///     Positive finite knock-out threshold.
+        /// coupon_rate : float, optional
+        ///     Finite annual snowball coupon.
+        ///
+        /// Returns
+        /// -------
+        /// AutocallableObservation
+        ///     Validated copy. The note checks schedule constraints.
+        ///
+        /// Raises
+        /// ------
+        /// InvalidInputError
+        ///     If the level is nonpositive or non-finite, or the coupon is non-finite.
+        /// TypeError
+        ///     If a field has an invalid representation.
+    ], {
     /// Create a snowball observation with an annual knock-out coupon.
     ///
     /// Parameters
@@ -321,69 +352,6 @@ impl AutocallableObservation {
             real(coupon_rate)?,
         ))?))
     }
-    /// Return a validated observation with the supplied fields replaced.
-    ///
-    /// Omitted fields or Ellipsis retain their values and observation kind.
-    ///
-    /// Parameters
-    /// ----------
-    /// time : datetime.datetime, optional
-    ///     Observation timestamp.
-    /// knock_out_level : float, optional
-    ///     Positive finite knock-out threshold.
-    /// coupon_rate : float or None, optional
-    ///     Finite annual snowball coupon. None is not a coupon value.
-    /// coupon_barrier_level : float or None, optional
-    ///     Inapplicable to snowball observations; None retains the absence of a barrier.
-    ///
-    /// Returns
-    /// -------
-    /// AutocallableObservation
-    ///     Validated copy; note construction checks schedule constraints.
-    ///
-    /// Raises
-    /// ------
-    /// InvalidInputError
-    ///     If numeric terms are invalid or belong to the other observation kind,
-    ///     including zero values.
-    /// TypeError
-    ///     If the active coupon field is None or representations are invalid.
-    ///
-    #[pyo3(signature = (*, time=crate::conversions::OMITTED, knock_out_level=crate::conversions::OMITTED, coupon_rate=crate::conversions::OMITTED, coupon_barrier_level=crate::conversions::OMITTED))]
-    fn replace(
-        &self,
-        #[pyo3(from_py_with = supplied)] time: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] knock_out_level: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] coupon_rate: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] coupon_barrier_level: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<Self> {
-        let active_coupon = match self.0.kind() {
-            kiyosi::AutocallableObservationKind::Snowball => coupon_rate,
-        };
-        if active_coupon.is_some_and(Bound::is_none) {
-            return Err(PyTypeError::new_err(
-                "the active coupon field cannot be None",
-            ));
-        }
-        Ok(Self(domain(
-            self.0.replace(kiyosi::AutocallableObservationChanges {
-                time: time.map(timestamp).transpose()?,
-                knock_out_level: knock_out_level.map(real).transpose()?,
-                coupon_rate: coupon_rate.filter(|v| !v.is_none()).map(real).transpose()?,
-                coupon_barrier_level: coupon_barrier_level
-                    .filter(|v| !v.is_none())
-                    .map(real)
-                    .transpose()?,
-            }),
-        )?))
-    }
-    /// Return snowball, independently of the coupon amount.
-    #[getter]
-    pub(crate) fn kind(&self) -> &'static str {
-        match self.0.kind() {
-            kiyosi::AutocallableObservationKind::Snowball => "snowball",
-        }
-    }
     /// Return exact observation time.
     #[getter]
     fn time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
@@ -396,18 +364,13 @@ impl AutocallableObservation {
     }
     /// Return the finite annual snowball coupon rate.
     #[getter]
-    fn coupon_rate(&self) -> Option<f64> {
+    fn coupon_rate(&self) -> f64 {
         self.0.coupon_rate()
-    }
-    /// Return None for snowball observations.
-    #[getter]
-    fn coupon_barrier_level(&self) -> Option<f64> {
-        self.0.coupon_barrier_level()
     }
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
         crate::representation::observation(py, &self.0)
     }
-}
+});
 
 macro_rules! phoenix_observation {
     ($name:ident, $level:ident, $records:ident, $description:literal) => {
@@ -496,7 +459,7 @@ phoenix_observation!(
     "One Phoenix coupon observation with a nonnegative inclusive threshold."
 );
 
-/// Combine parallel sequences into validated observation records.
+/// Combine parallel sequences into validated snowball observation records.
 ///
 /// Parameters
 /// ----------
@@ -505,11 +468,8 @@ phoenix_observation!(
 ///     bounds.
 /// knock_out_levels : iterable of float
 ///     Positive inclusive knock-out levels, one per observation timestamp.
-/// knock_out_coupon_rates : iterable of float or None, optional
+/// knock_out_coupon_rates : iterable of float
 ///     Explicit annual snowball coupons, including zero for no coupon.
-/// coupon_barrier_levels : iterable of float or None, optional
-///     Reserved for observation-kind validation; must be None. Phoenix uses
-///     separate KnockOutObservation and CouponObservation records.
 ///
 /// Returns
 /// -------
@@ -519,14 +479,13 @@ phoenix_observation!(
 /// Raises
 /// ------
 /// InvalidInputError
-///     If neither or both coupon choices are supplied, sequence lengths
-///     differ, or numeric levels or coupons are invalid.
+///     If sequence lengths differ or numeric levels or coupons are invalid.
+/// TypeError
+///     If an argument is missing or a value has an invalid representation.
 ///
 /// Notes
 /// -----
 /// The note constructor validates ordering, life bounds and calendar compatibility.
-/// Supply knock_out_coupon_rates, including explicit zero values, and no
-/// coupon_barrier_levels.
 ///
 /// Passing an ObservationSchedule copies its timestamps into the records;
 /// the records carry no calendar. Pass calendar=schedule.calendar to the note
@@ -563,26 +522,21 @@ phoenix_observation!(
 /// 6
 ///
 #[pyfunction]
-#[pyo3(signature = (autocall_times, knock_out_levels, *, knock_out_coupon_rates=None, coupon_barrier_levels=None))]
+#[pyo3(signature = (autocall_times, knock_out_levels, *, knock_out_coupon_rates))]
 pub(crate) fn autocallable_observations(
     autocall_times: &Bound<'_, PyAny>,
     knock_out_levels: &Bound<'_, PyAny>,
-    knock_out_coupon_rates: Option<&Bound<'_, PyAny>>,
-    coupon_barrier_levels: Option<&Bound<'_, PyAny>>,
+    knock_out_coupon_rates: &Bound<'_, PyAny>,
 ) -> PyResult<Vec<AutocallableObservation>> {
     let times = timestamps(autocall_times)?;
     let levels = reals(knock_out_levels)?;
-    let coupons = knock_out_coupon_rates.map(reals).transpose()?;
-    let barriers = coupon_barrier_levels.map(reals).transpose()?;
-    Ok(domain(kiyosi::autocallable_observations(
-        &times,
-        &levels,
-        coupons.as_deref(),
-        barriers.as_deref(),
-    ))?
-    .into_iter()
-    .map(AutocallableObservation)
-    .collect())
+    let coupons = reals(knock_out_coupon_rates)?;
+    Ok(
+        domain(kiyosi::autocallable_observations(&times, &levels, &coupons))?
+            .into_iter()
+            .map(AutocallableObservation)
+            .collect(),
+    )
 }
 
 macro_rules! snowball_preset {

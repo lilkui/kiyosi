@@ -9,8 +9,7 @@ pub fn multi_event_terms(
     let observations = autocallable_observations(
         &[date(2, 3), date(3, 3), end],
         &[110.0, 108.0, 105.0],
-        Some(&[0.08; 3]),
-        None,
+        &[0.08; 3],
     )
     .unwrap();
     let mut snow = SnowballTerms::new(

@@ -23,7 +23,7 @@ fn binary_price_and_uncertainty_match_an_independent_terminal_portfolio() {
         0.0,
         date(1, 1),
         end,
-        autocallable_observations(&[end], &[100.0], Some(&[0.1]), None).unwrap(),
+        autocallable_observations(&[end], &[100.0], &[0.1]).unwrap(),
         TradingCalendar::weekdays(),
     ))
     .unwrap();
@@ -53,7 +53,7 @@ fn scalar_price_survives_confidence_interval_overflow() {
         0.0,
         start,
         end,
-        autocallable_observations(&[end], &[100.0], Some(&[1.5e308]), None).unwrap(),
+        autocallable_observations(&[end], &[100.0], &[1.5e308]).unwrap(),
         TradingCalendar::weekdays(),
     );
     terms.principal_redemption_ratio = 0.0;
@@ -100,7 +100,7 @@ fn discounted_cashflows_preserve_representable_values_beyond_discount_range() {
             0.0,
             start,
             end,
-            autocallable_observations(&[end], &[100.0], Some(&[0.0]), None).unwrap(),
+            autocallable_observations(&[end], &[100.0], &[0.0]).unwrap(),
             TradingCalendar::weekdays(),
         );
         terms.principal_redemption_ratio = principal;
@@ -160,13 +160,7 @@ fn sampling_settings_counts_and_threads_preserve_prices_and_uncertainty() {
         0.02,
         date(1, 1),
         date(4, 1),
-        autocallable_observations(
-            &[date(2, 3), date(4, 1)],
-            &[101.0, 105.0],
-            Some(&[0.08; 2]),
-            None,
-        )
-        .unwrap(),
+        autocallable_observations(&[date(2, 3), date(4, 1)], &[101.0, 105.0], &[0.08; 2]).unwrap(),
         TradingCalendar::weekdays(),
     ))
     .unwrap();
@@ -247,8 +241,7 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
         60.0,
         date(1, 1),
         end,
-        autocallable_observations(&[date(2, 3), end], &[103.0, 105.0], Some(&[0.08; 2]), None)
-            .unwrap(),
+        autocallable_observations(&[date(2, 3), end], &[103.0, 105.0], &[0.08; 2]).unwrap(),
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (end).time_of_day(),
         },
@@ -337,7 +330,7 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
         60.0,
         date(1, 1),
         end,
-        autocallable_observations(&[end], &[100.0], Some(&[0.0]), None).unwrap(),
+        autocallable_observations(&[end], &[100.0], &[0.0]).unwrap(),
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (end).time_of_day(),
         },
@@ -372,13 +365,7 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
         60.0,
         date(1, 1),
         date(4, 1),
-        autocallable_observations(
-            &[date(2, 3), date(4, 1)],
-            &[110.0; 2],
-            Some(&[0.08; 2]),
-            None,
-        )
-        .unwrap(),
+        autocallable_observations(&[date(2, 3), date(4, 1)], &[110.0; 2], &[0.08; 2]).unwrap(),
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (date(4, 1)).time_of_day(),
         },
@@ -484,7 +471,7 @@ fn sobol_dimension_limit_applies_only_to_remaining_simulation_dates() {
         60.0,
         start,
         end,
-        autocallable_observations(&[end], &[1e100], Some(&[0.08]), None).unwrap(),
+        autocallable_observations(&[end], &[1e100], &[0.08]).unwrap(),
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (end).time_of_day(),
         },
@@ -545,8 +532,7 @@ fn daily_monitoring_and_all_variants_agree_with_quadrature() {
     let observations = autocallable_observations(
         &[date(2, 3), date(3, 3), end],
         &[110.0, 108.0, 105.0],
-        Some(&[0.08; 3]),
-        None,
+        &[0.08; 3],
     )
     .unwrap();
     let context = market(100.0, start);

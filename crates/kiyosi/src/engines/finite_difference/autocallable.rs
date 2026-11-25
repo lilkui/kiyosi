@@ -60,7 +60,7 @@ impl FiniteDifferenceAutocallableEngine {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let end = Date::new(2026, 1, 1)?.start_of_day();
     /// let note = BinarySnowballOption::new(BinarySnowballTerms::new(0.02, start, end,
-    ///     autocallable_observations(&[end], &[100.0], Some(&[0.08]), None)?, kiyosi::TradingCalendar::weekdays()))?;
+    ///     autocallable_observations(&[end], &[100.0], &[0.08])?, kiyosi::TradingCalendar::weekdays()))?;
     /// let market = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
     ///     100.0, start.into())?;
     /// let engine = FiniteDifferenceAutocallableEngine::default();
@@ -692,7 +692,7 @@ mod tests {
             0.02,
             start,
             start.add_micros(20)?,
-            autocallable_observations(&times, &[110.0; 3], Some(&[0.08; 3]), None)?,
+            autocallable_observations(&times, &[110.0; 3], &[0.08; 3])?,
             TradingCalendar::all_days(),
         ))?;
         for valuation in [start, times[0], start.add_micros(12)?] {

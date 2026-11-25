@@ -296,16 +296,20 @@ def test_autocallable_calendars_control_knock_in_after_record_conversion():
     assert preset == note
 
 
-def test_observation_coupon_choices_are_explicit_and_control_cashflows():
+def test_observation_terms_control_cashflows():
     start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
     with pytest.raises(TypeError):
         ins.AutocallableObservation(end, 110)
-    for choices in (
-        {},
-        {"knock_out_coupon_rates": [0], "coupon_barrier_levels": [0]},
-    ):
-        with pytest.raises(InvalidInputError):
-            ins.autocallable_observations([end], [110], **choices)
+    with pytest.raises(TypeError):
+        ins.autocallable_observations([end], [110])
+    with pytest.raises(TypeError):
+        ins.autocallable_observations([end], [110], knock_out_coupon_rates=None)
+    with pytest.raises(InvalidInputError):
+        ins.autocallable_observations([end], [110], knock_out_coupon_rates=[])
+    with pytest.raises(TypeError):
+        ins.autocallable_observations(
+            [end], [110], knock_out_coupon_rates=[0], coupon_barrier_levels=[0]
+        )
     context = market.PricingContext(
         model_parameters=market.BlackScholesMertonParameters(
             risk_free_rate=0,
@@ -1159,34 +1163,21 @@ def test_observation_construction_validates_numeric_terms_before_note_creation(
                 ins.autocallable_observations(
                     [time], [level], knock_out_coupon_rates=[0]
                 )
-    for field, keyword, invalids in (
-        (
-            "coupon_rate",
-            "knock_out_coupon_rates",
-            (float("nan"), float("inf"), -float("inf")),
-        ),
-        (
-            "coupon_barrier_level",
-            "coupon_barrier_levels",
-            (-1, float("nan"), float("inf")),
-        ),
-    ):
-        for invalid in invalids:
-            with subtests.test(field=field, invalid=invalid):
-                with pytest.raises(InvalidInputError):
-                    if field == "coupon_rate":
-                        ins.AutocallableObservation.snowball(
-                            time, 110, coupon_rate=invalid
-                        )
-                    else:
-                        ins.CouponObservation(time, invalid)
-                with pytest.raises(InvalidInputError):
-                    ins.autocallable_observations([time], [110], **{keyword: [invalid]})
+    for rate in (math.nan, math.inf, -math.inf):
+        with subtests.test(rate=rate):
+            with pytest.raises(InvalidInputError):
+                ins.AutocallableObservation.snowball(time, 110, coupon_rate=rate)
+            with pytest.raises(InvalidInputError):
+                ins.autocallable_observations(
+                    [time], [110], knock_out_coupon_rates=[rate]
+                )
+    for barrier in (-1, math.nan, math.inf):
+        with subtests.test(barrier=barrier), pytest.raises(InvalidInputError):
+            ins.CouponObservation(time, barrier)
     records = ins.autocallable_observations(
         [time], [110], knock_out_coupon_rates=[-0.01]
     )
-    assert records[0].coupon_rate == (-0.01)
-    assert records[0].coupon_barrier_level is None
+    assert records[0].coupon_rate == -0.01
 
 
 def test_asian_history_uses_optional_positive_averages(subtests):
@@ -2170,11 +2161,9 @@ def test_observation_coupon_getters_roundtrip_without_placeholder_values(value):
     at = datetime(2026, 1, 1)
     record = ins.AutocallableObservation.snowball(at, 110, coupon_rate=value)
     assert record.coupon_rate == value
-    assert record.coupon_barrier_level is None
-    assert (
-        record.replace(coupon_rate=record.coupon_rate, coupon_barrier_level=None)
-        == record
-    )
+    assert not hasattr(record, "coupon_barrier_level")
+    assert not hasattr(record, "kind")
+    assert record.replace(coupon_rate=record.coupon_rate) == record
     with pytest.raises(TypeError):
         record.replace(coupon_rate=None)
     coupon = ins.CouponObservation(at, value)
@@ -2220,35 +2209,27 @@ def test_observation_replacement_preserves_validity_and_original_values(subtests
     assert "CouponObservation" in repr(phoenix)
     with pytest.raises(TypeError):
         phoenix.replace(coupon_rate=0.12)
-    with pytest.raises(InvalidInputError):
-        ins.autocallable_observations(
-            [time], [110], knock_out_coupon_rates=[0.12], coupon_barrier_levels=[90]
-        )
+    with pytest.raises(TypeError):
+        original.replace(coupon_barrier_level=0)
     changed = original.replace(
         time=time + timedelta(days=1), knock_out_level=120, coupon_rate=0.08
     )
     assert changed.time == time + timedelta(days=1)
     assert changed.knock_out_level == 120
     assert changed.coupon_rate == 0.08
-    assert changed.coupon_barrier_level is None
     assert original.replace() == original
     assert original.replace(coupon_rate=...) == original
     for fields in (
         {"knock_out_level": 0},
         {"knock_out_level": math.inf},
         {"coupon_rate": math.nan},
-        {"coupon_barrier_level": -1},
-        {"coupon_barrier_level": math.inf},
     ):
         with subtests.test(fields=fields), pytest.raises(InvalidInputError):
             original.replace(**fields)
-        assert (
-            (
-                original.time,
-                original.knock_out_level,
-                original.coupon_rate,
-                original.coupon_barrier_level,
-            )
-        ) == ((time, 110, -0.01, None))
+        assert (original.time, original.knock_out_level, original.coupon_rate) == (
+            time,
+            110,
+            -0.01,
+        )
     with pytest.raises(TypeError):
         original.replace(coupon_rate=True)

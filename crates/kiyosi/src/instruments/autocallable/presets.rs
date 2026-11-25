@@ -169,14 +169,14 @@ impl SnowballPresetTerms {
     /// assert_eq!(note.terms().lower_strike, 60.0);
     /// let edited = note.with_coupon(0.15, kiyosi::CouponQuoteConvention::ShiftMaturityCoupon)?;
     /// assert!((edited.terms().maturity_coupon_rate - 0.15).abs() < 1e-14);
-    /// assert!(edited.autocall_observations()[0].coupon_rate().is_some_and(|coupon| (coupon - 0.15).abs() < 1e-14));
+    /// assert!((edited.autocall_observations()[0].coupon_rate() - 0.15).abs() < 1e-14);
     /// assert_eq!(note.terms().maturity_coupon_rate, 0.08);
     /// let terms = SnowballPresetTerms::new(0.20, 100.0, 80.0, 110.0,
     ///     start, end, vec![end], Some(kiyosi::TimeOfDay::new(0, 0, 0, 0)?));
     /// let note = terms.expand(SnowballPreset::EarlyProfit {
     ///     first_stage_end_time: Date::new(2025, 7, 1)?.start_of_day(), second_coupon_rate: 0.05,
     /// })?;
-    /// assert_eq!(note.autocall_observations()[0].coupon_rate(), Some(0.05));
+    /// assert_eq!(note.autocall_observations()[0].coupon_rate(), 0.05);
     /// # Ok(()) }
     /// ```
     #[expect(
@@ -245,7 +245,7 @@ impl SnowballPresetTerms {
                 terms.maturity_coupon_rate = terms
                     .autocall_observations
                     .last()
-                    .map_or(0.0, |r| r.coupon_rate().unwrap_or_default());
+                    .map_or(0.0, AutocallableObservation::coupon_rate);
             }
             SnowballPreset::DualCoupon {
                 maturity_coupon_rate,

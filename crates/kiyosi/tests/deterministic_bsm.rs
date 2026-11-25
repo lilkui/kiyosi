@@ -477,7 +477,7 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
             &FiniteDifferenceDoubleTouchEngine::default(),
         ],
     )?;
-    let observations = autocallable_observations(&[end], &[120.0], Some(&[0.0]), None)?;
+    let observations = autocallable_observations(&[end], &[120.0], &[0.0])?;
     macro_rules! note {
         ($option:expr, $expected:expr) => {
             verify(
@@ -953,7 +953,7 @@ fn deterministic_structured_events_keep_monitoring_modes_and_settlement_units() 
         0.1,
         start,
         end,
-        autocallable_observations(&[middle, end], &[105.0, 105.0], Some(&[0.1, 0.1]), None)?,
+        autocallable_observations(&[middle, end], &[105.0, 105.0], &[0.1, 0.1])?,
         TradingCalendar::all_days(),
     );
     let note = BinarySnowballOption::new(terms)?;
@@ -1023,12 +1023,7 @@ fn deterministic_structured_events_keep_monitoring_modes_and_settlement_units() 
         0.0,
         start,
         end,
-        autocallable_observations(
-            &[start.add_days(30)?, end],
-            &[300.0, 300.0],
-            Some(&[0.0; 2]),
-            None,
-        )?,
+        autocallable_observations(&[start.add_days(30)?, end], &[300.0, 300.0], &[0.0; 2])?,
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (end).time_of_day(),
         },

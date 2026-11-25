@@ -158,7 +158,13 @@ def test_core_defaults_ownership_and_native_protocol_errors(subtests):
 
 
 def test_domain_validation_timing_and_failure_state():
-    assert_rejection(InvalidInputError, autocallable_observations, [END], [])
+    assert_rejection(
+        InvalidInputError,
+        autocallable_observations,
+        [END],
+        [],
+        knock_out_coupon_rates=[0],
+    )
     for fields, expected_error in (
         ({"autocall_observations": []}, InvalidInputError),
         (

@@ -9,7 +9,7 @@ fn autocallable_calendars_control_knock_in_after_record_conversion() -> Result<(
     let calendar =
         TradingCalendar::custom(TradingCalendar::weekdays(), vec![at.date()], vec![], None)?;
     let schedule = ObservationSchedule::new(vec![end], start, end, &calendar)?;
-    let records = autocallable_observations(schedule.times(), &[110.0], Some(&[0.1]), None)?;
+    let records = autocallable_observations(schedule.times(), &[110.0], &[0.1])?;
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(0.05, 0.02, 0.0)?,
         79.999,
@@ -253,15 +253,13 @@ fn greek_requests_report_disjoint_support_and_preserve_partial_results() -> Resu
 }
 
 #[test]
-fn observation_coupon_choices_are_explicit_and_control_cashflows() -> Result<()> {
+fn observation_terms_control_cashflows() -> Result<()> {
     let start = Date::new(2025, 1, 2)?.start_of_day();
     let end = start.add_days(365)?;
-    for choices in [(None, None), (Some(&[0.0][..]), Some(&[0.0][..]))] {
-        assert!(matches!(
-            autocallable_observations(&[end], &[110.0], choices.0, choices.1),
-            Err(Error::InvalidInput(_))
-        ));
-    }
+    assert!(matches!(
+        autocallable_observations(&[end], &[110.0], &[]),
+        Err(Error::InvalidInput(_))
+    ));
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,
         110.0,
@@ -1003,25 +1001,24 @@ fn observation_construction_validates_numeric_terms_before_note_creation() -> Re
             Err(Error::InvalidInput(_))
         ));
         assert!(matches!(
-            autocallable_observations(&[time], &[level], Some(&[0.0]), None),
+            autocallable_observations(&[time], &[level], &[0.0]),
             Err(Error::InvalidInput(_))
         ));
     }
     for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         assert!(matches!(
-            autocallable_observations(&[time], &[110.0], Some(&[invalid]), None),
+            autocallable_observations(&[time], &[110.0], &[invalid]),
             Err(Error::InvalidInput(_))
         ));
     }
     for invalid in [-1.0, f64::NAN, f64::INFINITY] {
         assert!(matches!(
-            autocallable_observations(&[time], &[110.0], None, Some(&[invalid])),
+            CouponObservation::new(time, invalid),
             Err(Error::InvalidInput(_))
         ));
     }
-    let records = autocallable_observations(&[time], &[110.0], Some(&[-0.01]), None)?;
-    assert_eq!(records[0].coupon_rate(), Some(-0.01));
-    assert_eq!(records[0].coupon_barrier_level(), None);
+    let records = autocallable_observations(&[time], &[110.0], &[-0.01])?;
+    assert_eq!(records[0].coupon_rate(), -0.01);
     let edited = AutocallableObservation::snowball(time, 110.0, 0.0)?;
     assert!(matches!(
         edited.replace(AutocallableObservationChanges {
@@ -1030,7 +1027,7 @@ fn observation_construction_validates_numeric_terms_before_note_creation() -> Re
         }),
         Err(Error::InvalidInput(_))
     ));
-    assert_eq!(edited.coupon_rate(), Some(0.0));
+    assert_eq!(edited.coupon_rate(), 0.0);
     Ok(())
 }
 
@@ -1678,7 +1675,7 @@ fn contractual_calendars_are_validated_before_pricing() -> Result<()> {
         0.1,
         start,
         end,
-        autocallable_observations(&[closed], &[110.0], Some(&[0.0]), None)?,
+        autocallable_observations(&[closed], &[110.0], &[0.0])?,
         TradingCalendar::weekdays(),
     );
     assert!(matches!(
@@ -1845,8 +1842,7 @@ fn structured_engines_require_curve_coverage_only_for_remaining_cashflows() -> R
         autocallable_observations(
             &[start.add_days(1)?, start.add_days(2)?, expiry],
             &[120.0; 3],
-            Some(&[0.0; 3]),
-            None,
+            &[0.0; 3],
         )?,
         TradingCalendar::weekdays(),
     );
@@ -1956,7 +1952,7 @@ fn accumulator_settlement_requires_a_strictly_prior_knock_out_observation() -> R
 fn snowball_coupon_diagnostics_identify_the_supplied_field() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = start.add_days(365)?;
-    let observations = autocallable_observations(&[end], &[110.0], Some(&[0.0]), None)?;
+    let observations = autocallable_observations(&[end], &[110.0], &[0.0])?;
     for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         let binary = BinarySnowballOption::new(BinarySnowballTerms::new(
             invalid,
@@ -2555,20 +2551,14 @@ fn observation_replacement_preserves_validity_and_original_values() -> Result<()
         Err(Error::InvalidInput(_))
     ));
     assert_eq!(phoenix.coupon_barrier_level(), 90.0);
-    assert!(matches!(
-        autocallable_observations(&[time], &[110.0], Some(&[0.12]), Some(&[90.0])),
-        Err(Error::InvalidInput(_))
-    ));
     let changed = original.replace(AutocallableObservationChanges {
         time: Some(time.add_days(1)?),
         knock_out_level: Some(120.0),
         coupon_rate: Some(0.08),
-        ..Default::default()
     })?;
     assert_eq!(changed.time(), time.add_days(1)?);
     assert_eq!(changed.knock_out_level(), 120.0);
-    assert_eq!(changed.coupon_rate(), Some(0.08));
-    assert_eq!(changed.coupon_barrier_level(), None);
+    assert_eq!(changed.coupon_rate(), 0.08);
     assert_eq!(original.replace(Default::default())?, original);
     for changes in [
         AutocallableObservationChanges {
@@ -2583,22 +2573,13 @@ fn observation_replacement_preserves_validity_and_original_values() -> Result<()
             coupon_rate: Some(f64::NAN),
             ..Default::default()
         },
-        AutocallableObservationChanges {
-            coupon_barrier_level: Some(-1.0),
-            ..Default::default()
-        },
-        AutocallableObservationChanges {
-            coupon_barrier_level: Some(f64::INFINITY),
-            ..Default::default()
-        },
     ] {
         assert!(matches!(
             original.replace(changes),
             Err(Error::InvalidInput(_))
         ));
         assert_eq!(original.knock_out_level(), 110.0);
-        assert_eq!(original.coupon_rate(), Some(-0.01));
-        assert_eq!(original.coupon_barrier_level(), None);
+        assert_eq!(original.coupon_rate(), -0.01);
     }
     Ok(())
 }

@@ -64,7 +64,7 @@ fn snowball_thresholds_preserve_price_and_sampling_uncertainty() {
         0.02,
         start,
         end,
-        autocallable_observations(&[end], &[100.0], Some(&[0.12]), None).unwrap(),
+        autocallable_observations(&[end], &[100.0], &[0.12]).unwrap(),
         TradingCalendar::weekdays(),
     ))
     .unwrap();
@@ -105,7 +105,7 @@ fn autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements() {
                 100.0,
                 start,
                 end,
-                autocallable_observations(&[end], &[120.0], Some(&[0.0]), None).unwrap(),
+                autocallable_observations(&[end], &[120.0], &[0.0]).unwrap(),
                 kiyosi::KnockInObservation::EveryTradingDay {
                     observation_clock_time: (end).time_of_day(),
                 },

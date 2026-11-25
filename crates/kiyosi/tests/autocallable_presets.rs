@@ -477,7 +477,7 @@ fn stage_cutoffs_are_inclusive_and_coupon_uses_the_whole_holding_period() {
         assert_eq!(
             note.autocall_observations()
                 .iter()
-                .map(|r| r.coupon_rate().unwrap())
+                .map(AutocallableObservation::coupon_rate)
                 .collect::<Vec<_>>(),
             rates
         );
@@ -489,7 +489,7 @@ fn stage_cutoffs_are_inclusive_and_coupon_uses_the_whole_holding_period() {
             0.0,
             date(1, 1),
             date(4, 1),
-            autocallable_observations(&dates, &[110.0; 5], Some(&rates), None).unwrap(),
+            autocallable_observations(&dates, &[110.0; 5], &rates).unwrap(),
             kiyosi::KnockInObservation::EveryTradingDay {
                 observation_clock_time: (date(4, 1)).time_of_day(),
             },
@@ -551,7 +551,7 @@ fn stage_validation_checks_unused_rates_and_allows_empty_stages_and_non_observat
                 second_coupon_rate: -0.02,
             })
             .unwrap();
-        assert_eq!(note.autocall_observations()[0].coupon_rate(), Some(-0.02));
+        assert_eq!(note.autocall_observations()[0].coupon_rate(), -0.02);
     }
     let mut increasing = base.clone();
     increasing.coupon_rate = -0.02;
@@ -564,7 +564,7 @@ fn stage_validation_checks_unused_rates_and_allows_empty_stages_and_non_observat
         })
         .unwrap();
     assert_eq!(note.terms().maturity_coupon_rate, 0.2);
-    assert_eq!(note.autocall_observations()[0].coupon_rate(), Some(0.2));
+    assert_eq!(note.autocall_observations()[0].coupon_rate(), 0.2);
     for cutoff in [
         Date::new(2024, 12, 31).unwrap().start_of_day(),
         date(4, 1),

@@ -532,7 +532,7 @@ fn terminal_autocallable_stencils_preserve_knock_in_and_redemption_regimes() -> 
         60.0,
         start,
         end,
-        autocallable_observations(&[end], &[120.0], Some(&[0.08]), None)?,
+        autocallable_observations(&[end], &[120.0], &[0.08])?,
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (end).time_of_day(),
         },

@@ -635,12 +635,7 @@ def test_constructors_and_factories_match_declared_keywords(subtests):
             for name, default in zip(keywords, arguments.kw_defaults):
                 parameter = signature.parameters[name]
                 assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
-                if factory is instruments.autocallable_observations and name in (
-                    "knock_out_coupon_rates",
-                    "coupon_barrier_levels",
-                ):
-                    assert parameter.default is None
-                elif (
+                if (
                     factory
                     in (
                         instruments.BinaryBarrierOption,

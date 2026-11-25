@@ -26,7 +26,7 @@ fn coupon_solvers_reprice_local_volatility_quotes() -> Result<()> {
         0.06,
         start,
         end,
-        autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?,
+        autocallable_observations(&[end], &[110.0], &[0.08])?,
         TradingCalendar::weekdays(),
     ))?;
     for convention in [
@@ -106,7 +106,7 @@ fn monte_carlo_coupon_solvers_require_a_replayable_seed() -> Result<()> {
         0.06,
         date(1, 1),
         date(4, 1),
-        autocallable_observations(&[date(4, 1)], &[110.0], Some(&[0.08]), None)?,
+        autocallable_observations(&[date(4, 1)], &[110.0], &[0.08])?,
         TradingCalendar::weekdays(),
     ))?;
     let quote = engine.price(&note.with_coupon(0.12, convention)?, &context)?;
@@ -207,7 +207,7 @@ fn ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons() -> Resu
                 80.0,
                 date(1, 1),
                 date(4, 1),
-                autocallable_observations(&[date(4, 1)], &[110.0], Some(&[anchor]), None)?,
+                autocallable_observations(&[date(4, 1)], &[110.0], &[anchor])?,
                 kiyosi::KnockInObservation::EveryTradingDay {
                     observation_clock_time: (date(4, 1)).time_of_day(),
                 },
@@ -278,7 +278,7 @@ fn ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons() -> Resu
             80.0,
             date(1, 1),
             date(4, 1),
-            autocallable_observations(&[date(4, 1)], &[110.0], Some(&[0.05]), None)?,
+            autocallable_observations(&[date(4, 1)], &[110.0], &[0.05])?,
             kiyosi::KnockInObservation::EveryTradingDay {
                 observation_clock_time: (date(4, 1)).time_of_day(),
             },
@@ -316,13 +316,8 @@ fn binary() -> BinarySnowballOption {
         0.06,
         date(1, 1),
         date(4, 1),
-        autocallable_observations(
-            &[date(2, 3), date(4, 1)],
-            &[110.0, 105.0],
-            Some(&[0.08, 0.12]),
-            None,
-        )
-        .unwrap(),
+        autocallable_observations(&[date(2, 3), date(4, 1)], &[110.0, 105.0], &[0.08, 0.12])
+            .unwrap(),
         TradingCalendar::weekdays(),
     ))
     .unwrap()
@@ -413,8 +408,8 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
                         < 1e-11
                 );
                 assert!(
-                    (target.autocall_observations()[1].coupon_rate().unwrap()
-                        - target.autocall_observations()[0].coupon_rate().unwrap()
+                    (target.autocall_observations()[1].coupon_rate()
+                        - target.autocall_observations()[0].coupon_rate()
                         - 0.04)
                         .abs()
                         < 1e-14
@@ -719,9 +714,7 @@ fn custom_engine_failures_and_bisection_use_stable_categories() {
     struct Curve(fn(f64) -> f64);
     impl PricingEngine<BinarySnowballOption> for Curve {
         fn price(&self, note: &BinarySnowballOption, _: &PricingContext) -> Result<f64> {
-            Ok((self.0)(
-                note.autocall_observations()[0].coupon_rate().unwrap(),
-            ))
+            Ok((self.0)(note.autocall_observations()[0].coupon_rate()))
         }
     }
     let note = binary();
@@ -857,7 +850,7 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
         0.06,
         date(1, 1),
         date(4, 1),
-        autocallable_observations(&[date(4, 1)], &[110.0], Some(&[0.08]), None).unwrap(),
+        autocallable_observations(&[date(4, 1)], &[110.0], &[0.08]).unwrap(),
         TradingCalendar::weekdays(),
     ))
     .unwrap();
@@ -920,7 +913,7 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
     )
     .unwrap()
     .first_observation_coupon;
-    assert!((coupon - ternary.autocall_observations()[0].coupon_rate().unwrap()).abs() < 1e-7);
+    assert!((coupon - ternary.autocall_observations()[0].coupon_rate()).abs() < 1e-7);
     assert_eq!(ternary.terms().maturity_coupon_rate, 0.06);
     let curve = RateTermStructure::new(
         date(1, 1),
@@ -1011,7 +1004,7 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
         implied_phoenix_coupon(&engine, &phoenix, &current, quote, Default::default()).unwrap();
     let rate = solved;
     assert!((rate - 0.18).abs() < 1e-8);
-    let records = autocallable_observations(&[date(4, 1)], &[110.0], Some(&[0.08]), None).unwrap();
+    let records = autocallable_observations(&[date(4, 1)], &[110.0], &[0.08]).unwrap();
     let mut terms = SnowballTerms::new(
         0.06,
         100.0,
@@ -1058,13 +1051,8 @@ fn coupon_endpoints_can_change_daily_knock_in_layers() {
         100.0,
         date(1, 1),
         date(1, 13),
-        autocallable_observations(
-            &[date(1, 7), date(1, 13)],
-            &[110.0, 110.0],
-            Some(&[0.073, 0.083]),
-            None,
-        )
-        .unwrap(),
+        autocallable_observations(&[date(1, 7), date(1, 13)], &[110.0, 110.0], &[0.073, 0.083])
+            .unwrap(),
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (date(1, 13)).time_of_day(),
         },

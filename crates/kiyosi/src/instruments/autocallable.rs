@@ -51,15 +51,6 @@ pub enum AutocallableBarrierState {
     KnockedIn,
 }
 
-/// Identifies the product owning an observation, including zero-valued coupon fields.
-///
-/// See [`AutocallableObservation::snowball`] for construction and inspection.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum AutocallableObservationKind {
-    /// Supplies an annual snowball knock-out coupon.
-    Snowball,
-}
-
 /// Associates one snowball autocall time with its knock-out and annual coupon terms.
 ///
 /// Autocall observations cover knock-out and applicable coupon checks, independently
@@ -89,14 +80,12 @@ pub struct AutocallableObservationChanges {
     pub knock_out_level: Option<f64>,
     /// Replaces the finite annual coupon rate.
     pub coupon_rate: Option<f64>,
-    /// Rejects supplied coupon barriers, which do not belong to snowball observations.
-    pub coupon_barrier_level: Option<f64>,
 }
 
 impl AutocallableObservation {
     /// Creates a snowball observation with an annual knock-out coupon.
     ///
-    /// A zero rate explicitly selects no knock-out coupon; see [`Self::snowball`] for an example.
+    /// A zero rate explicitly selects no knock-out coupon.
     ///
     /// # Errors
     ///
@@ -110,14 +99,10 @@ impl AutocallableObservation {
     /// # fn main() -> kiyosi::Result<()> {
     /// let time = Date::new(2026, 1, 1)?.start_of_day();
     /// let record = AutocallableObservation::snowball(time, 110.0, 0.08)?;
-    /// assert_eq!(record.coupon_rate(), Some(0.08));
+    /// assert_eq!(record.coupon_rate(), 0.08);
     /// # Ok(()) }
     /// ```
     pub fn snowball(time: Timestamp, knock_out_level: f64, coupon_rate: f64) -> Result<Self> {
-        Self::new(time, knock_out_level, coupon_rate)
-    }
-
-    fn new(time: Timestamp, knock_out_level: f64, coupon_rate: f64) -> Result<Self> {
         let record = Self {
             time,
             knock_out_level,
@@ -127,13 +112,12 @@ impl AutocallableObservation {
         Ok(record)
     }
 
-    /// Returns a validated replacement.
+    /// Returns a validated replacement, preserving omitted fields and the original.
     ///
     /// # Errors
     ///
-    /// Validates numeric terms and rejects fields belonging to the other product kind,
-    /// including explicit zero values. The original is preserved
-    /// on success and failure; the note validates schedule and product constraints.
+    /// Reuses the numeric validation in [`Self::snowball`]. The note validates schedule
+    /// and product constraints.
     ///
     /// # Examples
     ///
@@ -144,26 +128,16 @@ impl AutocallableObservation {
     /// let changed = record.replace(AutocallableObservationChanges {
     ///     coupon_rate: Some(0.08), ..Default::default()
     /// })?;
-    /// assert_eq!(changed.coupon_rate(), Some(0.08));
-    /// assert_eq!(record.coupon_rate(), Some(0.0));
+    /// assert_eq!(changed.coupon_rate(), 0.08);
+    /// assert_eq!(record.coupon_rate(), 0.0);
     /// # Ok(()) }
     /// ```
     pub fn replace(&self, changes: AutocallableObservationChanges) -> Result<Self> {
-        if changes.coupon_barrier_level.is_some() {
-            return Err(Error::InvalidInput(
-                "coupon field does not belong to this observation kind".into(),
-            ));
-        }
-        Self::new(
+        Self::snowball(
             changes.time.unwrap_or(self.time),
             changes.knock_out_level.unwrap_or(self.knock_out_level),
             changes.coupon_rate.unwrap_or(self.coupon_rate),
         )
-    }
-
-    /// Returns the product kind, independently of coupon values; see [`Self::snowball`].
-    pub fn kind(&self) -> AutocallableObservationKind {
-        AutocallableObservationKind::Snowball
     }
 
     /// Returns the exact timestamp; see [`Self::snowball`].
@@ -176,13 +150,9 @@ impl AutocallableObservation {
     }
     /// Returns the annual snowball coupon rate.
     ///
-    /// A zero snowball rate is `Some(0.0)`; see [`Self::snowball`] for inspection.
-    pub fn coupon_rate(&self) -> Option<f64> {
-        Some(self.coupon_rate)
-    }
-    /// Returns `None` for snowball observations; see [`Self::snowball`].
-    pub fn coupon_barrier_level(&self) -> Option<f64> {
-        None
+    /// See [`Self::snowball`] for an example.
+    pub fn coupon_rate(&self) -> f64 {
+        self.coupon_rate
     }
 
     fn validate(&self) -> Result<()> {
@@ -196,7 +166,7 @@ impl AutocallableObservation {
 ///
 /// Numeric terms are validated here. Ordering, life bounds and product-specific
 /// constraints are validated when constructing a note.
-/// Supply `coupons`, including explicit zero values for no coupon, and no `coupon_barriers`.
+/// Supply one annual rate per observation, using zero for observations that pay no coupon.
 ///
 /// Records carry no calendar. When passing [`crate::ObservationSchedule::times`],
 /// also pass [`crate::ObservationSchedule::calendar`] to the note's terms
@@ -205,8 +175,8 @@ impl AutocallableObservation {
 ///
 /// # Errors
 ///
-/// Returns [`Error::InvalidInput`] for missing or mixed coupon choices, unequal sequence lengths or invalid numeric
-/// terms; see [`AutocallableObservation::snowball`].
+/// Returns [`Error::InvalidInput`] for unequal sequence lengths or numeric terms rejected by
+/// [`AutocallableObservation::snowball`].
 ///
 /// # Examples
 ///
@@ -214,22 +184,16 @@ impl AutocallableObservation {
 /// use kiyosi::{Date, autocallable_observations};
 /// # fn main() -> kiyosi::Result<()> {
 /// let times = [Date::new(2026, 1, 1)?.start_of_day()];
-/// let records = autocallable_observations(&times, &[110.0], Some(&[0.08]), None)?;
-/// assert_eq!(records[0].coupon_rate(), Some(0.08));
+/// let records = autocallable_observations(&times, &[110.0], &[0.08])?;
+/// assert_eq!(records[0].coupon_rate(), 0.08);
 /// # Ok(()) }
 /// ```
 pub fn autocallable_observations(
     times: &[Timestamp],
     levels: &[f64],
-    coupons: Option<&[f64]>,
-    coupon_barriers: Option<&[f64]>,
+    coupon_rates: &[f64],
 ) -> Result<Vec<AutocallableObservation>> {
-    let (Some(values), None) = (coupons, coupon_barriers) else {
-        return Err(Error::InvalidInput(
-            "snowball observations require coupons and no coupon_barriers".into(),
-        ));
-    };
-    if times.len() != levels.len() || values.len() != times.len() {
+    if times.len() != levels.len() || coupon_rates.len() != times.len() {
         return Err(Error::InvalidInput(
             "observation sequence lengths differ".into(),
         ));
@@ -237,8 +201,8 @@ pub fn autocallable_observations(
     times
         .iter()
         .zip(levels)
-        .zip(values)
-        .map(|((&time, &level), &value)| AutocallableObservation::new(time, level, value))
+        .zip(coupon_rates)
+        .map(|((&time, &level), &rate)| AutocallableObservation::snowball(time, level, rate))
         .collect()
 }
 
@@ -667,7 +631,7 @@ macro_rules! snowball_coupon {
         impl sealed::SnowballCoupon for $terms {
             fn with_coupon(&self, coupon: f64, convention: crate::CouponQuoteConvention) -> Result<Self> {
                 let mut terms = self.clone();
-                let shift = coupon - terms.autocall_observations.first().map_or(0.0, |record| record.coupon_rate().unwrap_or_default());
+                let shift = coupon - terms.autocall_observations.first().map_or(0.0, AutocallableObservation::coupon_rate);
                 for chunk in terms.autocall_observations.chunks_mut(1024) {
                     crate::cancellation::check()?;
                     for record in chunk {
@@ -696,9 +660,7 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
         let Redemption::FixedCoupon(minimum) = terms.knock_in?.redemption else {
             return None;
         };
-        let anchor = terms.autocall_observations[0]
-            .coupon_rate()
-            .unwrap_or_default();
+        let anchor = terms.autocall_observations[0].coupon_rate();
         let maturity = terms.maturity_coupon_rate();
         // Round both inverse operations into the domain used by with_coupon.
         let shift = minimum - maturity;
@@ -974,7 +936,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// })?;
     /// assert_eq!(known.knock_out_observations(), note.knock_out_observations());
     /// assert_eq!(note.barrier_state(), None);
-    /// let records = autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?;
+    /// let records = autocallable_observations(&[end], &[110.0], &[0.08])?;
     /// let binary = BinarySnowballOption::new(BinarySnowballTerms::new(
     ///     0.06, start, end, records.clone(), kiyosi::TradingCalendar::weekdays()))?;
     /// let ternary = TernarySnowballOption::new(TernarySnowballTerms::new(
@@ -1002,7 +964,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
                     knock_out_level: record.knock_out_level,
                 }),
                 coupon: None,
-                coupon_rate: record.coupon_rate().unwrap_or_default(),
+                coupon_rate: record.coupon_rate(),
             })
             .chain(
                 view.knock_out_observations

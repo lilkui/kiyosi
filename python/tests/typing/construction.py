@@ -106,25 +106,10 @@ def snowball_quote_application(note: SnowballOption, context: PricingContext) ->
     assert_type(note.with_coupon(**quote), SnowballOption)
 
 
-def observation_choices(at: datetime) -> None:
+def observation_records(at: datetime) -> None:
     record = AutocallableObservation.snowball(at, 110, coupon_rate=0)
-    assert_type(record.coupon_rate, float | None)
-    assert_type(record.coupon_barrier_level, float | None)
-    assert_type(
-        record.replace(
-            coupon_rate=record.coupon_rate,
-            coupon_barrier_level=record.coupon_barrier_level,
-        ),
-        AutocallableObservation,
-    )
-    assert_type(
-        AutocallableObservation.snowball(at, 110, coupon_rate=0).kind,
-        Literal["snowball"],
-    )
-    assert_type(
-        AutocallableObservation.snowball(at, 110, coupon_rate=0),
-        AutocallableObservation,
-    )
+    assert_type(record.coupon_rate, float)
+    assert_type(record.replace(coupon_rate=record.coupon_rate), AutocallableObservation)
     assert_type(
         CouponObservation(at, 0),
         CouponObservation,
@@ -138,12 +123,7 @@ def observation_choices(at: datetime) -> None:
         KnockOutObservation,
     )
     autocallable_observations([at], [110])  # ty: ignore[missing-argument]
-    autocallable_observations(
-        [at],
-        [110],
-        knock_out_coupon_rates=[0],
-        coupon_barrier_levels=[0],  # ty: ignore[invalid-argument-type]
-    )
+    record.replace(coupon_rate=None)  # ty: ignore[invalid-argument-type]
 
 
 def accumulator_history(option: Accumulator) -> None:

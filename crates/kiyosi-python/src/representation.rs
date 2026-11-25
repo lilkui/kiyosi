@@ -112,16 +112,11 @@ pub(crate) fn observation(
     py: Python<'_>,
     value: &kiyosi::AutocallableObservation,
 ) -> PyResult<String> {
-    let (kind, field, coupon) = match value.kind() {
-        kiyosi::AutocallableObservationKind::Snowball => {
-            ("snowball", "coupon_rate", value.coupon_rate())
-        }
-    };
     Ok(format!(
-        "AutocallableObservation.{kind}({}, {:?}, {field}={:?})",
+        "AutocallableObservation.snowball({}, {:?}, coupon_rate={:?})",
         python_timestamp(py, value.time())?.repr()?,
         value.knock_out_level(),
-        coupon.unwrap_or_default(),
+        value.coupon_rate(),
     ))
 }
 

@@ -184,8 +184,8 @@ pub use instruments::asian::{
 };
 pub use instruments::autocallable::{
     AutocallableBarrierState, AutocallableNote, AutocallableObservation,
-    AutocallableObservationChanges, AutocallableObservationKind, AutocallableTerms,
-    BinarySnowballOption, BinarySnowballOptionChanges, BinarySnowballTerms, CouponObservation,
+    AutocallableObservationChanges, AutocallableTerms, BinarySnowballOption,
+    BinarySnowballOptionChanges, BinarySnowballTerms, CouponObservation,
     DEFAULT_AUTOCALLABLE_REBATE_RATE, DEFAULT_PHOENIX_LOCKOUT_PERIODS,
     DEFAULT_PRINCIPAL_REDEMPTION_RATIO, KnockInObservation, KnockOutObservation, PhoenixOption,
     PhoenixOptionChanges, PhoenixPreset, PhoenixPresetTerms, PhoenixTerms, SnowballCouponTerms,

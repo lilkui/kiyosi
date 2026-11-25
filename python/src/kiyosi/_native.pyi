@@ -6642,12 +6642,11 @@ class AutocallableObservation:
         *,
         time: datetime | EllipsisType = ...,
         knock_out_level: _Real | EllipsisType = ...,
-        coupon_rate: _Real | None | EllipsisType = ...,
-        coupon_barrier_level: _Real | None | EllipsisType = ...,
+        coupon_rate: _Real | EllipsisType = ...,
     ) -> Self:
         """Return a validated observation with the supplied fields replaced.
 
-        Omitted fields or Ellipsis retain their values and observation kind.
+        Omission or Ellipsis retains a field.
 
         Parameters
         ----------
@@ -6655,30 +6654,23 @@ class AutocallableObservation:
             Observation timestamp.
         knock_out_level : float, optional
             Positive finite knock-out threshold.
-        coupon_rate : float or None, optional
-            Finite annual snowball coupon. None is not a coupon value.
-        coupon_barrier_level : float or None, optional
-            Inapplicable to snowball observations; None retains the absence of a barrier.
+        coupon_rate : float, optional
+            Finite annual snowball coupon.
 
         Returns
         -------
         AutocallableObservation
-            Validated copy; note construction checks schedule constraints.
+            Validated copy. The note checks schedule constraints.
 
         Raises
         ------
         InvalidInputError
-            If numeric terms are invalid or belong to the other observation kind,
-            including zero values.
+            If the level is nonpositive or non-finite, or the coupon is non-finite.
         TypeError
-            If the active coupon field is None or representations are invalid.
+            If a field has an invalid representation.
         """
 
     def __new__(cls, _token: Never, /) -> Self: ...
-    @property
-    def kind(self) -> Literal["snowball"]:
-        """Return snowball, independently of the coupon amount."""
-
     @staticmethod
     def snowball(
         time: datetime, knock_out_level: _Real, *, coupon_rate: _Real
@@ -6710,21 +6702,16 @@ class AutocallableObservation:
         """Return the positive finite knock-out threshold."""
 
     @property
-    def coupon_rate(self) -> float | None:
+    def coupon_rate(self) -> float:
         """Return the finite annual snowball coupon rate."""
-
-    @property
-    def coupon_barrier_level(self) -> float | None:
-        """Return None for snowball observations."""
 
 def autocallable_observations(
     autocall_times: Iterable[datetime],
     knock_out_levels: Iterable[_Real],
     *,
     knock_out_coupon_rates: Iterable[_Real],
-    coupon_barrier_levels: None = None,
 ) -> list[AutocallableObservation]:
-    """Combine parallel sequences into validated observation records.
+    """Combine parallel sequences into validated snowball observation records.
 
     Parameters
     ----------
@@ -6733,11 +6720,8 @@ def autocallable_observations(
         bounds.
     knock_out_levels : iterable of float
         Positive inclusive knock-out levels, one per observation timestamp.
-    knock_out_coupon_rates : iterable of float or None, optional
+    knock_out_coupon_rates : iterable of float
         Explicit annual snowball coupons, including zero for no coupon.
-    coupon_barrier_levels : iterable of float or None, optional
-        Reserved for observation-kind validation; must be None. Phoenix uses
-        separate KnockOutObservation and CouponObservation records.
 
     Returns
     -------
@@ -6747,14 +6731,13 @@ def autocallable_observations(
     Raises
     ------
     InvalidInputError
-        If neither or both coupon choices are supplied, sequence lengths
-        differ, or numeric levels or coupons are invalid.
+        If sequence lengths differ or numeric levels or coupons are invalid.
+    TypeError
+        If an argument is missing or a value has an invalid representation.
 
     Notes
     -----
     The note constructor validates ordering, life bounds and calendar compatibility.
-    Supply knock_out_coupon_rates, including explicit zero values, and no
-    coupon_barrier_levels.
 
     Passing an ObservationSchedule copies its timestamps into the records;
     the records carry no calendar. Pass calendar=schedule.calendar to the note

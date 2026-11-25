@@ -21,7 +21,7 @@ fn scheduled_time_stencils_exclude_inclusive_events_and_allow_gaps() -> Result<(
         0.1,
         start,
         end,
-        autocallable_observations(&times, &[110.0; 3], Some(&[0.1; 3]), None)?,
+        autocallable_observations(&times, &[110.0; 3], &[0.1; 3])?,
         TradingCalendar::weekdays(),
     );
     note_terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
