@@ -1,90 +1,41 @@
 """Contract checks for native digital and Asian pricing."""
 
-import json
 import os
 import subprocess
 import unittest
 
-from run import DEFAULT_QUANTLIB_EXECUTABLE, build_rust
+from run import DEFAULT_QUANTLIB_EXECUTABLE, HERE, build_rust, load_entries, native
+
+CASES = load_entries(HERE / "cases/digitals_asian.json")
+REFERENCES = load_entries(HERE / "references/digitals_asian.json")
 
 
 class DigitalAsianTests(unittest.TestCase):
+    backend = "kiyosi"
+
     @classmethod
     def setUpClass(cls):
         cls.executable, _ = build_rust(timeout=600)
 
-    def test_cash_digital_native_price_matches_independent_formula(self):
-        result = subprocess.run(
-            [
-                str(self.executable),
-                "family=digital_bsm",
-                "iterations=100",
-                "option=call",
-                "valuation=2025-01-01",
-                "expiry=2026-01-01",
-                "spot=100",
-                "strike=100",
-                "rate=0.04",
-                "dividend=0.01",
-                "volatility=0.2",
-                "payout=cash",
-                "cash=10",
-            ],
-            text=True,
-            capture_output=True,
-            check=False,
-            timeout=120,
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        data = json.loads(result.stdout)
-        self.assertAlmostEqual(data["price"], 4.995517136549785, places=11)
-        self.assertEqual(data["iterations"], 100)
-        self.assertGreater(data["elapsed_ns"], 0)
-
-    def test_continuous_asian_native_prices_match_independent_references(self):
-        for family, expected in (
-            ("geometric_asian_bsm", 5.035867546515384),
-            ("arithmetic_asian_bsm", 5.246501860362777),
+    def test_native_prices_match_independent_references(self):
+        for case_id, places in (
+            ("digital-bsm-cash-call", 11),
+            ("geometric-asian-bsm-call", 10),
+            ("arithmetic-asian-bsm-call", 10),
         ):
-            with self.subTest(family=family):
-                result = subprocess.run(
-                    [
-                        str(self.executable),
-                        f"family={family}",
-                        "iterations=100",
-                        "option=call",
-                        "valuation=2025-01-01",
-                        "expiry=2026-01-01",
-                        "averaging_start=2025-01-01",
-                        "spot=100",
-                        "strike=100",
-                        "rate=0.04",
-                        "dividend=0.01",
-                        "volatility=0.2",
-                    ],
-                    text=True,
-                    capture_output=True,
-                    check=False,
-                    timeout=120,
-                )
-                self.assertEqual(result.returncode, 0, result.stderr)
+            with self.subTest(case=case_id):
+                result = native(self.executable, CASES[case_id], self.backend, 100)
                 self.assertAlmostEqual(
-                    json.loads(result.stdout)["price"], expected, places=10
+                    result["price"], REFERENCES[case_id]["value"], places=places
                 )
 
     def test_asian_subset_rejects_forward_start_and_singular_carry(self):
+        case = CASES["arithmetic-asian-bsm-call"]
         common = {
-            "family": "arithmetic_asian_bsm",
+            "family": case["family"],
             "iterations": 1,
-            "option": "call",
-            "valuation": "2025-01-01",
-            "expiry": "2026-01-01",
-            "averaging_start": "2025-01-01",
-            "spot": 100,
-            "strike": 100,
-            "rate": 0.04,
-            "dividend": 0.01,
-            "volatility": 0.2,
+            **case["inputs"],
+            **case["profiles"][self.backend],
         }
         for changes, diagnostic in (
             ({"averaging_start": "2025-02-01"}, "averaging_start"),
@@ -115,6 +66,8 @@ class DigitalAsianTests(unittest.TestCase):
     os.environ.get("KIYOSI_QUANTLIB_LIVE"), "requires installed QuantLib 1.44"
 )
 class QuantLibDigitalAsianTests(DigitalAsianTests):
+    backend = "quantlib"
+
     @classmethod
     def setUpClass(cls):
         cls.executable = DEFAULT_QUANTLIB_EXECUTABLE
