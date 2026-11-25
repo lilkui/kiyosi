@@ -1,3 +1,5 @@
+use std::{cell::RefCell, marker::PhantomData, sync::Arc};
+
 use super::{
     BLOCK_SIZE, BlockRunner, Error, EuropeanOption, GreeksRequest, Moments, MonteCarloSampling,
     MonteCarloVanillaEngine, NumericalShiftSettings, OptionType, Pcg32, PricingContext,
@@ -7,6 +9,62 @@ use super::{
 use crate::{AmericanOption, BlackScholesMertonParameterChanges, Greek, PricingContextChanges};
 
 const MAX_PATH_VALUES: usize = 1024 * 1024 * 1024 / size_of::<f64>();
+const MAX_CACHED_GROWTH_VALUES: usize = 64 * 1024 * 1024 / size_of::<f64>();
+
+#[derive(PartialEq)]
+struct GrowthKey {
+    seed: u64,
+    settings: super::MonteCarloSettings,
+    intervals: usize,
+    drift: u64,
+    diffusion: u64,
+}
+
+type GrowthBlocks = Arc<Vec<Vec<f64>>>;
+type GrowthCache = Vec<(GrowthKey, GrowthBlocks)>;
+
+thread_local! {
+    static GROWTH_CACHE: RefCell<Option<GrowthCache>> = const { RefCell::new(None) };
+}
+
+pub(crate) struct AmericanGreekCache {
+    active: bool,
+    previous: Option<GrowthCache>,
+    _thread: PhantomData<*mut ()>,
+}
+
+impl AmericanGreekCache {
+    pub(crate) fn new(request: GreeksRequest) -> Self {
+        let spot_bumps = [
+            Greek::Delta,
+            Greek::Gamma,
+            Greek::Speed,
+            Greek::Vanna,
+            Greek::Zomma,
+            Greek::Charm,
+            Greek::Color,
+        ];
+        let active = spot_bumps.into_iter().any(|greek| request.has(greek));
+        let previous = if active {
+            GROWTH_CACHE.with(|cache| cache.replace(Some(Vec::new())))
+        } else {
+            None
+        };
+        Self {
+            active,
+            previous,
+            _thread: PhantomData,
+        }
+    }
+}
+
+impl Drop for AmericanGreekCache {
+    fn drop(&mut self) {
+        if self.active {
+            GROWTH_CACHE.with(|cache| cache.replace(self.previous.take()));
+        }
+    }
+}
 
 fn american_workspace<T>(capacity: usize) -> Result<Vec<T>> {
     let mut buffer = Vec::new();
@@ -22,6 +80,7 @@ fn american_workspace<T>(capacity: usize) -> Result<Vec<T>> {
 #[derive(Default)]
 struct ExerciseBlock {
     spots: Vec<f64>,
+    growth: Vec<f64>,
     cash: Vec<f64>,
     regression: [[f64; 4]; 3],
 }
@@ -138,7 +197,31 @@ impl MonteCarloVanillaEngine {
             return Err(unstable());
         }
         let seed = settings.resolved_seed()?;
-        let sobol = if settings.sampling == MonteCarloSampling::Sobol {
+        let key = GrowthKey {
+            seed,
+            settings,
+            intervals,
+            drift: drift.to_bits(),
+            diffusion: diffusion.to_bits(),
+        };
+        let (retain_growth, cached_growth) = GROWTH_CACHE.with(|cache| {
+            let mut cache = cache.borrow_mut();
+            let Some(cache) = cache
+                .as_mut()
+                .filter(|_| reserved_paths * intervals <= MAX_CACHED_GROWTH_VALUES)
+            else {
+                return (false, None);
+            };
+            if let Some(index) = cache.iter().position(|(previous, _)| *previous == key) {
+                let entry = cache.remove(index);
+                let found = Arc::clone(&entry.1);
+                cache.push(entry);
+                (false, Some(found))
+            } else {
+                (true, None)
+            }
+        });
+        let sobol = if cached_growth.is_none() && settings.sampling == MonteCarloSampling::Sobol {
             Some(sobol::sequence(intervals, seed)?)
         } else {
             None
@@ -148,11 +231,6 @@ impl MonteCarloVanillaEngine {
         blocks.resize_with(block_count, ExerciseBlock::default);
         let runner = BlockRunner::new(block_count, settings.max_active_workers)?;
         runner.run(&mut blocks, |block_index, block| {
-            let mut generator = Pcg32::new(seed, block_index as u64);
-            let mut cursor = sobol
-                .as_ref()
-                .map(|sequence| sequence.cursor(block_index * BLOCK_SIZE));
-            let mut spare = None;
             let begin = block_index * BLOCK_SIZE;
             let end = ((block_index + 1) * BLOCK_SIZE).min(samples);
             let paired = if settings.antithetic {
@@ -160,44 +238,73 @@ impl MonteCarloVanillaEngine {
             } else {
                 0
             };
-            let mut values = american_workspace((end - begin + paired) * intervals)?;
-            for path in begin..end {
-                crate::cancellation::check()?;
-                let paired = settings.antithetic && path < paths / 2;
-                let offset = values.len();
-                values.resize(offset + intervals * if paired { 2 } else { 1 }, 0.0);
-                let mut positive = context.spot_price();
-                let mut negative = positive;
-                for step in 0..intervals {
-                    check_path_step(step)?;
-                    let normal = sample_normal(&mut generator, &mut spare, &mut cursor);
-                    positive *= diffusion.mul_add(normal, drift).exp();
-                    if !positive.is_finite() || positive <= 0.0 {
-                        return Err(unstable());
-                    }
-                    values[offset + step] = positive;
-                    if paired {
-                        negative *= (-diffusion).mul_add(normal, drift).exp();
-                        if !negative.is_finite() || negative <= 0.0 {
-                            return Err(unstable());
+            let path_count = end - begin + paired;
+            let growth_count = path_count * intervals;
+            let mut values = american_workspace(growth_count)?;
+            if let Some(cached) = &cached_growth {
+                values.extend_from_slice(&cached[block_index]);
+            } else {
+                let mut generator = Pcg32::new(seed, block_index as u64);
+                let mut cursor = sobol.as_ref().map(|sequence| sequence.cursor(begin));
+                let mut spare = None;
+                for sample in begin..end {
+                    crate::cancellation::check()?;
+                    let paired = settings.antithetic && sample < paths / 2;
+                    let offset = values.len();
+                    values.resize(offset + intervals * if paired { 2 } else { 1 }, 0.0);
+                    for step in 0..intervals {
+                        check_path_step(step)?;
+                        let normal = sample_normal(&mut generator, &mut spare, &mut cursor);
+                        values[offset + step] = diffusion.mul_add(normal, drift).exp();
+                        if paired {
+                            values[offset + intervals + step] =
+                                (-diffusion).mul_add(normal, drift).exp();
                         }
-                        values[offset + intervals + step] = negative;
+                    }
+                    if let Some(cursor) = &mut cursor {
+                        cursor.next_path();
                     }
                 }
-                if let Some(cursor) = &mut cursor {
-                    cursor.next_path();
+                if retain_growth {
+                    block.growth = american_workspace(growth_count)?;
+                    block.growth.extend_from_slice(&values);
                 }
             }
-            let mut cash = american_workspace(end - begin + paired)?;
-            cash.extend(
-                values
-                    .chunks_exact(intervals)
-                    .map(|path| payoff(path[intervals - 1])),
-            );
+            let mut cash = american_workspace(path_count)?;
+            for path in values.chunks_exact_mut(intervals) {
+                crate::cancellation::check()?;
+                let mut spot = context.spot_price();
+                for (step, growth) in path.iter_mut().enumerate() {
+                    check_path_step(step)?;
+                    spot *= *growth;
+                    if !spot.is_finite() || spot <= 0.0 {
+                        return Err(unstable());
+                    }
+                    *growth = spot;
+                }
+                cash.push(payoff(spot));
+            }
             block.spots = values;
             block.cash = cash;
             Ok(())
         })?;
+        if retain_growth {
+            let growth = Arc::new(
+                blocks
+                    .iter_mut()
+                    .map(|block| std::mem::take(&mut block.growth))
+                    .collect(),
+            );
+            GROWTH_CACHE.with(|cache| {
+                if let Some(cache) = cache.borrow_mut().as_mut() {
+                    // Two scenarios cover the paired volatility and time stencil legs.
+                    if cache.len() == 2 {
+                        cache.remove(0);
+                    }
+                    cache.push((key, growth));
+                }
+            });
+        }
         let strike = option.strike();
         for step in (0..intervals - 1).rev() {
             runner.run(&mut blocks, |_, block| {
@@ -316,6 +423,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
         let _sampling = super::RequestCache::new();
+        let _growth = AmericanGreekCache::new(request);
         context.natural_bsm_parameters()?;
         <Self as PricingEngine<AmericanOption>>::validate_applicability(self, context)?;
         settings.validate()?;
