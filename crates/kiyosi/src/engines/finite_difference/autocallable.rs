@@ -4,11 +4,15 @@ use super::{
     PricingContext, PricingEngine, PricingResult, Result, SpatialGrid, TimeGrid, analysis,
     diffusion, diffusion_upper,
     grid::{Spline, project_in_coordinates},
-    local_volatility, validate_work, validate_workspace,
+    local_volatility,
+    solution::Backend,
+    validate_work, validate_workspace,
 };
 use crate::engines::deterministic::{self, continuation_context};
 use crate::instruments::autocallable::ObservationEvent;
-use crate::instruments::autocallable::pricing::{expiry_payment, fixed_value_at, validate};
+use crate::instruments::autocallable::pricing::{
+    Initial, expiry_payment, fixed_value_at, validate,
+};
 use crate::numerics::{scaled_cash, scaled_signed_cash};
 use crate::{AutocallableBarrierState, AutocallableNote, AutocallableTerms, Timestamp};
 
@@ -184,7 +188,8 @@ fn native<T: AutocallableTerms>(
         ))?);
     }
     let upper = grid.as_ref().map(|grid| grid.space.upper);
-    let result = AutocallableState { start, grid }.evaluate(note, context, request, shifts)?;
+    let result = AutocallableState { start, grid }
+        .evaluate_after_observations(note, context, &state, request, shifts)?;
     Ok((result, upper))
 }
 
@@ -490,17 +495,14 @@ struct AutocallableState {
     grid: Option<AutocallableGrid>,
 }
 impl AutocallableState {
-    fn evaluate<T: AutocallableTerms>(
+    fn evaluate_after_observations<T: AutocallableTerms>(
         &self,
         note: &AutocallableNote<T>,
         context: &PricingContext,
+        state: &Initial,
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        if self.start == note.expiry_time() && deterministic::enabled_until(context, self.start)? {
-            return PricingResult::new(deterministic::autocallable(note, context)?);
-        }
-        let state = deterministic::autocallable_through(note, context, self.start)?;
         let h = crate::risk::numerical::symmetric_shift(
             context.spot_price(),
             shifts.spot_shift_at(context.spot_price()),
@@ -558,7 +560,7 @@ impl AutocallableState {
     }
 }
 
-impl<T: AutocallableTerms> super::solution::Backend<AutocallableNote<T>> for AutocallableState {
+impl<T: AutocallableTerms> Backend<AutocallableNote<T>> for AutocallableState {
     fn query_work(&self, note: &AutocallableNote<T>, context: &PricingContext) -> usize {
         if context.valuation_time() == note.expiry_time()
             || note.barrier_state() == Some(AutocallableBarrierState::KnockedOut)
@@ -585,7 +587,11 @@ impl<T: AutocallableTerms> super::solution::Backend<AutocallableNote<T>> for Aut
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        self.evaluate(note, context, request, shifts)
+        if self.start == note.expiry_time() && deterministic::enabled_until(context, self.start)? {
+            return PricingResult::new(deterministic::autocallable(note, context)?);
+        }
+        let state = deterministic::autocallable_through(note, context, self.start)?;
+        self.evaluate_after_observations(note, context, &state, request, shifts)
     }
 }
 impl<T: AutocallableTerms> super::FiniteDifferenceEngine<AutocallableNote<T>>
