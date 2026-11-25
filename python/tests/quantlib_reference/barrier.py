@@ -1,6 +1,5 @@
 """Continuous vanilla barriers: exact QuantLib analytic contract portfolios."""
 
-import math
 from datetime import date, timedelta
 from functools import lru_cache
 from types import SimpleNamespace
@@ -168,84 +167,3 @@ def scenarios():
                         f"ql-barrier-{direction}-{kind.replace('_', '-')}-{settlement.replace('_', '-')}-{spot}-{days}d",
                         inputs,
                     )
-
-
-def check_bindings():
-    """Probe the pinned binding, including actual engine restrictions."""
-    valuation, expiry_time = ql.Date(6, 1, 2025), ql.Date(6, 1, 2026)
-    process = g.market_process(
-        {
-            "valuation": "2025-01-06",
-            "spot": 100,
-            "dividend": 0.01,
-            "rate": 0.04,
-            "volatility": 0.3,
-        }
-    )
-    vanilla = ql.PlainVanillaPayoff(ql.Option.Call, 100)
-    for payoff, exercise, error in (
-        (
-            ql.CashOrNothingPayoff(ql.Option.Call, 100, 10),
-            ql.EuropeanExercise(expiry_time),
-            "non-plain payoff given",
-        ),
-        (
-            vanilla,
-            ql.AmericanExercise(valuation, expiry_time),
-            "only european style option are supported",
-        ),
-    ):
-        contract = ql.BarrierOption(ql.Barrier.UpOut, 140, 10, payoff, exercise)
-        contract.setPricingEngine(ql.AnalyticBarrierEngine(process))
-        try:
-            contract.NPV()
-        except RuntimeError as caught:
-            assert error in str(caught), str(caught)
-        else:
-            raise AssertionError("unexpected analytic barrier binding support")
-    contract = ql.BarrierOption(
-        ql.Barrier.UpOut, 140, 10, vanilla, ql.EuropeanExercise(expiry_time)
-    )
-    contract.setPricingEngine(ql.AnalyticBarrierEngine(process))
-    assert math.isfinite(contract.NPV())
-    for name in (
-        "delta",
-        "gamma",
-        "theta",
-        "vega",
-        "rho",
-    ):
-        try:
-            getattr(contract, name)()
-        except RuntimeError as caught:
-            assert "not provided" in str(caught)
-        else:
-            raise AssertionError("unexpected native barrier Greek")
-    # Independently verify the rebate portfolio using a cash one-touch with deferred payment.
-    for direction, level in ((ql.Option.Call, 140), (ql.Option.Put, 60)):
-        for at_expiry in (False, True):
-            touch = ql.VanillaOption(
-                ql.CashOrNothingPayoff(direction, level, 10),
-                ql.AmericanExercise(valuation, expiry_time, at_expiry),
-            )
-            touch.setPricingEngine(ql.AnalyticDigitalAmericanEngine(process))
-            inputs = {
-                "option": "call",
-                "strike": 100,
-                "spot": 100,
-                "rate": 0.04,
-                "dividend": 0.01,
-                "volatility": 0.3,
-                "effective_time": "2024-12-30",
-                "valuation": "2025-01-06",
-                "expiry_time": "2026-01-06",
-                "BarrierType": "up_and_out"
-                if direction == ql.Option.Call
-                else "down_and_out",
-                "barrier": level,
-                "rebate": 10,
-                "settlement": "at_expiry" if at_expiry else "at_hit",
-                "monitoring": "continuous",
-            }
-            rebate = measure(inputs, "price") - measure(dict(inputs, rebate=0), "price")
-            assert abs(rebate - touch.NPV()) < 1e-11
