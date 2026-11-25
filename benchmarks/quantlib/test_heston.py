@@ -7,18 +7,20 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from run import build_rust, load_entries
-from test_fd import build_quantlib_test_executable
-
-HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[1]
+from run import (
+    DEFAULT_QUANTLIB_EXECUTABLE,
+    HERE,
+    ROOT,
+    load_entries,
+    prebuilt_rust_executable,
+)
 
 
 class HestonTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.rust_executable, _ = build_rust(timeout=600)
-        cls.executable = build_quantlib_test_executable(cls)
+        cls.rust_executable = prebuilt_rust_executable()
+        cls.executable = DEFAULT_QUANTLIB_EXECUTABLE
 
     def run_heston(self, cases, case_ids, report):
         return subprocess.run(

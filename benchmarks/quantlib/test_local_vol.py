@@ -8,8 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from run import ROOT, build_rust
-from test_fd import build_quantlib_test_executable
+from run import DEFAULT_QUANTLIB_EXECUTABLE, ROOT, build_rust, prebuilt_rust_executable
 
 SURFACE = {
     "surface_low": 80,
@@ -106,8 +105,8 @@ class QuantLibLocalVolatilityTests(LocalVolatilityTests):
 
     @classmethod
     def setUpClass(cls):
-        cls.executable = build_quantlib_test_executable(cls)
-        cls.rust_executable, _ = build_rust(timeout=600)
+        cls.executable = DEFAULT_QUANTLIB_EXECUTABLE
+        cls.rust_executable = prebuilt_rust_executable()
 
     def test_inaccurate_profile_suppresses_timing_in_report(self):
         case = json.loads(

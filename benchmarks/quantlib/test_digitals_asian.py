@@ -5,8 +5,7 @@ import os
 import subprocess
 import unittest
 
-from run import build_rust
-from test_fd import build_quantlib_test_executable
+from run import DEFAULT_QUANTLIB_EXECUTABLE, build_rust
 
 
 class DigitalAsianTests(unittest.TestCase):
@@ -118,7 +117,7 @@ class DigitalAsianTests(unittest.TestCase):
 class QuantLibDigitalAsianTests(DigitalAsianTests):
     @classmethod
     def setUpClass(cls):
-        cls.executable = build_quantlib_test_executable(cls)
+        cls.executable = DEFAULT_QUANTLIB_EXECUTABLE
 
 
 if __name__ == "__main__":

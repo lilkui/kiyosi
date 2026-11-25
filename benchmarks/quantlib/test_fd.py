@@ -2,7 +2,6 @@
 
 import json
 import os
-import shlex
 import subprocess
 import sys
 import tempfile
@@ -10,39 +9,13 @@ import unittest
 from pathlib import Path
 from typing import ClassVar
 
-from run import build_rust, load_entries
-
-ROOT = Path(__file__).resolve().parents[2]
-
-
-def build_quantlib_test_executable(test_class):
-    directory = test_class.enterClassContext(tempfile.TemporaryDirectory())
-    executable = Path(directory) / "quantlib_bench"
-    config = os.environ.get("QUANTLIB_CONFIG", "quantlib-config")
-
-    def flags(flag):
-        return shlex.split(
-            subprocess.check_output([config, flag], text=True, timeout=30)
-        )
-
-    subprocess.run(
-        [
-            "c++",
-            "-std=c++17",
-            "-O3",
-            "-DNDEBUG",
-            *flags("--cflags"),
-            str(ROOT / "benchmarks/quantlib/quantlib.cpp"),
-            "-o",
-            str(executable),
-            *flags("--libs"),
-        ],
-        check=True,
-        capture_output=True,
-        timeout=600,
-    )
-
-    return executable
+from run import (
+    DEFAULT_QUANTLIB_EXECUTABLE,
+    ROOT,
+    build_rust,
+    load_entries,
+    prebuilt_rust_executable,
+)
 
 
 class FiniteDifferenceTests(unittest.TestCase):
@@ -195,8 +168,8 @@ class QuantLibFiniteDifferenceTests(FiniteDifferenceTests):
 
     @classmethod
     def setUpClass(cls):
-        cls.executable = build_quantlib_test_executable(cls)
-        cls.rust_executable, _ = build_rust(timeout=600)
+        cls.executable = DEFAULT_QUANTLIB_EXECUTABLE
+        cls.rust_executable = prebuilt_rust_executable()
 
     def test_failed_reference_suppresses_timing_and_ratio(self):
         with tempfile.TemporaryDirectory() as directory:
