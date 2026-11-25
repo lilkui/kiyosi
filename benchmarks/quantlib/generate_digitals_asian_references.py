@@ -85,7 +85,6 @@ def main():
                         "precision_digits": [50, 80],
                         "decimal_value": str(fine),
                         "precision_difference": str(abs(fine - coarse)),
-                        "native_calibration": "benchmarks/quantlib/calibration/digitals_asian.json",
                         "uncertainty_policy": "1e-12 absolute allowance exceeds precision refinement and double rounding; budget 1e-9",
                     },
                 },

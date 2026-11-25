@@ -82,7 +82,7 @@ Kiyosi 使用基函数 `1, S/K, (S/K)^2` 拟合实值定价路径，并带低阶
 | 用例文件 | 参考值生成 | 校准证据 |
 | --- | --- | --- |
 | `european.json` | `generate_european_references.py` | 参考值文件内含 Decimal 精度收敛结果 |
-| `digitals_asian.json` | `generate_digitals_asian_references.py` | 参考值文件内含精度证据；原生证据见 `calibration/digitals_asian.json`，检查见 `test_digitals_asian.py` |
+| `digitals_asian.json` | `generate_digitals_asian_references.py` | 参考值文件内含精度证据；原生检查见 `test_digitals_asian.py` |
 | `barriers.json` | `generate_barrier_references.py` | `calibrate_barriers.py` |
 | `numerical.json` | `calibrate_numerical.py` | 同一脚本；同时刷新共用的 `calibration/american.json` |
 | `fd_bsm.json` | `generate_fd_references.py` | `calibrate_fd.py` |

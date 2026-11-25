@@ -71,7 +71,6 @@ def main():
                     "version": 1,
                     "evidence": {
                         "precision_digits": [50, 80],
-                        "native_calibration": "benchmarks/quantlib/calibration/european.json",
                         "decimal_value": str(fine),
                         "precision_difference": str(abs(fine - coarse)),
                         "uncertainty_policy": "1e-13 conservative absolute allowance for double conversion; budget 1e-9",
