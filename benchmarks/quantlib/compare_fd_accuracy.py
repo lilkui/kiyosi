@@ -105,7 +105,7 @@ def main(argv=None):
             print(case["id"], flush=True)
     passed &= len(evidence["cases"]) == 4
     evidence["passed"] = passed
-    args.report.write_text(json.dumps(evidence, indent=2) + "\n")
+    run.write_report(args.report, evidence)
     if not passed:
         raise SystemExit(
             "FD accuracy/latency target failed; inspect saved paired samples"

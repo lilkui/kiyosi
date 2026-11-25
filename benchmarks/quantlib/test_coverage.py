@@ -31,7 +31,7 @@ class CoverageTests(unittest.TestCase):
             },
         }
         with tempfile.TemporaryDirectory() as directory:
-            report = Path(directory) / "comparison.json"
+            report = Path(directory) / "reports" / "comparison.json"
             with (
                 patch(
                     "compare_fd_accuracy.os.sched_getaffinity",
