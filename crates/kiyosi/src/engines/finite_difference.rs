@@ -852,7 +852,6 @@ fn analysis<I: OptionContract>(
     ) -> Result<(PricingResult, Option<f64>)>,
 ) -> Result<PricingResult> {
     shifts.validate()?;
-    local_volatility::validate_request(context, request)?;
     let (result, upper) = native(option, context, settings, request, shifts)?;
     if !diffusion::uses_business_time(context) {
         settings.asset_upper_boundary = upper.or(settings.asset_upper_boundary);
@@ -877,7 +876,6 @@ fn barrier_analysis(
     native: impl Fn(&PricingContext, FiniteDifferenceSettings, GreeksRequest) -> Result<PricingResult>,
 ) -> Result<PricingResult> {
     shifts.validate()?;
-    local_volatility::validate_request(context, request)?;
     if settings.asset_upper_boundary.is_none() && local_volatility::local_model(context).is_none() {
         let upper = default_upper();
         if upper.is_finite() {
@@ -1202,9 +1200,8 @@ macro_rules! vanilla_pricing {
                 shifts: crate::NumericalShiftSettings,
             ) -> Result<PricingResult> {
                 <Self as PricingEngine<$option>>::validate_applicability(self, context)?;
-                shifts.validate()?;
-                local_volatility::validate_request(context, request)?;
                 if context.valuation_time() == option.expiry_time() {
+                    shifts.validate()?;
                     let supported = if local_volatility::local_model(context).is_some() {
                         GreeksRequest::new([Greek::Delta, Greek::Gamma])
                     } else {
