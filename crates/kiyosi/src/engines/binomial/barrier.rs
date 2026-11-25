@@ -195,8 +195,16 @@ impl CoxRossRubinsteinBarrierEngine {
                 distance <= 0.0
             }
         };
+        let reflection = option.observation_mode() == crate::ObservationMode::Continuous
+            && steps >= 1024
+            && (1e-6..=1.0 - 1e-6).contains(&p)
+            && (discount.log_factor * f64::from(self.settings.step_count)).abs() < 100.0
+            && width * f64::from(self.settings.step_count) < 100.0
+            && (1e-100..=1e100).contains(&spot)
+            && (1e-100..=1e100).contains(&option.strike())
+            && option.rebate() <= 1e100;
         let mut values = vec![0.0; steps + 1];
-        let mut vanilla = if knock_in {
+        let mut vanilla = if knock_in && !reflection {
             vec![0.0; steps + 1]
         } else {
             Vec::new()
@@ -207,62 +215,102 @@ impl CoxRossRubinsteinBarrierEngine {
             -1.0
         };
         for node in 0..=steps {
+            if node % 256 == 0 {
+                crate::cancellation::check()?;
+            }
             let asset = scaled(spot, (2.0 * node as f64 - steps as f64) * width);
             if !asset.is_normal() {
                 return Err(unstable());
             }
             let payoff = (sign * (asset - option.strike())).max(0.0);
-            let touched = observed[steps] && breached(steps, node);
-            values[node] = if touched == knock_in {
+            values[node] = if reflection || (observed[steps] && breached(steps, node)) == knock_in {
                 payoff
             } else {
                 option.rebate()
             };
-            if knock_in {
+            if !vanilla.is_empty() {
                 vanilla[node] = payoff;
             }
         }
         let mut first = [0.0; 2];
         let mut second = [0.0; 3];
-        for level in (0..=steps).rev() {
-            crate::cancellation::check()?;
-            if level < steps {
-                let rebate = if observed[level] && !knock_in {
-                    if option.rebate_timing() == RebateTiming::AtHit {
-                        option.rebate()
-                    } else {
-                        scaled(option.rebate(), -rate * (steps - level) as f64 * dt)
-                    }
+        if reflection {
+            // Check each integer walk state, including the opposite parity from expiry.
+            let boundary = barrier_boundary(2 * steps + 1, |index| {
+                let level = index.abs_diff(steps);
+                breached(level, if index >= steps { level } else { 0 }) != upper
+            });
+            let away = if upper { 1.0 - p } else { p };
+            let walk = BarrierWalk {
+                away,
+                log_discount: discount.log_factor,
+                rebate: option.rebate(),
+                at_hit: option.rebate_timing() == RebateTiming::AtHit,
+                knock_in,
+                upper,
+            };
+            let price_at = |level: usize, node: usize| {
+                let index = steps + 2 * node - level;
+                let distance = if upper {
+                    boundary.saturating_sub(index)
                 } else {
-                    0.0
+                    (index + 1).saturating_sub(boundary)
                 };
-                let nodes = &mut values[..level + 2];
-                let live = if observed[level] {
-                    let boundary =
-                        barrier_boundary(level + 1, |node| breached(level, node) != upper);
-                    if upper {
-                        0..boundary
-                    } else {
-                        boundary..level + 1
-                    }
-                } else {
-                    0..level + 1
-                };
-                if discount.factor.is_normal() {
-                    rollback_level(nodes, &mut vanilla, rebate, live, |lower, upper| {
-                        discount.rollback_normal(lower, upper, p)
-                    })?;
-                } else {
-                    rollback_level(nodes, &mut vanilla, rebate, live, |lower, upper| {
-                        discount.rollback_scaled(lower, upper, p)
-                    })?;
+                walk.price(&values[node..=node + steps - level], distance)
+            };
+            let price = price_at(0, 0)?;
+            if request.has(Greek::Delta) {
+                for (node, value) in first.iter_mut().enumerate() {
+                    *value = price_at(1, node)?;
                 }
             }
-            if level == 1 {
-                first.copy_from_slice(&values[..2]);
+            if request.has(Greek::Gamma) {
+                for (node, value) in second.iter_mut().enumerate() {
+                    *value = price_at(2, node)?;
+                }
             }
-            if level == 2 {
-                second.copy_from_slice(&values[..3]);
+            values[0] = price;
+        } else {
+            for level in (0..=steps).rev() {
+                crate::cancellation::check()?;
+                if level < steps {
+                    let rebate = if observed[level] && !knock_in {
+                        if option.rebate_timing() == RebateTiming::AtHit {
+                            option.rebate()
+                        } else {
+                            scaled(option.rebate(), -rate * (steps - level) as f64 * dt)
+                        }
+                    } else {
+                        0.0
+                    };
+                    let nodes = &mut values[..level + 2];
+                    let live = if observed[level] {
+                        let boundary =
+                            barrier_boundary(level + 1, |node| breached(level, node) != upper);
+                        if upper {
+                            0..boundary
+                        } else {
+                            boundary..level + 1
+                        }
+                    } else {
+                        0..level + 1
+                    };
+                    if discount.factor.is_normal() {
+                        rollback_level(nodes, &mut vanilla, rebate, live, |lower, upper| {
+                            discount.rollback_normal(lower, upper, p)
+                        })?;
+                    } else {
+                        rollback_level(nodes, &mut vanilla, rebate, live, |lower, upper| {
+                            discount.rollback_scaled(lower, upper, p)
+                        })?;
+                    }
+                }
+                if level == 1 {
+                    first.copy_from_slice(&values[..2]);
+                }
+                if level == 2 {
+                    second.copy_from_slice(&values[..3]);
+                }
             }
         }
         let mut result = PricingResult::new(values[0])?;
@@ -289,6 +337,109 @@ impl CoxRossRubinsteinBarrierEngine {
             }
         }
         Ok(result)
+    }
+}
+
+struct BarrierWalk {
+    away: f64,
+    log_discount: f64,
+    rebate: f64,
+    at_hit: bool,
+    knock_in: bool,
+    upper: bool,
+}
+
+impl BarrierWalk {
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "Validated tree sizes fit exactly in f64."
+    )]
+    fn price(&self, payoffs: &[f64], distance: usize) -> Result<f64> {
+        let steps = payoffs.len() - 1;
+        let expiry_discount = steps as f64 * self.log_discount;
+        if distance == 0 && !self.knock_in {
+            return Ok(if self.at_hit {
+                self.rebate
+            } else {
+                scaled(self.rebate, expiry_discount)
+            });
+        }
+        let log_towards = (-self.away).ln_1p();
+        let log_away = self.away.ln();
+        let log_odds = log_away - log_towards;
+        let mut log_probability = steps as f64 * log_towards;
+        let mut hit_lower = usize::MAX;
+        let mut log_hit = f64::NEG_INFINITY;
+        if (1..=steps).contains(&distance) {
+            // First live terminal state. Reflecting a path that hits the barrier
+            // requires distance extra away steps, with the original path weights.
+            hit_lower = (steps - distance) / 2 + 1;
+            if hit_lower + distance <= steps {
+                log_hit = (hit_lower..hit_lower + distance)
+                    .map(|k| ((steps - k) as f64 / (k + 1) as f64).ln())
+                    .sum();
+            }
+        }
+        let mut sum = crate::numerics::Sum::default();
+        for k in 0..=steps {
+            if k % 256 == 0 {
+                crate::cancellation::check()?;
+            }
+            let payoff = payoffs[if self.upper { steps - k } else { k }];
+            let hit_log = if distance == 0 || (distance <= steps && k < hit_lower) {
+                0.0
+            } else {
+                log_hit.min(0.0)
+            };
+            let survival_log = (-hit_log.exp_m1()).ln();
+            let payoff_log = if self.knock_in { hit_log } else { survival_log };
+            if payoff > 0.0 && payoff_log.is_finite() {
+                sum.add(scaled(
+                    payoff,
+                    log_probability + payoff_log + expiry_discount,
+                ));
+            }
+            if self.rebate > 0.0 && (self.knock_in || !self.at_hit) {
+                let rebate_log = if self.knock_in { survival_log } else { hit_log };
+                if rebate_log.is_finite() {
+                    sum.add(scaled(
+                        self.rebate,
+                        log_probability + rebate_log + expiry_discount,
+                    ));
+                }
+            }
+            if k < steps {
+                log_probability += ((steps - k) as f64 / (k + 1) as f64).ln() + log_odds;
+                if k >= hit_lower && k + distance < steps {
+                    log_hit += (((steps - k - distance) as f64 / (steps - k) as f64)
+                        * ((k + 1) as f64 / (k + distance + 1) as f64))
+                        .ln();
+                } else if k >= hit_lower {
+                    log_hit = f64::NEG_INFINITY;
+                }
+            }
+        }
+        if !self.knock_in && self.at_hit && self.rebate > 0.0 && distance <= steps {
+            // The first-passage mass at distance + 2k follows the ballot recurrence.
+            let mut first_hit = distance as f64 * log_towards;
+            for k in 0..=(steps - distance) / 2 {
+                if k % 256 == 0 {
+                    crate::cancellation::check()?;
+                }
+                let step = (distance + 2 * k) as f64;
+                sum.add(scaled(self.rebate, first_hit + step * self.log_discount));
+                first_hit += (step * (step + 1.0) / ((k + 1) as f64 * (k + distance + 1) as f64))
+                    .ln()
+                    + log_away
+                    + log_towards;
+            }
+        }
+        let price = sum.total();
+        if price.is_finite() {
+            Ok(price)
+        } else {
+            Err(unstable())
+        }
     }
 }
 
