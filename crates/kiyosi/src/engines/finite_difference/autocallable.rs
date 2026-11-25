@@ -593,9 +593,6 @@ impl<T: AutocallableTerms> Backend<AutocallableNote<T>> for AutocallableState {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        if self.start == note.expiry_time() && deterministic::enabled_until(context, self.start)? {
-            return PricingResult::new(deterministic::autocallable(note, context)?);
-        }
         let state = deterministic::autocallable_through(note, context, self.start)?;
         if let Some(value) = state.settlement {
             return PricingResult::new(value);

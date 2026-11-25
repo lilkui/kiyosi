@@ -1,4 +1,8 @@
 use kiyosi::*;
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 
 fn dates() -> (Timestamp, Timestamp) {
     (
@@ -357,6 +361,46 @@ fn autocallable_queries_select_current_knockin_coupon_and_knockout() {
         .price_with_greeks(90.0, GreeksRequest::all(), None)
         .unwrap();
     assert_eq!(result.status(Greek::Gamma), GreekStatus::Undefined);
+}
+
+#[test]
+fn saved_autocallable_batch_reuses_closed_variance_horizon() -> Result<()> {
+    let (start, end) = dates();
+    let visits = Arc::new(AtomicUsize::new(0));
+    let calendar_visits = Arc::clone(&visits);
+    let calendar = TradingCalendar::new(
+        move |_| {
+            calendar_visits.fetch_add(1, Ordering::Relaxed);
+            false
+        },
+        252,
+    )?;
+    let model = BlackScholesMertonParameters::new_with_variance_time_convention(
+        0.03,
+        0.01,
+        0.2,
+        VarianceTimeConvention::Business(calendar),
+    )?;
+    let note = BinarySnowballOption::new(BinarySnowballTerms::new(
+        0.02,
+        start,
+        end,
+        autocallable_observations(&[end], &[110.0], &[0.04])?,
+        TradingCalendar::all_days(),
+    ))?;
+    let context = PricingContext::new(model, 100.0, start)?;
+    let solution =
+        FiniteDifferenceAutocallableEngine::default().solve(&note, &context, 90.0..=120.0)?;
+    visits.store(0, Ordering::Relaxed);
+
+    let prices = solution.price_many(&[100.0, 120.0, 100.0])?;
+    let discount = (-0.03_f64).exp();
+    assert_eq!(prices.len(), 3);
+    close(prices[0], 1.02 * discount, 1e-12);
+    close(prices[1], 1.04 * discount, 1e-12);
+    close(prices[2], prices[0], 1e-12);
+    assert_eq!(visits.load(Ordering::Relaxed), 0);
+    Ok(())
 }
 
 #[test]
