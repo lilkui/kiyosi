@@ -21,7 +21,7 @@ def main():
     evidence = {
         "schema_version": 1,
         "declared_budget": 0.005,
-        "domain": "QuantLib automatic log mesher varied through mesher-only Black volatility; Rust domain_constant_spacing compared with explicit_boundary at constant mean log spacing, separately from selected automatic meshes",
+        "domain": "QuantLib automatic log mesher varied through mesher-only Black volatility; Rust domain_constant_spacing compared with the explicit grid (selected or explicit_boundary) at constant mean log spacing",
         "knock_in_domain": "domain_constant_spacing preserves the barrier grid's mean log spacing; continuation_constant_spacing preserves full-domain continuation mean log spacing. One shared space count cannot hold both spacings fixed during expansion; neither is an isolated two-grid domain probe",
         "cases": [],
         "surface_points": [],

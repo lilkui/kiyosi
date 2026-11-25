@@ -15,11 +15,19 @@ def domain_probes(case):
     """Expand the upper bound at approximately constant mean log spacing."""
     profile = case["profiles"]["kiyosi"]
     upper = profile["upper"] if profile["upper"] != "automatic" else 400
+    probes = {}
+    if profile["upper"] == "automatic":
+        probes["explicit_boundary"] = {"upper": upper}
     inputs = case["inputs"]
+    local = case["family"] == "fd_local_vol"
+    direction = inputs.get("barrier_type", "")
+    up = direction.startswith("up")
+    continuation = local and direction.endswith("_in") and inputs["product"] != "touch"
+    if up and not continuation:
+        return probes
     years = (
         date.fromisoformat(inputs["expiry"]) - date.fromisoformat(inputs["valuation"])
     ).days / 365
-    local = case["family"] == "fd_local_vol"
     sigma = (
         max(
             value
@@ -32,7 +40,6 @@ def domain_probes(case):
     spot = inputs["spot"]
     barrier = inputs.get("barrier")
     strike = inputs.get("strike", barrier)
-    direction = inputs.get("barrier_type", "")
     drift = (inputs["rate"] - inputs["dividend"] - sigma**2 / 2) * years
     margin = 1.5 * (4 * sigma * math.sqrt(years) + abs(drift))
     if barrier is None:
@@ -51,16 +58,13 @@ def domain_probes(case):
         )
 
     lower = barrier if direction.startswith("down") else full_lower
-    end = barrier if direction.startswith("up") else upper
-    expanded_end = barrier if direction.startswith("up") else expanded_upper
-    probes = {
-        "explicit_boundary": {"upper": upper},
-        "domain_constant_spacing": {
-            "upper": expanded_upper,
-            "space": expanded_steps(lower, end, expanded_end),
-        },
+    probes["domain_constant_spacing"] = {
+        "upper": expanded_upper,
+        "space": profile["space"]
+        if up
+        else expanded_steps(lower, upper, expanded_upper),
     }
-    if local and direction.endswith("in"):
+    if continuation:
         probes["continuation_constant_spacing"] = {
             "upper": expanded_upper,
             "space": expanded_steps(full_lower, upper, expanded_upper),
@@ -80,7 +84,7 @@ def main():
         "schema_version": 1,
         "budgets_declared_before_profile_selection": 0.003,
         "quantlib_domain": "native automatic mesher, no public independent boundary control; Rust upper-bound enlargement supplies independent domain evidence",
-        "kiyosi_domain": "domain_constant_spacing expands explicit_boundary at constant mean log spacing, up to rounding. Concentrated meshes may vary locally",
+        "kiyosi_domain": "domain_constant_spacing expands the explicit grid at constant mean log spacing, up to rounding. The explicit baseline is selected or explicit_boundary. Concentrated meshes may vary locally",
         "cases": [],
     }
     for case in cases.values():

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "declared_budget": 0.005,
-  "domain": "QuantLib automatic log mesher varied through mesher-only Black volatility; Rust domain_constant_spacing compared with explicit_boundary at constant mean log spacing, separately from selected automatic meshes",
+  "domain": "QuantLib automatic log mesher varied through mesher-only Black volatility; Rust domain_constant_spacing compared with the explicit grid (selected or explicit_boundary) at constant mean log spacing",
   "knock_in_domain": "domain_constant_spacing preserves the barrier grid's mean log spacing; continuation_constant_spacing preserves full-domain continuation mean log spacing. One shared space count cannot hold both spacings fixed during expansion; neither is an isolated two-grid domain probe",
   "cases": [
     {
@@ -223,18 +223,6 @@
             "error_including_reference_uncertainty": 0.06268275855786952,
             "passed": false
           },
-          "explicit_boundary": {
-            "profile": {
-              "space": 800,
-              "time": 400,
-              "scheme": "rannacher",
-              "upper": 400
-            },
-            "price": 8.35997759074279,
-            "absolute_error": 0.0010888374826283354,
-            "error_including_reference_uncertainty": 0.0011023964137244408,
-            "passed": true
-          },
           "domain_constant_spacing": {
             "profile": {
               "space": 892,
@@ -389,18 +377,6 @@
             "error_including_reference_uncertainty": 0.6381344999447078,
             "passed": false
           },
-          "explicit_boundary": {
-            "profile": {
-              "space": 800,
-              "time": 400,
-              "scheme": "rannacher",
-              "upper": 400
-            },
-            "price": 5.390864573037784,
-            "absolute_error": 7.492681467269335e-05,
-            "error_including_reference_uncertainty": 0.0002260729849083904,
-            "passed": true
-          },
           "domain_constant_spacing": {
             "profile": {
               "space": 892,
@@ -554,18 +530,6 @@
             "absolute_error": 6.957945374020781,
             "error_including_reference_uncertainty": 6.958131553656569,
             "passed": false
-          },
-          "explicit_boundary": {
-            "profile": {
-              "space": 800,
-              "time": 400,
-              "scheme": "rannacher",
-              "upper": 400
-            },
-            "price": 40.531671077051776,
-            "absolute_error": 0.0012739354564672567,
-            "error_including_reference_uncertainty": 0.0014601150922555124,
-            "passed": true
           },
           "domain_constant_spacing": {
             "profile": {
@@ -781,18 +745,6 @@
             "error_including_reference_uncertainty": 0.02582060620254189,
             "passed": false
           },
-          "explicit_boundary": {
-            "profile": {
-              "space": 800,
-              "time": 400,
-              "scheme": "rannacher",
-              "upper": 400
-            },
-            "price": 10.381714370487623,
-            "absolute_error": 2.801447434208626e-05,
-            "error_including_reference_uncertainty": 2.93699599982406e-05,
-            "passed": true
-          },
           "domain_constant_spacing": {
             "profile": {
               "space": 1002,
@@ -947,18 +899,6 @@
             "error_including_reference_uncertainty": 0.010287085506144314,
             "passed": false
           },
-          "explicit_boundary": {
-            "profile": {
-              "space": 800,
-              "time": 400,
-              "scheme": "rannacher",
-              "upper": 400
-            },
-            "price": 4.834646485428003,
-            "absolute_error": 1.9678405272394173e-05,
-            "error_including_reference_uncertainty": 0.0002523190233309964,
-            "passed": true
-          },
           "domain_constant_spacing": {
             "profile": {
               "space": 1002,
@@ -1112,18 +1052,6 @@
             "absolute_error": 0.2062943325541009,
             "error_including_reference_uncertainty": 0.20650570363242116,
             "passed": false
-          },
-          "explicit_boundary": {
-            "profile": {
-              "space": 800,
-              "time": 400,
-              "scheme": "rannacher",
-              "upper": 400
-            },
-            "price": 3.4815005314702936,
-            "absolute_error": 0.00117369975385051,
-            "error_including_reference_uncertainty": 0.0013850708321707567,
-            "passed": true
           },
           "domain_constant_spacing": {
             "profile": {
@@ -1351,18 +1279,6 @@
             "error_including_reference_uncertainty": 0.04732024015629221,
             "passed": false
           },
-          "explicit_boundary": {
-            "profile": {
-              "space": 800,
-              "time": 400,
-              "scheme": "rannacher",
-              "upper": 400
-            },
-            "price": 5.90772809478542,
-            "absolute_error": 1.547291662173933e-05,
-            "error_including_reference_uncertainty": 1.908553315298772e-05,
-            "passed": true
-          },
           "domain_constant_spacing": {
             "profile": {
               "space": 1002,
@@ -1516,30 +1432,6 @@
             "absolute_error": 0.7813439165964766,
             "error_including_reference_uncertainty": 0.7813623259302371,
             "passed": false
-          },
-          "explicit_boundary": {
-            "profile": {
-              "space": 800,
-              "time": 400,
-              "scheme": "rannacher",
-              "upper": 400
-            },
-            "price": 44.39920951391708,
-            "absolute_error": 8.698304706200588e-05,
-            "error_including_reference_uncertainty": 0.00010539238082251385,
-            "passed": true
-          },
-          "domain_constant_spacing": {
-            "profile": {
-              "space": 800,
-              "time": 400,
-              "scheme": "rannacher",
-              "upper": 600
-            },
-            "price": 44.39920951391708,
-            "absolute_error": 8.698304706200588e-05,
-            "error_including_reference_uncertainty": 0.00010539238082251385,
-            "passed": true
           }
         },
         "quantlib": {
@@ -1696,42 +1588,6 @@
             "absolute_error": 0.06476025406727626,
             "error_including_reference_uncertainty": 0.06476262027938427,
             "passed": false
-          },
-          "explicit_boundary": {
-            "profile": {
-              "space": 800,
-              "time": 400,
-              "scheme": "rannacher",
-              "upper": 400
-            },
-            "price": 4.512613449233348,
-            "absolute_error": 4.304934239307556e-06,
-            "error_including_reference_uncertainty": 6.671146347328513e-06,
-            "passed": true
-          },
-          "domain_constant_spacing": {
-            "profile": {
-              "space": 800,
-              "time": 400,
-              "scheme": "rannacher",
-              "upper": 600
-            },
-            "price": 4.512613449233348,
-            "absolute_error": 4.304934239307556e-06,
-            "error_including_reference_uncertainty": 6.671146347328513e-06,
-            "passed": true
-          },
-          "continuation_constant_spacing": {
-            "profile": {
-              "space": 897,
-              "time": 400,
-              "scheme": "rannacher",
-              "upper": 600
-            },
-            "price": 4.5126110787845555,
-            "absolute_error": 6.6753830321175656e-06,
-            "error_including_reference_uncertainty": 9.041595140138523e-06,
-            "passed": true
           }
         },
         "quantlib": {
@@ -1889,18 +1745,6 @@
             "error_including_reference_uncertainty": 0.3834281929381316,
             "passed": false
           },
-          "explicit_boundary": {
-            "profile": {
-              "space": 800,
-              "time": 400,
-              "scheme": "rannacher",
-              "upper": 400
-            },
-            "price": 29.603018886097573,
-            "absolute_error": 0.00011926992436173123,
-            "error_including_reference_uncertainty": 0.00014732778325842472,
-            "passed": true
-          },
           "domain_constant_spacing": {
             "profile": {
               "space": 1002,
@@ -1911,18 +1755,6 @@
             "price": 29.6030176457849,
             "absolute_error": 0.00012051023703563146,
             "error_including_reference_uncertainty": 0.00014856809593232495,
-            "passed": true
-          },
-          "continuation_constant_spacing": {
-            "profile": {
-              "space": 886,
-              "time": 400,
-              "scheme": "rannacher",
-              "upper": 600
-            },
-            "price": 29.60299543394871,
-            "absolute_error": 0.0001427220732246326,
-            "error_including_reference_uncertainty": 0.0001707799321213261,
             "passed": true
           }
         },

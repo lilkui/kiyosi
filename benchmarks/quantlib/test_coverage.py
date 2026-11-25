@@ -7,10 +7,33 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from calibrate_fd import domain_probes
+from run import load_entries
+
 HERE = Path(__file__).resolve().parent
 
 
 class CoverageTests(unittest.TestCase):
+    def test_fd_domain_probes_only_change_active_grids(self):
+        bsm = load_entries(HERE / "cases/fd_bsm.json")
+        local = load_entries(HERE / "cases/fd_local_vol.json")
+        for cases, prefix in ((bsm, "fd-bsm"), (local, "fd-local-vol")):
+            self.assertEqual(
+                domain_probes(cases[f"{prefix}-european-call"])["explicit_boundary"],
+                {"upper": 400},
+            )
+            self.assertEqual(
+                domain_probes(cases[f"{prefix}-down-out-call"]),
+                {"domain_constant_spacing": {"upper": 600, "space": 1002}},
+            )
+            for product in ("up-no-touch-asset-expiry", "up-one-touch-cash-hit"):
+                self.assertEqual(domain_probes(cases[f"{prefix}-{product}"]), {})
+        continuation = domain_probes(local["fd-local-vol-terminal-up-in-asset"])
+        self.assertEqual(
+            continuation["domain_constant_spacing"], {"upper": 600, "space": 800}
+        )
+        self.assertGreater(continuation["continuation_constant_spacing"]["space"], 800)
+
     def run_suite(
         self, *, remove=(), patch=None, missing_family=None, missing_reference=None
     ):

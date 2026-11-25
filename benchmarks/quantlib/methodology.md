@@ -41,7 +41,7 @@ BSM 与给定局部波动率用例涵盖欧式/美式香草期权、现金/资�
 普通欧式和连续单障碍普通期权在行权价折点沿对数现货做终端收益单元平均，包含局部波动率敲入的香草延续价值。
 BSM 普通欧式自动网格以扣除确定性持有成本后的行权价加密节点，回推完成后再应用股息贴现。
 
-`calibration/fd_bsm.json` 与 `calibration/fd_local_vol.json` 记录 `selected` 主配置和 `explicit_boundary` 显式上界对照。`domain_constant_spacing` 扩大上界，并以整数区间数保持近似相同的平均 `Δln S`。例如下障碍 80 的 `[80,400]`、800 区间扩展为 `[80,600]`、1002 区间。合约价位附近加密的节点间距取决于求解域。
+`calibration/fd_bsm.json` 与 `calibration/fd_local_vol.json` 记录 `selected` 主配置，主配置使用自动域时另记录 `explicit_boundary` 显式上界对照。`domain_constant_spacing` 扩大上界，并以整数区间数保持主网格近似相同的平均 `Δln S`。例如下障碍 80 的 `[80,400]`、800 区间扩展为 `[80,600]`、1002 区间。上障碍固定主网格上界时，仅在扩域会改变延续价值网格的情况下记录扩域对照。合约价位附近加密的节点间距取决于求解域。
 
 局部波动率敲入另有 `continuation_constant_spacing` 探针，用于控制全域延续价值网格的平均对数步长。两个网格共用区间数，因此扩域会同时影响另一网格的空间误差。
 
