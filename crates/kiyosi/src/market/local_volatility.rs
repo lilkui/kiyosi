@@ -206,34 +206,81 @@ impl LocalVolatilitySurface {
     }
 
     pub(crate) fn at_year(&self, time: f64, spot: f64) -> f64 {
-        let i = self
-            .years
-            .partition_point(|&t| t <= time)
-            .saturating_sub(1)
-            .min(self.years.len() - 2);
-        let j = self
-            .spots
-            .partition_point(|&s| s <= spot)
-            .saturating_sub(1)
-            .min(self.spots.len() - 2);
-        let a = ((time - self.years[i]) / (self.years[i + 1] - self.years[i])).clamp(0.0, 1.0);
-        let b = ((spot - self.spots[j]) / (self.spots[j + 1] - self.spots[j])).clamp(0.0, 1.0);
-        let n = self.spots.len();
-        // Endpoint-relative interpolation preserves positive subnormal constants.
-        let interpolate = |low: f64, high: f64, weight: f64| {
-            if weight <= 0.5 {
-                low + weight * (high - low)
-            } else {
-                high + (1.0 - weight) * (low - high)
+        let (row, time_weight) = bracket(&self.years, time);
+        let location = bracket(&self.spots, spot);
+        interpolate(
+            self.at_spot(row, location),
+            self.at_spot(row + 1, location),
+            time_weight,
+        )
+    }
+
+    fn at_spot(&self, row: usize, (column, weight): (usize, f64)) -> f64 {
+        let offset = row * self.spots.len() + column;
+        interpolate(self.values[offset], self.values[offset + 1], weight)
+    }
+}
+
+fn bracket(nodes: &[f64], value: f64) -> (usize, f64) {
+    let left = nodes
+        .partition_point(|&node| node <= value)
+        .saturating_sub(1)
+        .min(nodes.len() - 2);
+    let weight = ((value - nodes[left]) / (nodes[left + 1] - nodes[left])).clamp(0.0, 1.0);
+    (left, weight)
+}
+
+fn interpolate(low: f64, high: f64, weight: f64) -> f64 {
+    // Endpoint-relative interpolation preserves positive subnormal constants.
+    if weight <= 0.5 {
+        low + weight * (high - low)
+    } else {
+        high + (1.0 - weight) * (low - high)
+    }
+}
+
+pub(crate) struct LocalVolatilityProjection {
+    locations: Vec<(usize, f64)>,
+    rows: [(usize, Vec<f64>); 2],
+}
+
+impl LocalVolatilityProjection {
+    pub(crate) fn new(surface: &LocalVolatilitySurface, spots: &[f64]) -> Result<Self> {
+        let mut locations = Vec::with_capacity(spots.len());
+        for chunk in spots.chunks(1024) {
+            cancellation::check()?;
+            locations.extend(chunk.iter().map(|&spot| bracket(&surface.spots, spot)));
+        }
+        Ok(Self {
+            locations,
+            rows: std::array::from_fn(|_| (usize::MAX, vec![0.0; spots.len()])),
+        })
+    }
+
+    pub(crate) fn at_year(
+        &mut self,
+        surface: &LocalVolatilitySurface,
+        time: f64,
+    ) -> Result<impl Fn(usize) -> f64 + '_> {
+        let (row, weight) = bracket(&surface.years, time);
+        if self.rows[0].0 == row + 1 || self.rows[1].0 == row {
+            self.rows.swap(0, 1);
+        }
+        for (index, (loaded, values)) in self.rows.iter_mut().enumerate() {
+            let source = row + index;
+            if *loaded != source {
+                for (values, locations) in values.chunks_mut(1024).zip(self.locations.chunks(1024))
+                {
+                    cancellation::check()?;
+                    for (value, &location) in values.iter_mut().zip(locations) {
+                        *value = surface.at_spot(source, location);
+                    }
+                }
+                *loaded = source;
             }
-        };
-        let low = interpolate(self.values[i * n + j], self.values[i * n + j + 1], b);
-        let high = interpolate(
-            self.values[(i + 1) * n + j],
-            self.values[(i + 1) * n + j + 1],
-            b,
-        );
-        interpolate(low, high, a)
+        }
+        let [(_, lower), (_, upper)] = &self.rows;
+        Ok(move |index| interpolate(lower[index], upper[index], weight))
     }
 }
 

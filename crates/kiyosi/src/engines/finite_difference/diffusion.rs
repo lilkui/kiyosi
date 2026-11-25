@@ -89,15 +89,18 @@ pub(super) use with_diffusion;
 
 pub(super) trait Diffusion: Copy {
     const LOCAL: bool;
-    const SPOT_DEPENDENT: bool = Self::LOCAL;
     fn sigma(self, time: f64, spot: f64) -> f64;
 
     fn variance_rate(self, _time: f64) -> f64 {
         1.0
     }
 
+    fn surface(&self) -> Option<(&LocalVolatilitySurface, f64)> {
+        None
+    }
+
     fn stepper(self, count: usize) -> Stepper {
-        if Self::SPOT_DEPENDENT {
+        if self.surface().is_some() {
             Stepper::new_local(count)
         } else {
             Stepper::new(count)
@@ -116,20 +119,14 @@ pub(super) trait Diffusion: Copy {
         edges: [f64; 2],
     ) -> Result<()> {
         let scale = self.variance_rate(middle).sqrt();
-        if Self::SPOT_DEPENDENT {
-            let [dt, theta, rate, dividend] = key;
+        if let Some((surface, offset)) = self.surface() {
             stepper.advance_local(
                 old,
                 next,
-                |i| {
-                    space.coefficients(
-                        i,
-                        rate,
-                        dividend,
-                        self.sigma(middle, space.asset(i)) * scale,
-                    )
-                },
-                [dt, theta],
+                space,
+                surface,
+                [offset + middle, scale],
+                key,
                 edges,
             )
         } else {
@@ -169,6 +166,11 @@ impl<'a> LocalDiffusion<'a> {
 
 impl Diffusion for LocalDiffusion<'_> {
     const LOCAL: bool = true;
+
+    fn surface(&self) -> Option<(&LocalVolatilitySurface, f64)> {
+        Some((self.surface, self.offset))
+    }
+
     fn sigma(self, time: f64, spot: f64) -> f64 {
         self.surface.at_year(self.offset + time, spot)
     }
@@ -188,7 +190,11 @@ impl<'a, D> BusinessDiffusion<'a, D> {
 
 impl<D: Diffusion> Diffusion for BusinessDiffusion<'_, D> {
     const LOCAL: bool = true;
-    const SPOT_DEPENDENT: bool = D::SPOT_DEPENDENT;
+
+    fn surface(&self) -> Option<(&LocalVolatilitySurface, f64)> {
+        self.base.surface()
+    }
+
     fn sigma(self, time: f64, spot: f64) -> f64 {
         self.base.sigma(time, spot)
     }

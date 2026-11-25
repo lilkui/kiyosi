@@ -192,12 +192,14 @@ pub(super) struct Stepper {
     factors: Vec<Factors>,
     rhs: Vec<f64>,
     active: usize,
+    local: Option<crate::market::LocalVolatilityProjection>,
 }
 
 impl Stepper {
     const FACTOR_CACHE_LEN: usize = 3;
     // Each factor has three coefficients and four solve values per row. A miss
     // builds the new factor before eviction, with a separate right-hand side.
+    // Local volatility uses one factor and two projected rows, within this peak.
     pub(super) const PEAK_BYTES_PER_NODE: u64 =
         ((Self::FACTOR_CACHE_LEN + 1) * size_of::<[f64; 7]>() + size_of::<f64>()) as u64;
 
@@ -206,6 +208,7 @@ impl Stepper {
             factors: Vec::new(),
             rhs: vec![0.0; count - 1],
             active: 0,
+            local: None,
         }
     }
 
@@ -222,30 +225,51 @@ impl Stepper {
             }],
             rhs: vec![0.0; size],
             active: 0,
+            local: None,
         }
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "local step uses a fixed grid and dynamic surface and boundary inputs"
+    )]
     pub fn advance_local(
         &mut self,
         old: &[f64],
         next: &mut [f64],
-        coefficients: impl Fn(usize) -> [f64; 3],
-        [dt, theta]: [f64; 2],
+        space: &SpatialGrid,
+        surface: &crate::LocalVolatilitySurface,
+        [time, scale]: [f64; 2],
+        [dt, theta, rate, dividend]: [f64; 4],
         boundaries: [f64; 2],
     ) -> Result<()> {
-        let factors = &mut self.factors[0];
-        let size = factors.coefficients.len();
-        for i in 0..size {
-            let [a, b, c] = coefficients(i + 1);
-            if [a, b, c].iter().any(|v| !v.is_finite()) {
-                return Err(unstable());
-            }
-            if theta == 0.0 && -dt * b > 1.0 {
-                return Err(invalid_grid("explicit finite-difference grid is unstable"));
-            }
-            factors.coefficients[i] = [a, b, c];
-            if theta != 0.0 {
-                factors.factor_row(i, dt, theta)?;
+        if self.local.is_none() {
+            self.local = Some(crate::market::LocalVolatilityProjection::new(
+                surface,
+                &space.spots,
+            )?);
+        }
+        {
+            let volatility = self
+                .local
+                .as_mut()
+                .expect("local surface projection is initialized")
+                .at_year(surface, time)?;
+            let factors = &mut self.factors[0];
+            let size = factors.coefficients.len();
+            for i in 0..size {
+                let [a, b, c] =
+                    space.coefficients(i + 1, rate, dividend, volatility(i + 1) * scale);
+                if [a, b, c].iter().any(|v| !v.is_finite()) {
+                    return Err(unstable());
+                }
+                if theta == 0.0 && -dt * b > 1.0 {
+                    return Err(invalid_grid("explicit finite-difference grid is unstable"));
+                }
+                factors.coefficients[i] = [a, b, c];
+                if theta != 0.0 {
+                    factors.factor_row(i, dt, theta)?;
+                }
             }
         }
         self.apply(old, next, dt, theta, boundaries, 0)

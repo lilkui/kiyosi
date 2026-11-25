@@ -83,7 +83,7 @@ pub(super) struct SpatialGrid {
     pub count: usize,
     pub nodes: Vec<f64>,
     reference: f64,
-    spots: Vec<f64>,
+    pub(super) spots: Vec<f64>,
     stencils: Vec<LogStencil>,
 }
 
