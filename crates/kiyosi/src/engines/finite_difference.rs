@@ -1,4 +1,5 @@
 use super::{Payoff, curve::Curve};
+use crate::instruments::monitoring::validate_life;
 use crate::numerics::{scaled_cash as scaled, weighted_cdf};
 use crate::{
     AmericanOption, DigitalOption, Error, EuropeanOption, Greek, GreeksRequest,
@@ -201,13 +202,6 @@ fn unstable() -> Error {
     Error::ComputationFailure("finite-difference system is numerically unstable".into())
 }
 
-fn time_to_expiry(option: &impl OptionContract, context: &PricingContext) -> Result<f64> {
-    let valuation = context.valuation_time();
-    let expiry = option.expiry_time();
-    crate::instruments::monitoring::validate_life(option, context)?;
-    Ok(valuation.years_until(expiry))
-}
-
 fn diffusion_upper(relevant: f64, width: f64) -> f64 {
     if width <= 4.0_f64.ln() {
         4.0 * relevant
@@ -295,7 +289,8 @@ fn native(
     concentrate: bool,
 ) -> Result<(PricingResult, Option<f64>)> {
     let request = local_volatility::validate_request(context, request)?;
-    if crate::engines::deterministic::enabled_until(context, option.expiry_time())? {
+    let expiry = option.expiry_time();
+    if crate::engines::deterministic::enabled_until(context, expiry)? {
         return Ok((
             PricingResult::new(crate::engines::deterministic::vanilla(
                 option, payoff, context,
@@ -303,55 +298,30 @@ fn native(
             None,
         ));
     }
-    diffusion::with_diffusion!(context, Some(option.expiry_time()), |diffusion| {
-        native_model(
-            option,
+    diffusion::with_diffusion!(context, Some(expiry), |diffusion| {
+        validate_life(option, context)?;
+        if context.valuation_time() == expiry {
+            return Ok((
+                PricingResult::new(payoff.value(context.spot_price()))?,
+                None,
+            ));
+        }
+        let saved = solve_model(
+            expiry,
             payoff,
             context,
             settings,
-            request,
-            shifts,
             concentrate,
+            context.spot_price(),
             diffusion,
-        )
+        )?;
+        let result = saved.evaluate(context, request, shifts)?;
+        Ok((result, Some(saved.grid.space.upper)))
     })
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "Explicit payoff, grid policy, model and stencil inputs; exact weights select the digital correction."
-)]
-fn native_model<D: Diffusion>(
-    option: &impl OptionContract,
-    payoff: Payoff,
-    context: &PricingContext,
-    settings: FiniteDifferenceSettings,
-    request: GreeksRequest,
-    shifts: NumericalShiftSettings,
-    concentrate: bool,
-    diffusion: D,
-) -> Result<(PricingResult, Option<f64>)> {
-    if time_to_expiry(option, context)? == 0.0 {
-        return Ok((
-            PricingResult::new(payoff.value(context.spot_price()))?,
-            None,
-        ));
-    }
-    let saved = solve_model(
-        option,
-        payoff,
-        context,
-        settings,
-        concentrate,
-        context.spot_price(),
-        diffusion,
-    )?;
-    let result = saved.evaluate(context, request, shifts)?;
-    Ok((result, Some(saved.grid.space.upper)))
-}
-
 fn solve_model<D: Diffusion>(
-    option: &impl OptionContract,
+    expiry: Timestamp,
     payoff: Payoff,
     context: &PricingContext,
     settings: FiniteDifferenceSettings,
@@ -359,10 +329,9 @@ fn solve_model<D: Diffusion>(
     minimum_spot: f64,
     diffusion: D,
 ) -> Result<VanillaGrid> {
-    let time = time_to_expiry(option, context)?;
+    let time = context.valuation_time().years_until(expiry);
     let spot = context.spot_price();
     let model = context.model_parameters();
-    let expiry = option.expiry_time();
     let (risk, dividend) = diffusion::rate_curves(context, expiry, settings)?;
     let log_width = diffusion_log_width(context, expiry, &risk, &dividend)?;
     let level = spot.max(payoff.strike);
@@ -644,18 +613,18 @@ fn prepare_vanilla_state(
     minimum_spot: f64,
 ) -> Result<VanillaState> {
     local_volatility::validate_model(context)?;
-    let time = time_to_expiry(option, context)?;
-    let grid = if time == 0.0
-        || crate::engines::deterministic::enabled_until(context, option.expiry_time())?
-    {
+    validate_life(option, context)?;
+    let expiry = option.expiry_time();
+    let at_expiry = context.valuation_time() == expiry;
+    let grid = if at_expiry || crate::engines::deterministic::enabled_until(context, expiry)? {
         None
     } else {
         Some(diffusion::with_diffusion!(
             context,
-            Some(option.expiry_time()),
+            Some(expiry),
             |diffusion| {
                 solve_model(
-                    option,
+                    expiry,
                     payoff,
                     context,
                     settings,
@@ -666,11 +635,9 @@ fn prepare_vanilla_state(
             }
         )?)
     };
-    let exercise = if grid.is_none() && payoff.is_american() && time > 0.0 {
+    let exercise = if grid.is_none() && payoff.is_american() && !at_expiry {
         Some(crate::engines::deterministic::AmericanExercise::new(
-            payoff,
-            context,
-            option.expiry_time(),
+            payoff, context, expiry,
         )?)
     } else {
         None

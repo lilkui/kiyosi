@@ -1,10 +1,8 @@
 use super::grid::{SpatialGrid, Spline, TimeGrid, concentrate, project_payoff, spot_floor};
-use super::{
-    Payoff, WORKSPACE_BUDGET, invalid_grid, prepare_rate_curves, time_to_expiry, unstable,
-    validate_work,
-};
+use super::{Payoff, WORKSPACE_BUDGET, invalid_grid, prepare_rate_curves, unstable, validate_work};
 use crate::engines::analytic::heston::integrated_variance;
 use crate::engines::deterministic::{self, AmericanExercise, exercise_value};
+use crate::instruments::monitoring::validate_life;
 use crate::numerics::{checked_with_scale, scaled_cash};
 use crate::{
     AmericanOption, EuropeanOption, GreeksRequest, HestonParameters, OptionContract,
@@ -282,8 +280,9 @@ fn prepare(
     const BYTES_PER_SOLVE_NODE: u64 = 32;
     const BYTES_PER_TIME_STEP: u64 = 24;
     let model = context.model_parameters().as_heston()?;
-    let time = time_to_expiry(option, context)?;
+    validate_life(option, context)?;
     let end = option.expiry_time();
+    let time = context.valuation_time().years_until(end);
     context.validate_curve_coverage(end)?;
     if time == 0.0 {
         return Ok(HestonState::Expiry(payoff));
