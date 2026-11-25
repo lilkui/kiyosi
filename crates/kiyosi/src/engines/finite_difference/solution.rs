@@ -106,11 +106,7 @@ impl FiniteDifferenceSolution {
         };
         let query_work = if backend.queries_may_scan_calendar()
             && context.valuation_time() < instrument.expiry_time()
-            && context
-                .model_parameters()
-                .variance_time_convention()
-                .calendar()
-                .is_some()
+            && super::diffusion::uses_business_time(context)
         {
             // A closed calendar can require scanning the full horizon before pricing.
             usize::MAX
