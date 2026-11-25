@@ -135,6 +135,24 @@ class CommandTests(unittest.TestCase):
                 )
             self.assertEqual(cargo.call_args.args[0][:2], ["cargo", "metadata"])
 
+    def test_missing_recorded_adapter_falls_back_to_configured_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "new-target"
+            old = root / "old-target/release/quantlib_bench"
+            executable = target / "release/quantlib_bench"
+            executable.parent.mkdir(parents=True)
+            executable.touch()
+            evidence = {"executables": {"kiyosi": {"path": str(old)}}}
+            with (
+                patch("run.shutil.which", return_value="/tools/cargo"),
+                patch(
+                    "run.command",
+                    return_value=json.dumps({"target_directory": str(target)}),
+                ),
+            ):
+                self.assertEqual(prebuilt_rust_executable(evidence), executable)
+
     def test_missing_native_executable_writes_failed_report(self):
         with tempfile.TemporaryDirectory() as directory:
             report = Path(directory) / "report.json"

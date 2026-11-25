@@ -191,7 +191,7 @@ def prebuilt_rust_executable(build_evidence=None):
         except (KeyError, TypeError):
             pass
         else:
-            if recorded.is_absolute():
+            if recorded.is_absolute() and recorded.is_file():
                 return recorded
     target = ROOT / "target"
     if shutil.which("cargo"):
