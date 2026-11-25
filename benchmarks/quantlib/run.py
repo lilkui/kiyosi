@@ -664,10 +664,6 @@ def main(argv=None):
                 report["build"] = (
                     "unavailable: supplied executables differ from recorded build artifacts"
                 )
-        if isinstance(report["build"], dict):
-            report["build"].setdefault(
-                "source", "unavailable: build source was not recorded"
-            )
         report["libraries"] = info
         for backend, metadata in info.items():
             if (
