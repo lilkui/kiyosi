@@ -1,5 +1,5 @@
 use super::{
-    AutocallableBarrierState, AutocallableNote, AutocallableTerms, Coupon, PricingContext, Result,
+    AutocallableBarrierState, AutocallableNote, AutocallableTerms, PricingContext, Result,
 };
 use crate::Timestamp;
 use crate::instruments::autocallable::ObservationEvent;
@@ -171,9 +171,9 @@ pub(crate) fn fixed_value_at<T: AutocallableTerms>(
         {
             return None;
         }
-        if matches!(t.coupon, Coupon::Phoenix(_)) && record.coupon_barrier_level().is_some() {
+        if let Some(level) = record.coupon_barrier_level() {
             let coupon = note.period_coupon();
-            if coupon != 0.0 && record.coupon_barrier_level().unwrap_or_default() != 0.0 {
+            if coupon != 0.0 && level != 0.0 {
                 return None;
             }
             coupons += coupon * discount;

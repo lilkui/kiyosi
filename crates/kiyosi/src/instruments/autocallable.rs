@@ -749,7 +749,7 @@ mod sealed {
         pub coupon_observations: &'a [CouponObservation],
     }
 }
-pub(crate) use sealed::Coupon;
+use sealed::Coupon;
 use sealed::{Downside, KnockIn, Redemption};
 
 macro_rules! terms_view {
@@ -893,9 +893,6 @@ impl ObservationEvent {
     pub(crate) fn coupon_barrier_level(&self) -> Option<f64> {
         self.coupon.map(|record| record.coupon_barrier_level)
     }
-    fn coupon_rate(&self) -> f64 {
-        self.coupon_rate
-    }
 }
 
 impl<T: AutocallableTerms> AutocallableNote<T> {
@@ -1023,7 +1020,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     pub(crate) fn events(&self) -> &[ObservationEvent] {
         &self.1
     }
-    fn event_at(&self, time: Timestamp) -> Option<&ObservationEvent> {
+    pub(crate) fn event_at(&self, time: Timestamp) -> Option<&ObservationEvent> {
         let events = self.events();
         events
             .binary_search_by_key(&time, ObservationEvent::time)
@@ -1238,11 +1235,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         let t = self.view();
         t.principal_redemption_ratio
             + self.rebate_payment(record.time)
-            + if matches!(t.coupon, Coupon::Phoenix(_)) {
-                0.0
-            } else {
-                record.coupon_rate()
-            } * self.effective_time().years_until(record.time)
+            + record.coupon_rate * self.effective_time().years_until(record.time)
     }
 }
 impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
@@ -1272,8 +1265,7 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
                 }
                 if record.has_knock_out()
                     && context.forward_crosses(record.time, record.knock_out_level(), radius)
-                    || matches!(self.view().coupon, Coupon::Phoenix(_))
-                        && self.period_coupon() != 0.0
+                    || self.period_coupon() != 0.0
                         && context.forward_crosses(
                             record.time,
                             record.coupon_barrier_level().unwrap_or_default(),
@@ -1342,10 +1334,10 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
         let spot = context.spot_price();
         let crosses = |level| spot - radius <= level && level <= spot + radius;
         if let Some(record) = self.event_at(context.valuation_time()) {
-            if matches!(self.view().coupon, Coupon::Phoenix(_))
-                && self.period_coupon() != 0.0
-                && record.coupon_barrier_level().unwrap_or_default() > 0.0
-                && crosses(record.coupon_barrier_level().unwrap_or_default())
+            if self.period_coupon() != 0.0
+                && record
+                    .coupon_barrier_level()
+                    .is_some_and(|level| level > 0.0 && crosses(level))
             {
                 return true;
             }

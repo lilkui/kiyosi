@@ -3,7 +3,6 @@ use super::gaussian::{
     integration_nodes,
 };
 use super::{QuadratureSettings, flat_rates};
-use crate::instruments::autocallable::Coupon;
 use crate::instruments::autocallable::ObservationEvent;
 use crate::instruments::autocallable::pricing::{
     fixed_value, future_event_times, initial, validate,
@@ -141,15 +140,6 @@ struct PreparedCurve<T: AutocallableTerms> {
     deviation: f64,
     discount: f64,
 }
-fn event<T: AutocallableTerms>(
-    note: &AutocallableNote<T>,
-    date: Timestamp,
-) -> Option<&ObservationEvent> {
-    note.events()
-        .binary_search_by_key(&date, ObservationEvent::time)
-        .ok()
-        .map(|i| &note.events()[i])
-}
 fn terminal<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
     record: Option<&ObservationEvent>,
@@ -223,7 +213,7 @@ fn apply_event<T: AutocallableTerms>(
 ) {
     let t = note.view();
     let anchor = t.reference_spot();
-    let record = event(note, date);
+    let record = note.event_at(date);
     let amount = record.map_or(0.0, |_| note.period_coupon());
     let coupon = |point: f64| {
         record
@@ -333,8 +323,8 @@ fn price<T: AutocallableTerms>(
         if r.has_knock_out() {
             breaks.push(log_ratio(r.knock_out_level(), anchor));
         }
-        if matches!(t.coupon, Coupon::Phoenix(_)) && r.coupon_barrier_level().unwrap_or(0.0) > 0.0 {
-            breaks.push(log_ratio(r.coupon_barrier_level().unwrap_or(0.0), anchor));
+        if let Some(level) = r.coupon_barrier_level().filter(|&level| level > 0.0) {
+            breaks.push(log_ratio(level, anchor));
         }
     }
     breaks.sort_by(f64::total_cmp);
@@ -343,12 +333,8 @@ fn price<T: AutocallableTerms>(
     let drift_rate = rate - dividend - 0.5 * sigma * sigma;
     let horizon = context.valuation_time().years_until(note.expiry_time());
     let transition = |time| super::transition(time, drift_rate, sigma, rate);
-    let terminal = terminal(
-        note,
-        event(note, note.expiry_time()),
-        &breaks,
-        state.knocked_in,
-    );
+    let expiry_event = note.event_at(note.expiry_time());
+    let terminal = terminal(note, expiry_event, &breaks, state.knocked_in);
     if dates.len() == 1 {
         let (drift, deviation, discount) = transition(horizon)?;
         return finite_price(
@@ -385,7 +371,7 @@ fn price<T: AutocallableTerms>(
     transitions.validate_scheduled_work(&nodes, &dates, layer_count, terminal.len(), transition)?;
     let interpolation = CubicInterpolation::new(&nodes);
     let terminal_in = if layers {
-        self::terminal(note, event(note, note.expiry_time()), &breaks, true)
+        self::terminal(note, expiry_event, &breaks, true)
     } else {
         Vec::new()
     };
