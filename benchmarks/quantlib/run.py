@@ -123,6 +123,15 @@ def read_build_evidence(quantlib_executable):
     return evidence
 
 
+def verified_build_evidence(evidence, executables):
+    """Retain a build record only when it identifies both supplied adapters."""
+    if isinstance(evidence, dict) and evidence.get("executables") != {
+        backend: fingerprint(path) for backend, path in executables.items()
+    }:
+        return "unavailable: supplied executables differ from recorded build artifacts"
+    return evidence
+
+
 def load_entries(path):
     """Load unique scenario/reference IDs from one file or sorted fragments."""
     entries = {}
@@ -675,14 +684,8 @@ def main(argv=None):
             )
             for backend, executable in executables.items()
         }
-        if args.no_build and isinstance(report["build"], dict):
-            artifacts = {
-                backend: fingerprint(path) for backend, path in executables.items()
-            }
-            if artifacts != report["build"].get("executables"):
-                report["build"] = (
-                    "unavailable: supplied executables differ from recorded build artifacts"
-                )
+        if args.no_build:
+            report["build"] = verified_build_evidence(report["build"], executables)
         report["libraries"] = info
         for backend, metadata in info.items():
             if (

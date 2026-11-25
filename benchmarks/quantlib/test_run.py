@@ -314,6 +314,7 @@ class ReportTests(unittest.TestCase):
         build_source=None,
         relative_executables=False,
         rust_from_build=False,
+        rebuild_rust=False,
     ):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -398,6 +399,8 @@ class ReportTests(unittest.TestCase):
                         }
                     )
                 )
+                if rebuild_rust:
+                    rust.write_text(rust.read_text() + "\n# Rebuilt adapter\n")
                 runner = [
                     "-c",
                     (
@@ -464,6 +467,20 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(report["cases"][0]["status"], "passed")
         self.assertEqual(report["build"]["source"], source)
+
+    def test_no_build_marks_a_replaced_adapter_build_record_unavailable(self):
+        result, report = self.run_fixture(
+            extra=("--price-only",),
+            build_source={"revision": "build-revision", "dirty_state": ""},
+            rust_from_build=True,
+            rebuild_rust=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(report["cases"][0]["status"], "passed")
+        self.assertEqual(
+            report["build"],
+            "unavailable: supplied executables differ from recorded build artifacts",
+        )
 
     def test_default_rejects_incomplete_manifest_with_explicit_required_rows(self):
         result, report = self.run_fixture(complete=True)

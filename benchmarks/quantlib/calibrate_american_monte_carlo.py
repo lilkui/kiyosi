@@ -8,12 +8,13 @@ import time
 from run import (
     HERE,
     accuracy,
-    build_evidence_path,
     command,
     load_entries,
     native,
     prebuilt_rust_executable,
+    read_build_evidence,
     seed_ensemble,
+    verified_build_evidence,
 )
 
 
@@ -21,16 +22,16 @@ def main():
     started = time.monotonic()
     case = load_entries(HERE / "cases/american_monte_carlo.json")["mc-american-put"]
     reference = load_entries(HERE / "references/american_monte_carlo.json")[case["id"]]
+    quantlib = HERE / "build/quantlib_bench"
+    evidence = read_build_evidence(quantlib)
     executables = {
-        "kiyosi": prebuilt_rust_executable(),
-        "quantlib": HERE / "build/quantlib_bench",
+        "kiyosi": prebuilt_rust_executable(evidence),
+        "quantlib": quantlib,
     }
     document = {
         "schema_version": 1,
         "protocol": "methodology.md#american-least-squares-monte-carlo; limits and seeds declared before outputs",
-        "build_evidence": json.loads(
-            build_evidence_path(executables["quantlib"]).read_text()
-        ),
+        "build_evidence": verified_build_evidence(evidence, executables),
         "libraries": {
             backend: json.loads(command([str(binary), "--info"]))
             for backend, binary in executables.items()

@@ -7,12 +7,13 @@ import time
 from run import (
     HERE,
     accuracy,
-    build_evidence_path,
     command,
     load_entries,
     native,
     prebuilt_rust_executable,
+    read_build_evidence,
     seed_ensemble,
+    verified_build_evidence,
 )
 
 
@@ -42,13 +43,13 @@ def main():
     started = time.monotonic()
     cases = load_entries(HERE / "cases/monte_carlo.json")
     references = load_entries(HERE / "references/monte_carlo.json")
+    quantlib = HERE / "build/quantlib_bench"
+    evidence = read_build_evidence(quantlib)
     executables = {
-        "kiyosi": prebuilt_rust_executable(),
-        "quantlib": HERE / "build/quantlib_bench",
+        "kiyosi": prebuilt_rust_executable(evidence),
+        "quantlib": quantlib,
     }
-    build_evidence = json.loads(
-        build_evidence_path(executables["quantlib"]).read_text()
-    )
+    build_evidence = verified_build_evidence(evidence, executables)
     libraries = {
         backend: json.loads(command([str(binary), "--info"]))
         for backend, binary in executables.items()
