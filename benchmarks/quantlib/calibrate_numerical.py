@@ -18,6 +18,7 @@ from run import (
     load_entries,
     native,
     prebuilt_rust_executable,
+    write_report,
 )
 
 
@@ -133,9 +134,6 @@ def main():
     """Save references and actual native results; never called by normal runs."""
     cases = load_entries(HERE / "cases/numerical.json")
     american_value, american_evidence = american_reference()
-    (HERE / "calibration/american.json").write_text(
-        json.dumps(american_evidence, indent=2) + "\n"
-    )
     references = []
     calibration = {
         "quantlib_version": "1.44",
@@ -188,6 +186,14 @@ def main():
         }
         for backend, binary in binaries.items():
             selected = native(binary, case, backend, 1)
+            error = abs(selected["price"] - value)
+            budget = case["error_budget"]
+            passed = error + uncertainty <= budget
+            if not passed:
+                raise RuntimeError(
+                    f"{case['id']}/{backend}: error {error} plus reference uncertainty "
+                    f"{uncertainty} exceeds budget {budget}"
+                )
             rows = []
             if case["family"].startswith("quadrature"):
                 profiles = (
@@ -218,12 +224,11 @@ def main():
                         "absolute_error": abs(result["price"] - value),
                     }
                 )
-            error = abs(selected["price"] - value)
             row["backends"][backend] = {
                 "selected_profile": case["profiles"][backend],
                 "selected_price": selected["price"],
                 "absolute_error": error,
-                "passed": error + uncertainty <= case["error_budget"],
+                "passed": passed,
                 "refinements": rows,
             }
             if not profiles:
@@ -235,17 +240,11 @@ def main():
             case["id"],
             {key: entry["absolute_error"] for key, entry in row["backends"].items()},
         )
-    (HERE / "references/numerical.json").write_text(
-        json.dumps({"schema_version": 1, "cases": references}, indent=2) + "\n"
+    write_report(HERE / "calibration/american.json", american_evidence)
+    write_report(
+        HERE / "references/numerical.json", {"schema_version": 1, "cases": references}
     )
-    (HERE / "calibration/numerical.json").write_text(
-        json.dumps(calibration, indent=2) + "\n"
-    )
-    assert all(
-        entry["passed"]
-        for row in calibration["cases"]
-        for entry in row["backends"].values()
-    ), "a committed profile failed its declared budget"
+    write_report(HERE / "calibration/numerical.json", calibration)
 
 
 if __name__ == "__main__":

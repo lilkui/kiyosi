@@ -10,6 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import calibrate_numerical
 from run import (
     build,
     build_evidence_path,
@@ -351,6 +352,48 @@ class ReportWriteTests(unittest.TestCase):
 
         self.assertEqual(json.loads(self.path.read_text(encoding="utf-8")), self.report)
         self.assertEqual(list(self.path.parent.iterdir()), [self.path])
+
+    def test_failed_numerical_calibration_preserves_all_outputs(self):
+        root = self.path.parent
+        case = {
+            "id": "fixture",
+            "family": "crr_vanilla",
+            "inputs": {"exercise": "american"},
+            "profiles": {
+                backend: {"step_count": 512} for backend in ("kiyosi", "quantlib")
+            },
+            "error_budget": 0.01,
+        }
+        outputs = [
+            root / "calibration/american.json",
+            root / "calibration/numerical.json",
+            root / "references/numerical.json",
+        ]
+        for output in outputs:
+            output.parent.mkdir(exist_ok=True)
+            output.write_bytes(self.previous)
+
+        with (
+            patch.object(calibrate_numerical, "HERE", root),
+            patch.object(
+                calibrate_numerical, "load_entries", return_value={"fixture": case}
+            ),
+            patch.object(
+                calibrate_numerical, "american_reference", return_value=(10, {})
+            ),
+            patch.object(calibrate_numerical, "command", return_value=""),
+            patch.object(
+                calibrate_numerical,
+                "prebuilt_rust_executable",
+                return_value=Path("rust"),
+            ),
+            patch.object(calibrate_numerical, "native", return_value={"price": 11}),
+            self.assertRaisesRegex(RuntimeError, "fixture/kiyosi.*budget"),
+        ):
+            calibrate_numerical.main()
+
+        for output in outputs:
+            self.assertEqual(output.read_bytes(), self.previous, output)
 
 
 class ReportTests(unittest.TestCase):
