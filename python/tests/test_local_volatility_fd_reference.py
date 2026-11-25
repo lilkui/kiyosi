@@ -21,6 +21,8 @@ from kiyosi.market import (
     RateTermStructure,
 )
 
+pytestmark = pytest.mark.usefixtures("quantlib_settings")
+
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 
 
@@ -173,15 +175,6 @@ def reference(
         factory(process, time, space, 2, ql.FdmSchemeDesc.CrankNicolson(), True)
     )
     return contract.NPV(), contract.delta(), contract.gamma()
-
-
-@pytest.fixture(autouse=True)
-def restore_evaluation_date():
-    previous = ql.Settings.instance().evaluationDate
-    try:
-        yield
-    finally:
-        ql.Settings.instance().evaluationDate = previous
 
 
 def assert_measures_close(actual, expected, budgets):
