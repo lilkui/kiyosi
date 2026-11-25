@@ -1,7 +1,43 @@
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
+
 use kiyosi::*;
 
 fn instant(year: i32, month: u32, day: u32, hour: u32) -> Timestamp {
     Timestamp::new(Date::new(year, month, day).unwrap(), hour, 0, 0, 0).unwrap()
+}
+
+#[test]
+fn fd_rejects_pre_effective_american_valuation_before_calendar_search() -> Result<()> {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let calendar = TradingCalendar::new(
+        {
+            let calls = Arc::clone(&calls);
+            move |_| {
+                calls.fetch_add(1, Ordering::Relaxed);
+                false
+            }
+        },
+        252,
+    )?;
+    let model = BlackScholesMertonParameters::new_with_variance_time_convention(
+        0.05,
+        0.02,
+        0.2,
+        VarianceTimeConvention::Business(calendar),
+    )?;
+    let start = instant(2026, 1, 1, 0);
+    let option = AmericanOption::new(OptionType::Call, 100.0, start, start.add_days(7)?)?;
+    let context = PricingContext::new(model, 100.0, start.add_days(-1)?)?;
+    let price = FiniteDifferenceVanillaEngine::default().price(&option, &context);
+    assert!(matches!(
+        price,
+        Err(Error::InvalidInput(message)) if message == "valuation outside contract life"
+    ));
+    assert_eq!(calls.load(Ordering::Relaxed), 0);
+    Ok(())
 }
 
 #[test]

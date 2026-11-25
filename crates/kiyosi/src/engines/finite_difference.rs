@@ -289,17 +289,17 @@ fn native(
     concentrate: bool,
 ) -> Result<(PricingResult, Option<f64>)> {
     let request = local_volatility::validate_request(context, request)?;
+    validate_life(option, context)?;
     let expiry = option.expiry_time();
     if crate::engines::deterministic::enabled_until(context, expiry)? {
         return Ok((
-            PricingResult::new(crate::engines::deterministic::vanilla(
-                option, payoff, context,
+            PricingResult::new(crate::engines::deterministic::vanilla_to_expiry(
+                payoff, context, expiry,
             )?)?,
             None,
         ));
     }
     diffusion::with_diffusion!(context, Some(expiry), |diffusion| {
-        validate_life(option, context)?;
         if context.valuation_time() == expiry {
             return Ok((
                 PricingResult::new(payoff.value(context.spot_price()))?,

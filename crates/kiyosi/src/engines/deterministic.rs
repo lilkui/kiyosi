@@ -46,9 +46,16 @@ pub(super) fn vanilla(
     context: &PricingContext,
 ) -> Result<f64> {
     validate_life(option, context)?;
+    vanilla_to_expiry(payoff, context, option.expiry_time())
+}
+
+pub(super) fn vanilla_to_expiry(
+    payoff: Payoff,
+    context: &PricingContext,
+    end: Timestamp,
+) -> Result<f64> {
     let model = context.model_parameters();
     let start = context.valuation_time();
-    let end = option.expiry_time();
     let spot = context.spot_price();
     if payoff.is_american() {
         let risk = Curve::new(model.risk_free_curve(), start, end)?;
