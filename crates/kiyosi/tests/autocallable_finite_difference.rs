@@ -73,6 +73,52 @@ fn saved_snowball_does_not_replay_the_closed_prefix_at_each_fixing_level() -> Re
 }
 
 #[test]
+fn scalar_fixed_snowball_consults_the_future_calendar_once() -> Result<()> {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    let calls = Arc::new(AtomicUsize::new(0));
+    let calendar_calls = Arc::clone(&calls);
+    let calendar = TradingCalendar::new(
+        move |_| {
+            calendar_calls.fetch_add(1, Ordering::Relaxed);
+            true
+        },
+        365,
+    )?;
+    let start = date(1, 2);
+    let expiry = start.add_days(2)?;
+    let mut terms = SnowballTerms::new(
+        0.0,
+        100.0,
+        80.0,
+        100.0,
+        100.0,
+        start,
+        expiry,
+        vec![AutocallableObservation::snowball(expiry, 110.0, 0.0)?],
+        KnockInObservation::EveryTradingDay {
+            observation_clock_time: TimeOfDay::new(0, 0, 0, 0)?,
+        },
+        calendar,
+    );
+    terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+    let note = SnowballOption::new(terms)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,
+        100.0,
+        start.add_micros(1)?,
+    )?;
+    calls.store(0, Ordering::Relaxed);
+    let price = FiniteDifferenceAutocallableEngine::default().price(&note, &context)?;
+    assert!((price - 1.0).abs() <= f64::EPSILON);
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+    Ok(())
+}
+
+#[test]
 fn terminal_binary_matches_independent_cash_and_digital_portfolio() {
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let note = BinarySnowballOption::new(BinarySnowballTerms::new(

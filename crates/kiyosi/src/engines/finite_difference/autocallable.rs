@@ -176,22 +176,25 @@ fn native<T: AutocallableTerms>(
     if let Some(value) = state.settlement {
         return Ok((PricingResult::new(value)?, None));
     }
-    let mut grid = None;
-    if fixed_value_at(note, context, start, state.knocked_in).is_none() {
+    let fixed = fixed_value_at(note, context, start, state.knocked_in);
+    crate::cancellation::check()?;
+    let grid = if fixed.is_none() {
         let (rolled, _, _) = continuation_context(context, start)?;
         let rolled = rolled.as_ref();
-        grid = Some(diffusion::with_diffusion!(rolled, |diffusion| solve_grid(
+        Some(diffusion::with_diffusion!(rolled, |diffusion| solve_grid(
             note,
             rolled,
             settings,
             diffusion,
             state.knocked_in,
             rolled.spot_price()
-        ))?);
-    }
+        ))?)
+    } else {
+        None
+    };
     let upper = grid.as_ref().map(|grid| grid.space.upper);
     let result = AutocallableState { start, grid }
-        .evaluate_after_observations(note, context, &state, request, shifts)?;
+        .evaluate_after_observations(note, context, &state, fixed, request, shifts)?;
     Ok((result, upper))
 }
 
@@ -502,6 +505,7 @@ impl AutocallableState {
         note: &AutocallableNote<T>,
         context: &PricingContext,
         state: &Initial,
+        fixed: Option<f64>,
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
@@ -512,10 +516,6 @@ impl AutocallableState {
         let spot_greeks =
             request.has(Greek::Delta) || request.has(Greek::Gamma) || request.has(Greek::Speed);
         let spot_greeks = spot_greeks && !note.at_spot_discontinuity(context, h);
-        if let Some(value) = state.settlement {
-            return PricingResult::new(value);
-        }
-        let fixed = fixed_value_at(note, context, self.start, state.knocked_in);
         crate::cancellation::check()?;
         if let Some(value) = fixed {
             let discount = deterministic::discount(context, self.start)?;
@@ -593,7 +593,11 @@ impl<T: AutocallableTerms> Backend<AutocallableNote<T>> for AutocallableState {
             return PricingResult::new(deterministic::autocallable(note, context)?);
         }
         let state = deterministic::autocallable_through(note, context, self.start)?;
-        self.evaluate_after_observations(note, context, &state, request, shifts)
+        if let Some(value) = state.settlement {
+            return PricingResult::new(value);
+        }
+        let fixed = fixed_value_at(note, context, self.start, state.knocked_in);
+        self.evaluate_after_observations(note, context, &state, fixed, request, shifts)
     }
 }
 impl<T: AutocallableTerms> super::FiniteDifferenceEngine<AutocallableNote<T>>
