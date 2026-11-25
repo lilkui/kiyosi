@@ -354,14 +354,14 @@ fn price(
             }
             return Ok(value);
         }
-        let transition = if final_event {
+        let mut transition = if final_event {
             None
         } else {
             Some(transitions.get(time, &nodes, drift, deviation)?)
         };
         for layer in 0..count {
             let mut values = vec![0.0; nodes.len()];
-            if let Some(transition) = transition {
+            if let Some(transition) = transition.as_deref_mut() {
                 transition.integrate(&nodes, &layers[layer].cells, discount, &mut values)?;
             }
             for (value, &node) in values.iter_mut().zip(&nodes) {

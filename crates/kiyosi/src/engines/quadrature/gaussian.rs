@@ -2,7 +2,11 @@ use crate::numerics::{
     Sum, discounted_product, log_interval_mass, log_narrow_interval_mass, scaled_signed_cash,
 };
 use crate::{Error, Result, Timestamp};
-use std::collections::hash_map::{Entry, HashMap};
+use rustfft::{Fft, FftPlanner, num_complex::Complex64};
+use std::{
+    collections::hash_map::{Entry, HashMap},
+    sync::Arc,
+};
 
 const LOG_DENSITY: f64 = -0.918_938_533_204_672_7;
 const WORKSPACE_BUDGET: usize = 256 << 20;
@@ -522,7 +526,7 @@ impl TransitionCache {
         nodes: &[f64],
         drift: f64,
         deviation: f64,
-    ) -> crate::Result<&Transition> {
+    ) -> crate::Result<&mut Transition> {
         let index = if let Some(index) = self
             .entries
             .iter()
@@ -532,6 +536,10 @@ impl TransitionCache {
         } else {
             // Retain common event gaps without accumulating matrices for irregular schedules.
             let row_bytes = Transition::row_bytes(nodes, drift, deviation, self.budget)?;
+            let convolution = GaussianConvolution::layout(nodes, drift, deviation)
+                .filter(|&(size, _)| GaussianConvolution::bytes(size) <= self.budget);
+            let minimum =
+                convolution.map_or(row_bytes, |(size, _)| GaussianConvolution::bytes(size));
             if self.entries.len() == 3 {
                 self.entries.remove(0);
             }
@@ -540,15 +548,31 @@ impl TransitionCache {
                 .iter()
                 .map(|(_, matrix)| matrix.storage_bytes())
                 .sum::<usize>();
-            while retained + row_bytes > self.budget {
+            while retained + minimum > self.budget {
                 retained -= self.entries.remove(0).1.storage_bytes();
             }
-            let max_moments = (self.budget - retained - row_bytes) / BYTES_PER_CACHED_MOMENT;
-            self.entries
-                .push((time, Transition::new(nodes, drift, deviation, max_moments)?));
+            let transition = if let Some((size, spacing)) = convolution {
+                Transition {
+                    moments: Vec::new(),
+                    rows: Vec::new(),
+                    drift,
+                    deviation,
+                    convolution: Some(GaussianConvolution::new(
+                        size,
+                        nodes.len(),
+                        spacing,
+                        drift,
+                        deviation,
+                    )?),
+                }
+            } else {
+                let max_moments = (self.budget - retained - row_bytes) / BYTES_PER_CACHED_MOMENT;
+                Transition::new(nodes, drift, deviation, max_moments)?
+            };
+            self.entries.push((time, transition));
             self.entries.len() - 1
         };
-        Ok(&self.entries[index].1)
+        Ok(&mut self.entries[index].1)
     }
 }
 
@@ -559,10 +583,14 @@ pub(super) struct Transition {
     rows: Vec<Row>,
     drift: f64,
     deviation: f64,
+    convolution: Option<GaussianConvolution>,
 }
 impl Transition {
     fn storage_bytes(&self) -> usize {
-        self.rows.capacity() * size_of::<Row>()
+        self.convolution
+            .as_ref()
+            .map_or(0, |fft| GaussianConvolution::bytes(fft.input.len()))
+            + self.rows.capacity() * size_of::<Row>()
             + self.moments.capacity() * size_of::<IntervalMoments>()
             + self
                 .rows
@@ -623,15 +651,24 @@ impl Transition {
             rows,
             drift,
             deviation,
+            convolution: None,
         })
     }
     pub fn integrate(
-        &self,
+        &mut self,
         nodes: &[f64],
         curve: &[Polynomial],
         discount: f64,
         values: &mut [f64],
     ) -> crate::Result<()> {
+        if let Some(convolution) = &mut self.convolution {
+            return convolution.integrate(
+                nodes,
+                curve,
+                [self.drift, self.deviation, discount],
+                values,
+            );
+        }
         let factor = discount.exp();
         for ((value, (first, indices)), &node) in values.iter_mut().zip(&self.rows).zip(nodes) {
             crate::cancellation::check()?;
@@ -656,6 +693,167 @@ impl Transition {
                 });
             }
             *value = sum.total();
+        }
+        Ok(())
+    }
+}
+
+struct GaussianConvolution {
+    forward: Arc<dyn Fft<f64>>,
+    inverse: Arc<dyn Fft<f64>>,
+    kernels: [Vec<Complex64>; 4],
+    moments: Vec<IntervalMoments>,
+    input: Vec<Complex64>,
+    output: Vec<Complex64>,
+    scratch: Vec<Complex64>,
+}
+
+impl GaussianConvolution {
+    fn bytes(size: usize) -> usize {
+        // Four kernel spectra, two work vectors, scratch and room for FFT plans and twiddles.
+        size.saturating_mul(16 * size_of::<Complex64>())
+    }
+
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "workspace-bounded node counts are exactly representable"
+    )]
+    fn layout(nodes: &[f64], drift: f64, deviation: f64) -> Option<(usize, f64)> {
+        let cells = nodes.len() - 1;
+        let spacing = (nodes[cells] - nodes[0]) / cells as f64;
+        if cells < 256
+            || !spacing.is_normal()
+            || deviation < 2.0 * spacing
+            || drift.abs() > 4.0 * deviation
+        {
+            return None;
+        }
+        let tolerance = 16.0 * f64::EPSILON * nodes[0].abs().max(nodes[cells].abs());
+        if tolerance >= 1e-7 * spacing
+            || nodes.iter().enumerate().any(|(index, &value)| {
+                (value - (nodes[0] + index as f64 * spacing)).abs() > tolerance
+            })
+        {
+            return None;
+        }
+        Some(((2 * cells).next_power_of_two(), spacing))
+    }
+
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "workspace-bounded offsets and transform length fit in f64"
+    )]
+    fn new(size: usize, nodes: usize, spacing: f64, drift: f64, deviation: f64) -> Result<Self> {
+        crate::cancellation::check()?;
+        let mut planner = FftPlanner::new();
+        let forward = planner.plan_fft_forward(size);
+        let inverse = planner.plan_fft_inverse(size);
+        let mut scratch = vec![
+            Complex64::default();
+            forward
+                .get_inplace_scratch_len()
+                .max(inverse.get_inplace_scratch_len())
+        ];
+        let blank = || vec![Complex64::default(); size];
+        let mut kernels: [Vec<_>; 4] = std::array::from_fn(|_| blank());
+        let cells = nodes - 1;
+        let mut cell_weights = Vec::with_capacity(2 * cells);
+        for offset in 0..2 * cells {
+            if offset % 128 == 0 {
+                crate::cancellation::check()?;
+            }
+            let left = (offset as f64 - cells as f64) * spacing;
+            let moments = cell_moments(left, left + spacing, drift, deviation);
+            // The correlation offset is j - i. The convolution kernel uses i - j.
+            let index = (cells + size - offset) % size;
+            kernels[0][index].re = moments.mass;
+            if moments.mass != 0.0 {
+                for (kernel, conditional) in kernels[1..].iter_mut().zip(moments.conditional) {
+                    kernel[index].re = moments.mass * conditional;
+                }
+            }
+            cell_weights.push(moments);
+        }
+        let normalization = 1.0 / size as f64;
+        for kernel in &mut kernels {
+            crate::cancellation::check()?;
+            forward.process_with_scratch(kernel, &mut scratch);
+            for value in kernel {
+                *value *= normalization;
+            }
+        }
+        Ok(Self {
+            forward,
+            inverse,
+            kernels,
+            moments: cell_weights,
+            input: blank(),
+            output: blank(),
+            scratch,
+        })
+    }
+
+    fn integrate(
+        &mut self,
+        nodes: &[f64],
+        curve: &[Polynomial],
+        [drift, deviation, discount]: [f64; 3],
+        values: &mut [f64],
+    ) -> Result<()> {
+        let factor = discount.exp();
+        let scale = curve
+            .iter()
+            .flatten()
+            .fold(0.0_f64, |scale, value| scale.max(value.abs()));
+        if scale == 0.0 && curve.iter().flatten().all(|&value| value == 0.0) {
+            values.fill(0.0);
+            return Ok(());
+        }
+        let direct = |node| integrate_curve(curve, nodes, node + drift, deviation, discount);
+        if !(1e-100..=1e100).contains(&scale) || !(1e-100..=1e100).contains(&factor) {
+            for (value, &node) in values.iter_mut().zip(nodes) {
+                crate::cancellation::check()?;
+                *value = direct(node);
+            }
+            return Ok(());
+        }
+        self.output.fill(Complex64::default());
+        for (power, kernel) in self.kernels.iter().enumerate() {
+            crate::cancellation::check()?;
+            for (value, cell) in self.input.iter_mut().zip(curve) {
+                *value = Complex64::new(cell[power], 0.0);
+            }
+            self.input[curve.len()..].fill(Complex64::default());
+            self.forward
+                .process_with_scratch(&mut self.input, &mut self.scratch);
+            for ((value, coefficient), weight) in
+                self.output.iter_mut().zip(&self.input).zip(kernel)
+            {
+                *value += coefficient * weight;
+            }
+        }
+        self.inverse
+            .process_with_scratch(&mut self.output, &mut self.scratch);
+        let roundoff = 128.0 * f64::EPSILON * scale;
+        for (index, ((value, sample), &node)) in
+            values.iter_mut().zip(&self.output).zip(nodes).enumerate()
+        {
+            *value = if sample.re.is_finite() && sample.re.abs() > roundoff {
+                factor * sample.re
+            } else {
+                // Direct summation recovers relative accuracy in small tails.
+                crate::cancellation::check()?;
+                let cells = active_cells(nodes, node + drift, deviation);
+                let offset = curve.len() - index;
+                let mut sum = Sum::default();
+                for (cell, moments) in curve[cells.clone()]
+                    .iter()
+                    .zip(&self.moments[offset + cells.start..offset + cells.end])
+                {
+                    sum.add(moments.integrate(cell) * factor);
+                }
+                sum.total()
+            };
         }
         Ok(())
     }
@@ -692,7 +890,7 @@ mod tests {
     fn transition_integrates_when_there_is_no_room_to_cache_moments() -> Result<()> {
         let nodes = [-1.0, 0.0, 1.0];
         let curve = [[1.0, 0.0, 0.0, 0.0]; 2];
-        let transition = Transition::new(&nodes, 0.25, 0.5, 0)?;
+        let mut transition = Transition::new(&nodes, 0.25, 0.5, 0)?;
         let mut values = [0.0; 3];
         transition.integrate(&nodes, &curve, -0.05, &mut values)?;
         for (&node, actual) in nodes.iter().zip(values) {
@@ -711,6 +909,30 @@ mod tests {
             cache.get(1.0, &nodes, 0.0, 1.0),
             Err(Error::InvalidInput(_))
         ));
+        Ok(())
+    }
+
+    #[test]
+    fn uniform_convolution_matches_direct_cubic_moments() -> Result<()> {
+        let nodes: Vec<_> = (0..=384).map(|i| (f64::from(i) - 192.0) / 128.0).collect();
+        let curve: Vec<_> = nodes[..384]
+            .iter()
+            .map(|&x| [(2.0 * x).sin(), x * x, -0.2, 0.1])
+            .collect();
+        for (drift, deviation) in [(-0.14, 0.09), (0.19, 0.3)] {
+            let mut cache = TransitionCache::new(nodes.len(), 1)?;
+            let transition = cache.get(1.0, &nodes, drift, deviation)?;
+            assert!(transition.convolution.is_some());
+            let mut actual = vec![0.0; nodes.len()];
+            transition.integrate(&nodes, &curve, -0.03, &mut actual)?;
+            for (&node, value) in nodes.iter().zip(actual) {
+                let expected = integrate_curve(&curve, &nodes, node + drift, deviation, -0.03);
+                assert!(
+                    (value - expected).abs() < 8e-14,
+                    "node {node}, got {value}, expected {expected}"
+                );
+            }
+        }
         Ok(())
     }
 

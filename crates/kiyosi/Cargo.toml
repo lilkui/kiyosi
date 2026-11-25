@@ -16,3 +16,4 @@ libm = "0.2"
 getrandom = { version = "0.3", features = ["std"] }
 rayon = "1.12"
 num-complex = "0.4"
+rustfft = "6.4.1"
