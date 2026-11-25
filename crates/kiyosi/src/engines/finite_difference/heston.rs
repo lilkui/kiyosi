@@ -1,3 +1,6 @@
+use rayon::prelude::*;
+use std::sync::atomic::{AtomicU32, Ordering};
+
 use super::grid::{SpatialGrid, Spline, TimeGrid, concentrate, project_payoff, spot_floor};
 use super::{Payoff, WORKSPACE_BUDGET, invalid_grid, prepare_rate_curves, unstable, validate_work};
 use crate::engines::analytic::heston::integrated_variance;
@@ -444,61 +447,62 @@ fn prepare(
         times.widths.len(),
     )?;
     let mut op = Operator::new(&asset, variance.as_deref());
-    for step in (0..times.widths.len()).rev() {
-        crate::cancellation::check()?;
-        let a = times.times[step];
-        let b = times.times[step + 1];
-        let dt = times.widths[step];
-        let middle = a.midpoint(b);
-        let rate = risk.rate(middle);
-        let q = dividend.rate(middle);
-        let edges = boundaries.at(a)?;
-        if edges.iter().any(|x| !x.is_finite()) {
-            return Err(unstable());
-        }
-        let var = if deterministic {
-            variance_at(model, middle)
-        } else {
-            0.0
-        };
-        op.prepare(&asset, variance.as_deref(), model, [var, rate, q, dt / 3.0])?;
-        for j in 0..op.dynamic_rows() {
+    let workers = AssetWorkers::new(nx, op.dynamic_rows(), times.widths.len());
+    let mut rollback = || {
+        for step in (0..times.widths.len()).rev() {
             crate::cancellation::check()?;
-            for i in 1..nx - 1 {
-                let k = j * nx + i;
-                let [mixed, along_asset, along_variance] = op.components(&values, j, i);
-                first[k] = along_asset;
-                second[k] = along_variance;
-                predictor[k] =
-                    values[k] + dt * (mixed + along_asset + along_variance + multiplier[k]);
+            let a = times.times[step];
+            let b = times.times[step + 1];
+            let dt = times.widths[step];
+            let middle = a.midpoint(b);
+            let rate = risk.rate(middle);
+            let q = dividend.rate(middle);
+            let edges = boundaries.at(a)?;
+            if edges.iter().any(|x| !x.is_finite()) {
+                return Err(unstable());
             }
-        }
-        op.boundaries(&mut predictor, edges);
-        stage.copy_from_slice(&predictor);
-        op.solve(&mut stage, &first, &second, edges)?;
-        for (x, old) in stage.iter_mut().zip(&values) {
-            *x -= old;
-        }
-        for j in 0..op.dynamic_rows() {
-            crate::cancellation::check()?;
-            for i in 1..nx - 1 {
-                let [cross, along_asset, along_variance] = op.components(&stage, j, i);
-                predictor[j * nx + i] += dt * (0.5 * cross + (along_asset + along_variance) / 6.0);
+            let var = if deterministic {
+                variance_at(model, middle)
+            } else {
+                0.0
+            };
+            op.prepare(&asset, variance.as_deref(), model, [var, rate, q, dt / 3.0])?;
+            op.predict(
+                &values,
+                &multiplier,
+                [&mut first, &mut second, &mut predictor],
+                dt,
+                workers.as_ref(),
+            )?;
+            op.boundaries(&mut predictor, edges);
+            stage.copy_from_slice(&predictor);
+            op.solve(&mut stage, &first, &second, edges, workers.as_ref())?;
+            for (x, old) in stage.iter_mut().zip(&values) {
+                *x -= old;
             }
-        }
-        op.solve(&mut predictor, &first, &second, edges)?;
-        if payoff.is_american() {
-            for k in 0..length {
-                let raw = predictor[k];
-                predictor[k] = (raw - dt * multiplier[k]).max(intrinsic[k % nx]);
-                multiplier[k] = (multiplier[k] + (intrinsic[k % nx] - raw) / dt).max(0.0);
+            op.correct(&stage, &mut predictor, dt, workers.as_ref())?;
+            op.solve(&mut predictor, &first, &second, edges, workers.as_ref())?;
+            if payoff.is_american() {
+                for k in 0..length {
+                    let raw = predictor[k];
+                    predictor[k] = (raw - dt * multiplier[k]).max(intrinsic[k % nx]);
+                    multiplier[k] = (multiplier[k] + (intrinsic[k % nx] - raw) / dt).max(0.0);
+                }
             }
+            op.boundaries(&mut predictor, edges);
+            if predictor.iter().chain(&multiplier).any(|x| !x.is_finite()) {
+                return Err(unstable());
+            }
+            std::mem::swap(&mut values, &mut predictor);
         }
-        op.boundaries(&mut predictor, edges);
-        if predictor.iter().chain(&multiplier).any(|x| !x.is_finite()) {
-            return Err(unstable());
-        }
-        std::mem::swap(&mut values, &mut predictor);
+        Ok(())
+    };
+    if let Some(workers) = &workers {
+        workers
+            .pool
+            .install(|| crate::cancellation::with_tokens(workers.tokens.clone(), rollback))?;
+    } else {
+        rollback()?;
     }
     let spline = asset.spline(if variance.is_some() {
         values[valuation_row * nx..][..nx].to_vec()
@@ -637,6 +641,67 @@ fn derivative(nodes: &[f64], i: usize) -> [f64; 3] {
         (right - left) / (left * right),
         left / (right * (left + right)),
     ]
+}
+
+static ASSET_WORKERS_OWNER: AtomicU32 = AtomicU32::new(0);
+
+struct AssetWorkers {
+    pool: rayon::ThreadPool,
+    tokens: Vec<crate::CancellationToken>,
+    rows_per_task: usize,
+    _permit: AssetWorkerPermit,
+}
+
+struct AssetWorkerPermit;
+
+impl Drop for AssetWorkerPermit {
+    fn drop(&mut self) {
+        ASSET_WORKERS_OWNER.store(0, Ordering::Release);
+    }
+}
+
+impl AssetWorkers {
+    fn new(columns: usize, rows: usize, steps: usize) -> Option<Self> {
+        let cells = columns * rows;
+        if cells < 24_000 || cells.saturating_mul(steps) < 1_000_000 || rows < 16 {
+            return None;
+        }
+        let workers = std::thread::available_parallelism().ok()?.get().min(4);
+        if workers < 2 {
+            return None;
+        }
+        let pid = std::process::id();
+        let owner = ASSET_WORKERS_OWNER.load(Ordering::Acquire);
+        // Concurrent rollbacks use the calling thread while one request holds the workers.
+        // A child may take over a permit inherited from its parent.
+        if owner == pid
+            || ASSET_WORKERS_OWNER
+                .compare_exchange(owner, pid, Ordering::AcqRel, Ordering::Acquire)
+                .is_err()
+        {
+            return None;
+        }
+        let permit = AssetWorkerPermit;
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(workers)
+            .thread_name(|index| format!("kiyosi-heston-{index}"))
+            .build()
+            .ok()?;
+        Some(Self {
+            pool,
+            tokens: crate::cancellation::current(),
+            rows_per_task: rows.div_ceil(workers).max(4),
+            _permit: permit,
+        })
+    }
+
+    fn apply<T: Send>(
+        &self,
+        work: impl ParallelIterator<Item = T>,
+        op: impl Fn(T) -> Result<()> + Sync,
+    ) -> Result<()> {
+        work.try_for_each(|item| crate::cancellation::with_tokens(self.tokens.clone(), || op(item)))
+    }
 }
 
 struct Operator {
@@ -795,33 +860,134 @@ impl Operator {
         [mixed, asset, variance]
     }
 
+    fn predict(
+        &self,
+        values: &[f64],
+        multiplier: &[f64],
+        [first, second, predictor]: [&mut [f64]; 3],
+        dt: f64,
+        workers: Option<&AssetWorkers>,
+    ) -> Result<()> {
+        let nx = self.nx;
+        let calculate =
+            |start: usize, first: &mut [f64], second: &mut [f64], predictor: &mut [f64]| {
+                for (row, ((first, second), predictor)) in first
+                    .chunks_exact_mut(nx)
+                    .zip(second.chunks_exact_mut(nx))
+                    .zip(predictor.chunks_exact_mut(nx))
+                    .enumerate()
+                {
+                    crate::cancellation::check()?;
+                    let j = start + row;
+                    for i in 1..nx - 1 {
+                        let k = j * nx + i;
+                        let [mixed, along_asset, along_variance] = self.components(values, j, i);
+                        first[i] = along_asset;
+                        second[i] = along_variance;
+                        predictor[i] =
+                            values[k] + dt * (mixed + along_asset + along_variance + multiplier[k]);
+                    }
+                }
+                Ok(())
+            };
+        let active = self.dynamic_rows() * nx;
+        if let Some(workers) = workers {
+            let chunk = workers.rows_per_task * nx;
+            workers.apply(
+                first[..active]
+                    .par_chunks_mut(chunk)
+                    .zip(second[..active].par_chunks_mut(chunk))
+                    .zip(predictor[..active].par_chunks_mut(chunk))
+                    .enumerate(),
+                |(index, ((first, second), predictor))| {
+                    calculate(index * workers.rows_per_task, first, second, predictor)
+                },
+            )
+        } else {
+            calculate(
+                0,
+                &mut first[..active],
+                &mut second[..active],
+                &mut predictor[..active],
+            )
+        }
+    }
+
+    fn correct(
+        &self,
+        stage: &[f64],
+        predictor: &mut [f64],
+        dt: f64,
+        workers: Option<&AssetWorkers>,
+    ) -> Result<()> {
+        let nx = self.nx;
+        let calculate = |start: usize, predictor: &mut [f64]| {
+            for (row, predictor) in predictor.chunks_exact_mut(nx).enumerate() {
+                crate::cancellation::check()?;
+                let j = start + row;
+                for (i, value) in predictor.iter_mut().enumerate().take(nx - 1).skip(1) {
+                    let [cross, along_asset, along_variance] = self.components(stage, j, i);
+                    *value += dt * (0.5 * cross + (along_asset + along_variance) / 6.0);
+                }
+            }
+            Ok(())
+        };
+        let active = self.dynamic_rows() * nx;
+        if let Some(workers) = workers {
+            let chunk = workers.rows_per_task * nx;
+            workers.apply(
+                predictor[..active].par_chunks_mut(chunk).enumerate(),
+                |(index, predictor)| calculate(index * workers.rows_per_task, predictor),
+            )
+        } else {
+            calculate(0, &mut predictor[..active])
+        }
+    }
+
     fn solve(
         &self,
         values: &mut [f64],
         first: &[f64],
         second: &[f64],
         edges: [f64; 2],
+        workers: Option<&AssetWorkers>,
     ) -> Result<()> {
         let nx = self.nx;
         let rows = self.dynamic_rows();
-        for ((row, first), factors) in values
-            .chunks_exact_mut(nx)
-            .zip(first.chunks_exact(nx))
-            .zip(self.asset_factors.chunks_exact(nx))
-            .take(rows)
-        {
-            crate::cancellation::check()?;
-            row[0] = edges[0];
-            row[nx - 1] = edges[1];
-            for i in 1..nx - 1 {
-                row[i] = row[i] - self.weight * first[i] - factors[i][0] * row[i - 1];
+        let active = rows * nx;
+        let factor_rows = &self.asset_factors[..active];
+        let solve_rows = |values: &mut [f64], first: &[f64], factors: &[[f64; 3]]| {
+            for ((row, first), factors) in values
+                .chunks_exact_mut(nx)
+                .zip(first.chunks_exact(nx))
+                .zip(factors.chunks_exact(nx))
+            {
+                crate::cancellation::check()?;
+                row[0] = edges[0];
+                row[nx - 1] = edges[1];
+                for i in 1..nx - 1 {
+                    row[i] = row[i] - self.weight * first[i] - factors[i][0] * row[i - 1];
+                }
+                for i in (0..nx - 1).rev() {
+                    row[i] = (row[i] - factors[i][2] * row[i + 1]) / factors[i][1];
+                }
+                if row.iter().any(|value| !value.is_finite()) {
+                    return Err(unstable());
+                }
             }
-            for i in (0..nx - 1).rev() {
-                row[i] = (row[i] - factors[i][2] * row[i + 1]) / factors[i][1];
-            }
-            if row.iter().any(|value| !value.is_finite()) {
-                return Err(unstable());
-            }
+            Ok(())
+        };
+        if let Some(workers) = workers {
+            let chunk = workers.rows_per_task * nx;
+            workers.apply(
+                values[..active]
+                    .par_chunks_mut(chunk)
+                    .zip(first[..active].par_chunks(chunk))
+                    .zip(factor_rows.par_chunks(chunk)),
+                |((values, first), factors)| solve_rows(values, first, factors),
+            )?;
+        } else {
+            solve_rows(&mut values[..active], &first[..active], factor_rows)?;
         }
 
         // Previous and next variance rows are contiguous across the independent asset solves.
