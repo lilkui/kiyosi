@@ -148,20 +148,6 @@ def values():
                 coupon_observations=[i.CouponObservation(END, 0)],
             ),
         ),
-        i.PhoenixOption(
-            calendar=m.weekdays_calendar(),
-            knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
-            coupon_per_period=0.01,
-            **dict(
-                {
-                    key: value
-                    for key, value in common.items()
-                    if key != "autocall_observations"
-                },
-                knock_out_observations=[i.KnockOutObservation(END, 110)],
-                coupon_observations=[i.CouponObservation(END, 0)],
-            ),
-        ),
         i.BinarySnowballOption(
             calendar=m.weekdays_calendar(),
             maturity_coupon_rate=0.1,
