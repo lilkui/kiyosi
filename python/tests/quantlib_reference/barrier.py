@@ -1,8 +1,6 @@
 """Continuous vanilla barriers: exact QuantLib analytic contract portfolios."""
 
-from datetime import date, timedelta
 from functools import lru_cache
-from types import SimpleNamespace
 
 from . import oracle as g
 
@@ -49,11 +47,6 @@ FD = {
     "zomma": 0.02,
     "rho": 0.5,
 }
-
-
-def option(inputs):
-    # g.measure needs only NPV: barrier Greeks come from independent price stencils.
-    return SimpleNamespace(NPV=lambda: price(tuple(sorted(inputs.items()))))
 
 
 @lru_cache(maxsize=32768)
@@ -125,45 +118,3 @@ def price(items):
         + cash()
         - (barrier_value(opposite, inputs["rebate"]) - barrier_value(opposite, 0))
     )
-
-
-def measure(inputs, name, scale=1, price_only=False):
-    return g.measure(inputs, name, scale, True, option_factory=option, spot_bump=0.03)
-
-
-def scenarios():
-    for direction in ("call", "put"):
-        for kind in KINDS:
-            for settlement in (
-                ("at_expiry",) if kind.endswith("_in") else ("at_hit", "at_expiry")
-            ):
-                # Compact paired matrix, plus a strictly already-hit state and expiry_time boundary.
-                for spot, days in (
-                    (80, 30),
-                    (100, 365),
-                    (120, 730),
-                    (150 if kind.startswith("up") else 50, 365),
-                    (110, 1),
-                ):
-                    inputs = {
-                        "option": direction,
-                        "strike": 100,
-                        "spot": spot,
-                        "rate": 0.04,
-                        "dividend": 0.01,
-                        "volatility": 0.3,
-                        "effective_time": "2024-12-30",
-                        "valuation": "2025-01-06",
-                        "expiry_time": (
-                            date(2025, 1, 6) + timedelta(days=days)
-                        ).isoformat(),
-                        "BarrierType": kind,
-                        "barrier": 140 if kind.startswith("up") else 60,
-                        "rebate": 10,
-                        "settlement": settlement,
-                        "monitoring": "continuous",
-                    }
-                    yield (
-                        f"ql-barrier-{direction}-{kind.replace('_', '-')}-{settlement.replace('_', '-')}-{spot}-{days}d",
-                        inputs,
-                    )
