@@ -148,11 +148,11 @@ class MonteCarloReportTests(unittest.TestCase):
 class MonteCarloNativeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from run import RUST_EXECUTABLE, load_entries
+        from run import load_entries, prebuilt_rust_executable
 
         cls.cases = load_entries(HERE / "cases/monte_carlo.json")
         cls.executables = {
-            "kiyosi": RUST_EXECUTABLE,
+            "kiyosi": prebuilt_rust_executable(),
             "quantlib": HERE / "build/quantlib_bench",
         }
         if not all(path.exists() for path in cls.executables.values()):

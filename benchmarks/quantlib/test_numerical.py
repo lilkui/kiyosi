@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from run import RUST_EXECUTABLE, native
+from run import native
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -16,6 +16,7 @@ class NumericalNativeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "build.json"
             result = subprocess.run(
                 [
                     sys.executable,
@@ -24,7 +25,7 @@ class NumericalNativeTests(unittest.TestCase):
                     "--case",
                     "european-bsm-atm-call",
                     "--report",
-                    str(Path(directory) / "build.json"),
+                    str(report),
                 ],
                 cwd=ROOT,
                 text=True,
@@ -34,7 +35,8 @@ class NumericalNativeTests(unittest.TestCase):
             )
             if result.returncode:
                 raise RuntimeError(result.stderr + result.stdout)
-        cls.executable = RUST_EXECUTABLE
+            build = json.loads(report.read_text())["build"]
+            cls.executable = Path(build["executables"]["kiyosi"]["path"])
         cls.quantlib = ROOT / "benchmarks/quantlib/build/quantlib_bench"
         cls.cases = json.loads(
             (ROOT / "benchmarks/quantlib/cases/numerical.json").read_text()
@@ -111,6 +113,8 @@ class NumericalNativeTests(unittest.TestCase):
                     sys.executable,
                     str(ROOT / "benchmarks/quantlib/run.py"),
                     "--no-build",
+                    "--rust-executable",
+                    str(self.executable),
                     "--price-only",
                     "--cases",
                     str(ROOT / "benchmarks/quantlib/cases/numerical.json"),
@@ -151,6 +155,8 @@ class NumericalNativeTests(unittest.TestCase):
                     sys.executable,
                     str(ROOT / "benchmarks/quantlib/run.py"),
                     "--no-build",
+                    "--rust-executable",
+                    str(self.executable),
                     "--case",
                     case["id"],
                     "--cases",

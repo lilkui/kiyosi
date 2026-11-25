@@ -6,12 +6,12 @@ import time
 
 from run import (
     HERE,
-    RUST_EXECUTABLE,
     accuracy,
     build_evidence_path,
     command,
     load_entries,
     native,
+    prebuilt_rust_executable,
     seed_ensemble,
 )
 
@@ -43,7 +43,7 @@ def main():
     cases = load_entries(HERE / "cases/monte_carlo.json")
     references = load_entries(HERE / "references/monte_carlo.json")
     executables = {
-        "kiyosi": RUST_EXECUTABLE,
+        "kiyosi": prebuilt_rust_executable(),
         "quantlib": HERE / "build/quantlib_bench",
     }
     build_evidence = json.loads(

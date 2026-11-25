@@ -17,11 +17,7 @@ def main():
     """Record paired samples and check case error budgets and a 5% latency tolerance."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--baseline-executable", type=Path, required=True)
-    parser.add_argument(
-        "--updated-executable",
-        type=Path,
-        default=run.RUST_EXECUTABLE,
-    )
+    parser.add_argument("--updated-executable", type=Path)
     parser.add_argument(
         "--report", type=Path, default=HERE / "calibration/fd_accuracy.json"
     )
@@ -30,7 +26,7 @@ def main():
     os.sched_setaffinity(0, {cpu})
     baseline, updated = (
         args.baseline_executable.resolve(),
-        args.updated_executable.resolve(),
+        (args.updated_executable or run.prebuilt_rust_executable()).resolve(),
     )
     info = {
         key: json.loads(run.command([str(executable), "--info"]))

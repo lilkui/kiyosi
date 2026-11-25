@@ -15,7 +15,7 @@ def main():
     cases = run.load_entries(HERE / "cases/fd_local_vol.json")
     references = run.load_entries(HERE / "references/fd_local_vol.json")
     executables = {
-        "kiyosi": run.RUST_EXECUTABLE,
+        "kiyosi": run.prebuilt_rust_executable(),
         "quantlib": HERE / "build/quantlib_bench",
     }
     evidence = {

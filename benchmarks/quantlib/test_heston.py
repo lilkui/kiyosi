@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from run import command, load_entries, rust_build_command
+from run import build_rust, load_entries
 from test_fd import build_quantlib_test_executable
 
 HERE = Path(__file__).resolve().parent
@@ -17,7 +17,7 @@ ROOT = HERE.parents[1]
 class HestonTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        command(rust_build_command(), timeout=600)
+        cls.rust_executable, _ = build_rust(timeout=600)
         cls.executable = build_quantlib_test_executable(cls)
 
     def run_heston(self, cases, case_ids, report):
@@ -26,6 +26,8 @@ class HestonTests(unittest.TestCase):
                 sys.executable,
                 str(HERE / "run.py"),
                 "--no-build",
+                "--rust-executable",
+                str(self.rust_executable),
                 "--quantlib-executable",
                 str(self.executable),
                 "--cases",

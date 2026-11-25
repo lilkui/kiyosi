@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from run import ROOT, RUST_EXECUTABLE, command, rust_build_command
+from run import ROOT, build_rust
 from test_fd import build_quantlib_test_executable
 
 SURFACE = {
@@ -24,8 +24,7 @@ SURFACE = {
 class LocalVolatilityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        command(rust_build_command(), timeout=600)
-        cls.executable = RUST_EXECUTABLE
+        cls.executable, _ = build_rust(timeout=600)
 
     def test_supplied_surface_interpolates_and_clamps_spot(self):
         for spot, expected in [
@@ -108,6 +107,7 @@ class QuantLibLocalVolatilityTests(LocalVolatilityTests):
     @classmethod
     def setUpClass(cls):
         cls.executable = build_quantlib_test_executable(cls)
+        cls.rust_executable, _ = build_rust(timeout=600)
 
     def test_inaccurate_profile_suppresses_timing_in_report(self):
         case = json.loads(
@@ -124,6 +124,8 @@ class QuantLibLocalVolatilityTests(LocalVolatilityTests):
                     sys.executable,
                     str(ROOT / "benchmarks/quantlib/run.py"),
                     "--no-build",
+                    "--rust-executable",
+                    str(self.rust_executable),
                     "--quantlib-executable",
                     str(self.executable),
                     "--case",

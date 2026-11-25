@@ -10,6 +10,7 @@ import os
 import platform
 import re
 import shlex
+import shutil
 import statistics
 import subprocess
 import sys
@@ -21,7 +22,6 @@ from suite_coverage import REQUIRED, audit, matches
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
-RUST_EXECUTABLE = ROOT / "target/release/quantlib_bench"
 BACKENDS = ("kiyosi", "quantlib")
 NATIVE_TIMEOUT_SECONDS = 120
 
@@ -132,9 +132,9 @@ def load_entries(path):
     return entries
 
 
-def rust_build_command(binary="quantlib_bench"):
-    """Build a release binary from the Rust benchmark package."""
-    return [
+def build_rust(binary="quantlib_bench", *, timeout=None):
+    """Build a benchmark binary and return the executable reported by Cargo."""
+    argv = [
         "cargo",
         "build",
         "--release",
@@ -143,7 +143,38 @@ def rust_build_command(binary="quantlib_bench"):
         "kiyosi-quantlib-bench",
         "--bin",
         binary,
+        "--message-format=json-render-diagnostics",
     ]
+    for line in command(argv, timeout=timeout).splitlines():
+        artifact = json.loads(line)
+        if (
+            artifact["reason"] == "compiler-artifact"
+            and artifact["target"]["name"] == binary
+            and artifact["executable"]
+        ):
+            return Path(artifact["executable"]), argv
+    raise RuntimeError(f"Cargo did not report the {binary} executable")
+
+
+def prebuilt_rust_executable():
+    """Find the default prebuilt adapter in Cargo's configured target directory."""
+    target = ROOT / "target"
+    if shutil.which("cargo"):
+        metadata = json.loads(
+            command(
+                [
+                    "cargo",
+                    "metadata",
+                    "--no-deps",
+                    "--format-version",
+                    "1",
+                    "--offline",
+                    "--locked",
+                ]
+            )
+        )
+        target = Path(metadata["target_directory"])
+    return target / "release/quantlib_bench"
 
 
 def build(args):
@@ -155,7 +186,6 @@ def build(args):
         raise ValueError(f"QuantLib 1.44 required; quantlib-config reports {version}")
     flags = [*shlex.split(command([*config, "--cflags"])), *shlex.split(args.cxxflags)]
     libs = shlex.split(command([*config, "--libs"]))
-    rust = [*rust_build_command(), "--message-format=json-render-diagnostics"]
     cpp = [
         *shlex.split(args.cxx),
         "-std=c++17",
@@ -168,20 +198,7 @@ def build(args):
         *libs,
     ]
     args.quantlib_executable.parent.mkdir(parents=True, exist_ok=True)
-    artifacts = (json.loads(line) for line in command(rust).splitlines())
-    executable = next(
-        (
-            artifact["executable"]
-            for artifact in artifacts
-            if artifact["reason"] == "compiler-artifact"
-            and artifact["target"]["name"] == "quantlib_bench"
-            and artifact["executable"]
-        ),
-        None,
-    )
-    if executable is None:
-        raise RuntimeError("Cargo did not report the quantlib_bench executable")
-    rust_executable = Path(executable)
+    rust_executable, rust = build_rust()
     command(cpp)
     evidence = {
         "source": source,
@@ -612,7 +629,7 @@ def main(argv=None):
                     )
         references = load_entries(args.references)
         if args.no_build:
-            rust_executable = args.rust_executable or RUST_EXECUTABLE
+            rust_executable = args.rust_executable or prebuilt_rust_executable()
             build_file = build_evidence_path(args.quantlib_executable)
             report["build"] = (
                 json.loads(

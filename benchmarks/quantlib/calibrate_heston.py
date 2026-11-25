@@ -39,6 +39,10 @@ def main():
     """Persist every calibration price, setting and reference error."""
     cases = run.load_entries(HERE / "cases/heston.json")
     references = run.load_entries(HERE / "references/heston.json")
+    executables = {
+        "kiyosi": run.prebuilt_rust_executable(),
+        "quantlib": HERE / "build/quantlib_bench",
+    }
     records = []
     for case in cases.values():
         if case["family"] != "heston_analytic":
@@ -49,10 +53,7 @@ def main():
                     "variance": [0, case["profiles"]["kiyosi"]["variance_upper"]],
                 }
             }
-        for backend, executable in (
-            ("kiyosi", run.RUST_EXECUTABLE),
-            ("quantlib", HERE / "build/quantlib_bench"),
-        ):
+        for backend, executable in executables.items():
             variants = [("committed", {})]
             if case["family"] == "heston_analytic":
                 variants.append(

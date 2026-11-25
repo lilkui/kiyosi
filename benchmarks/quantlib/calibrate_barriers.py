@@ -3,7 +3,7 @@
 import json
 import subprocess
 
-from run import HERE, RUST_EXECUTABLE
+from run import HERE, prebuilt_rust_executable
 
 
 def main():
@@ -13,7 +13,7 @@ def main():
         for row in json.loads((HERE / "references/barriers.json").read_text())["cases"]
     }
     executables = {
-        "kiyosi": RUST_EXECUTABLE,
+        "kiyosi": prebuilt_rust_executable(),
         "quantlib": HERE / "build/quantlib_bench",
     }
     versions = {

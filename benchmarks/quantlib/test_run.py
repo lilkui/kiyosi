@@ -11,13 +11,13 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from run import (
-    RUST_EXECUTABLE,
     build,
     build_evidence_path,
+    build_rust,
     command,
     fingerprint,
     measure,
-    rust_build_command,
+    prebuilt_rust_executable,
     write_report,
 )
 
@@ -120,6 +120,21 @@ class CommandTests(unittest.TestCase):
                     recorded["executables"]["quantlib"], fingerprint(binary)
                 )
 
+    def test_prebuilt_adapter_uses_configured_cargo_target_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "custom-target"
+            with (
+                patch("run.shutil.which", return_value="/tools/cargo"),
+                patch(
+                    "run.command",
+                    return_value=json.dumps({"target_directory": str(target)}),
+                ) as cargo,
+            ):
+                self.assertEqual(
+                    prebuilt_rust_executable(), target / "release/quantlib_bench"
+                )
+            self.assertEqual(cargo.call_args.args[0][:2], ["cargo", "metadata"])
+
     def test_missing_native_executable_writes_failed_report(self):
         with tempfile.TemporaryDirectory() as directory:
             report = Path(directory) / "report.json"
@@ -177,8 +192,7 @@ class CommandTests(unittest.TestCase):
 class NativeRustTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        command(rust_build_command(), timeout=600)
-        cls.executable = RUST_EXECUTABLE
+        cls.executable, _ = build_rust(timeout=600)
 
     def test_fresh_native_batches_match_independent_bsm_reference(self):
         result = subprocess.run(

@@ -10,7 +10,14 @@ from decimal import Decimal, localcontext
 
 from generate_european_references import normal_cdf
 from generate_european_references import price as vanilla_price
-from run import HERE, RUST_EXECUTABLE, command, load_entries, native, rust_build_command
+from run import (
+    HERE,
+    build_rust,
+    command,
+    load_entries,
+    native,
+    prebuilt_rust_executable,
+)
 
 
 def analytic(inputs, precision):
@@ -70,15 +77,9 @@ def american_reference():
     ]
     output.parent.mkdir(exist_ok=True)
     command(compiler)
-    reference_binary = "quantlib_bench_references"
-    command(rust_build_command(reference_binary))
+    reference_binary, _ = build_rust("quantlib_bench_references")
     ql = [json.loads(line) for line in command([str(output)]).splitlines()]
-    rust = [
-        json.loads(line)
-        for line in command(
-            [str(RUST_EXECUTABLE.with_name(reference_binary))]
-        ).splitlines()
-    ]
+    rust = [json.loads(line) for line in command([str(reference_binary)]).splitlines()]
     ql_extrapolated = 2 * ql[-1]["price"] - ql[-2]["price"]
     rust_extrapolated = 2 * rust[4]["price"] - rust[3]["price"]
     evidence = {
@@ -141,7 +142,7 @@ def main():
         "cases": [],
     }
     binaries = {
-        "kiyosi": RUST_EXECUTABLE,
+        "kiyosi": prebuilt_rust_executable(),
         "quantlib": HERE / "build/quantlib_bench",
     }
     for case in cases.values():

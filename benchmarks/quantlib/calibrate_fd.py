@@ -73,7 +73,7 @@ def main():
     cases = run.load_entries(HERE / "cases/fd_bsm.json")
     references = run.load_entries(HERE / "references/fd_bsm.json")
     executables = {
-        "kiyosi": run.RUST_EXECUTABLE,
+        "kiyosi": run.prebuilt_rust_executable(),
         "quantlib": HERE / "build/quantlib_bench",
     }
     evidence = {

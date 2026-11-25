@@ -5,15 +5,14 @@ import os
 import subprocess
 import unittest
 
-from run import RUST_EXECUTABLE, command, rust_build_command
+from run import build_rust
 from test_fd import build_quantlib_test_executable
 
 
 class DigitalAsianTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        command(rust_build_command(), timeout=600)
-        cls.executable = RUST_EXECUTABLE
+        cls.executable, _ = build_rust(timeout=600)
 
     def test_cash_digital_native_price_matches_independent_formula(self):
         result = subprocess.run(

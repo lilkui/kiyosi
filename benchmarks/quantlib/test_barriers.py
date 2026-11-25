@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from run import HERE, ROOT, RUST_EXECUTABLE
+from run import HERE, ROOT
 
 CASE_IDS = (
     "barrier-down-out-call-rebate",
@@ -58,9 +58,13 @@ class NativeBarrierTests(unittest.TestCase):
         )
         if result.returncode:
             raise RuntimeError(result.stdout + result.stderr)
-        cls.rows = json.loads(report.read_text())["cases"]
+        data = json.loads(report.read_text())
+        cls.rows = data["cases"]
         cls.cases = {row["id"]: row for row in cls.rows}
-        cls.executables = {"kiyosi": RUST_EXECUTABLE, "quantlib": quantlib}
+        cls.executables = {
+            "kiyosi": Path(data["build"]["executables"]["kiyosi"]["path"]),
+            "quantlib": quantlib,
+        }
 
     def test_every_barrier_family_passes_shared_reference_and_fifteen_pairs(self):
         self.assertCountEqual([row["id"] for row in self.rows], CASE_IDS)

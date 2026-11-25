@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from run import HERE, RUST_EXECUTABLE, load_entries, native
+from run import HERE, load_entries, native, prebuilt_rust_executable
 
 
 class AmericanMonteCarloTests(unittest.TestCase):
@@ -18,7 +18,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
             "mc-american-put"
         ]
         cls.executables = {
-            "kiyosi": RUST_EXECUTABLE,
+            "kiyosi": prebuilt_rust_executable(),
             "quantlib": HERE / "build/quantlib_bench",
         }
 

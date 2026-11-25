@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from typing import ClassVar
 
-from run import RUST_EXECUTABLE, command, load_entries, rust_build_command
+from run import build_rust, load_entries
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -51,8 +51,7 @@ class FiniteDifferenceTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        command(rust_build_command(), timeout=600)
-        cls.executable = RUST_EXECUTABLE
+        cls.executable, _ = build_rust(timeout=600)
 
     def invoke(self, **changes):
         arguments = {
@@ -197,6 +196,7 @@ class QuantLibFiniteDifferenceTests(FiniteDifferenceTests):
     @classmethod
     def setUpClass(cls):
         cls.executable = build_quantlib_test_executable(cls)
+        cls.rust_executable, _ = build_rust(timeout=600)
 
     def test_failed_reference_suppresses_timing_and_ratio(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -212,6 +212,8 @@ class QuantLibFiniteDifferenceTests(FiniteDifferenceTests):
                     sys.executable,
                     str(ROOT / "benchmarks/quantlib/run.py"),
                     "--no-build",
+                    "--rust-executable",
+                    str(self.rust_executable),
                     "--case",
                     document["cases"][0]["id"],
                     "--references",
