@@ -47,7 +47,7 @@ BSM 普通欧式自动网格以扣除确定性持有成本后的行权价加密�
 
 固定网格规模的计时不代表达到任意误差预算的最低耗时；不同网格策略的相同节点数也不代表相同局部分辨率。
 
-`compare_fd_accuracy.py` 分别验证调用策略、显式网格核心算法及主配置的影响。它沿用用例误差预算与参考不确定度，要求欧式自动网格调用及 BSM/局部波动率欧式看涨、下敲出看涨的显式网格误差下降，延迟增幅不超过 5%。运行方式见 [README](README.md)，构建、采样协议与原始样本保存在 `calibration/fd_accuracy*.json`。
+`compare_fd_accuracy.py` 分别验证调用策略、显式网格核心算法及主配置的影响。主配置与显式对照相同时，只测量显式网格在两个构建之间的差异。它沿用用例误差预算与参考不确定度，要求欧式自动网格调用及 BSM/局部波动率欧式看涨、下敲出看涨的显式网格误差下降，延迟增幅不超过 5%。运行方式见 [README](README.md)，构建、采样协议与原始样本保存在 `calibration/fd_accuracy*.json`。
 
 BSM 用例的误差预算为 `0.003`。欧式参考值复用独立 Decimal 公式；美式看跌期权共用 [calibration/american.json](calibration/american.json) 中 Rust 与 QuantLib 在时间、空间和求解域上的收敛结果，经验不确定度为 `5e-5`。QuantLib 的向上资产不触碰与向上现金单触碰需要更多时间步来消除终端边界误差，仅加密空间网格无法修复该误差。精确参数配置以及独立的空间、时间和求解域检查记录在 `cases/fd_bsm.json` 和 `calibration/fd_bsm.json` 中。
 

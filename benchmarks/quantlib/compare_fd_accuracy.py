@@ -13,7 +13,7 @@ import run
 HERE = Path(__file__).resolve().parent
 
 
-def main():
+def main(argv=None):
     """Record paired samples and check case error budgets and a 5% latency tolerance."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--baseline-executable", type=Path, required=True)
@@ -21,7 +21,7 @@ def main():
     parser.add_argument(
         "--report", type=Path, default=HERE / "calibration/fd_accuracy.json"
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     cpu = min(os.sched_getaffinity(0))
     os.sched_setaffinity(0, {cpu})
     baseline, updated = (
@@ -63,6 +63,8 @@ def main():
                 ("core_explicit", explicit, explicit, updated),
                 ("core_selected", selected, selected, updated),
             ]:
+                if explicit == selected and name != "core_explicit":
+                    continue
                 probe = copy.deepcopy(case)
                 # Both runner slots use Kiyosi executables for these comparisons.
                 probe["profiles"] = {"kiyosi": before, "quantlib": after}
@@ -97,9 +99,7 @@ def main():
                         for i in range(15)
                     ],
                 }
-                requires_improvement = name == "core_explicit" or (
-                    name == "call_policy" and before != after
-                )
+                requires_improvement = name in ("call_policy", "core_explicit")
                 passed &= ratio <= 1.05 and (not requires_improvement or improved)
             evidence["cases"].append(row)
             print(case["id"], flush=True)

@@ -6,14 +6,70 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from calibrate_fd import domain_probes
+from compare_fd_accuracy import main as compare_fd_accuracy
 from run import load_entries
 
 HERE = Path(__file__).resolve().parent
 
 
 class CoverageTests(unittest.TestCase):
+    def test_fd_accuracy_times_each_distinct_comparison_once(self):
+        measurement = {
+            "status": "passed",
+            "backends": {
+                "kiyosi": {
+                    "timing": {"median_ns": 1000},
+                    "accuracy": {"absolute_error": 0.002},
+                },
+                "quantlib": {
+                    "timing": {"median_ns": 1000},
+                    "accuracy": {"absolute_error": 0.001},
+                },
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "comparison.json"
+            with (
+                patch(
+                    "compare_fd_accuracy.os.sched_getaffinity",
+                    return_value={0},
+                    create=True,
+                ),
+                patch("compare_fd_accuracy.os.sched_setaffinity", create=True),
+                patch("run.command", return_value="{}"),
+                patch("run.measure", return_value=measurement) as measure,
+            ):
+                compare_fd_accuracy(
+                    [
+                        "--baseline-executable",
+                        sys.executable,
+                        "--updated-executable",
+                        sys.executable,
+                        "--report",
+                        str(report),
+                    ]
+                )
+            document = json.loads(report.read_text())
+        self.assertTrue(document["passed"])
+        self.assertEqual(measure.call_count, 8)
+        self.assertEqual(
+            {row["id"]: set(row["comparisons"]) for row in document["cases"]},
+            {
+                f"{prefix}-{product}": comparisons
+                for prefix in ("fd-bsm", "fd-local-vol")
+                for product, comparisons in (
+                    (
+                        "european-call",
+                        {"call_policy", "core_explicit", "core_selected"},
+                    ),
+                    ("down-out-call", {"core_explicit"}),
+                )
+            },
+        )
+
     def test_fd_domain_probes_only_change_active_grids(self):
         bsm = load_entries(HERE / "cases/fd_bsm.json")
         local = load_entries(HERE / "cases/fd_local_vol.json")
