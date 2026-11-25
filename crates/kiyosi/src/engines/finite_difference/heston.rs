@@ -273,11 +273,10 @@ fn prepare(
     settings: HestonFiniteDifferenceSettings,
     minimum_spot: f64,
 ) -> Result<HestonState> {
-    // Live values, multiplier, operator coefficients and both ADI stages.
+    // Live values, multiplier, ADI stage buffers, operator coefficients and factors.
     const BYTES_PER_GRID_POINT: u64 = 112;
     // Axis coordinates, derivative coefficients, and terminal and intrinsic payoffs.
     const BYTES_PER_AXIS_NODE: u64 = 96;
-    const BYTES_PER_SOLVE_NODE: u64 = 32;
     const BYTES_PER_TIME_STEP: u64 = 24;
     let model = context.model_parameters().as_heston()?;
     validate_life(option, context)?;
@@ -323,8 +322,7 @@ fn prepare(
     let steps = u64::try_from(settings.time_step_count).map_err(|_| unstable())?;
     let grid_bytes = (assets * rows)
         .saturating_mul(BYTES_PER_GRID_POINT)
-        .saturating_add((assets + rows) * BYTES_PER_AXIS_NODE)
-        .saturating_add(assets.max(rows) * BYTES_PER_SOLVE_NODE);
+        .saturating_add((assets + rows) * BYTES_PER_AXIS_NODE);
     let validate_grid = |time_steps, curve_bytes| {
         if grid_bytes
             .saturating_add(time_steps * BYTES_PER_TIME_STEP)
@@ -442,6 +440,11 @@ fn prepare(
     let mut values: Vec<_> = (0..length).map(|k| terminal[k % nx]).collect();
     let intrinsic: Vec<_> = (0..nx).map(|i| payoff.value(asset.asset(i))).collect();
     let mut multiplier = vec![0.0; length];
+    let mut first = vec![0.0; length];
+    let mut second = vec![0.0; length];
+    let mut predictor = vec![0.0; length];
+    let mut stage = vec![0.0; length];
+    let mut op = Operator::new(&asset, variance.as_deref());
     for step in (0..times.widths.len()).rev() {
         crate::cancellation::check()?;
         let a = times.times[step];
@@ -457,34 +460,37 @@ fn prepare(
         if edges.iter().any(|x| !x.is_finite()) {
             return Err(unstable());
         }
-        let op = Operator::new(
-            &asset,
-            variance.as_deref(),
-            model,
-            if deterministic {
-                variance_at(model, middle)
-            } else {
-                0.0
-            },
-            rate,
-            q,
-        )?;
-        let [mixed, first, second] = op.apply(&values);
-        let mut predictor: Vec<_> = (0..length)
-            .map(|k| values[k] + dt * (mixed[k] + first[k] + second[k] + multiplier[k]))
-            .collect();
+        let var = if deterministic {
+            variance_at(model, middle)
+        } else {
+            0.0
+        };
+        op.prepare(&asset, variance.as_deref(), model, [var, rate, q, dt / 3.0])?;
+        for j in 0..op.dynamic_rows() {
+            crate::cancellation::check()?;
+            for i in 1..nx - 1 {
+                let k = j * nx + i;
+                let [mixed, along_asset, along_variance] = op.components(&values, j, i);
+                first[k] = along_asset;
+                second[k] = along_variance;
+                predictor[k] =
+                    values[k] + dt * (mixed + along_asset + along_variance + multiplier[k]);
+            }
+        }
         op.boundaries(&mut predictor, edges);
-        let theta = dt / 3.0;
-        let mut stage = predictor.clone();
-        op.solve(&mut stage, &first, &second, theta, edges)?;
+        stage.copy_from_slice(&predictor);
+        op.solve(&mut stage, &first, &second, edges)?;
         for (x, old) in stage.iter_mut().zip(&values) {
             *x -= old;
         }
-        let [cross, along_asset, along_variance] = op.apply(&stage);
-        for k in 0..length {
-            predictor[k] += dt * (0.5 * cross[k] + (along_asset[k] + along_variance[k]) / 6.0);
+        for j in 0..op.dynamic_rows() {
+            crate::cancellation::check()?;
+            for i in 1..nx - 1 {
+                let [cross, along_asset, along_variance] = op.components(&stage, j, i);
+                predictor[j * nx + i] += dt * (0.5 * cross + (along_asset + along_variance) / 6.0);
+            }
         }
-        op.solve(&mut predictor, &first, &second, theta, edges)?;
+        op.solve(&mut predictor, &first, &second, edges)?;
         if payoff.is_american() {
             for k in 0..length {
                 let raw = predictor[k];
@@ -496,7 +502,7 @@ fn prepare(
         if predictor.iter().chain(&multiplier).any(|x| !x.is_finite()) {
             return Err(unstable());
         }
-        values = predictor;
+        std::mem::swap(&mut values, &mut predictor);
     }
     let spline = asset.spline(if variance.is_some() {
         values[valuation_row * nx..][..nx].to_vec()
@@ -645,68 +651,115 @@ struct Operator {
     mixed: Vec<f64>,
     dx: Vec<[f64; 3]>,
     dv: Vec<[f64; 3]>,
+    asset_factors: Vec<[f64; 3]>,
+    variance_factors: Vec<[f64; 3]>,
+    coefficients_key: Option<[u64; 3]>,
+    weight: f64,
 }
 
 impl Operator {
-    fn new(
-        asset_grid: &SpatialGrid,
-        v: Option<&[f64]>,
-        model: &HestonParameters,
-        deterministic: f64,
-        rate: f64,
-        q: f64,
-    ) -> Result<Self> {
-        let s = &asset_grid.nodes;
-        let nx = s.len();
-        let rows = v.map_or(1, <[f64]>::len);
-        let mut op = Self {
+    fn new(asset: &SpatialGrid, variance: Option<&[f64]>) -> Self {
+        let nx = asset.nodes.len();
+        let rows = variance.map_or(1, <[f64]>::len);
+        let derivatives = |nodes: &[f64]| {
+            let mut coefficients = vec![[0.0; 3]; nodes.len()];
+            for (index, row) in coefficients
+                .iter_mut()
+                .enumerate()
+                .take(nodes.len() - 1)
+                .skip(1)
+            {
+                *row = derivative(nodes, index);
+            }
+            coefficients
+        };
+        Self {
             nx,
             rows,
             asset: vec![[0.0; 3]; nx * rows],
             variance: vec![[0.0; 3]; rows],
-            mixed: vec![0.0; nx * rows],
-            dx: vec![[0.0; 3]; nx],
-            dv: vec![[0.0; 3]; rows],
-        };
-        for (i, dx) in op.dx.iter_mut().enumerate().take(nx - 1).skip(1) {
-            *dx = derivative(s, i);
+            mixed: vec![0.0; rows],
+            dx: derivatives(&asset.nodes),
+            dv: variance.map_or_else(Vec::new, derivatives),
+            asset_factors: vec![[0.0; 3]; nx * rows],
+            variance_factors: vec![[0.0; 3]; rows],
+            coefficients_key: None,
+            weight: f64::NAN,
         }
-        for j in 0..rows {
-            let variance = v.map_or(deterministic, |v| v[j]);
-            if let Some(v) = v {
-                if j + 1 < rows {
-                    op.variance[j] = directional(
-                        v,
+    }
+
+    fn dynamic_rows(&self) -> usize {
+        if self.rows == 1 { 1 } else { self.rows - 1 }
+    }
+
+    fn prepare(
+        &mut self,
+        asset_grid: &SpatialGrid,
+        variance_grid: Option<&[f64]>,
+        model: &HestonParameters,
+        [deterministic, rate, dividend, weight]: [f64; 4],
+    ) -> Result<()> {
+        let key = [deterministic, rate, dividend].map(f64::to_bits);
+        let rebuild = self.coefficients_key != Some(key);
+        let rows = self.dynamic_rows();
+        if rebuild {
+            for j in 0..rows {
+                crate::cancellation::check()?;
+                let variance = variance_grid.map_or(deterministic, |nodes| nodes[j]);
+                self.variance[j] = variance_grid.map_or([0.0, -rate / 2.0, 0.0], |nodes| {
+                    directional(
+                        nodes,
                         j,
                         0.5 * model.vol_of_vol().powi(2) * variance,
                         model.mean_reversion_speed() * (model.long_run_variance() - variance),
                         rate / 2.0,
-                    );
-                    if j > 0 {
-                        op.dv[j] = derivative(v, j);
+                    )
+                });
+                self.mixed[j] = model.correlation() * model.vol_of_vol() * variance;
+                let volatility = variance.sqrt();
+                for i in 1..self.nx - 1 {
+                    let mut row = asset_grid.coefficients(i, rate, dividend, volatility);
+                    row[1] += rate / 2.0;
+                    if row.iter().any(|x| !x.is_finite()) {
+                        return Err(unstable());
                     }
+                    self.asset[j * self.nx + i] = row;
                 }
-            } else {
-                op.variance[j] = [0.0, -rate / 2.0, 0.0];
+                if self.variance[j].iter().any(|x| !x.is_finite()) || !self.mixed[j].is_finite() {
+                    return Err(unstable());
+                }
             }
-            for i in 1..nx - 1 {
-                let mut row = asset_grid.coefficients(i, rate, q, variance.sqrt());
-                row[1] += rate / 2.0;
-                op.asset[j * nx + i] = row;
-                op.mixed[j * nx + i] = model.correlation() * model.vol_of_vol() * variance;
+            self.coefficients_key = Some(key);
+        }
+        if rebuild || self.weight.to_bits() != weight.to_bits() {
+            for (factors, coefficients) in self
+                .asset_factors
+                .chunks_exact_mut(self.nx)
+                .zip(self.asset.chunks_exact(self.nx))
+                .take(rows)
+            {
+                crate::cancellation::check()?;
+                factors
+                    .iter_mut()
+                    .zip(coefficients)
+                    .for_each(|(factor, &row)| *factor = implicit_row(row, weight));
+                factor(factors)?;
             }
+            for (factor, &row) in self
+                .variance_factors
+                .iter_mut()
+                .zip(&self.variance)
+                .take(rows)
+            {
+                *factor = implicit_row(row, weight);
+            }
+            if self.rows > 1 {
+                self.variance_factors[rows] = [-1.0, 1.0, 0.0];
+            }
+            factor(&mut self.variance_factors)?;
+            self.weight = weight;
         }
-        if op
-            .asset
-            .iter()
-            .chain(&op.variance)
-            .flatten()
-            .chain(&op.mixed)
-            .any(|x| !x.is_finite())
-        {
-            return Err(unstable());
-        }
-        Ok(op)
+        Ok(())
     }
 
     fn boundaries(&self, values: &mut [f64], edges: [f64; 2]) {
@@ -721,35 +774,28 @@ impl Operator {
         }
     }
 
-    fn apply(&self, values: &[f64]) -> [Vec<f64>; 3] {
-        let mut mixed = vec![0.0; values.len()];
-        let mut asset = vec![0.0; values.len()];
-        let mut variance = vec![0.0; values.len()];
-        let dynamic_rows = if self.rows == 1 { 1 } else { self.rows - 1 };
-        for j in 0..dynamic_rows {
-            for i in 1..self.nx - 1 {
-                let k = j * self.nx + i;
-                let [a, b, c] = self.asset[k];
-                asset[k] = a * values[k - 1] + b * values[k] + c * values[k + 1];
-                let [a, b, c] = self.variance[j];
-                variance[k] = b * values[k];
-                if j > 0 {
-                    variance[k] += a * values[k - self.nx];
-                }
-                if self.rows > 1 {
-                    variance[k] += c * values[k + self.nx];
-                }
-                if j > 0 && self.rows > 1 {
-                    // Difference across variance first so shared asset boundaries cancel exactly.
-                    let [left, center, right] = [k - 1, k, k + 1].map(|index| {
-                        self.dv[j][0] * (values[index - self.nx] - values[index])
-                            + self.dv[j][2] * (values[index + self.nx] - values[index])
-                    });
-                    mixed[k] = self.mixed[k]
-                        * (self.dx[i][0] * (left - center) + self.dx[i][2] * (right - center));
-                }
-            }
+    fn components(&self, values: &[f64], j: usize, i: usize) -> [f64; 3] {
+        let k = j * self.nx + i;
+        let [a, b, c] = self.asset[k];
+        let asset = a * values[k - 1] + b * values[k] + c * values[k + 1];
+        let [a, b, c] = self.variance[j];
+        let mut variance = b * values[k];
+        if j > 0 {
+            variance += a * values[k - self.nx];
         }
+        if self.rows > 1 {
+            variance += c * values[k + self.nx];
+        }
+        let mixed = if j > 0 && self.rows > 1 {
+            // Difference across variance first so shared asset boundaries cancel exactly.
+            let [left, center, right] = [k - 1, k, k + 1].map(|index| {
+                self.dv[j][0] * (values[index - self.nx] - values[index])
+                    + self.dv[j][2] * (values[index + self.nx] - values[index])
+            });
+            self.mixed[j] * (self.dx[i][0] * (left - center) + self.dx[i][2] * (right - center))
+        } else {
+            0.0
+        };
         [mixed, asset, variance]
     }
 
@@ -758,63 +804,62 @@ impl Operator {
         values: &mut [f64],
         first: &[f64],
         second: &[f64],
-        weight: f64,
         edges: [f64; 2],
     ) -> Result<()> {
-        let dynamic_rows = if self.rows == 1 { 1 } else { self.rows - 1 };
-        let mut lower = vec![0.0; self.nx.max(self.rows)];
-        let mut diagonal = lower.clone();
-        let mut upper = lower.clone();
-        let mut rhs = lower.clone();
-        for j in 0..dynamic_rows {
-            lower[0] = 0.0;
-            diagonal[0] = 1.0;
-            upper[0] = 0.0;
-            rhs[0] = edges[0];
-            for i in 1..self.nx - 1 {
-                let k = j * self.nx + i;
-                let [a, b, c] = self.asset[k];
-                lower[i] = -weight * a;
-                diagonal[i] = 1.0 - weight * b;
-                upper[i] = -weight * c;
-                rhs[i] = values[k] - weight * first[k];
+        let nx = self.nx;
+        let rows = self.dynamic_rows();
+        for ((row, first), factors) in values
+            .chunks_exact_mut(nx)
+            .zip(first.chunks_exact(nx))
+            .zip(self.asset_factors.chunks_exact(nx))
+            .take(rows)
+        {
+            crate::cancellation::check()?;
+            row[0] = edges[0];
+            row[nx - 1] = edges[1];
+            for i in 1..nx - 1 {
+                row[i] = row[i] - self.weight * first[i] - factors[i][0] * row[i - 1];
             }
-            let last = self.nx - 1;
-            lower[last] = 0.0;
-            diagonal[last] = 1.0;
-            upper[last] = 0.0;
-            rhs[last] = edges[1];
-            tridiagonal(
-                &lower[..self.nx],
-                &mut diagonal[..self.nx],
-                &upper[..self.nx],
-                &mut rhs[..self.nx],
-            )?;
-            values[j * self.nx..(j + 1) * self.nx].copy_from_slice(&rhs[..self.nx]);
+            for i in (0..nx - 1).rev() {
+                row[i] = (row[i] - factors[i][2] * row[i + 1]) / factors[i][1];
+            }
+            if row.iter().any(|value| !value.is_finite()) {
+                return Err(unstable());
+            }
         }
-        for i in 1..self.nx - 1 {
-            for j in 0..dynamic_rows {
-                let [a, b, c] = self.variance[j];
-                lower[j] = -weight * a;
-                diagonal[j] = 1.0 - weight * b;
-                upper[j] = -weight * c;
-                rhs[j] = values[j * self.nx + i] - weight * second[j * self.nx + i];
+
+        // Previous and next variance rows are contiguous across the independent asset solves.
+        for (j, &[multiplier, _, _]) in self.variance_factors.iter().enumerate() {
+            crate::cancellation::check()?;
+            let (previous, rest) = values.split_at_mut(j * nx);
+            let row = &mut rest[1..nx - 1];
+            if j < rows {
+                let explicit = &second[j * nx + 1..(j + 1) * nx - 1];
+                for (value, term) in row.iter_mut().zip(explicit) {
+                    *value -= self.weight * term;
+                }
+            } else {
+                row.fill(0.0);
             }
-            if self.rows > 1 {
-                let last = self.rows - 1;
-                lower[last] = -1.0;
-                diagonal[last] = 1.0;
-                upper[last] = 0.0;
-                rhs[last] = 0.0;
+            if j > 0 {
+                for (value, prior) in row.iter_mut().zip(&previous[(j - 1) * nx + 1..j * nx - 1]) {
+                    *value -= multiplier * prior;
+                }
             }
-            tridiagonal(
-                &lower[..self.rows],
-                &mut diagonal[..self.rows],
-                &upper[..self.rows],
-                &mut rhs[..self.rows],
-            )?;
-            for j in 0..self.rows {
-                values[j * self.nx + i] = rhs[j];
+        }
+        for (j, &[_, diagonal, upper]) in self.variance_factors.iter().enumerate().rev() {
+            let (current, next) = values[j * nx..].split_at_mut(nx);
+            let row = &mut current[1..nx - 1];
+            if j + 1 < self.rows {
+                for (value, next) in row.iter_mut().zip(&next[1..nx - 1]) {
+                    *value -= upper * next;
+                }
+            }
+            for value in row.iter_mut() {
+                *value /= diagonal;
+            }
+            if row.iter().any(|value| !value.is_finite()) {
+                return Err(unstable());
             }
         }
         self.boundaries(values, edges);
@@ -822,25 +867,21 @@ impl Operator {
     }
 }
 
-fn tridiagonal(lower: &[f64], diagonal: &mut [f64], upper: &[f64], rhs: &mut [f64]) -> Result<()> {
-    for i in 0..rhs.len() {
-        if i > 0 {
-            let multiplier = lower[i] / diagonal[i - 1];
-            diagonal[i] -= multiplier * upper[i - 1];
-            rhs[i] -= multiplier * rhs[i - 1];
+fn implicit_row([lower, diagonal, upper]: [f64; 3], weight: f64) -> [f64; 3] {
+    [-weight * lower, 1.0 - weight * diagonal, -weight * upper]
+}
+
+fn factor(rows: &mut [[f64; 3]]) -> Result<()> {
+    let mut previous = None;
+    for [multiplier, diagonal, upper] in rows {
+        if let Some((pivot, previous_upper)) = previous {
+            *multiplier /= pivot;
+            *diagonal -= *multiplier * previous_upper;
         }
-        if !diagonal[i].is_finite() || diagonal[i] == 0.0 {
+        if !diagonal.is_finite() || *diagonal == 0.0 {
             return Err(unstable());
         }
-    }
-    for i in (0..rhs.len()).rev() {
-        if i + 1 < rhs.len() {
-            rhs[i] -= upper[i] * rhs[i + 1];
-        }
-        rhs[i] /= diagonal[i];
-        if !rhs[i].is_finite() {
-            return Err(unstable());
-        }
+        previous = Some((*diagonal, *upper));
     }
     Ok(())
 }
