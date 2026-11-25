@@ -75,6 +75,51 @@ fn all_days_365_matches_natural_clock_for_constant_surface() -> Result<()> {
 }
 
 #[test]
+fn all_days_365_matches_natural_clock_for_finite_difference_theta() -> Result<()> {
+    let start = instant(2025, 1, 1, 0);
+    let end = start.add_days(365)?;
+    let natural = BlackScholesMertonParameters::new(0.05, 0.02, 0.04)?;
+    let business = natural.replace(BlackScholesMertonParameterChanges {
+        variance_time_convention: Some(VarianceTimeConvention::Business(
+            TradingCalendar::all_days(),
+        )),
+        ..Default::default()
+    })?;
+    let vanilla = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let digital = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end)?;
+    let settings = FiniteDifferenceSettings {
+        asset_step_count: 80,
+        time_step_count: 80,
+        ..Default::default()
+    };
+    let vanilla_engine = FiniteDifferenceVanillaEngine::new(settings)?;
+    let digital_engine = FiniteDifferenceDigitalEngine::new(settings)?;
+    let request = GreeksRequest::new([Greek::Theta]);
+    let theta = |model| -> Result<[f64; 2]> {
+        let context = PricingContext::new(model, 100.0, start)?;
+        Ok([
+            vanilla_engine
+                .price_with_greeks(&vanilla, &context, request)?
+                .require(Greek::Theta)?,
+            digital_engine
+                .price_with_greeks(&digital, &context, request)?
+                .require(Greek::Theta)?,
+        ])
+    };
+    for ((expected, actual), product) in theta(natural)?
+        .into_iter()
+        .zip(theta(business)?)
+        .zip(["vanilla", "digital"])
+    {
+        assert!(
+            (actual - expected).abs() <= 1e-10,
+            "{product}: {actual} != {expected}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn all_days_365_matches_natural_clock_for_barriers_and_continuations() -> Result<()> {
     let start = instant(2025, 1, 1, 0);
     let end = start.add_days(365)?;

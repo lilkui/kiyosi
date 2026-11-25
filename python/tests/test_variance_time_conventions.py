@@ -180,6 +180,31 @@ def test_all_days_365_matches_natural_clock_and_keeps_surface_dates():
     assert business.surface.volatility(FRIDAY + timedelta(days=1), 100) == 0.3
 
 
+@pytest.mark.parametrize("product", ["vanilla", "digital"])
+def test_all_days_365_matches_natural_clock_for_finite_difference_theta(product):
+    start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+    natural = bsm(risk_free_rate=0.05, volatility=0.04)
+    business = natural.replace(
+        variance_time_convention="business", calendar=all_days_calendar()
+    )
+    settings = {"asset_step_count": 80, "time_step_count": 80}
+    if product == "vanilla":
+        option = european(start, end)
+        engine = fd(**settings)
+    else:
+        option = ins.CashOrNothingOption(
+            option_type="call",
+            strike=100,
+            payout=10,
+            effective_time=start,
+            expiry_time=end,
+        )
+        engine = pricing.FiniteDifferenceDigitalEngine(**settings)
+    expected = engine.price_with_greeks(option, context(natural, start), "theta")
+    actual = engine.price_with_greeks(option, context(business, start), "theta")
+    assert actual.theta == pytest.approx(expected.theta, rel=0, abs=1e-10)
+
+
 def test_all_days_365_matches_natural_clock_for_barriers_and_continuations():
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     natural = bsm(risk_free_rate=0.05, volatility=1.0)

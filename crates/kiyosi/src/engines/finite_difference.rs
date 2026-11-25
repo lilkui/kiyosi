@@ -887,12 +887,7 @@ fn analysis<I: OptionContract>(
     shifts.validate()?;
     local_volatility::validate_request(context, request)?;
     let (result, upper) = native(option, context, settings, request, shifts)?;
-    if context
-        .model_parameters()
-        .variance_time_convention()
-        .calendar()
-        .is_none()
-    {
+    if !diffusion::uses_business_time(context) {
         settings.asset_upper_boundary = upper.or(settings.asset_upper_boundary);
     }
     complete_greeks(
