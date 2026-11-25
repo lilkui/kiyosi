@@ -91,4 +91,4 @@ Kiyosi 使用基函数 `1, S/K, (S/K)^2` 拟合实值定价路径，并带低阶
 | `monte_carlo.json` | `generate_mc_references.py` | `calibrate_monte_carlo.py` |
 | `american_monte_carlo.json` | `calibrate_american_monte_carlo.py`，复用共用的美式有限差分证据 | 同一脚本 |
 
-请在仓库根目录下运行脚本，例如 `python3 benchmarks/quantlib/generate_fd_references.py`。刷新依赖美式有限差分结果的 FD/CRR/LSM 参考值前，需先刷新共用的美式有限差分证据。Heston 生成脚本还会写入 `python/tests/quantlib_reference/heston_finite_difference.json`，其增量探针输出为 `build/heston-refinements.jsonl`。部分离线驱动程序会直接调用 `quantlib-config`，因此除配置运行时链接器外，还需将目标安装路径加入 `PATH`。
+请在仓库根目录下运行脚本，例如 `python3 benchmarks/quantlib/generate_fd_references.py`。刷新依赖美式有限差分结果的 FD/CRR/LSM 参考值前，需先刷新共用的美式有限差分证据。Python 美式 Heston 测试复用 `references/heston.json`；Heston 生成脚本的增量探针输出为 `build/heston-refinements.jsonl`。部分离线驱动程序会直接调用 `quantlib-config`，因此除配置运行时链接器外，还需将目标安装路径加入 `PATH`。

@@ -191,37 +191,6 @@ def main():
     (HERE / "references/heston.json").write_text(
         json.dumps({"schema_version": 1, "cases": references}, indent=2) + "\n"
     )
-    # The Python test fixture uses the same QuantLib 1.44 joint grids and
-    # estimates its uncertainty from joint-grid extrapolation.
-    fixture = {
-        "quantlib_version": "1.44",
-        "scheme": "Hundsdorfer-Verwer with American payoff projection",
-        "inputs": {
-            "valuation": "2025-01-01",
-            "expiry": "2026-01-01",
-            "spot": 100,
-            "strike": 100,
-            "option_type": "put",
-            "risk_free_rate": 0.05,
-            "dividend_yield": 0.02,
-            "initial_variance": 0.04,
-            "long_run_variance": 0.04,
-            "mean_reversion_speed": 1.5,
-            "vol_of_vol": 0.3,
-            "correlation": -0.7,
-        },
-        "grids": [
-            {"time": n, "asset": n, "variance": n // 2} for n in (400, 800, 1600)
-        ],
-        "raw_prices": raw,
-        "extrapolation_order": 1,
-        "extrapolated_prices": extrapolates,
-        "price": extrapolates[-1],
-        "refinement_uncertainty": abs(extrapolates[-1] - extrapolates[-2]),
-    }
-    (
-        run.ROOT / "python/tests/quantlib_reference/heston_finite_difference.json"
-    ).write_text(json.dumps(fixture, indent=2) + "\n")
 
 
 if __name__ == "__main__":

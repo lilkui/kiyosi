@@ -41,6 +41,7 @@ locked = true
 include = [
     { path = "python/tests/**/*.py", format = "sdist" },
     { path = "python/tests/quantlib_reference/*.json", format = "sdist" },
+    { path = "benchmarks/quantlib/references/heston.json", format = "sdist" },
     { path = "tools/*.py", format = "sdist" },
     { path = "docs/**/*.md", format = "sdist" },
     { path = "README.en.md", format = "sdist" },
@@ -55,6 +56,7 @@ test-sources = [
     "Cargo.toml",
     "pyproject.toml",
     "python/tests",
+    "benchmarks/quantlib/references/heston.json",
     "tools/generate_sse_calendar.py",
 ]
 test-extras = ["test"]

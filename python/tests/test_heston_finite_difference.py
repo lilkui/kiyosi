@@ -122,21 +122,22 @@ def test_heston_grid_rejects_oversized_rollback_before_pricing():
 
 
 def test_american_reference_and_exercise_bounds():
-    fixture = json.loads(
-        (
-            Path(__file__).parent
-            / "quantlib_reference"
-            / "heston_finite_difference.json"
-        ).read_text()
+    references = (
+        Path(__file__).resolve().parents[2]
+        / "benchmarks/quantlib/references/heston.json"
     )
-    reference_price = fixture["price"]
+    cases = json.loads(references.read_text(encoding="utf-8"))["cases"]
+    fixture = next(case for case in cases if case["id"] == "heston-fd-american-put")
+    evidence = fixture["provenance"]["evidence"]
+    coarse, fine = evidence["extrapolated_prices"]
+    reference_price = fixture["value"]
     budget = 0.001 + 1e-4 * abs(reference_price)
-    assert fixture["refinement_uncertainty"] == pytest.approx(
-        abs(fixture["extrapolated_prices"][-1] - fixture["extrapolated_prices"][-2]),
+    assert fixture["uncertainty"] == pytest.approx(
+        max(abs(fine - coarse), abs(fine - evidence["independent_extrapolate"])),
         rel=0,
         abs=1e-15,
     )
-    assert fixture["refinement_uncertainty"] < budget / 10
+    assert fixture["uncertainty"] < budget / 10
     engine = FiniteDifferenceHestonVanillaEngine()
     contract = AmericanOption(
         option_type="put", strike=100, effective_time=START, expiry_time=END
