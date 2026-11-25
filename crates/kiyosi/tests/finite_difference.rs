@@ -748,12 +748,12 @@ fn node_curves_align_time_steps_and_keep_optimal_intermediate_exercise() {
     }
     let digital =
         DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end).unwrap();
-    assert!(matches!(
-        FiniteDifferenceDigitalEngine::default()
-            .price_with_greeks(&digital, &context, GreeksRequest::new([]))
-            .unwrap_err(),
-        Error::UnsupportedOperation(_)
-    ));
+    let expected = AnalyticDigitalEngine.price(&digital, &context).unwrap();
+    let actual = FiniteDifferenceDigitalEngine::default()
+        .price_with_greeks(&digital, &context, GreeksRequest::new([]))
+        .unwrap()
+        .price();
+    assert!((actual - expected).abs() < 0.001, "{actual} != {expected}");
 }
 
 #[test]

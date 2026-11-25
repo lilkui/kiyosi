@@ -1,10 +1,16 @@
 """Shared FD model contracts through the public Python interface."""
 
 from datetime import datetime, timedelta
+from math import sqrt
 
 import pytest
-from kiyosi import InvalidInputError, UnsupportedOperationError, pricing
-from kiyosi.instruments import BarrierOption, BinaryBarrierOption
+from kiyosi import InvalidInputError, pricing
+from kiyosi.instruments import (
+    AssetOrNothingOption,
+    BarrierOption,
+    BinaryBarrierOption,
+    CashOrNothingOption,
+)
 from kiyosi.market import (
     BlackScholesMertonParameters,
     LocalVolatilityParameters,
@@ -12,7 +18,7 @@ from kiyosi.market import (
     PricingContext,
     RateTermStructure,
 )
-from test_local_volatility import END, START, context, surface
+from test_local_volatility import END, START, context
 from test_support_matrix import HESTON_ENGINES, terminal_cases
 
 
@@ -151,23 +157,75 @@ def test_active_products_reject_missing_surface_coverage_and_unstable_steps(subt
                 ).price(contract, context())
 
 
-def test_digital_rejects_node_rates_even_at_expiry(subtests):
-    curve = RateTermStructure(
-        reference_time=START,
-        times=[END, END + (END - START)],
-        factors=[0.95, (0.95) * 0.5],
+def test_digital_term_structure_prices_and_greeks_match_integrated_variance(subtests):
+    times = [START + timedelta(days=180), END]
+    rates = {
+        "risk_free_rate": RateTermStructure(
+            reference_time=START, times=times, factors=[0.99, 0.95]
+        ),
+        "dividend_yield": RateTermStructure(
+            reference_time=START, times=times, factors=[0.999, 0.97]
+        ),
+    }
+    first, last = 0.19, 0.23
+    bsm = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            **rates, volatility=sqrt((first**2 + first * last + last**2) / 3)
+        ),
+        spot_price=100,
+        valuation_time=START,
     )
-    for contract, name in representatives():
-        if name != "FiniteDifferenceDigitalEngine":
-            continue
-        for field in ["risk_free_rate", "dividend_yield"]:
-            for time in [START, END]:
-                local = context(surface()).replace(valuation_time=time)
-                local = local.replace(
-                    model_parameters=local.model_parameters.replace(**{field: curve})
-                )
-                with (
-                    subtests.test(field=field, time=time),
-                    pytest.raises(UnsupportedOperationError),
+    local = bsm.replace(
+        model_parameters=LocalVolatilityParameters(
+            **rates,
+            surface=LocalVolatilitySurface(
+                times=[START, END],
+                spots=[80, 120],
+                values=[[first, first], [last, last]],
+            ),
+        )
+    )
+    life = {"effective_time": START, "expiry_time": END}
+    request = ["delta", "gamma", "rho", "dividend_rho"]
+    for option, payoff in (
+        (CashOrNothingOption(option_type="call", strike=100, payout=10, **life), 10),
+        (AssetOrNothingOption(option_type="put", strike=105, **life), 0),
+    ):
+        expected = pricing.AnalyticDigitalEngine().price_with_greeks(
+            option, bsm, request
+        )
+        for snapshot in (bsm, local):
+            for upper in (None, 400):
+                with subtests.test(
+                    option=type(option).__name__,
+                    model=type(snapshot.model_parameters).__name__,
+                    upper=upper,
                 ):
-                    getattr(pricing, name)().price(contract, local)
+                    engine = pricing.FiniteDifferenceDigitalEngine(
+                        asset_step_count=1600,
+                        time_step_count=800,
+                        asset_upper_boundary=upper,
+                    )
+                    solution = engine.solve(option, snapshot, spot_range=(95, 105))
+                    actual = engine.price_with_greeks(option, snapshot, request)
+                    for price in (
+                        engine.price(option, snapshot),
+                        solution.price(100),
+                        actual.price,
+                    ):
+                        assert price == pytest.approx(expected.price, rel=0, abs=0.002)
+                    assert actual.delta == pytest.approx(
+                        expected.delta, rel=0, abs=0.0002
+                    )
+                    assert actual.gamma == pytest.approx(
+                        expected.gamma, rel=0, abs=0.00003
+                    )
+                    for greek in ("rho", "dividend_rho"):
+                        if snapshot is bsm:
+                            assert actual.require(greek) == pytest.approx(
+                                expected.require(greek), rel=0, abs=0.03
+                            )
+                        else:
+                            assert actual.status(greek) == "unsupported"
+                    terminal = snapshot.replace(valuation_time=END, spot_price=110)
+                    assert engine.price(option, terminal) == payoff

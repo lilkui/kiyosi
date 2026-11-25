@@ -146,8 +146,7 @@ impl LocalVolatilitySurface {
 /// -----
 /// Surface and curve coverage are checked by the context and during pricing
 /// over the required remaining horizons. The one-dimensional finite-difference
-/// engines support price, delta and gamma; digital pricing requires constant
-/// rates.
+/// engines support price, delta and gamma with deterministic rate curves.
 ///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]

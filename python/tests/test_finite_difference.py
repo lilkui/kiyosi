@@ -472,15 +472,14 @@ def test_curve_support_and_validation_order():
         assert engine.price(option, shifted) == pytest.approx(expected, rel=0, abs=1e-5)
     for kind in DIGITAL:
         engine, option = engine_for(kind), contract(kind)
-        for valuation in (START, END):
-            shifted = context.replace(valuation_time=valuation)
-            assert_rejection(UnsupportedOperationError, engine.price, option, shifted)
-            assert_rejection(
-                UnsupportedOperationError,
-                engine.price_with_greeks,
-                option,
-                shifted,
-                [],
+        for valuation, spot, tolerance in [(START, 100, 0.001), (END, 110, 0)]:
+            shifted = context.replace(valuation_time=valuation, spot_price=spot)
+            expected = AnalyticDigitalEngine().price(option, shifted)
+            assert engine.price(option, shifted) == pytest.approx(
+                expected, rel=0, abs=tolerance
+            )
+            assert engine.price_with_greeks(option, shifted, []).price == pytest.approx(
+                expected, rel=0, abs=tolerance
             )
             with pytest.raises(TypeError):
                 numerical_greeks(engine, option, shifted, [], spot_shift=True)

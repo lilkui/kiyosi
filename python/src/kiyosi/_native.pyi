@@ -1162,8 +1162,7 @@ class LocalVolatilityParameters:
     -----
     Surface and curve coverage are checked by the context and during pricing
     over the required remaining horizons. The one-dimensional finite-difference
-    engines support price, delta and gamma; digital pricing requires constant
-    rates.
+    engines support price, delta and gamma with deterministic rate curves.
     """
 
     def __init__(
@@ -2922,8 +2921,7 @@ class FiniteDifferenceAccumulatorEngine(_FiniteDifferenceMethods[Accumulator]):
     CashOrNothingOption and AssetOrNothingOption. The binary-barrier engine
     also accepts TouchOption. The autocallable engine accepts all snowball
     variants and PhoenixOption. Other engines accept their named product.
-    Digital pricing requires constant rates; other families accept
-    deterministic rate curves. All FD product families support local-volatility
+    All FD product families accept deterministic rate curves and support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
     are None. Autocallable coupon solvers support local volatility; implied
     volatility raises UnsupportedOperationError. The local-volatility surface
@@ -2976,8 +2974,7 @@ class FiniteDifferenceBarrierEngine(_FiniteDifferenceMethods[BarrierOption]):
     CashOrNothingOption and AssetOrNothingOption. The binary-barrier engine
     also accepts TouchOption. The autocallable engine accepts all snowball
     variants and PhoenixOption. Other engines accept their named product.
-    Digital pricing requires constant rates; other families accept
-    deterministic rate curves. All FD product families support local-volatility
+    All FD product families accept deterministic rate curves and support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
     are None. Autocallable coupon solvers support local volatility; implied
     volatility raises UnsupportedOperationError. The local-volatility surface
@@ -3030,8 +3027,7 @@ class FiniteDifferenceDoubleBarrierEngine(
     CashOrNothingOption and AssetOrNothingOption. The binary-barrier engine
     also accepts TouchOption. The autocallable engine accepts all snowball
     variants and PhoenixOption. Other engines accept their named product.
-    Digital pricing requires constant rates; other families accept
-    deterministic rate curves. All FD product families support local-volatility
+    All FD product families accept deterministic rate curves and support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
     are None. Autocallable coupon solvers support local volatility; implied
     volatility raises UnsupportedOperationError. The local-volatility surface
@@ -3086,8 +3082,7 @@ class FiniteDifferenceAutocallableEngine(
     CashOrNothingOption and AssetOrNothingOption. The binary-barrier engine
     also accepts TouchOption. The autocallable engine accepts all snowball
     variants and PhoenixOption. Other engines accept their named product.
-    Digital pricing requires constant rates; other families accept
-    deterministic rate curves. All FD product families support local-volatility
+    All FD product families accept deterministic rate curves and support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
     are None. Autocallable coupon solvers support local volatility; implied
     volatility raises UnsupportedOperationError. The local-volatility surface
@@ -3138,8 +3133,7 @@ class FiniteDifferenceDoubleTouchEngine(_FiniteDifferenceMethods[DoubleTouchOpti
     CashOrNothingOption and AssetOrNothingOption. The binary-barrier engine
     also accepts TouchOption. The autocallable engine accepts all snowball
     variants and PhoenixOption. Other engines accept their named product.
-    Digital pricing requires constant rates; other families accept
-    deterministic rate curves. All FD product families support local-volatility
+    All FD product families accept deterministic rate curves and support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
     are None. Autocallable coupon solvers support local volatility; implied
     volatility raises UnsupportedOperationError. The local-volatility surface
@@ -3192,8 +3186,7 @@ class FiniteDifferenceBinaryBarrierEngine(
     CashOrNothingOption and AssetOrNothingOption. The binary-barrier engine
     also accepts TouchOption. The autocallable engine accepts all snowball
     variants and PhoenixOption. Other engines accept their named product.
-    Digital pricing requires constant rates; other families accept
-    deterministic rate curves. All FD product families support local-volatility
+    All FD product families accept deterministic rate curves and support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
     are None. Autocallable coupon solvers support local volatility; implied
     volatility raises UnsupportedOperationError. The local-volatility surface
@@ -3486,8 +3479,7 @@ class FiniteDifferenceVanillaEngine(
     CashOrNothingOption and AssetOrNothingOption. The binary-barrier engine
     also accepts TouchOption. The autocallable engine accepts all snowball
     variants and PhoenixOption. Other engines accept their named product.
-    Digital pricing requires constant rates; other families accept
-    deterministic rate curves. All FD product families support local-volatility
+    All FD product families accept deterministic rate curves and support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
     are None. Autocallable coupon solvers support local volatility; implied
     volatility raises UnsupportedOperationError. The local-volatility surface
@@ -3546,8 +3538,7 @@ class FiniteDifferenceDigitalEngine(
     CashOrNothingOption and AssetOrNothingOption. The binary-barrier engine
     also accepts TouchOption. The autocallable engine accepts all snowball
     variants and PhoenixOption. Other engines accept their named product.
-    Digital pricing requires constant rates; other families accept
-    deterministic rate curves. All FD product families support local-volatility
+    All FD product families accept deterministic rate curves and support local-volatility
     price, delta and gamma, including American exercise. Other requested Greeks
     are None. Autocallable coupon solvers support local volatility; implied
     volatility raises UnsupportedOperationError. The local-volatility surface

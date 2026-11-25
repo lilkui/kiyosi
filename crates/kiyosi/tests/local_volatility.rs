@@ -569,30 +569,80 @@ fn american_and_digital_constant_surfaces_match_bsm_and_expiry() {
 }
 
 #[test]
-fn local_digital_keeps_flat_rate_restriction_before_terminal_shortcuts() {
-    let curve = RateTermStructure::new(
-        dates().0,
-        vec![dates().1, (dates().1).add_days(1).unwrap()],
-        vec![0.95, (0.95) * 0.99],
-    )
-    .unwrap();
-    let model =
-        LocalVolatilityParameters::new(curve, 0.02, surface(vec![vec![0.2; 2]; 2])).unwrap();
-    let c = PricingContext::new(model, 110.0, dates().1).unwrap();
-    let option =
-        DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, dates().0, dates().1)
-            .unwrap();
-    assert!(matches!(
-        FiniteDifferenceDigitalEngine::default().price(&option, &c),
-        Err(Error::UnsupportedOperation(_))
-    ));
-    assert!(matches!(
-        <FiniteDifferenceDigitalEngine as PricingEngine<DigitalOption>>::validate_applicability(
-            &FiniteDifferenceDigitalEngine::default(),
-            &c
+fn digital_term_structure_prices_and_greeks_match_integrated_variance() -> Result<()> {
+    let (start, end) = dates();
+    let mid = start.add_days(180)?;
+    let risk = RateTermStructure::new(start, vec![mid, end], vec![0.99, 0.95])?;
+    let dividend = RateTermStructure::new(start, vec![mid, end], vec![0.999, 0.97])?;
+    let (first, last) = (0.19_f64, 0.23_f64);
+    // The surface is flat in spot and linear in time. Integrate squared volatility.
+    let sigma = ((first.powi(2) + first * last + last.powi(2)) / 3.0).sqrt();
+    let bsm = PricingContext::new(
+        BlackScholesMertonParameters::new(risk.clone(), dividend.clone(), sigma)?,
+        100.0,
+        start,
+    )?;
+    let local = PricingContext::new(
+        LocalVolatilityParameters::new(
+            risk,
+            dividend,
+            surface(vec![vec![first; 2], vec![last; 2]]),
+        )?,
+        100.0,
+        start,
+    )?;
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Rho, Greek::DividendRho]);
+    for (option, terminal_price) in [
+        (
+            DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end)?,
+            10.0,
         ),
-        Err(Error::UnsupportedOperation(_))
-    ));
+        (
+            DigitalOption::asset_or_nothing(OptionType::Put, 105.0, start, end)?,
+            0.0,
+        ),
+    ] {
+        let expected = AnalyticDigitalEngine.price_with_greeks(&option, &bsm, request)?;
+        for (context, supports_rate_greeks) in [(&bsm, true), (&local, false)] {
+            let terminal = context.replace(PricingContextChanges {
+                spot_price: Some(110.0),
+                valuation_time: Some(end),
+                ..Default::default()
+            })?;
+            for upper in [None, Some(400.0)] {
+                let engine = FiniteDifferenceDigitalEngine::new(FiniteDifferenceSettings {
+                    asset_step_count: 1600,
+                    time_step_count: 800,
+                    asset_upper_boundary: upper,
+                    ..Default::default()
+                })?;
+                close(engine.price(&option, context)?, expected.price(), 0.002);
+                let solution = engine.solve(&option, context, 95.0..=105.0)?;
+                close(solution.price(100.0)?, expected.price(), 0.002);
+                let actual = engine.price_with_greeks(&option, context, request)?;
+                close(actual.price(), expected.price(), 0.002);
+                close(
+                    actual.require(Greek::Delta)?,
+                    expected.require(Greek::Delta)?,
+                    0.0002,
+                );
+                close(
+                    actual.require(Greek::Gamma)?,
+                    expected.require(Greek::Gamma)?,
+                    0.00003,
+                );
+                for greek in [Greek::Rho, Greek::DividendRho] {
+                    if supports_rate_greeks {
+                        close(actual.require(greek)?, expected.require(greek)?, 0.03);
+                    } else {
+                        assert_eq!(actual.status(greek), GreekStatus::Unsupported);
+                    }
+                }
+                assert_eq!(engine.price(&option, &terminal)?, terminal_price);
+            }
+        }
+    }
+    Ok(())
 }
 
 #[test]

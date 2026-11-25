@@ -1,7 +1,7 @@
 """Independent local-volatility finite-difference references and discretization checks."""
 
 import itertools
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import cache
 
 import pytest
@@ -18,6 +18,7 @@ from kiyosi.market import (
     LocalVolatilityParameters,
     LocalVolatilitySurface,
     PricingContext,
+    RateTermStructure,
 )
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -84,7 +85,17 @@ def values(result):
 
 
 @cache
-def reference(kind, direction, time, space, spot=100, dividend=0.02, mesher_vol=0.5):
+def reference(
+    kind,
+    direction,
+    time,
+    space,
+    spot=100,
+    dividend=0.02,
+    mesher_vol=0.5,
+    *,
+    rate_factors=None,
+):
     """Price the fixed local-volatility surface with QuantLib.
 
     Parameters
@@ -101,6 +112,8 @@ def reference(kind, direction, time, space, spot=100, dividend=0.02, mesher_vol=
         Annual continuously compounded dividend yield.
     mesher_vol : float, optional
         Black volatility used only to size the independent mesh.
+    rate_factors : tuple, optional
+        Risk-free and dividend discount factor pairs at day 180 and expiry.
 
     Returns
     -------
@@ -114,10 +127,18 @@ def reference(kind, direction, time, space, spot=100, dividend=0.02, mesher_vol=
     matrix[0][0], matrix[1][0] = 0.3, 0.15
     matrix[0][1], matrix[1][1] = 0.35, 0.2
     local = ql.FixedLocalVolSurface(start, [0.0, 1.0], [80.0, 120.0], matrix, dc)
+    if rate_factors is None:
+        risk_curve = ql.FlatForward(start, 0.05, dc)
+        dividend_curve = ql.FlatForward(start, dividend, dc)
+    else:
+        risk, dividends = rate_factors
+        dates = [start, start + 180, end]
+        risk_curve = ql.DiscountCurve(dates, [1, *risk], dc)
+        dividend_curve = ql.DiscountCurve(dates, [1, *dividends], dc)
     process = ql.GeneralizedBlackScholesProcess(
         ql.QuoteHandle(ql.SimpleQuote(spot)),
-        ql.YieldTermStructureHandle(ql.FlatForward(start, dividend, dc)),
-        ql.YieldTermStructureHandle(ql.FlatForward(start, 0.05, dc)),
+        ql.YieldTermStructureHandle(dividend_curve),
+        ql.YieldTermStructureHandle(risk_curve),
         ql.BlackVolTermStructureHandle(
             ql.BlackConstantVol(start, ql.NullCalendar(), mesher_vol, dc)
         ),
@@ -183,6 +204,31 @@ def test_american_and_digital_match_refined_independent_local_volatility(
     actual = values(
         engine(kind).price_with_greeks(
             instrument(kind, direction), market(), ["delta", "gamma"]
+        )
+    )
+    assert_measures_close(actual, fine, [0.002, 0.0002, 0.00003])
+
+
+@pytest.mark.parametrize(("kind", "direction"), [("cash", "call"), ("asset", "put")])
+def test_skewed_digital_with_rate_curves_matches_quantlib(kind, direction):
+    factors = ((0.99, 0.95), (0.999, 0.97))
+    times = [START + timedelta(days=180), END]
+    rates = {
+        field: RateTermStructure(reference_time=START, times=times, factors=values)
+        for field, values in zip(
+            ("risk_free_rate", "dividend_yield"), factors, strict=True
+        )
+    }
+    snapshot = market()
+    snapshot = snapshot.replace(
+        model_parameters=snapshot.model_parameters.replace(**rates)
+    )
+    coarse = reference(kind, direction, 3200, 3200, rate_factors=factors)
+    fine = reference(kind, direction, 6400, 6400, rate_factors=factors)
+    assert_measures_close(coarse, fine, [0.001, 1e-5, 2e-6])
+    actual = values(
+        engine(kind).price_with_greeks(
+            instrument(kind, direction), snapshot, ["delta", "gamma"]
         )
     )
     assert_measures_close(actual, fine, [0.002, 0.0002, 0.00003])

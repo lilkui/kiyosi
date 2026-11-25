@@ -208,21 +208,6 @@ fn time_to_expiry(option: &impl OptionContract, context: &PricingContext) -> Res
     Ok(valuation.years_until(expiry))
 }
 
-fn flat_rates(context: &PricingContext) -> Result<()> {
-    local_volatility::validate_model(context)?;
-    for curve in [
-        context.model_parameters().risk_free_curve(),
-        context.model_parameters().dividend_curve(),
-    ] {
-        if curve.exact_flat_rate().is_none() {
-            return Err(Error::UnsupportedOperation(
-                "digital finite differences require constant rates".into(),
-            ));
-        }
-    }
-    Ok(())
-}
-
 fn diffusion_upper(relevant: f64, width: f64) -> f64 {
     if width <= 4.0_f64.ln() {
         4.0 * relevant
@@ -1061,7 +1046,7 @@ engine_settings!(
 );
 engine_settings!(
     FiniteDifferenceDigitalEngine,
-    "Prices European cash-or-nothing and asset-or-nothing contracts with flat-rate finite differences.",
+    "Prices European cash-or-nothing and asset-or-nothing contracts with finite differences.",
     ///
     /// # Greeks
     ///
@@ -1073,7 +1058,7 @@ engine_settings!(
     ///
     /// ## Errors
     ///
-    /// Checks flat-rate applicability before shift validation, then reuses
+    /// Checks model applicability before shift validation, then reuses
     /// [`Self::price`] and [`crate::numerical_greeks`] errors.
 );
 
@@ -1301,8 +1286,8 @@ vanilla_pricing!(AmericanOption, true);
 impl FiniteDifferenceDigitalEngine {
     /// Prices a digital, settling strictly in the money at expiry.
     ///
-    /// Rejects nonconstant rate curves before life validation, including at expiry.
-    /// Accepts BSM or local volatility. Time marching uses cell-averaged payoffs.
+    /// Accepts BSM or local volatility with flat or nonconstant rate curves.
+    /// Time marching uses cell-averaged payoffs.
     /// Automatic Rannacher grids with constant volatility shift the terminal strike
     /// by the deterministic carry and apply the corresponding discount after rollback.
     /// The grid uses log spot with an automatically selected positive lower boundary.
@@ -1311,8 +1296,8 @@ impl FiniteDifferenceDigitalEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves, then reuses
-    /// [`FiniteDifferenceVanillaEngine::price`] errors. Payoff-bound violations return
+    /// Reuses [`FiniteDifferenceVanillaEngine::price`] errors, including
+    /// [`Error::UnsupportedOperation`] for unsupported models. Payoff-bound violations return
     /// [`Error::ComputationFailure`].
     ///
     /// # Examples
@@ -1329,7 +1314,6 @@ impl FiniteDifferenceDigitalEngine {
     /// # Ok(()) }
     /// ```
     pub fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
-        flat_rates(context)?;
         Ok(native(
             option,
             Payoff::digital(option),
@@ -1350,12 +1334,11 @@ impl PricingEngine<DigitalOption> for FiniteDifferenceDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
     ) -> Result<crate::GreekMethod> {
-        <Self as PricingEngine<DigitalOption>>::validate_applicability(self, context)?;
         local_volatility::greek_method(option, context)
     }
 
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        flat_rates(context)
+        local_volatility::validate_model(context)
     }
     fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
         Self::price(self, option, context)
