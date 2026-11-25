@@ -1,8 +1,8 @@
 use super::{
-    Curve, Diffusion, FiniteDifferenceAccumulatorEngine, FiniteDifferenceSettings, Greek,
-    GreeksRequest, NumericalShiftSettings, OptionContract, PricingContext, PricingEngine,
-    PricingResult, Result, SpatialGrid, analysis, diffusion, diffusion_upper, grid::Spline,
-    local_volatility, validate_work,
+    Diffusion, FiniteDifferenceAccumulatorEngine, FiniteDifferenceSettings, Greek, GreeksRequest,
+    NumericalShiftSettings, OptionContract, PricingContext, PricingEngine, PricingResult, Result,
+    SpatialGrid, analysis, diffusion, diffusion_upper, grid::Spline, local_volatility,
+    validate_work,
 };
 use crate::{Accumulator, Timestamp, engines::deterministic};
 
@@ -111,24 +111,6 @@ impl PricingEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
     }
 }
 
-fn default_upper(
-    option: &Accumulator,
-    context: &PricingContext,
-    risk: &Curve,
-    dividend: &Curve,
-) -> Result<f64> {
-    diffusion_upper(
-        option
-            .strike()
-            .max(option.knock_out_level())
-            .max(context.spot_price()),
-        context,
-        option.expiry_time(),
-        risk,
-        dividend,
-    )
-}
-
 fn native(
     option: &Accumulator,
     context: &PricingContext,
@@ -193,17 +175,19 @@ fn solve_grid<D: Diffusion>(
 ) -> Result<AccumulatorGrid> {
     let expiry = option.expiry_time();
     let (risk, dividend) = diffusion::rate_curves(context, expiry, settings)?;
-    let upper = match settings.asset_upper_boundary {
-        Some(value) => value,
-        None => default_upper(option, context, &risk, &dividend)?,
-    };
-    let spot = context.spot_price();
-    if upper <= spot.max(option.strike()).max(option.knock_out_level()) {
+    let width = super::diffusion_log_width(context, expiry, &risk, &dividend)?;
+    let relevant = context
+        .spot_price()
+        .max(option.strike())
+        .max(option.knock_out_level());
+    let upper = settings
+        .asset_upper_boundary
+        .unwrap_or_else(|| diffusion_upper(relevant, width));
+    if upper <= relevant {
         return Err(super::invalid_grid(
             "finite-difference upper bound must exceed spot and contract levels",
         ));
     }
-    let width = super::diffusion_log_width(context, expiry, &risk, &dividend)?;
     let lower = super::grid::spot_floor(
         minimum_spot,
         option.strike().min(option.knock_out_level()),

@@ -295,17 +295,12 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
         .copied()
         .reduce(f64::max)
         .unwrap_or_else(|| context.spot_price());
-    let upper = match settings.asset_upper_boundary {
-        Some(upper) => upper,
-        None => diffusion_upper(
-            highest.max(context.spot_price()),
-            context,
-            expiry,
-            &risk,
-            &dividend,
-        )?,
-    };
-    if upper <= highest.max(context.spot_price()) {
+    let width = super::diffusion_log_width(context, expiry, &risk, &dividend)?;
+    let relevant = highest.max(context.spot_price());
+    let upper = settings
+        .asset_upper_boundary
+        .unwrap_or_else(|| diffusion_upper(relevant, width));
+    if upper <= relevant {
         return Err(super::invalid_grid(
             "finite-difference upper bound must exceed spot and contract levels",
         ));
@@ -316,7 +311,6 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
         .filter(|level| *level > 0.0)
         .reduce(f64::min)
         .unwrap_or(highest);
-    let width = super::diffusion_log_width(context, expiry, &risk, &dividend)?;
     let mut lower = super::grid::spot_floor(
         minimum_spot,
         lowest,

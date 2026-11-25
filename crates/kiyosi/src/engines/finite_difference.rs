@@ -223,19 +223,12 @@ fn flat_rates(context: &PricingContext) -> Result<()> {
     Ok(())
 }
 
-fn diffusion_upper(
-    relevant: f64,
-    context: &PricingContext,
-    horizon: Timestamp,
-    risk: &Curve,
-    dividend: &Curve,
-) -> Result<f64> {
-    let width = diffusion_log_width(context, horizon, risk, dividend)?;
-    Ok(if width <= 4.0_f64.ln() {
+fn diffusion_upper(relevant: f64, width: f64) -> f64 {
+    if width <= 4.0_f64.ln() {
         4.0 * relevant
     } else {
         (relevant.ln() + width).exp()
-    })
+    }
 }
 
 fn diffusion_log_width(
@@ -1417,7 +1410,7 @@ mod tests {
         let token = CancellationToken::default();
         let result = token.run(|| {
             token.cancel();
-            let result = diffusion_upper(100.0, &context, horizon, &curve, &curve);
+            let result = diffusion_log_width(&context, horizon, &curve, &curve);
             assert!(
                 matches!(result, Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted)
             );

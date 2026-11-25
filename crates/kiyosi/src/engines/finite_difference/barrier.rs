@@ -469,22 +469,18 @@ fn solve_grid<D: Diffusion>(
     let time = context.valuation_time().years_until(option.expiry_time());
     let expiry = option.expiry_time();
     let (risk, dividend) = diffusion::rate_curves(context, expiry, settings)?;
-    let upper = if let Some(upper) = settings.asset_upper_boundary {
-        upper
-    } else {
+    let width = super::diffusion_log_width(context, expiry, &risk, &dividend)?;
+    let upper = settings.asset_upper_boundary.unwrap_or_else(|| {
         let default = default_upper(option, context);
         if D::LOCAL {
             default.max(diffusion_upper(
                 context.spot_price().max(terms.strike()),
-                context,
-                expiry,
-                &risk,
-                &dividend,
-            )?)
+                width,
+            ))
         } else {
             default
         }
-    };
+    });
     let scheduled = terms.observation_mode() == ObservationMode::Scheduled;
     let up = terms.barrier_type().is_up();
     if upper
@@ -497,7 +493,6 @@ fn solve_grid<D: Diffusion>(
             "finite-difference upper bound must exceed spot and contract levels",
         ));
     }
-    let width = super::diffusion_log_width(context, expiry, &risk, &dividend)?;
     let full_lower = super::grid::spot_floor(
         minimum_spot,
         terms.strike().min(terms.barrier_level()),
