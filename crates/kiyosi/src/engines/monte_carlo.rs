@@ -413,6 +413,51 @@ mod tests {
     }
 
     #[test]
+    fn lazy_paths_preserve_seeded_draws_after_early_exit() -> Result<()> {
+        for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
+            for antithetic in [false, true] {
+                let settings = MonteCarloSettings {
+                    path_count: if sampling == MonteCarloSampling::Sobol {
+                        2048
+                    } else {
+                        2049
+                    },
+                    seed: Some(42),
+                    sampling,
+                    antithetic,
+                    max_active_workers: 2,
+                };
+                let payoff = |next: &mut dyn FnMut() -> f64| {
+                    let first = next();
+                    [first
+                        + (0..if first < 0.0 { 3 } else { 11 })
+                            .map(|_| next())
+                            .sum::<f64>()]
+                };
+                for dimensions in [13, 14] {
+                    let (eager, eager_pairs, _) =
+                        path_samples(settings, dimensions, true, |normals| {
+                            let mut values = normals.iter().copied();
+                            Ok(payoff(&mut || values.next().unwrap()))
+                        })?;
+                    let (lazy, lazy_pairs, _) =
+                        path_samples_lazy(settings, dimensions, true, |path| {
+                            Ok(payoff(&mut || path.normal()))
+                        })?;
+                    for (eager, lazy) in [(&eager[0], &lazy[0]), (&eager_pairs[0], &lazy_pairs[0])]
+                    {
+                        assert_eq!(eager.count, lazy.count);
+                        assert_eq!(eager.scale.to_bits(), lazy.scale.to_bits());
+                        assert_eq!(eager.mean.to_bits(), lazy.mean.to_bits());
+                        assert_eq!(eager.m2.to_bits(), lazy.m2.to_bits());
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
     fn configured_seeds_are_preserved() {
         for seed in [0, 42, u64::MAX] {
             let settings = MonteCarloSettings {
@@ -1245,15 +1290,132 @@ pub(crate) fn path_means<const N: usize>(
     Ok((means, standard_error, seed))
 }
 
-#[expect(
-    clippy::cast_sign_loss,
-    reason = "Settings validate positive path counts before allocating sample buffers."
-)]
 fn path_samples<const N: usize>(
     settings: MonteCarloSettings,
     dimensions: usize,
     statistics: bool,
     payoff: impl Fn(&[f64]) -> Result<[f64; N]> + Sync,
+) -> Result<([Moments; N], [Moments; N], u64)> {
+    sample_paths(
+        settings,
+        dimensions,
+        statistics,
+        |draws, normals, paired| {
+            for_each_path_chunk(normals, |chunk| {
+                for normal in chunk {
+                    *normal = draws.normal();
+                }
+            })?;
+            let positive = payoff(normals)?;
+            let negative = if paired {
+                for_each_path_chunk(normals, |chunk| {
+                    for normal in chunk {
+                        *normal = -*normal;
+                    }
+                })?;
+                Some(payoff(normals)?)
+            } else {
+                None
+            };
+            Ok((positive, negative))
+        },
+    )
+}
+
+fn path_samples_lazy<const N: usize>(
+    settings: MonteCarloSettings,
+    dimensions: usize,
+    statistics: bool,
+    payoff: impl Fn(&mut LazyPath<'_, '_>) -> Result<[f64; N]> + Sync,
+) -> Result<([Moments; N], [Moments; N], u64)> {
+    sample_paths(
+        settings,
+        dimensions,
+        statistics,
+        |draws, normals, paired| {
+            let mut path = LazyPath {
+                draws,
+                cache: paired.then_some(normals),
+                consumed: 0,
+                generated: 0,
+                opposite: false,
+            };
+            let positive = payoff(&mut path)?;
+            let negative = if paired {
+                path.consumed = 0;
+                path.opposite = true;
+                Some(payoff(&mut path)?)
+            } else {
+                None
+            };
+            path.draws.skip_normals(dimensions - path.generated);
+            Ok((positive, negative))
+        },
+    )
+}
+
+struct LazyPath<'a, 'b> {
+    draws: &'a mut NormalDraws<'b>,
+    cache: Option<&'a mut [f64]>,
+    consumed: usize,
+    generated: usize,
+    opposite: bool,
+}
+
+impl LazyPath<'_, '_> {
+    fn normal(&mut self) -> f64 {
+        let value = if self.consumed < self.generated {
+            self.cache.as_ref().expect("only paired paths replay draws")[self.consumed]
+        } else {
+            let value = self.draws.normal();
+            if let Some(cache) = &mut self.cache {
+                cache[self.generated] = value;
+            }
+            self.generated += 1;
+            value
+        };
+        self.consumed += 1;
+        if self.opposite { -value } else { value }
+    }
+}
+
+struct NormalDraws<'a> {
+    generator: Pcg32,
+    spare: Option<f64>,
+    cursor: Option<sobol::SobolCursor<'a>>,
+}
+
+impl NormalDraws<'_> {
+    fn normal(&mut self) -> f64 {
+        sample_normal(&mut self.generator, &mut self.spare, &mut self.cursor)
+    }
+
+    fn skip_normals(&mut self, mut remaining: usize) {
+        if remaining == 0 || self.cursor.is_some() {
+            return;
+        }
+        if self.spare.take().is_some() {
+            remaining -= 1;
+        }
+        // Box–Muller uses two 52-bit uniforms, four PCG32 outputs, per pair.
+        self.generator.advance((remaining / 2) * 4);
+        if remaining % 2 != 0 {
+            // Keep the spare sine for the next path, as in eager sampling.
+            self.normal();
+        }
+    }
+}
+
+#[expect(
+    clippy::cast_sign_loss,
+    reason = "Settings validate positive path counts before allocating sample buffers."
+)]
+fn sample_paths<const N: usize>(
+    settings: MonteCarloSettings,
+    dimensions: usize,
+    statistics: bool,
+    sample: impl Fn(&mut NormalDraws<'_>, &mut [f64], bool) -> Result<([f64; N], Option<[f64; N]>)>
+    + Sync,
 ) -> Result<([Moments; N], [Moments; N], u64)> {
     settings.validate_path_steps(dimensions)?;
     let paths = settings.path_count as usize;
@@ -1272,37 +1434,32 @@ fn path_samples<const N: usize>(
     // Seed and merge fixed blocks in index order so worker counts cannot change the result.
     let mut partials = vec![(empty, empty); samples.div_ceil(BLOCK_SIZE)];
     let simulate = |block: usize| -> Result<([Moments; N], [Moments; N])> {
-        let mut generator = Pcg32::new(seed, block as u64);
-        let mut cursor = sobol
-            .as_ref()
-            .map(|sequence| sequence.cursor(block * BLOCK_SIZE));
+        let mut draws = NormalDraws {
+            generator: Pcg32::new(seed, block as u64),
+            spare: None,
+            cursor: sobol
+                .as_ref()
+                .map(|sequence| sequence.cursor(block * BLOCK_SIZE)),
+        };
         let mut moments = empty;
         let mut pairs = empty;
-        let mut spare = None;
         let mut normals = vec![0.0; dimensions];
         for path in block * BLOCK_SIZE..((block + 1) * BLOCK_SIZE).min(samples) {
             if path % 64 == 0 {
                 crate::cancellation::check()?;
             }
-            for_each_path_chunk(&mut normals, |chunk| {
-                for normal in chunk {
-                    *normal = sample_normal(&mut generator, &mut spare, &mut cursor);
-                }
-            })?;
-            if let Some(cursor) = &mut cursor {
+            let (positive, negative) = sample(
+                &mut draws,
+                &mut normals,
+                settings.antithetic && path < paths / 2,
+            )?;
+            if let Some(cursor) = &mut draws.cursor {
                 cursor.next_path();
             }
-            let positive = payoff(&normals)?;
             for i in 0..N {
                 moments[i].add(positive[i], variance);
             }
-            if settings.antithetic && path < paths / 2 {
-                for_each_path_chunk(&mut normals, |chunk| {
-                    for normal in chunk {
-                        *normal = -*normal;
-                    }
-                })?;
-                let negative = payoff(&normals)?;
+            if let Some(negative) = negative {
                 for i in 0..N {
                     moments[i].add(negative[i], variance);
                     if statistics {
@@ -1634,6 +1791,22 @@ struct Pcg32 {
     increment: u64,
 }
 impl Pcg32 {
+    const MULTIPLIER: u64 = 6_364_136_223_846_793_005;
+
+    fn advance(&mut self, mut distance: usize) {
+        // Square the affine transition to skip a power of two draws at a time.
+        let mut multiplier = Self::MULTIPLIER;
+        let mut increment = self.increment;
+        while distance != 0 {
+            if distance & 1 != 0 {
+                self.state = self.state.wrapping_mul(multiplier).wrapping_add(increment);
+            }
+            increment = increment.wrapping_mul(multiplier.wrapping_add(1));
+            multiplier = multiplier.wrapping_mul(multiplier);
+            distance >>= 1;
+        }
+    }
+
     fn new(seed: u64, stream: u64) -> Self {
         let mut result = Self {
             state: 0,
@@ -1651,7 +1824,7 @@ impl Pcg32 {
     fn next(&mut self) -> u32 {
         let previous = self.state;
         self.state = previous
-            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_mul(Self::MULTIPLIER)
             .wrapping_add(self.increment);
         (((previous >> 18 ^ previous) >> 27) as u32).rotate_right((previous >> 59) as u32)
     }

@@ -1,5 +1,5 @@
 use super::{Moments, MonteCarloEstimate, MonteCarloSettings};
-use super::{check_path_step, estimate, path_samples, scaled_value, transition, unstable};
+use super::{check_path_step, estimate, path_samples_lazy, scaled_value, transition, unstable};
 use crate::instruments::autocallable::pricing::{
     fixed_value, future_event_times, initial, validate,
 };
@@ -12,8 +12,8 @@ use crate::{AutocallableNote, AutocallableTerms, PricingContext, PricingEngine, 
 /// remaining observation dates and expiry otherwise. Time is Actual/365 Fixed.
 /// Current events precede simulation. Future knock-in, knock-out and coupon tests
 /// preserve log-price movements even when the simulated spot rounds to a threshold.
-/// Complete normal vectors are drawn before evaluating each path, so early
-/// knock-out cannot shift later paths. Sampling, antithetic counts and thread
+/// Early knock-out preserves the normal draws assigned to later paths.
+/// Sampling, antithetic counts and thread
 /// reproducibility follow [`crate::MonteCarloVanillaEngine`]. Shared and distinct
 /// instances permit concurrent calls with request-owned buffers and shared workers.
 /// Greeks pin one request-local seed. Implied-parameter solvers require an explicit seed and
@@ -202,6 +202,11 @@ impl MonteCarloAutocallableEngine {
         let mut previous = valuation;
         let sigma = model.volatility();
         let initial_spot = context.spot_price();
+        let log_spot = initial_spot.ln();
+        // Leave room for rounding in both the exponential and the scaled spot.
+        let low = f64::MIN_POSITIVE.ln() + 1.0;
+        let high = f64::MAX.ln() - 1.0;
+        let safe_returns = low.max(low - log_spot)..=high.min(high - log_spot);
         let knock_in = terms.knock_in.map(|ki| log_ratio(ki.level, initial_spot));
         let below_knock_in = |log_return| knock_in.is_some_and(|level| log_return < level);
         let mut steps = self.settings.scheduled_steps(dates.len())?;
@@ -244,19 +249,19 @@ impl MonteCarloAutocallableEngine {
         }
         let terminal_log_discount = steps.last().ok_or_else(unstable)?.2;
         let ([moments], [pairs], seed) =
-            path_samples(self.settings, steps.len(), statistics, |normals| {
-                let mut spot = initial_spot;
+            path_samples_lazy(self.settings, steps.len(), statistics, |normals| {
                 let mut log_return = 0.0;
                 let mut knocked_in = state.knocked_in;
                 let mut coupons = state.coupon;
-                for (index, ((drift, diffusion, log_discount, record, observe_knock_in), normal)) in
-                    steps.iter().zip(normals).enumerate()
+                for (index, (drift, diffusion, log_discount, record, observe_knock_in)) in
+                    steps.iter().enumerate()
                 {
                     check_path_step(index)?;
                     // Keep threshold decisions before rounding the simulated spot.
-                    log_return += diffusion.mul_add(*normal, *drift);
-                    spot = scaled_value(initial_spot, 1.0, log_return)?;
-                    if !spot.is_finite() || spot <= 0.0 {
+                    log_return += diffusion.mul_add(normals.normal(), *drift);
+                    if !safe_returns.contains(&log_return)
+                        && scaled_value(initial_spot, 1.0, log_return)? <= 0.0
+                    {
                         return Err(unstable());
                     }
                     if *observe_knock_in {
@@ -286,6 +291,7 @@ impl MonteCarloAutocallableEngine {
                 }
                 knocked_in |=
                     note.observes_knock_in(note.expiry_time()) && below_knock_in(log_return);
+                let spot = scaled_value(initial_spot, 1.0, log_return)?;
                 let value = coupons
                     + scaled_value(1.0, note.terminal(spot, knocked_in), terminal_log_discount)?;
                 if value.is_finite() {
