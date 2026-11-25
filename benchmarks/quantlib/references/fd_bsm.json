@@ -29,7 +29,7 @@
       "uncertainty": 5e-05,
       "provenance": {
         "method": "Independent Rust/QuantLib FD space, time and domain refinement with first-order time extrapolation",
-        "source": "calibration/american.json; calibration/american_reference.cpp; crates/kiyosi/examples/quantlib_bench_references.rs",
+        "source": "calibration/american.json; calibration/american_reference.cpp; benchmarks/quantlib/rust/src/bin/quantlib_bench_references.rs",
         "evidence": {
           "scenario": {
             "spot": 100,
@@ -48,16 +48,16 @@
             "-O3",
             "-DNDEBUG",
             "-I/usr/local/include",
-            "/tmp/kiyosi-bench-04/benchmarks/quantlib/calibration/american_reference.cpp",
+            "benchmarks/quantlib/calibration/american_reference.cpp",
             "-o",
-            "/tmp/kiyosi-bench-04/benchmarks/quantlib/build/american_reference",
+            "benchmarks/quantlib/build/american_reference",
             "-L/usr/local/lib",
             "-lQuantLib"
           ],
           "quantlib_source": "benchmarks/quantlib/calibration/american_reference.cpp",
-          "kiyosi_source": "crates/kiyosi/examples/quantlib_bench_references.rs",
+          "kiyosi_source": "benchmarks/quantlib/rust/src/bin/quantlib_bench_references.rs",
           "quantlib_controls": "CrankNicolson; dampingSteps=2; automatic mesher domain (not publicly adjustable)",
-          "kiyosi_controls": "Rannacher; nonuniform sinh grid; domain refinements scale interval count with upper boundary",
+          "kiyosi_controls": "Rannacher; concentrated log-spot grid; domain refinements preserve mean log spacing up to interval rounding",
           "quantlib_fd": [
             {
               "space": 800,
@@ -90,51 +90,51 @@
               "space": 1600,
               "time": 6400,
               "upper": 400,
-              "price": 6.660567324950622
+              "price": 6.660609148789094
             },
             {
               "space": 3200,
               "time": 6400,
               "upper": 400,
-              "price": 6.660612043576917
+              "price": 6.660618105302955
             },
             {
               "space": 6400,
               "time": 6400,
               "upper": 400,
-              "price": 6.66061689212674
+              "price": 6.660620340675373
             },
             {
               "space": 6400,
               "time": 12800,
               "upper": 400,
-              "price": 6.6606495941339645
+              "price": 6.660653089431703
             },
             {
               "space": 6400,
               "time": 25600,
               "upper": 400,
-              "price": 6.66066584176103
+              "price": 6.6606693680746325
             },
             {
-              "space": 8000,
+              "space": 6915,
               "time": 25600,
               "upper": 500,
-              "price": 6.660667018354879
+              "price": 6.66066944959092
             },
             {
-              "space": 9600,
+              "space": 7336,
               "time": 25600,
               "upper": 600,
-              "price": 6.660668507129701
+              "price": 6.660669506939685
             }
           ],
           "quantlib_first_order_time_extrapolation": 6.660684545893456,
-          "kiyosi_first_order_time_extrapolation": 6.660682089388095,
-          "independent_extrapolation_difference": 2.4565053609038046e-06,
+          "kiyosi_first_order_time_extrapolation": 6.660685646717562,
+          "independent_extrapolation_difference": 1.1008241065368907e-06,
           "quantlib_last_space_delta": 6.096209003381148e-06,
-          "kiyosi_last_space_delta": 4.848549822966675e-06,
-          "kiyosi_domain_span": 2.6653686715505387e-06,
+          "kiyosi_last_space_delta": 2.2353724178358902e-06,
+          "kiyosi_domain_span": 1.3886505279003813e-07,
           "uncertainty_policy": "5e-5 conservative numerical uncertainty; covers independent extrapolation difference, last temporal changes, spatial changes and domain span; not a rigorous error bound"
         }
       }

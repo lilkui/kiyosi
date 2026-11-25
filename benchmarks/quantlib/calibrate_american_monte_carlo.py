@@ -23,6 +23,9 @@ def main():
     started = time.monotonic()
     case = load_entries(HERE / "cases/american_monte_carlo.json")["mc-american-put"]
     reference = load_entries(HERE / "references/american_monte_carlo.json")[case["id"]]
+    american = json.loads((HERE / "calibration/american.json").read_text())
+    reference["value"] = american["quantlib_first_order_time_extrapolation"]
+    reference["provenance"]["evidence"] = american
     quantlib = HERE / "build/quantlib_bench"
     evidence = read_build_evidence(quantlib)
     executables = {

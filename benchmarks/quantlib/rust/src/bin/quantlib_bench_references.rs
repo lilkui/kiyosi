@@ -21,8 +21,10 @@ fn main() -> kiyosi::Result<()> {
         (6400, 6400, 400.0),
         (6400, 12800, 400.0),
         (6400, 25600, 400.0),
-        (8000, 25600, 500.0),
-        (9600, 25600, 600.0),
+        // The lower bound is 25. Round 6400 * ln(upper / 25) / ln(400 / 25)
+        // to preserve mean log spacing as the upper bound grows.
+        (6915, 25600, 500.0),
+        (7336, 25600, 600.0),
     ] {
         let engine = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
             asset_step_count: space,

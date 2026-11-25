@@ -12,6 +12,7 @@ from generate_european_references import normal_cdf
 from generate_european_references import price as vanilla_price
 from run import (
     HERE,
+    ROOT,
     build_rust,
     command,
     load_entries,
@@ -70,9 +71,9 @@ def american_reference():
         "-O3",
         "-DNDEBUG",
         *shlex.split(command([*config, "--cflags"])),
-        str(HERE / "calibration/american_reference.cpp"),
+        str((HERE / "calibration/american_reference.cpp").relative_to(ROOT)),
         "-o",
-        str(output),
+        str(output.relative_to(ROOT)),
         *shlex.split(command([*config, "--libs"])),
     ]
     output.parent.mkdir(exist_ok=True)
@@ -98,7 +99,7 @@ def american_reference():
         "quantlib_source": "benchmarks/quantlib/calibration/american_reference.cpp",
         "kiyosi_source": "benchmarks/quantlib/rust/src/bin/quantlib_bench_references.rs",
         "quantlib_controls": "CrankNicolson; dampingSteps=2; automatic mesher domain (not publicly adjustable)",
-        "kiyosi_controls": "Rannacher; nonuniform sinh grid; domain refinements scale interval count with upper boundary",
+        "kiyosi_controls": "Rannacher; concentrated log-spot grid; domain refinements preserve mean log spacing up to interval rounding",
         "quantlib_fd": ql,
         "kiyosi_fd": rust,
         "quantlib_first_order_time_extrapolation": ql_extrapolated,
@@ -108,7 +109,9 @@ def american_reference():
         ),
         "quantlib_last_space_delta": abs(ql[2]["price"] - ql[1]["price"]),
         "kiyosi_last_space_delta": abs(rust[2]["price"] - rust[1]["price"]),
-        "kiyosi_domain_span": abs(rust[-1]["price"] - rust[4]["price"]),
+        "kiyosi_domain_span": max(
+            abs(row["price"] - rust[4]["price"]) for row in rust[5:]
+        ),
         "uncertainty_policy": "5e-5 conservative numerical uncertainty; covers independent extrapolation difference, last temporal changes, spatial changes and domain span; not a rigorous error bound",
     }
     assert (
