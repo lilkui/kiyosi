@@ -13,6 +13,7 @@ use crate::instruments::autocallable::ObservationEvent;
 use crate::instruments::autocallable::pricing::{
     Initial, expiry_payment, fixed_value_at, validate,
 };
+use crate::instruments::monitoring::validate_life;
 use crate::numerics::{scaled_cash, scaled_signed_cash};
 use crate::{AutocallableBarrierState, AutocallableNote, AutocallableTerms, Timestamp};
 
@@ -162,13 +163,14 @@ fn native<T: AutocallableTerms>(
     shifts: NumericalShiftSettings,
 ) -> Result<(PricingResult, Option<f64>)> {
     let request = local_volatility::validate_request(context, request)?;
+    validate_life(note, context)?;
     if deterministic::enabled_until(context, note.expiry_time())? {
         return Ok((
             PricingResult::new(deterministic::autocallable(note, context)?)?,
             None,
         ));
     }
-    validate(note, context)?;
+    note.prior(context.valuation_time())?;
     let start = context.deterministic_until(note.expiry_time())?;
     let state = deterministic::autocallable_through(note, context, start)?;
     if let Some(value) = state.settlement {

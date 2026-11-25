@@ -10,7 +10,7 @@ fn instant(year: i32, month: u32, day: u32, hour: u32) -> Timestamp {
 }
 
 #[test]
-fn fd_rejects_pre_effective_american_valuation_before_calendar_search() -> Result<()> {
+fn fd_rejects_pre_effective_valuations_before_calendar_search() -> Result<()> {
     let calls = Arc::new(AtomicUsize::new(0));
     let calendar = TradingCalendar::new(
         {
@@ -29,14 +29,62 @@ fn fd_rejects_pre_effective_american_valuation_before_calendar_search() -> Resul
         VarianceTimeConvention::Business(calendar),
     )?;
     let start = instant(2026, 1, 1, 0);
-    let option = AmericanOption::new(OptionType::Call, 100.0, start, start.add_days(7)?)?;
+    let expiry = start.add_days(7)?;
     let context = PricingContext::new(model, 100.0, start.add_days(-1)?)?;
-    let price = FiniteDifferenceVanillaEngine::default().price(&option, &context);
-    assert!(matches!(
-        price,
-        Err(Error::InvalidInput(message)) if message == "valuation outside contract life"
-    ));
-    assert_eq!(calls.load(Ordering::Relaxed), 0);
+    let american = AmericanOption::new(OptionType::Call, 100.0, start, expiry)?;
+    let barrier = BarrierOption::new(BarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        start,
+        expiry,
+        80.0,
+        BarrierType::DownAndOut,
+    ))?;
+    let binary = BinaryBarrierOption::cash(
+        BinaryBarrierTerms::new(
+            OptionType::Call,
+            100.0,
+            start,
+            expiry,
+            80.0,
+            BarrierType::DownAndOut,
+        ),
+        10.0,
+    )?;
+    let snowball = BinarySnowballOption::new(BinarySnowballTerms::new(
+        0.06,
+        start,
+        expiry,
+        vec![AutocallableObservation::snowball(expiry, 110.0, 0.08)?],
+        TradingCalendar::weekdays(),
+    ))?;
+    let assert_rejected = |product: &str, price| {
+        assert!(
+            matches!(price, Err(Error::InvalidInput(message)) if message == "valuation outside contract life"),
+            "{product} must reject a pre-effective valuation"
+        );
+        assert_eq!(
+            calls.load(Ordering::Relaxed),
+            0,
+            "{product} must reject before consulting the variance calendar"
+        );
+    };
+    assert_rejected(
+        "American",
+        FiniteDifferenceVanillaEngine::default().price(&american, &context),
+    );
+    assert_rejected(
+        "barrier",
+        FiniteDifferenceBarrierEngine::default().price(&barrier, &context),
+    );
+    assert_rejected(
+        "binary barrier",
+        FiniteDifferenceBinaryBarrierEngine::default().price(&binary, &context),
+    );
+    assert_rejected(
+        "Snowball",
+        FiniteDifferenceAutocallableEngine::default().price(&snowball, &context),
+    );
     Ok(())
 }
 

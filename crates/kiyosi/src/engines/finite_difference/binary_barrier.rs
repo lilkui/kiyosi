@@ -100,11 +100,11 @@ fn native(
     shifts: NumericalShiftSettings,
 ) -> Result<PricingResult> {
     let request = local_volatility::validate_request(context, request)?;
-    if crate::engines::deterministic::enabled_until(context, contract.monitoring.expiry_time())? {
-        return PricingResult::new(crate::engines::deterministic::binary(contract, context)?);
-    }
     let option = contract.monitoring;
     validate_life(option, context)?;
+    if crate::engines::deterministic::enabled_until(context, option.expiry_time())? {
+        return PricingResult::new(crate::engines::deterministic::binary(contract, context)?);
+    }
     let spot = context.spot_price();
     let terminal = |asset| {
         if let Some(digital) = contract.digital {

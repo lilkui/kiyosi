@@ -285,19 +285,18 @@ fn native_barrier(
     shifts: NumericalShiftSettings,
 ) -> Result<PricingResult> {
     let request = local_volatility::validate_request(context, request)?;
-    if crate::engines::deterministic::enabled_until(context, option.monitoring().expiry_time())? {
-        validate_life(option.monitoring(), context)?;
+    let terms = option.monitoring();
+    validate_life(terms, context)?;
+    if crate::engines::deterministic::enabled_until(context, terms.expiry_time())? {
         if let Some(value) = option.resolved_price(context)? {
             return PricingResult::new(value);
         }
         return PricingResult::new(crate::engines::deterministic::barrier_value(
-            option.monitoring(),
+            terms,
             option.upper_barrier(),
             context,
         )?);
     }
-    let terms = option.monitoring();
-    validate_life(terms, context)?;
     let mut end = context.valuation_time();
     if uses_local_diffusion(context) {
         let prefix =
