@@ -1,7 +1,9 @@
-use super::{Moments, MonteCarloEstimate, MonteCarloSettings};
+use std::ops::RangeInclusive;
+
+use super::{LazyPath, Moments, MonteCarloEstimate, MonteCarloSettings};
 use super::{check_path_step, estimate, path_samples_lazy, scaled_value, transition, unstable};
 use crate::instruments::autocallable::pricing::{
-    fixed_value, future_event_times, initial, validate,
+    Initial, fixed_value, future_event_times, initial, validate,
 };
 use crate::numerics::log_ratio;
 use crate::{AutocallableNote, AutocallableTerms, PricingContext, PricingEngine, Result};
@@ -171,28 +173,44 @@ impl MonteCarloAutocallableEngine {
         context: &PricingContext,
         statistics: bool,
     ) -> Result<(Moments, Moments, bool, Option<u64>)> {
+        match self.prepare_sample(note, context, false)? {
+            Sample::Fixed(value) => {
+                let mut sample = Moments::default();
+                sample.add(value, false);
+                Ok((sample, sample, true, None))
+            }
+            Sample::Path(plan) => {
+                let ([moments], [pairs], seed) =
+                    path_samples_lazy(self.settings, plan.steps.len(), statistics, |normals| {
+                        plan.payoff([&plan], normals)
+                    })?;
+                Ok((moments, pairs, false, Some(seed)))
+            }
+        }
+    }
+
+    fn prepare_sample<'a, T: AutocallableTerms>(
+        &self,
+        note: &'a AutocallableNote<T>,
+        context: &PricingContext,
+        shared_bounds: bool,
+    ) -> Result<Sample<'a, T>> {
         let model = context.natural_bsm_parameters()?;
         let rate = model.flat_risk_free_rate()?;
         let dividend = model.flat_dividend_yield()?;
         if crate::engines::deterministic::enabled(context) {
-            let mut sample = Moments::default();
-            sample.add(
-                crate::engines::deterministic::autocallable(note, context)?,
-                false,
-            );
-            return Ok((sample, Moments::default(), true, None));
+            return crate::engines::deterministic::autocallable(note, context).map(Sample::Fixed);
         }
         validate(note, context)?;
         let state = initial(note, context);
         if let Some(value) = state.settlement.or_else(|| {
             fixed_value(note, context, state.knocked_in).map(|value| value + state.coupon)
         }) {
-            if !value.is_finite() {
-                return Err(unstable());
-            }
-            let mut moments = Moments::default();
-            moments.add(value, false);
-            return Ok((moments, moments, true, None));
+            return if value.is_finite() {
+                Ok(Sample::Fixed(value))
+            } else {
+                Err(unstable())
+            };
         }
         context.validate_curve_horizon(note.expiry_time())?;
         let terms = note.view();
@@ -208,12 +226,15 @@ impl MonteCarloAutocallableEngine {
         let high = f64::MAX.ln() - 1.0;
         let safe_returns = low.max(low - log_spot)..=high.min(high - log_spot);
         let knock_in = terms.knock_in.map(|ki| log_ratio(ki.level, initial_spot));
-        let below_knock_in = |log_return| knock_in.is_some_and(|level| log_return < level);
+        if shared_bounds {
+            self.settings
+                .validate_scheduled_workspace::<[PathStep; 2]>(dates.len())?;
+        }
         let mut steps = self.settings.scheduled_steps(dates.len())?;
         let mut next = note.events().partition_point(|r| r.time() <= valuation);
         for date in dates {
             crate::cancellation::check()?;
-            let (drift, diffusion, log_discount) = transition(
+            let (drift, diffusion, discount) = transition(
                 rate,
                 dividend,
                 sigma,
@@ -224,83 +245,155 @@ impl MonteCarloAutocallableEngine {
             if record.is_some() {
                 next += 1;
             }
-            let record = record.map(|record| {
-                (
-                    record,
-                    record
-                        .has_knock_out()
-                        .then(|| log_ratio(record.knock_out_level(), initial_spot)),
-                    log_ratio(record.coupon_barrier_level().unwrap_or(0.0), initial_spot),
-                    if record.coupon_barrier_level().is_some() {
+            let event = record.map(|record| {
+                let knock_out = record
+                    .has_knock_out()
+                    .then(|| log_ratio(record.knock_out_level(), initial_spot));
+                let coupon_barrier = record.coupon_barrier_level();
+                CashEvent {
+                    knock_out,
+                    coupon_barrier: log_ratio(coupon_barrier.unwrap_or(0.0), initial_spot),
+                    period_coupon: if coupon_barrier.is_some() {
                         note.period_coupon()
                     } else {
                         0.0
                     },
-                )
+                    redemption: knock_out.map_or(0.0, |_| note.knock_out_payment(record)),
+                }
             });
-            steps.push((
-                drift,
-                diffusion,
-                log_discount,
-                record,
-                daily && note.daily_time(date, note.calendar()),
-            ));
+            steps.push(PathStep {
+                transition: [drift, diffusion, discount],
+                event,
+                observe_knock_in: daily && note.daily_time(date, note.calendar()),
+            });
             previous = date;
         }
-        let terminal_log_discount = steps.last().ok_or_else(unstable)?.2;
-        let ([moments], [pairs], seed) =
-            path_samples_lazy(self.settings, steps.len(), statistics, |normals| {
-                let mut log_return = 0.0;
-                let mut knocked_in = state.knocked_in;
-                let mut coupons = state.coupon;
-                for (index, (drift, diffusion, log_discount, record, observe_knock_in)) in
-                    steps.iter().enumerate()
-                {
-                    check_path_step(index)?;
-                    // Keep threshold decisions before rounding the simulated spot.
-                    log_return += diffusion.mul_add(normals.normal(), *drift);
-                    if !safe_returns.contains(&log_return)
-                        && scaled_value(initial_spot, 1.0, log_return)? <= 0.0
-                    {
-                        return Err(unstable());
-                    }
-                    if *observe_knock_in {
-                        knocked_in |= below_knock_in(log_return);
-                    }
-                    if let Some((record, knock_out, coupon_barrier, period_coupon)) = *record {
-                        let coupon = if log_return >= coupon_barrier {
-                            period_coupon
-                        } else {
-                            0.0
-                        };
-                        if knock_out.is_some_and(|level| log_return >= level) {
-                            let value = coupons
-                                + scaled_value(
-                                    1.0,
-                                    note.knock_out_payment(record) + coupon,
-                                    *log_discount,
-                                )?;
-                            return if value.is_finite() {
-                                Ok([value])
-                            } else {
-                                Err(unstable())
-                            };
-                        }
-                        coupons += scaled_value(1.0, coupon, *log_discount)?;
-                    }
+        Ok(Sample::Path(PathPlan {
+            note,
+            state,
+            steps,
+            initial_spot,
+            safe_returns,
+            knock_in,
+            expiry_knock_in: note.observes_knock_in(note.expiry_time()),
+        }))
+    }
+}
+
+enum Sample<'a, T: AutocallableTerms> {
+    Fixed(f64),
+    Path(PathPlan<'a, T>),
+}
+
+struct PathPlan<'a, T: AutocallableTerms> {
+    note: &'a AutocallableNote<T>,
+    state: Initial,
+    steps: Vec<PathStep>,
+    initial_spot: f64,
+    safe_returns: RangeInclusive<f64>,
+    knock_in: Option<f64>,
+    expiry_knock_in: bool,
+}
+
+struct PathStep {
+    transition: [f64; 3],
+    event: Option<CashEvent>,
+    observe_knock_in: bool,
+}
+
+#[derive(Clone, Copy)]
+struct CashEvent {
+    knock_out: Option<f64>,
+    coupon_barrier: f64,
+    period_coupon: f64,
+    redemption: f64,
+}
+
+impl<T: AutocallableTerms> PathPlan<'_, T> {
+    fn shares_thresholds(&self, other: &Self) -> Result<bool> {
+        if self.state.knocked_in != other.state.knocked_in
+            || self.knock_in != other.knock_in
+            || self.expiry_knock_in != other.expiry_knock_in
+            || self.steps.len() != other.steps.len()
+        {
+            return Ok(false);
+        }
+        for (left, right) in self.steps.chunks(1024).zip(other.steps.chunks(1024)) {
+            crate::cancellation::check()?;
+            let event_shape = |event: CashEvent| (event.knock_out, event.coupon_barrier);
+            if left.iter().zip(right).any(|(a, b)| {
+                a.transition.map(f64::to_bits) != b.transition.map(f64::to_bits)
+                    || a.observe_knock_in != b.observe_knock_in
+                    || a.event.map(event_shape) != b.event.map(event_shape)
+            }) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    fn payoff<const N: usize>(
+        &self,
+        plans: [&Self; N],
+        normals: &mut LazyPath<'_, '_>,
+    ) -> Result<[f64; N]> {
+        let below_knock_in = |log_return| self.knock_in.is_some_and(|level| log_return < level);
+        let mut log_return = 0.0;
+        let mut knocked_in = self.state.knocked_in;
+        let mut coupons = plans.map(|plan| plan.state.coupon);
+        let mut discount = 0.0;
+        for (index, step) in self.steps.iter().enumerate() {
+            check_path_step(index)?;
+            let [drift, diffusion, log_discount] = step.transition;
+            discount = log_discount;
+            // Keep threshold decisions before rounding the simulated spot.
+            log_return += diffusion.mul_add(normals.normal(), drift);
+            if !self.safe_returns.contains(&log_return)
+                && scaled_value(self.initial_spot, 1.0, log_return)? <= 0.0
+            {
+                return Err(unstable());
+            }
+            if step.observe_knock_in {
+                knocked_in |= below_knock_in(log_return);
+            }
+            if let Some(event) = step.event {
+                let coupon_due = log_return >= event.coupon_barrier;
+                let knocked_out = event.knock_out.is_some_and(|level| log_return >= level);
+                for (cash, plan) in coupons.iter_mut().zip(plans) {
+                    let payment = plan.steps[index]
+                        .event
+                        .expect("shared paths identify the same cash events");
+                    let coupon = if coupon_due {
+                        payment.period_coupon
+                    } else {
+                        0.0
+                    };
+                    let amount = if knocked_out {
+                        payment.redemption + coupon
+                    } else {
+                        coupon
+                    };
+                    *cash += scaled_value(1.0, amount, discount)?;
                 }
-                knocked_in |=
-                    note.observes_knock_in(note.expiry_time()) && below_knock_in(log_return);
-                let spot = scaled_value(initial_spot, 1.0, log_return)?;
-                let value = coupons
-                    + scaled_value(1.0, note.terminal(spot, knocked_in), terminal_log_discount)?;
-                if value.is_finite() {
-                    Ok([value])
-                } else {
-                    Err(unstable())
+                if knocked_out {
+                    return finite_payoffs(coupons);
                 }
-            })?;
-        Ok((moments, pairs, false, Some(seed)))
+            }
+        }
+        knocked_in |= self.expiry_knock_in && below_knock_in(log_return);
+        let spot = scaled_value(self.initial_spot, 1.0, log_return)?;
+        for (cash, plan) in coupons.iter_mut().zip(plans) {
+            *cash += scaled_value(1.0, plan.note.terminal(spot, knocked_in), discount)?;
+        }
+        finite_payoffs(coupons)
+    }
+}
+
+fn finite_payoffs<const N: usize>(values: [f64; N]) -> Result<[f64; N]> {
+    if values.iter().all(|value| value.is_finite()) {
+        Ok(values)
+    } else {
+        Err(unstable())
     }
 }
 
@@ -320,6 +413,32 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
     ) -> Result<MonteCarloEstimate> {
         self.price_with_statistics(option, context)
     }
+    fn price_coupon_bounds(
+        &self,
+        lower: &AutocallableNote<T>,
+        upper: &AutocallableNote<T>,
+        context: &PricingContext,
+    ) -> Result<Option<[f64; 2]>> {
+        self.settings.validate_solver_seed()?;
+        let Sample::Path(lower) = self.prepare_sample(lower, context, true)? else {
+            return Ok(None);
+        };
+        let Sample::Path(upper) = self.prepare_sample(upper, context, true)? else {
+            return Ok(None);
+        };
+        if !lower.shares_thresholds(&upper)? {
+            return Ok(None);
+        }
+        let ([low, high], _, _) =
+            path_samples_lazy(self.settings, lower.steps.len(), false, |normals| {
+                lower.payoff([&lower, &upper], normals)
+            })?;
+        Ok(Some([
+            scaled_value(low.scale, low.mean, 0.0)?,
+            scaled_value(high.scale, high.mean, 0.0)?,
+        ]))
+    }
+
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         crate::engines::flat_rates(context).map(|_| ())
     }

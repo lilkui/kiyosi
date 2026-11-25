@@ -727,6 +727,20 @@ pub trait PricingEngine<I = EuropeanOption> {
         Ok(None)
     }
 
+    /// Prices both coupon bracket endpoints together when they can share calculations.
+    ///
+    /// Returns the scalar prices in lower, upper order, or `None` for separate pricing.
+    /// Errors allow the coupon solver to retry scalar prices in their usual order.
+    #[doc(hidden)]
+    fn price_coupon_bounds(
+        &self,
+        _lower: &I,
+        _upper: &I,
+        _context: &PricingContext,
+    ) -> Result<Option<[f64; 2]>> {
+        Ok(None)
+    }
+
     /// Prices a supported contract.
     ///
     /// # Errors

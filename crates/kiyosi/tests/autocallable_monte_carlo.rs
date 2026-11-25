@@ -46,6 +46,51 @@ fn binary_price_and_uncertainty_match_an_independent_terminal_portfolio() {
 }
 
 #[test]
+fn shared_coupon_endpoints_replay_scalar_paths_and_detect_different_grids() -> Result<()> {
+    let start = date(1, 1);
+    let end = date(4, 1);
+    let context = market(100.0, start);
+    let note = SnowballOption::new(SnowballTerms::new(
+        0.08,
+        100.0,
+        90.0,
+        100.0,
+        100.0,
+        start,
+        end,
+        autocallable_observations(&[date(2, 3), end], &[105.0, 110.0], &[0.08, 0.09])?,
+        KnockInObservation::EveryTradingDay {
+            observation_clock_time: start.time_of_day(),
+        },
+        TradingCalendar::weekdays(),
+    ))?;
+    let lower = note.with_coupon(-0.05, CouponQuoteConvention::PreserveMaturityCoupon)?;
+    let upper = note.with_coupon(0.23, CouponQuoteConvention::PreserveMaturityCoupon)?;
+    let collapsed = note.with_coupon(0.0, CouponQuoteConvention::ShiftMaturityCoupon)?;
+    for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
+        let engine = MonteCarloAutocallableEngine::new(MonteCarloSettings {
+            path_count: 1024,
+            seed: Some(31),
+            sampling,
+            antithetic: true,
+            max_active_workers: 2,
+        })?;
+        assert_eq!(
+            engine.price_coupon_bounds(&lower, &upper, &context)?,
+            Some([
+                engine.price(&lower, &context)?,
+                engine.price(&upper, &context)?
+            ]),
+        );
+        assert_eq!(
+            engine.price_coupon_bounds(&collapsed, &upper, &context)?,
+            None
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn scalar_price_survives_confidence_interval_overflow() {
     let start = date(1, 1);
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();

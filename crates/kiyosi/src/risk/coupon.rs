@@ -216,16 +216,19 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
     if let Some(prepared) = &prepared {
         prepared.validate_solver_seed()?;
     }
+    let checked = |price: f64| {
+        if !price.is_finite() {
+            return Err(Error::ComputationFailure("non-finite coupon price".into()));
+        }
+        Ok(price)
+    };
     let checked_price = |note: &I| {
         crate::cancellation::check()?;
         let price = match &prepared {
             Some(prepared) => prepared.price(note, context)?,
             None => engine.price(note, context)?,
         };
-        if !price.is_finite() {
-            return Err(Error::ComputationFailure("non-finite coupon price".into()));
-        }
-        Ok(price)
+        checked(price)
     };
     let price = |coupon| checked_price(&replace(option, coupon)?);
     let residual = |value: f64| {
@@ -240,7 +243,18 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
     let (mut lo, mut hi) = (s.lower_bound, s.upper_bound);
     let lower_note = replace(option, lo)?;
     let upper_note = replace(option, hi)?;
-    let (lower, upper) = (checked_price(&lower_note)?, checked_price(&upper_note)?);
+    crate::cancellation::check()?;
+    let bounds = match &prepared {
+        Some(prepared) => prepared.price_coupon_bounds(&lower_note, &upper_note, context),
+        None => engine.price_coupon_bounds(&lower_note, &upper_note, context),
+    };
+    let (lower, upper) = match bounds {
+        Ok(Some([lower, upper])) => (checked(lower)?, checked(upper)?),
+        Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted => {
+            return Err(error.into());
+        }
+        Ok(None) | Err(_) => (checked_price(&lower_note)?, checked_price(&upper_note)?),
+    };
     if lower == upper {
         return Err(Error::UnsupportedOperation(
             "coupon does not affect remaining cashflows".into(),
