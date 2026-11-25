@@ -31,7 +31,7 @@ def test_scheduled_quadrature_rejects_excessive_rollback_work():
         barrier_level=140,
         observation_times=[START + timedelta(days=i) for i in range(366)],
     )
-    engine = pricing.QuadratureBarrierEngine(asset_step_count=4096)
+    engine = pricing.QuadratureBarrierEngine(asset_step_count=32_768)
     with pytest.raises(InvalidInputError, match="rollback"):
         engine.price(contract, market())
     assert engine.price(contract, market(spot=140)) == 0.0

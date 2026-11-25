@@ -71,6 +71,27 @@ fn european_quadrature_preserves_finite_large_prices() -> Result<()> {
 }
 
 #[test]
+fn american_uniform_convolution_accepts_a_refined_grid() -> Result<()> {
+    let (start, end) = dates();
+    let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let context = market(100.0, 0.05, 0.02, 0.2);
+    let price = |asset_step_count| {
+        QuadratureVanillaEngine::new(QuadratureVanillaSettings {
+            asset_step_count,
+            ..Default::default()
+        })?
+        .price(&option, &context)
+    };
+    let reference = price(2048)?;
+    let refined = price(4096)?;
+    assert!(
+        (refined - reference).abs() < 3e-6,
+        "{refined} vs {reference}"
+    );
+    Ok(())
+}
+
+#[test]
 fn european_prices_match_analytic_across_moneyness_carry_and_scale() {
     let (start, end) = dates();
     for kind in [OptionType::Call, OptionType::Put] {
@@ -97,18 +118,18 @@ fn european_prices_match_analytic_across_moneyness_carry_and_scale() {
 }
 
 #[test]
-fn american_quadrature_rejects_an_oversized_transition() -> Result<()> {
+fn american_quadrature_rejects_excessive_rollback_work() -> Result<()> {
     let (start, end) = dates();
     let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
     let context = market(100.0, 0.05, 0.02, 0.2);
     let engine = QuadratureVanillaEngine::new(QuadratureVanillaSettings {
-        asset_step_count: 8_000,
-        time_step_count: 3,
+        asset_step_count: 32_768,
+        time_step_count: 300,
         ..Default::default()
     })?;
     assert!(matches!(
         engine.price(&option, &context),
-        Err(Error::InvalidInput(_))
+        Err(Error::InvalidInput(message)) if message.contains("rollback")
     ));
     Ok(())
 }

@@ -4,12 +4,15 @@ use crate::numerics::{
 use crate::{Error, Result, Timestamp};
 use rustfft::{Fft, FftPlanner, num_complex::Complex64};
 use std::{
+    cell::Cell as Counter,
     collections::hash_map::{Entry, HashMap},
+    rc::Rc,
     sync::Arc,
 };
 
 const LOG_DENSITY: f64 = -0.918_938_533_204_672_7;
 const WORKSPACE_BUDGET: usize = 256 << 20;
+const WORK_BUDGET: usize = 1_000_000_000;
 // Includes the hash entry and transient capacity growth during construction.
 const BYTES_PER_CACHED_MOMENT: usize = 256;
 
@@ -406,25 +409,6 @@ fn active_cells(nodes: &[f64], mean: f64, deviation: f64) -> std::ops::Range<usi
     first..last
 }
 
-pub(super) fn validate_rollback_work(
-    nodes: &[f64],
-    drift: f64,
-    deviation: f64,
-    intervals: i32,
-) -> Result<()> {
-    let exercise_steps = (intervals.unsigned_abs() - 1) as usize;
-    let work = remaining_rollback_work(nodes, 1, exercise_steps)?;
-    // The first rollback integrates terminal pieces directly, without interpolated cells.
-    let continuation_steps = exercise_steps.saturating_sub(1);
-    if continuation_steps > 0 {
-        work.checked_sub(
-            active_cell_visits(nodes, drift, deviation)?.saturating_mul(continuation_steps),
-        )
-        .ok_or_else(excessive_rollback_work)?;
-    }
-    Ok(())
-}
-
 fn excessive_rollback_work() -> Error {
     Error::InvalidInput(
         "quadrature rollback exceeds one billion node and cell visits; reduce step counts".into(),
@@ -432,7 +416,6 @@ fn excessive_rollback_work() -> Error {
 }
 
 fn remaining_rollback_work(nodes: &[f64], layers: usize, visits: usize) -> Result<usize> {
-    const WORK_BUDGET: usize = 1_000_000_000;
     WORK_BUDGET
         .checked_sub(nodes.len().saturating_mul(layers).saturating_mul(visits))
         .ok_or_else(excessive_rollback_work)
@@ -443,41 +426,6 @@ fn active_cell_visits(nodes: &[f64], drift: f64, deviation: f64) -> Result<usize
         crate::cancellation::check()?;
         Ok(count.saturating_add(active_cells(nodes, node + drift, deviation).len()))
     })
-}
-
-pub(super) fn validate_scheduled_work(
-    nodes: &[f64],
-    dates: &[Timestamp],
-    layers: usize,
-    terminal_pieces: usize,
-    transition: impl Fn(f64) -> Result<(f64, f64, f64)>,
-) -> Result<()> {
-    let visits = dates
-        .len()
-        .saturating_add(terminal_pieces.saturating_sub(1));
-    let mut work = remaining_rollback_work(nodes, layers, visits)?;
-    let mut last = None;
-    // A terminal payoff with exact pieces does not integrate interpolated cells.
-    let intervals = dates
-        .len()
-        .saturating_sub(1 + usize::from(terminal_pieces > 0));
-    for pair in dates.windows(2).take(intervals) {
-        crate::cancellation::check()?;
-        let time = pair[0].years_until(pair[1]);
-        let key = time.to_bits();
-        let cells = if let Some((_, cells)) = last.filter(|&(previous, _)| previous == key) {
-            cells
-        } else {
-            let (drift, deviation, _) = transition(time)?;
-            let cells = active_cell_visits(nodes, drift, deviation)?;
-            last = Some((key, cells));
-            cells
-        };
-        work = work
-            .checked_sub(cells.saturating_mul(layers))
-            .ok_or_else(excessive_rollback_work)?;
-    }
-    Ok(())
 }
 
 pub(super) fn integrate_curve(
@@ -504,16 +452,110 @@ pub(super) fn integrate_curve(
 pub(super) struct TransitionCache {
     entries: Vec<(f64, Transition)>,
     budget: usize,
+    grid: Option<Arc<ConvolutionGrid>>,
+    tail_work: Rc<Counter<usize>>,
 }
 
 impl TransitionCache {
-    pub fn new(node_capacity: usize, layers: usize) -> Result<Self> {
+    pub fn new(
+        nodes: &[f64],
+        node_capacity: usize,
+        layers: usize,
+        asset_steps: i32,
+    ) -> Result<Self> {
+        let mut budget = WORKSPACE_BUDGET
+            .checked_sub(grid_bytes(node_capacity, layers))
+            .ok_or_else(workspace_error)?;
+        let cells = asset_steps.unsigned_abs() as usize;
+        let grid = if (cells + 33).saturating_mul(size_of::<usize>()) <= budget {
+            ConvolutionGrid::new(nodes, cells)?.map(Arc::new)
+        } else {
+            None
+        };
+        if let Some(grid) = &grid {
+            budget -= (grid.regular.capacity() + grid.split.capacity()) * size_of::<usize>();
+        }
         Ok(Self {
             entries: Vec::new(),
-            budget: WORKSPACE_BUDGET
-                .checked_sub(grid_bytes(node_capacity, layers))
-                .ok_or_else(workspace_error)?,
+            budget,
+            grid,
+            tail_work: Rc::new(Counter::new(WORK_BUDGET)),
         })
+    }
+
+    fn convolution(&self, drift: f64, deviation: f64) -> Option<&Arc<ConvolutionGrid>> {
+        self.grid.as_ref().filter(|grid| {
+            deviation >= 2.0 * grid.spacing
+                && drift.abs() <= 4.0 * deviation
+                && grid.bytes() <= self.budget
+        })
+    }
+
+    fn transition_work(&self, nodes: &[f64], drift: f64, deviation: f64) -> Result<usize> {
+        self.convolution(drift, deviation).map_or_else(
+            || active_cell_visits(nodes, drift, deviation),
+            |grid| Ok(grid.work()),
+        )
+    }
+
+    pub fn validate_rollback_work(
+        &self,
+        nodes: &[f64],
+        drift: f64,
+        deviation: f64,
+        intervals: i32,
+    ) -> Result<()> {
+        let exercise_steps = (intervals.unsigned_abs() - 1) as usize;
+        let mut work = remaining_rollback_work(nodes, 1, exercise_steps)?;
+        // The first rollback integrates terminal pieces directly, without interpolated cells.
+        let continuation_steps = exercise_steps.saturating_sub(1);
+        if continuation_steps > 0 {
+            work = work
+                .checked_sub(
+                    self.transition_work(nodes, drift, deviation)?
+                        .saturating_mul(continuation_steps),
+                )
+                .ok_or_else(excessive_rollback_work)?;
+        }
+        self.tail_work.set(work);
+        Ok(())
+    }
+
+    pub fn validate_scheduled_work(
+        &self,
+        nodes: &[f64],
+        dates: &[Timestamp],
+        layers: usize,
+        terminal_pieces: usize,
+        transition: impl Fn(f64) -> Result<(f64, f64, f64)>,
+    ) -> Result<()> {
+        let visits = dates
+            .len()
+            .saturating_add(terminal_pieces.saturating_sub(1));
+        let mut work = remaining_rollback_work(nodes, layers, visits)?;
+        let mut last = None;
+        // A terminal payoff with exact pieces does not integrate interpolated cells.
+        let intervals = dates
+            .len()
+            .saturating_sub(1 + usize::from(terminal_pieces > 0));
+        for pair in dates.windows(2).take(intervals) {
+            crate::cancellation::check()?;
+            let time = pair[0].years_until(pair[1]);
+            let key = time.to_bits();
+            let cells = if let Some((_, cells)) = last.filter(|&(previous, _)| previous == key) {
+                cells
+            } else {
+                let (drift, deviation, _) = transition(time)?;
+                let cells = self.transition_work(nodes, drift, deviation)?;
+                last = Some((key, cells));
+                cells
+            };
+            work = work
+                .checked_sub(cells.saturating_mul(layers))
+                .ok_or_else(excessive_rollback_work)?;
+        }
+        self.tail_work.set(work);
+        Ok(())
     }
 
     #[expect(
@@ -535,11 +577,11 @@ impl TransitionCache {
             index
         } else {
             // Retain common event gaps without accumulating matrices for irregular schedules.
-            let row_bytes = Transition::row_bytes(nodes, drift, deviation, self.budget)?;
-            let convolution = GaussianConvolution::layout(nodes, drift, deviation)
-                .filter(|&(size, _)| GaussianConvolution::bytes(size) <= self.budget);
-            let minimum =
-                convolution.map_or(row_bytes, |(size, _)| GaussianConvolution::bytes(size));
+            let convolution = self.convolution(drift, deviation).cloned();
+            let minimum = match &convolution {
+                Some(grid) => grid.bytes(),
+                None => Transition::row_bytes(nodes, drift, deviation, self.budget)?,
+            };
             if self.entries.len() == 3 {
                 self.entries.remove(0);
             }
@@ -551,22 +593,22 @@ impl TransitionCache {
             while retained + minimum > self.budget {
                 retained -= self.entries.remove(0).1.storage_bytes();
             }
-            let transition = if let Some((size, spacing)) = convolution {
+            let transition = if let Some(grid) = convolution {
                 Transition {
                     moments: Vec::new(),
                     rows: Vec::new(),
                     drift,
                     deviation,
                     convolution: Some(GaussianConvolution::new(
-                        size,
-                        nodes.len(),
-                        spacing,
+                        grid,
+                        nodes,
                         drift,
                         deviation,
+                        Rc::clone(&self.tail_work),
                     )?),
                 }
             } else {
-                let max_moments = (self.budget - retained - row_bytes) / BYTES_PER_CACHED_MOMENT;
+                let max_moments = (self.budget - retained - minimum) / BYTES_PER_CACHED_MOMENT;
                 Transition::new(nodes, drift, deviation, max_moments)?
             };
             self.entries.push((time, transition));
@@ -587,9 +629,7 @@ pub(super) struct Transition {
 }
 impl Transition {
     fn storage_bytes(&self) -> usize {
-        self.convolution
-            .as_ref()
-            .map_or(0, |fft| GaussianConvolution::bytes(fft.input.len()))
+        self.convolution.as_ref().map_or(0, |fft| fft.grid.bytes())
             + self.rows.capacity() * size_of::<Row>()
             + self.moments.capacity() * size_of::<IntervalMoments>()
             + self
@@ -698,53 +738,109 @@ impl Transition {
     }
 }
 
+struct ConvolutionGrid {
+    size: usize,
+    spacing: f64,
+    regular: Vec<usize>,
+    split: Vec<usize>,
+    extras: usize,
+}
+
+impl ConvolutionGrid {
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "Validated i32 grid sizes fit exactly in f64."
+    )]
+    fn new(nodes: &[f64], cells: usize) -> Result<Option<Self>> {
+        let Some(extras) = nodes.len().checked_sub(cells + 1) else {
+            return Ok(None);
+        };
+        if cells < 256 || extras > 16 {
+            return Ok(None);
+        }
+        let spacing = (nodes[nodes.len() - 1] - nodes[0]) / cells as f64;
+        let tolerance = 16.0 * f64::EPSILON * nodes[0].abs().max(nodes[nodes.len() - 1].abs());
+        if !spacing.is_normal() || tolerance >= 1e-7 * spacing {
+            return Ok(None);
+        }
+        let mut regular = Vec::with_capacity(cells + 1);
+        let mut next = 0;
+        for index in 0..=cells {
+            if index % 256 == 0 {
+                crate::cancellation::check()?;
+            }
+            let coordinate = nodes[0] + index as f64 * spacing;
+            while next < nodes.len() && nodes[next] < coordinate - tolerance {
+                next += 1;
+            }
+            if next == nodes.len() || (nodes[next] - coordinate).abs() > tolerance {
+                return Ok(None);
+            }
+            regular.push(next);
+            next += 1;
+        }
+        let split = regular
+            .windows(2)
+            .filter(|pair| pair[1] - pair[0] > 1)
+            .flat_map(|pair| pair[0]..pair[1])
+            .collect();
+        Ok(Some(Self {
+            size: (2 * cells).next_power_of_two(),
+            spacing,
+            regular,
+            split,
+            extras,
+        }))
+    }
+
+    fn correction_count(&self) -> usize {
+        self.regular.len().saturating_mul(self.split.len())
+            + self.extras.saturating_mul(self.regular.len() + self.extras)
+    }
+
+    fn bytes(&self) -> usize {
+        // Spectra, plans, scratch, and sparse exact rows for cells split by breakpoints.
+        let spectra = self.size.saturating_mul(16 * size_of::<Complex64>());
+        let corrections = self
+            .correction_count()
+            .saturating_mul(2 * size_of::<(usize, IntervalMoments)>());
+        let rows = (self.regular.len() + self.extras) * size_of::<Vec<(usize, IntervalMoments)>>();
+        spectra.saturating_add(corrections).saturating_add(rows)
+    }
+
+    fn work(&self) -> usize {
+        (5 * self.size * self.size.ilog2() as usize).saturating_add(self.correction_count())
+    }
+}
+
 struct GaussianConvolution {
+    grid: Arc<ConvolutionGrid>,
     forward: Arc<dyn Fft<f64>>,
     inverse: Arc<dyn Fft<f64>>,
     kernels: [Vec<Complex64>; 4],
     moments: Vec<IntervalMoments>,
+    corrections: Vec<Vec<(usize, IntervalMoments)>>,
+    tail_work: Rc<Counter<usize>>,
     input: Vec<Complex64>,
     output: Vec<Complex64>,
     scratch: Vec<Complex64>,
 }
 
 impl GaussianConvolution {
-    fn bytes(size: usize) -> usize {
-        // Four kernel spectra, two work vectors, scratch and room for FFT plans and twiddles.
-        size.saturating_mul(16 * size_of::<Complex64>())
-    }
-
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "workspace-bounded node counts are exactly representable"
-    )]
-    fn layout(nodes: &[f64], drift: f64, deviation: f64) -> Option<(usize, f64)> {
-        let cells = nodes.len() - 1;
-        let spacing = (nodes[cells] - nodes[0]) / cells as f64;
-        if cells < 256
-            || !spacing.is_normal()
-            || deviation < 2.0 * spacing
-            || drift.abs() > 4.0 * deviation
-        {
-            return None;
-        }
-        let tolerance = 16.0 * f64::EPSILON * nodes[0].abs().max(nodes[cells].abs());
-        if tolerance >= 1e-7 * spacing
-            || nodes.iter().enumerate().any(|(index, &value)| {
-                (value - (nodes[0] + index as f64 * spacing)).abs() > tolerance
-            })
-        {
-            return None;
-        }
-        Some(((2 * cells).next_power_of_two(), spacing))
-    }
-
     #[expect(
         clippy::cast_precision_loss,
         reason = "workspace-bounded offsets and transform length fit in f64"
     )]
-    fn new(size: usize, nodes: usize, spacing: f64, drift: f64, deviation: f64) -> Result<Self> {
+    fn new(
+        grid: Arc<ConvolutionGrid>,
+        nodes: &[f64],
+        drift: f64,
+        deviation: f64,
+        tail_work: Rc<Counter<usize>>,
+    ) -> Result<Self> {
         crate::cancellation::check()?;
+        let size = grid.size;
+        let spacing = grid.spacing;
         let mut planner = FftPlanner::new();
         let forward = planner.plan_fft_forward(size);
         let inverse = planner.plan_fft_inverse(size);
@@ -756,7 +852,7 @@ impl GaussianConvolution {
         ];
         let blank = || vec![Complex64::default(); size];
         let mut kernels: [Vec<_>; 4] = std::array::from_fn(|_| blank());
-        let cells = nodes - 1;
+        let cells = grid.regular.len() - 1;
         let mut cell_weights = Vec::with_capacity(2 * cells);
         for offset in 0..2 * cells {
             if offset % 128 == 0 {
@@ -782,11 +878,39 @@ impl GaussianConvolution {
                 *value *= normalization;
             }
         }
+        let mut corrections = Vec::new();
+        if grid.extras > 0 {
+            corrections.reserve_exact(nodes.len());
+            for (index, &node) in nodes.iter().enumerate() {
+                crate::cancellation::check()?;
+                let mean = node + drift;
+                let active = active_cells(nodes, mean, deviation);
+                let row = |cell| {
+                    (
+                        cell,
+                        cell_moments(nodes[cell], nodes[cell + 1], mean, deviation),
+                    )
+                };
+                corrections.push(if grid.regular.binary_search(&index).is_ok() {
+                    grid.split
+                        .iter()
+                        .copied()
+                        .filter(|cell| active.contains(cell))
+                        .map(row)
+                        .collect()
+                } else {
+                    active.map(row).collect()
+                });
+            }
+        }
         Ok(Self {
+            grid,
             forward,
             inverse,
             kernels,
             moments: cell_weights,
+            corrections,
+            tail_work,
             input: blank(),
             output: blank(),
             scratch,
@@ -809,21 +933,39 @@ impl GaussianConvolution {
             values.fill(0.0);
             return Ok(());
         }
-        let direct = |node| integrate_curve(curve, nodes, node + drift, deviation, discount);
+        let charge = |work| {
+            self.tail_work.set(
+                self.tail_work
+                    .get()
+                    .checked_sub(work)
+                    .ok_or_else(excessive_rollback_work)?,
+            );
+            Ok::<_, Error>(())
+        };
         if !(1e-100..=1e100).contains(&scale) || !(1e-100..=1e100).contains(&factor) {
             for (value, &node) in values.iter_mut().zip(nodes) {
                 crate::cancellation::check()?;
-                *value = direct(node);
+                charge(active_cells(nodes, node + drift, deviation).len())?;
+                *value = integrate_curve(curve, nodes, node + drift, deviation, discount);
             }
             return Ok(());
         }
+        let regular = &self.grid.regular;
+        let cells = regular.len() - 1;
         self.output.fill(Complex64::default());
         for (power, kernel) in self.kernels.iter().enumerate() {
             crate::cancellation::check()?;
-            for (value, cell) in self.input.iter_mut().zip(curve) {
-                *value = Complex64::new(cell[power], 0.0);
+            for (value, pair) in self.input.iter_mut().zip(regular.windows(2)) {
+                *value = Complex64::new(
+                    if pair[1] == pair[0] + 1 {
+                        curve[pair[0]][power]
+                    } else {
+                        0.0
+                    },
+                    0.0,
+                );
             }
-            self.input[curve.len()..].fill(Complex64::default());
+            self.input[cells..].fill(Complex64::default());
             self.forward
                 .process_with_scratch(&mut self.input, &mut self.scratch);
             for ((value, coefficient), weight) in
@@ -835,25 +977,47 @@ impl GaussianConvolution {
         self.inverse
             .process_with_scratch(&mut self.output, &mut self.scratch);
         let roundoff = 128.0 * f64::EPSILON * scale;
-        for (index, ((value, sample), &node)) in
-            values.iter_mut().zip(&self.output).zip(nodes).enumerate()
-        {
-            *value = if sample.re.is_finite() && sample.re.abs() > roundoff {
-                factor * sample.re
+        let mut index = 0;
+        for (node_index, (value, &node)) in values.iter_mut().zip(nodes).enumerate() {
+            if node_index % 256 == 0 {
+                crate::cancellation::check()?;
+            }
+            let exact = self.corrections.get(node_index).into_iter().flatten();
+            let mut sum = Sum::default();
+            for &(cell, ref moments) in exact {
+                sum.add(moments.integrate(&curve[cell]));
+            }
+            if regular[index] != node_index {
+                *value = sum.total() * factor;
+                continue;
+            }
+            let sample = self.output[index].re;
+            let estimate = sample + sum.total();
+            *value = if estimate.is_finite() && estimate.abs() > roundoff && sample.abs() > roundoff
+            {
+                factor * estimate
             } else {
                 // Direct summation recovers relative accuracy in small tails.
                 crate::cancellation::check()?;
-                let cells = active_cells(nodes, node + drift, deviation);
-                let offset = curve.len() - index;
-                let mut sum = Sum::default();
-                for (cell, moments) in curve[cells.clone()]
-                    .iter()
-                    .zip(&self.moments[offset + cells.start..offset + cells.end])
-                {
-                    sum.add(moments.integrate(cell) * factor);
+                let active = active_cells(nodes, node + drift, deviation);
+                let (start, end) = if self.grid.extras == 0 {
+                    (active.start, active.end)
+                } else {
+                    (
+                        regular.partition_point(|&i| i < active.start),
+                        regular.partition_point(|&i| i < active.end).min(cells),
+                    )
+                };
+                charge(end.saturating_sub(start))?;
+                let offset = cells - index;
+                for cell in start..end {
+                    if regular[cell] + 1 == regular[cell + 1] {
+                        sum.add(self.moments[offset + cell].integrate(&curve[regular[cell]]));
+                    }
                 }
-                sum.total()
+                sum.total() * factor
             };
+            index += 1;
         }
         Ok(())
     }
@@ -904,7 +1068,7 @@ mod tests {
     fn transition_rows_must_fit_in_the_budget_left_by_the_grid() -> Result<()> {
         let nodes = [-1.0, -0.75, -0.5, -0.25, 0.25, 0.5, 0.75, 1.0];
         let capacity = WORKSPACE_BUDGET / grid_bytes(1, 1);
-        let mut cache = TransitionCache::new(capacity, 1)?;
+        let mut cache = TransitionCache::new(&nodes, capacity, 1, 7)?;
         assert!(matches!(
             cache.get(1.0, &nodes, 0.0, 1.0),
             Err(Error::InvalidInput(_))
@@ -913,24 +1077,26 @@ mod tests {
     }
 
     #[test]
-    fn uniform_convolution_matches_direct_cubic_moments() -> Result<()> {
-        let nodes: Vec<_> = (0..=384).map(|i| (f64::from(i) - 192.0) / 128.0).collect();
-        let curve: Vec<_> = nodes[..384]
-            .iter()
-            .map(|&x| [(2.0 * x).sin(), x * x, -0.2, 0.1])
-            .collect();
-        for (drift, deviation) in [(-0.14, 0.09), (0.19, 0.3)] {
-            let mut cache = TransitionCache::new(nodes.len(), 1)?;
-            let transition = cache.get(1.0, &nodes, drift, deviation)?;
-            assert!(transition.convolution.is_some());
-            let mut actual = vec![0.0; nodes.len()];
-            transition.integrate(&nodes, &curve, -0.03, &mut actual)?;
-            for (&node, value) in nodes.iter().zip(actual) {
-                let expected = integrate_curve(&curve, &nodes, node + drift, deviation, -0.03);
-                assert!(
-                    (value - expected).abs() < 8e-14,
-                    "node {node}, got {value}, expected {expected}"
-                );
+    fn convolution_matches_direct_cubic_moments_with_and_without_split_cells() -> Result<()> {
+        for breaks in [&[][..], &[-0.723, 0.013, 0.015][..]] {
+            let nodes = integration_nodes(-1.5, 1.5, 384, breaks, 1)?;
+            let curve: Vec<_> = nodes[..nodes.len() - 1]
+                .iter()
+                .map(|&x| [(2.0 * x).sin(), x * x, -0.2, 0.1])
+                .collect();
+            for (drift, deviation) in [(-0.14, 0.09), (0.19, 0.3)] {
+                let mut cache = TransitionCache::new(&nodes, nodes.len(), 1, 384)?;
+                let transition = cache.get(1.0, &nodes, drift, deviation)?;
+                assert!(transition.convolution.is_some());
+                let mut actual = vec![0.0; nodes.len()];
+                transition.integrate(&nodes, &curve, -0.03, &mut actual)?;
+                for (&node, value) in nodes.iter().zip(actual) {
+                    let expected = integrate_curve(&curve, &nodes, node + drift, deviation, -0.03);
+                    assert!(
+                        (value - expected).abs() < 8e-14,
+                        "node {node}, got {value}, expected {expected}"
+                    );
+                }
             }
         }
         Ok(())
@@ -940,7 +1106,7 @@ mod tests {
     fn transitions_match_normal_probabilities_across_repeated_intervals() {
         let nodes = [-1.0, 0.0, 1.0];
         let curve = [[1.0, 0.0, 0.0, 0.0]; 2];
-        let mut cache = TransitionCache::new(nodes.len(), 1).unwrap();
+        let mut cache = TransitionCache::new(&nodes, nodes.len(), 1, 2).unwrap();
         for time in [1.0_f64, 2.0, 3.0, 4.0, 1.0] {
             let deviation = time.sqrt();
             let mut values = [0.0; 3];

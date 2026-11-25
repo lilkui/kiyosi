@@ -39,7 +39,7 @@ fn scheduled_quadrature_rejects_excessive_rollback_work() -> Result<()> {
     let clock = start.time_of_day();
     let calendar = TradingCalendar::all_days();
     let settings = QuadratureSettings {
-        asset_step_count: 4096,
+        asset_step_count: 32_768,
         ..Default::default()
     };
     let context = market(0.03);

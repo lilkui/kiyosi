@@ -1,6 +1,6 @@
 use super::gaussian::{
     CubicInterpolation, Layer, Polynomial, TerminalPiece, TransitionCache, integrate_terminal,
-    integration_nodes, validate_rollback_work,
+    integration_nodes,
 };
 use super::{QuadratureSettings, flat_rates, simpson};
 use crate::engines::Payoff;
@@ -275,7 +275,8 @@ fn american_price(
         return Err(invalid_transition());
     }
     let nodes = integration_nodes(-extent, extent, settings.asset_step_count, &[0.0], 1)?;
-    validate_rollback_work(&nodes, drift_step, deviation, settings.time_step_count)?;
+    let mut cache = TransitionCache::new(&nodes, nodes.capacity(), 1, settings.asset_step_count)?;
+    cache.validate_rollback_work(&nodes, drift_step, deviation, settings.time_step_count)?;
     let interpolation = CubicInterpolation::new(&nodes);
     let intrinsic: Vec<_> = nodes
         .iter()
@@ -298,7 +299,6 @@ fn american_price(
             asset: payoff.sign,
         }],
     };
-    let mut cache = TransitionCache::new(nodes.capacity(), 1)?;
     let mut values = vec![0.0; nodes.len()];
     for _ in 1..settings.time_step_count {
         crate::cancellation::check()?;

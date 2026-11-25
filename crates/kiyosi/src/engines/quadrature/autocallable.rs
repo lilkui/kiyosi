@@ -1,6 +1,6 @@
 use super::gaussian::{
     CubicInterpolation, Layer, TerminalPiece, TransitionCache, integrate_terminal,
-    integration_nodes, validate_scheduled_work,
+    integration_nodes,
 };
 use super::{QuadratureSettings, flat_rates};
 use crate::instruments::autocallable::Coupon;
@@ -376,7 +376,13 @@ fn price<T: AutocallableTerms>(
         &breaks,
         layer_count,
     )?;
-    validate_scheduled_work(&nodes, &dates, layer_count, terminal.len(), transition)?;
+    let mut transitions = TransitionCache::new(
+        &nodes,
+        nodes.capacity(),
+        layer_count,
+        settings.asset_step_count,
+    )?;
+    transitions.validate_scheduled_work(&nodes, &dates, layer_count, terminal.len(), transition)?;
     let interpolation = CubicInterpolation::new(&nodes);
     let terminal_in = if layers {
         self::terminal(note, event(note, note.expiry_time()), &breaks, true)
@@ -402,7 +408,6 @@ fn price<T: AutocallableTerms>(
     };
     let mut alive = layer(&terminal);
     let mut knocked = layer(&terminal_in);
-    let mut transitions = TransitionCache::new(nodes.capacity(), layer_count)?;
     for index in (0..dates.len()).rev() {
         crate::cancellation::check()?;
         let final_event = index == dates.len() - 1;

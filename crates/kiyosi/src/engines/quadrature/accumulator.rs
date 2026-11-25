@@ -1,6 +1,6 @@
 use super::gaussian::{
     CubicInterpolation, Layer, Polynomial, TerminalPiece, TransitionCache, integrate_terminal,
-    integration_nodes, validate_scheduled_work,
+    integration_nodes,
 };
 use super::{QuadratureSettings, flat_rates};
 use crate::numerics::{finite_price, log_ratio, scaled_signed_cash};
@@ -238,9 +238,10 @@ fn price(
     let nodes = integration_nodes(lower, upper, settings.asset_step_count, &breaks, count)?;
     drop(breaks);
     let terminal_pieces = layers[0].exact.len().max(layers[1].exact.len());
-    validate_scheduled_work(&nodes, &dates, count, terminal_pieces, transition)?;
+    let mut transitions =
+        TransitionCache::new(&nodes, nodes.capacity(), count, settings.asset_step_count)?;
+    transitions.validate_scheduled_work(&nodes, &dates, count, terminal_pieces, transition)?;
     let interpolation = CubicInterpolation::new(&nodes);
-    let mut transitions = TransitionCache::new(nodes.capacity(), count)?;
     let mut continuation: [Vec<Polynomial>; 2] = Default::default();
     let mut next_knock_out = None;
     let mut remaining_purchases = 0_usize;

@@ -369,7 +369,7 @@ fn terminal_layer(option: &BarrierOption) -> Vec<super::gaussian::TerminalPiece>
 
 use super::gaussian::{
     CubicInterpolation, Layer, TerminalPiece, TransitionCache, integrate_terminal,
-    integration_nodes, validate_scheduled_work,
+    integration_nodes,
 };
 
 fn event_limit(
@@ -569,10 +569,11 @@ fn scheduled_price(
     let upper = 0.0_f64.max(barrier).max(current) + (drift_rate * horizon).max(0.0) + extent;
     let nodes = integration_nodes(lower, upper, settings.asset_step_count, &[0.0, barrier], 1)?;
     let terminal_pieces = usize::from(dates.last() == Some(&option.expiry_time()));
-    validate_scheduled_work(&nodes, &dates, 1, terminal_pieces, transition)?;
+    let mut transitions =
+        TransitionCache::new(&nodes, nodes.capacity(), 1, settings.asset_step_count)?;
+    transitions.validate_scheduled_work(&nodes, &dates, 1, terminal_pieces, transition)?;
     let interpolation = CubicInterpolation::new(&nodes);
     let mut values = vec![0.0; nodes.len()];
-    let mut transitions = TransitionCache::new(nodes.capacity(), 1)?;
     for event in (0..dates.len()).rev() {
         crate::cancellation::check()?;
         let final_event = event + 1 == dates.len();

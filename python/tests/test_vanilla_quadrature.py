@@ -94,9 +94,11 @@ def test_settings_signatures_and_conversion_boundaries(subtests):
         engine.time_step_count = 400
 
 
-def test_american_quadrature_rejects_an_oversized_transition():
-    engine = pricing.QuadratureVanillaEngine(asset_step_count=8000, time_step_count=3)
-    with pytest.raises(InvalidInputError):
+def test_american_quadrature_rejects_excessive_rollback_work():
+    engine = pricing.QuadratureVanillaEngine(
+        asset_step_count=32_768, time_step_count=300
+    )
+    with pytest.raises(InvalidInputError, match="rollback"):
         engine.price(contract(AmericanOption, "put"), market(100, 0.05, 0.02, 0.2))
 
 
@@ -385,6 +387,18 @@ def test_american_quadrature_rejects_an_oversized_grid_before_rollback():
     )
     with pytest.raises(InvalidInputError, match="workspace"):
         engine.price(contract(AmericanOption, "put"), market())
+
+
+def test_american_uniform_convolution_accepts_a_refined_grid():
+    option = contract(AmericanOption, "put")
+    context = market(100, 0.05, 0.02, 0.2)
+    reference = pricing.QuadratureVanillaEngine(asset_step_count=2048).price(
+        option, context
+    )
+    refined = pricing.QuadratureVanillaEngine(asset_step_count=4096).price(
+        option, context
+    )
+    assert refined == pytest.approx(reference, rel=0, abs=3e-6)
 
 
 def test_american_quadrature_retains_european_lower_bound():
