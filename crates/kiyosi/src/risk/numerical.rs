@@ -272,11 +272,33 @@ fn time_stencil(
     )
 }
 
+pub(crate) fn complete_greeks(
+    option: &impl OptionContract,
+    context: &PricingContext,
+    request: GreeksRequest,
+    settings: NumericalShiftSettings,
+    native_spot_greeks: bool,
+    result: PricingResult,
+    native: impl Fn(&PricingContext, GreeksRequest) -> Result<PricingResult>,
+) -> Result<PricingResult> {
+    complete_greeks_with_pair(
+        option,
+        context,
+        request,
+        settings,
+        native_spot_greeks,
+        result,
+        native,
+        |_, _, _| Ok(None),
+    )
+}
+
 #[expect(
     clippy::float_cmp,
-    reason = "Stencils require exactly representable shifts."
+    clippy::too_many_arguments,
+    reason = "Explicit stencil inputs and an optional engine-specific evaluator for spot pairs."
 )]
-pub(crate) fn complete_greeks(
+pub(crate) fn complete_greeks_with_pair(
     option: &impl OptionContract,
     context: &PricingContext,
     request: GreeksRequest,
@@ -284,6 +306,11 @@ pub(crate) fn complete_greeks(
     native_spot_greeks: bool,
     mut result: PricingResult,
     native: impl Fn(&PricingContext, GreeksRequest) -> Result<PricingResult>,
+    spot_pair: impl Fn(
+        &PricingContext,
+        &PricingContext,
+        GreeksRequest,
+    ) -> Result<Option<(PricingResult, PricingResult)>>,
 ) -> Result<PricingResult> {
     result = result.with_request(request, GreeksRequest::all());
     // Entry points validate shifts before any fallible preparation.
@@ -345,12 +372,17 @@ pub(crate) fn complete_greeks(
     let price = |s, vol, r, t| -> Result<f64> {
         Ok(native(&shifted(s, vol, r, t)?, GreeksRequest::new([]))?.price())
     };
+    let pair = |distance, vol, t, measures| -> Result<(PricingResult, PricingResult)> {
+        let high = shifted(spot + distance, vol, 0.0, t)?;
+        let low = shifted(spot - distance, vol, 0.0, t)?;
+        if let Some(results) = spot_pair(&high, &low, measures)? {
+            return Ok(results);
+        }
+        Ok((native(&high, measures)?, native(&low, measures)?))
+    };
     let spot_samples = |vol, t, center| -> Result<(f64, f64, f64)> {
-        Ok((
-            price(spot + h, vol, 0.0, t)?,
-            center,
-            price(spot - h, vol, 0.0, t)?,
-        ))
+        let (up, down) = pair(h, vol, t, GreeksRequest::new([]))?;
+        Ok((up.price(), center, down.price()))
     };
     let derivatives = |(up, center, down): (f64, f64, f64)| {
         (
@@ -417,8 +449,7 @@ pub(crate) fn complete_greeks(
     };
     if spot_ok && (want(Greek::Delta) || want(Greek::Gamma) || (want(Greek::Speed) && speed_ok)) {
         let measures = spot_request(false, want(Greek::Speed) && speed_ok);
-        let high = native(&shifted(spot + h, vol, 0.0, time)?, measures)?;
-        let low = native(&shifted(spot - h, vol, 0.0, time)?, measures)?;
+        let (high, low) = pair(h, vol, time, measures)?;
         let (up, down) = (high.price(), low.price());
         let (delta, gamma) = derivatives((up, p0, down));
         if want(Greek::Delta) {
@@ -432,8 +463,8 @@ pub(crate) fn complete_greeks(
                 if let (Some(high), Some(low)) = (high.get(Greek::Gamma), low.get(Greek::Gamma)) {
                     Some((high - low) / h / 2.0)
                 } else if scalar_speed_ok {
-                    let up2 = price(spot + two_h, vol, 0.0, time)?;
-                    let down2 = price(spot - two_h, vol, 0.0, time)?;
+                    let (up2, down2) = pair(two_h, vol, time, GreeksRequest::new([]))?;
+                    let (up2, down2) = (up2.price(), down2.price());
                     Some(((up2 - up) - (up - down) + (down - down2)) / h / h / two_h)
                 } else {
                     None
@@ -523,10 +554,17 @@ pub(crate) fn complete_greeks(
             let measures =
                 spot_request(spot_ok && want(Greek::Charm), spot_ok && want(Greek::Color));
             let prices = if want(Greek::Theta) {
-                Some((
-                    native(&shifted(spot, vol, 0.0, after)?, measures)?,
-                    native(&shifted(spot, vol, 0.0, before)?, measures)?,
-                ))
+                let evaluate = |at| {
+                    if at == time
+                        && Greek::ALL
+                            .into_iter()
+                            .all(|g| !measures.has(g) || available.has(g))
+                    {
+                        return Ok(result.clone());
+                    }
+                    native(&shifted(spot, vol, 0.0, at)?, measures)
+                };
+                Some((evaluate(after)?, evaluate(before)?))
             } else {
                 None
             };

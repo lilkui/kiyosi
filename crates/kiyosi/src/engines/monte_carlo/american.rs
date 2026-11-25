@@ -77,12 +77,22 @@ fn american_workspace<T>(capacity: usize) -> Result<Vec<T>> {
     Ok(buffer)
 }
 
-#[derive(Default)]
-struct ExerciseBlock {
-    spots: Vec<f64>,
+struct ExerciseBlock<const N: usize> {
+    spots: Vec<[f64; N]>,
     growth: Vec<f64>,
-    cash: Vec<f64>,
-    regression: [[f64; 4]; 3],
+    cash: Vec<[f64; N]>,
+    regression: [[[f64; 4]; 3]; N],
+}
+
+impl<const N: usize> Default for ExerciseBlock<N> {
+    fn default() -> Self {
+        Self {
+            spots: Vec::new(),
+            growth: Vec::new(),
+            cash: Vec::new(),
+            regression: [[[0.0; 4]; 3]; N],
+        }
+    }
 }
 
 impl MonteCarloVanillaEngine {
@@ -115,17 +125,29 @@ impl MonteCarloVanillaEngine {
         0.08 * context.spot_price()
     }
 
-    #[expect(
-        clippy::cast_precision_loss,
-        clippy::cast_sign_loss,
-        reason = "Validated positive i32 path and step counts bound the buffers and fit exactly in f64."
-    )]
     fn american_price(
         &self,
         option: &AmericanOption,
         context: &PricingContext,
         terminal_only: bool,
     ) -> Result<(f64, Option<u64>)> {
+        let ([price], seed) = self.american_spots(option, [context], terminal_only)?;
+        Ok((price, seed))
+    }
+
+    #[expect(
+        clippy::cast_precision_loss,
+        clippy::cast_sign_loss,
+        reason = "Validated positive i32 path and step counts bound the buffers and fit exactly in f64."
+    )]
+    fn american_spots<const N: usize>(
+        &self,
+        option: &AmericanOption,
+        contexts: [&PricingContext; N],
+        terminal_only: bool,
+    ) -> Result<([f64; N], Option<u64>)> {
+        let context = contexts[0];
+        let initial = contexts.map(PricingContext::spot_price);
         let settings = self.settings.sampling;
         let step_count = self.settings.step_count;
         let model = context.natural_bsm_parameters()?;
@@ -133,12 +155,13 @@ impl MonteCarloVanillaEngine {
         let rate = model.flat_risk_free_rate()?;
         let dividend = model.flat_dividend_yield()?;
         if crate::engines::deterministic::enabled(context) {
-            return crate::engines::deterministic::vanilla(
-                option,
-                crate::engines::Payoff::vanilla(option.option_type(), option.strike(), true),
-                context,
-            )
-            .map(|price| (price, None));
+            let payoff =
+                crate::engines::Payoff::vanilla(option.option_type(), option.strike(), true);
+            let mut prices = [0.0; N];
+            for (price, context) in prices.iter_mut().zip(contexts) {
+                *price = crate::engines::deterministic::vanilla(option, payoff, context)?;
+            }
+            return Ok((prices, None));
         }
         crate::instruments::monitoring::validate_life(option, context)?;
         let valuation = context.valuation_time();
@@ -149,7 +172,7 @@ impl MonteCarloVanillaEngine {
             -1.0
         };
         let payoff = |spot: f64| (sign * (spot - option.strike())).max(0.0);
-        let immediate = payoff(context.spot_price());
+        let immediate = initial.map(payoff);
         let time = valuation.years_until(expiry);
         if time == 0.0 {
             return Ok((immediate, None));
@@ -164,12 +187,18 @@ impl MonteCarloVanillaEngine {
             && dividend <= 0.0
             && rate >= 0.0
         {
-            let (price, seed) = <Self as PricingEngine<EuropeanOption>>::price_with_seed(
-                self,
-                option.vanilla(),
-                context,
-            )?;
-            return Ok((price.max(immediate), seed));
+            let mut prices = immediate;
+            let mut seed = None;
+            for (price, context) in prices.iter_mut().zip(contexts) {
+                let (value, used_seed) = <Self as PricingEngine<EuropeanOption>>::price_with_seed(
+                    self,
+                    option.vanilla(),
+                    context,
+                )?;
+                *price = price.max(value);
+                seed = used_seed;
+            }
+            return Ok((prices, seed));
         }
         let intervals = step_count as usize;
         let paths = settings.path_count as usize;
@@ -187,6 +216,15 @@ impl MonteCarloVanillaEngine {
                 "American Monte Carlo path storage exceeds 1 GiB; reduce path_count or step_count"
                     .into(),
             ));
+        }
+        let path_values = reserved_paths * intervals;
+        if path_values > MAX_PATH_VALUES / N {
+            let mut prices = [0.0; N];
+            let mut seed = None;
+            for (price, context) in prices.iter_mut().zip(contexts) {
+                (*price, seed) = self.american_price(option, context, terminal_only)?;
+            }
+            return Ok((prices, seed));
         }
         let dt = time / intervals as f64;
         let sigma = model.volatility();
@@ -241,48 +279,65 @@ impl MonteCarloVanillaEngine {
             let path_count = end - begin + paired;
             let growth_count = path_count * intervals;
             let mut values = american_workspace(growth_count)?;
+            values.resize(growth_count, [0.0; N]);
+            let mut cash = american_workspace(path_count)?;
+            cash.resize(path_count, initial);
+            let evolve = |spot: &mut [f64; N], growth: f64| -> Result<[f64; N]> {
+                for value in spot.iter_mut() {
+                    *value *= growth;
+                    if !value.is_finite() || *value <= 0.0 {
+                        return Err(unstable());
+                    }
+                }
+                Ok(*spot)
+            };
             if let Some(cached) = &cached_growth {
-                values.extend_from_slice(&cached[block_index]);
+                for (step, (spots, growth)) in values
+                    .chunks_exact_mut(path_count)
+                    .zip(cached[block_index].chunks_exact(path_count))
+                    .enumerate()
+                {
+                    check_path_step(step)?;
+                    for ((spot, last), &growth) in spots.iter_mut().zip(&mut cash).zip(growth) {
+                        *spot = evolve(last, growth)?;
+                    }
+                }
             } else {
+                if retain_growth {
+                    block.growth = american_workspace(growth_count)?;
+                    block.growth.resize(growth_count, 0.0);
+                }
                 let mut generator = Pcg32::new(seed, block_index as u64);
                 let mut cursor = sobol.as_ref().map(|sequence| sequence.cursor(begin));
                 let mut spare = None;
+                let mut path = 0;
                 for sample in begin..end {
                     crate::cancellation::check()?;
                     let paired = settings.antithetic && sample < paths / 2;
-                    let offset = values.len();
-                    values.resize(offset + intervals * if paired { 2 } else { 1 }, 0.0);
-                    for step in 0..intervals {
+                    for (step, row) in values.chunks_exact_mut(path_count).enumerate() {
                         check_path_step(step)?;
                         let normal = sample_normal(&mut generator, &mut spare, &mut cursor);
-                        values[offset + step] = diffusion.mul_add(normal, drift).exp();
+                        let growth = diffusion.mul_add(normal, drift).exp();
+                        row[path] = evolve(&mut cash[path], growth)?;
+                        if retain_growth {
+                            block.growth[step * path_count + path] = growth;
+                        }
                         if paired {
-                            values[offset + intervals + step] =
-                                (-diffusion).mul_add(normal, drift).exp();
+                            let growth = (-diffusion).mul_add(normal, drift).exp();
+                            row[path + 1] = evolve(&mut cash[path + 1], growth)?;
+                            if retain_growth {
+                                block.growth[step * path_count + path + 1] = growth;
+                            }
                         }
                     }
+                    path += if paired { 2 } else { 1 };
                     if let Some(cursor) = &mut cursor {
                         cursor.next_path();
                     }
                 }
-                if retain_growth {
-                    block.growth = american_workspace(growth_count)?;
-                    block.growth.extend_from_slice(&values);
-                }
             }
-            let mut cash = american_workspace(path_count)?;
-            for path in values.chunks_exact_mut(intervals) {
-                crate::cancellation::check()?;
-                let mut spot = context.spot_price();
-                for (step, growth) in path.iter_mut().enumerate() {
-                    check_path_step(step)?;
-                    spot *= *growth;
-                    if !spot.is_finite() || spot <= 0.0 {
-                        return Err(unstable());
-                    }
-                    *growth = spot;
-                }
-                cash.push(payoff(spot));
+            for spots in &mut cash {
+                *spots = spots.map(payoff);
             }
             block.spots = values;
             block.cash = cash;
@@ -308,81 +363,101 @@ impl MonteCarloVanillaEngine {
         let strike = option.strike();
         for step in (0..intervals - 1).rev() {
             runner.run(&mut blocks, |_, block| {
-                let mut matrix = [[0.0; 4]; 3];
-                for (path, cash) in block.spots.chunks_exact(intervals).zip(&mut block.cash) {
-                    *cash *= discount;
-                    if !cash.is_finite() {
-                        return Err(unstable());
-                    }
-                    if payoff(path[step]) > 0.0 {
-                        let x = path[step] / strike;
-                        let square = x * x;
-                        let target = *cash / strike;
-                        matrix[0][0] += 1.0;
-                        matrix[0][1] += x;
-                        matrix[0][2] += square;
-                        matrix[1][1] += square;
-                        matrix[1][2] += x * square;
-                        matrix[2][2] += square * square;
-                        matrix[0][3] += target;
-                        matrix[1][3] += x * target;
-                        matrix[2][3] += square * target;
+                let mut matrices = [[[0.0; 4]; 3]; N];
+                let count = block.cash.len();
+                let spots = &block.spots[step * count..(step + 1) * count];
+                for (spots, cash) in spots.iter().zip(&mut block.cash) {
+                    for ((&spot, cash), matrix) in spots.iter().zip(cash).zip(&mut matrices) {
+                        *cash *= discount;
+                        if !cash.is_finite() {
+                            return Err(unstable());
+                        }
+                        if payoff(spot) > 0.0 {
+                            let x = spot / strike;
+                            let square = x * x;
+                            let target = *cash / strike;
+                            matrix[0][0] += 1.0;
+                            matrix[0][1] += x;
+                            matrix[0][2] += square;
+                            matrix[1][1] += square;
+                            matrix[1][2] += x * square;
+                            matrix[2][2] += square * square;
+                            matrix[0][3] += target;
+                            matrix[1][3] += x * target;
+                            matrix[2][3] += square * target;
+                        }
                     }
                 }
-                block.regression = matrix;
+                block.regression = matrices;
                 Ok(())
             })?;
             // Merge fixed blocks in path order, independent of the worker count.
-            let mut matrix = [[0.0; 4]; 3];
+            let mut matrices = [[[0.0; 4]; 3]; N];
             for block in &blocks {
-                for (sum, partial) in matrix
+                for (sum, partial) in matrices
                     .iter_mut()
                     .flatten()
-                    .zip(block.regression.iter().flatten())
+                    .flatten()
+                    .zip(block.regression.iter().flatten().flatten())
                 {
                     *sum += partial;
                 }
             }
-            if matrix[0][0] == 0.0 {
+            let mut coefficients = [None; N];
+            for (mut matrix, coefficient) in matrices.into_iter().zip(&mut coefficients) {
+                if matrix[0][0] == 0.0 {
+                    continue;
+                }
+                if matrix.iter().flatten().any(|value| !value.is_finite()) {
+                    return Err(unstable());
+                }
+                matrix[1][0] = matrix[0][1];
+                matrix[2][0] = matrix[0][2];
+                matrix[2][1] = matrix[1][2];
+                *coefficient = Some(solve_quadratic(matrix).ok_or_else(unstable)?);
+            }
+            if coefficients.iter().all(Option::is_none) {
                 continue;
             }
-            if matrix.iter().flatten().any(|value| !value.is_finite()) {
-                return Err(unstable());
-            }
-            matrix[1][0] = matrix[0][1];
-            matrix[2][0] = matrix[0][2];
-            matrix[2][1] = matrix[1][2];
-            let coefficients = solve_quadratic(matrix).ok_or_else(unstable)?;
             runner.run(&mut blocks, |_, block| {
-                for (path, cash) in block.spots.chunks_exact(intervals).zip(&mut block.cash) {
-                    let intrinsic = payoff(path[step]);
-                    if intrinsic <= 0.0 {
-                        continue;
-                    }
-                    let x = path[step] / strike;
-                    let continuation =
-                        coefficients[0] + x * (coefficients[1] + x * coefficients[2]);
-                    if !continuation.is_finite() {
-                        return Err(unstable());
-                    }
-                    if intrinsic / strike > continuation {
-                        *cash = intrinsic;
+                let count = block.cash.len();
+                let spots = &block.spots[step * count..(step + 1) * count];
+                for (spots, cash) in spots.iter().zip(&mut block.cash) {
+                    for ((&spot, cash), coefficient) in spots.iter().zip(cash).zip(coefficients) {
+                        let Some([constant, linear, quadratic]) = coefficient else {
+                            continue;
+                        };
+                        let intrinsic = payoff(spot);
+                        if intrinsic <= 0.0 {
+                            continue;
+                        }
+                        let x = spot / strike;
+                        let continuation = constant + x * (linear + x * quadratic);
+                        if !continuation.is_finite() {
+                            return Err(unstable());
+                        }
+                        if intrinsic / strike > continuation {
+                            *cash = intrinsic;
+                        }
                     }
                 }
                 Ok(())
             })?;
         }
-        let mut mean = Moments::default();
+        let mut means = [Moments::default(); N];
         for block in blocks {
             crate::cancellation::check()?;
             for cash in block.cash {
-                mean.add(cash, false);
+                for (mean, value) in means.iter_mut().zip(cash) {
+                    mean.add(value, false);
+                }
             }
         }
-        Ok((
-            scaled_value(mean.scale, mean.mean, -rate * dt)?.max(immediate),
-            Some(seed),
-        ))
+        let mut prices = immediate;
+        for (price, mean) in prices.iter_mut().zip(means) {
+            *price = scaled_value(mean.scale, mean.mean, -rate * dt)?.max(*price);
+        }
+        Ok((prices, Some(seed)))
     }
 }
 
@@ -507,7 +582,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
             }
             Ok(result)
         };
-        crate::risk::numerical::complete_greeks(
+        crate::risk::numerical::complete_greeks_with_pair(
             option,
             context,
             request,
@@ -515,6 +590,13 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
             false,
             native(context, request)?,
             native,
+            |high, low, _| {
+                let ([up, down], seed) = engine.american_spots(option, [high, low], true)?;
+                Ok(Some((
+                    PricingResult::new(up)?.with_seed(seed),
+                    PricingResult::new(down)?.with_seed(seed),
+                )))
+            },
         )
     }
 }
