@@ -485,17 +485,27 @@ def test_curve_applicability_coverage_and_expiry_order():
 
 
 def test_live_quantlib_geometric_and_same_levy_approximation(subtests):
-
     asian = importlib.import_module("quantlib_reference.asian")
     oracle = importlib.import_module("quantlib_reference.oracle")
     differences = importlib.import_module("price_differences").price_differences
     oracle.require_version()
     with ql.SavedSettings():
         asian.check_bindings()
-        rows = list(asian.rows())
-    assert len(rows) == 24
-    for row in rows:
-        inputs = row["inputs"]
+        scenarios = [
+            (
+                identifier,
+                inputs,
+                oracle.reference(
+                    inputs,
+                    asian.STABILITY,
+                    unavailable=asian.exclusions(inputs),
+                    measure_fn=asian.measure,
+                ),
+            )
+            for identifier, inputs in asian.scenarios()
+        ]
+    assert len(scenarios) == 24
+    for identifier, inputs, (expected, metadata) in scenarios:
         kind, engine_type = PAIRS[0 if inputs["averaging"] == "geometric" else 1]
         option = kind(
             **terms(
@@ -517,36 +527,34 @@ def test_live_quantlib_geometric_and_same_levy_approximation(subtests):
             inputs["spot"],
         )
         engine = engine_type()
-        with subtests.test(case=row["case_id"]):
+        with subtests.test(case=identifier):
             assert engine.price(option, context) == pytest.approx(
-                row["outputs"]["price"], rel=0, abs=row["tolerances"]["price"]
+                expected["price"], rel=0, abs=asian.BUDGET["price"]
             )
-            requested = sorted(set(row["outputs"]) - {"price"})
+            requested = sorted(set(expected) - {"price"})
             if requested:
+                spot_shift = 0.02
                 joint = numerical_greeks(
                     engine,
                     option,
                     context,
                     requested,
-                    spot_shift=inputs["spot_shift"],
+                    spot_shift=spot_shift,
                 )
                 numeric = differences(
                     engine,
                     option,
                     context,
                     requested,
-                    spot_shift=inputs["spot_shift"],
+                    spot_shift=spot_shift,
                 )
                 for name in requested:
-                    budget = (
-                        inputs[f"numerical_tolerance_{name}"]
-                        + inputs[f"uncertainty_{name}"]
-                    )
+                    budget = asian.BUDGET[name] + metadata[f"uncertainty_{name}"]
                     assert getattr(joint, name) == pytest.approx(
-                        row["outputs"][name], rel=0, abs=budget
+                        expected[name], rel=0, abs=budget
                     )
                     assert getattr(numeric, name) == pytest.approx(
-                        row["outputs"][name], rel=0, abs=budget
+                        expected[name], rel=0, abs=budget
                     )
 
 

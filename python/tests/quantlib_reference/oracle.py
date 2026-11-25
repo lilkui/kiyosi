@@ -50,7 +50,6 @@ STABILITY = {
     "zomma": 0.000001,
     "rho": 0.0001,
 }
-CONVENTION = "Actual/365 Fixed, continuously compounded BSM"
 
 
 def require(condition, message):
@@ -252,9 +251,7 @@ def reference(inputs, stability=STABILITY, *, unavailable=None, measure_fn=None)
     unavailable = exclusions(inputs) if unavailable is None else unavailable
     outputs, metadata = {}, {}
     for name in MEASURES:
-        metadata[f"unit_{name}"] = UNITS[name]
         if name in unavailable:
-            metadata[f"unavailable_{name}"] = unavailable[name]
             continue
         value = measure_fn(inputs, name)
         # Force price fallback for first-order measures and gamma to validate both paths.
@@ -276,63 +273,8 @@ def reference(inputs, stability=STABILITY, *, unavailable=None, measure_fn=None)
         )
         outputs[name] = value
         metadata[f"uncertainty_{name}"] = uncertainty
-        metadata[f"stability_limit_{name}"] = stability[name]
     require(outputs["price"] >= 0, "invalid QuantLib price")
     return outputs, metadata
-
-
-def reference_row(
-    identifier,
-    inputs,
-    reference,
-    tolerances,
-    numerical_tolerances,
-    *,
-    instrument,
-    engine,
-):
-    """Attach product identity and comparison budgets without mutating inputs.
-
-    Parameters
-    ----------
-    identifier : str
-        Unique scenario identifier.
-    inputs : dict
-        Independent scenario inputs.
-    reference : tuple of dict
-        Independent outputs and metadata.
-    tolerances : dict of str to float
-        Acceptance budgets for native results.
-    numerical_tolerances : dict of str to float
-        Acceptance budgets for numerical Greeks.
-    instrument : str
-        Product identity used by the scenario.
-    engine : str
-        Engine identity used by the scenario.
-
-    Returns
-    -------
-    dict
-        Scenario identity, copied inputs, outputs and comparison budgets.
-    """
-    outputs, metadata = reference
-    attributes = dict(
-        inputs,
-        convention=CONVENTION,
-        calendar="weekends_only",
-    )
-    attributes.update(metadata)
-    attributes.update(
-        {f"numerical_tolerance_{name}": numerical_tolerances[name] for name in outputs}
-    )
-    return {
-        "case_id": identifier,
-        "instrument": instrument,
-        "engine": engine,
-        "inputs": attributes,
-        "outputs": dict(outputs),
-        "tolerances": {name: tolerances[name] for name in outputs},
-    }
 
 
 def load_fixture(name):

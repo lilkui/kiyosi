@@ -7,14 +7,7 @@ from types import SimpleNamespace
 from . import oracle as g
 
 ql = g.ql
-INSTRUMENTS = {
-    "geometric": "GeometricAveragePriceOption",
-    "arithmetic": "ArithmeticAveragePriceOption",
-}
-ENGINES = {
-    "geometric": "AnalyticGeometricAveragePriceEngine",
-    "arithmetic": "TurnbullWakemanArithmeticAveragePriceEngine",
-}
+AVERAGING_KINDS = ("geometric", "arithmetic")
 STABILITY = dict(
     g.STABILITY,
     gamma=1e-6,
@@ -53,7 +46,7 @@ def exclusions(inputs):
 def option(inputs):
     kind = inputs["averaging"]
     g.require(
-        kind in INSTRUMENTS and inputs["option"] in {"call", "put"},
+        kind in AVERAGING_KINDS and inputs["option"] in {"call", "put"},
         "unknown Asian contract",
     )
     g.require(inputs["monitoring"] == "continuous", "unknown Asian monitoring")
@@ -104,7 +97,7 @@ def measure(inputs, name, scale=1, price_only=False):
 
 
 def scenarios():
-    for kind in INSTRUMENTS:
+    for kind in AVERAGING_KINDS:
         for direction in ("call", "put"):
             for spot, days in ((80, 90), (100, 365), (120, 730)):
                 for elapsed in (0,) if kind == "geometric" else (0, 90):
@@ -151,31 +144,6 @@ def scenarios():
                     yield f"ql-asian-{kind}-{direction}-expiry_time-{average}", inputs
 
 
-def rows():
-    for identifier, inputs in scenarios():
-        reference = g.reference(
-            inputs, STABILITY, unavailable=exclusions(inputs), measure_fn=measure
-        )
-        row = g.reference_row(
-            identifier,
-            inputs,
-            reference,
-            BUDGET,
-            BUDGET,
-            instrument=INSTRUMENTS[inputs["averaging"]],
-            engine=ENGINES[inputs["averaging"]],
-        )
-        terms = row["inputs"]
-        terms.update(
-            spot_shift=0.02,
-            volatility_shift=0.0001,
-            rate_shift=0.0001,
-            time_shift_days=1,
-            wrapper=not exclusions(inputs),
-        )
-        yield row
-
-
 def check_bindings():
     valuation, expiry_time = ql.Date(6, 1, 2025), ql.Date(6, 1, 2026)
     process = g.market_process(
@@ -189,7 +157,7 @@ def check_bindings():
     )
     payoff = ql.PlainVanillaPayoff(ql.Option.Call, 100)
     exercise = ql.EuropeanExercise(expiry_time)
-    for kind in INSTRUMENTS:
+    for kind in AVERAGING_KINDS:
         engine = (
             ql.AnalyticContinuousGeometricAveragePriceAsianEngine(process)
             if kind == "geometric"
