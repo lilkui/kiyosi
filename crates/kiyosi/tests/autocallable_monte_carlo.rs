@@ -796,13 +796,17 @@ fn batched_phoenix_spot_and_market_greeks_replay_scalar_stencils() -> Result<()>
         spot_shift: Some(4.0),
         ..Default::default()
     };
-    let request = GreeksRequest::new([
+    let measures = [
         Greek::Delta,
         Greek::Gamma,
         Greek::Vega,
         Greek::Rho,
         Greek::DividendRho,
-    ]);
+        Greek::Vanna,
+        Greek::Zomma,
+        Greek::Speed,
+    ];
+    let request = GreeksRequest::new(measures);
     for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
         let engine = MonteCarloAutocallableEngine::new(MonteCarloSettings {
             path_count: 2048,
@@ -814,13 +818,7 @@ fn batched_phoenix_spot_and_market_greeks_replay_scalar_stencils() -> Result<()>
         let batch = engine.price_with_greeks_with_settings(&note, &context, request, shift)?;
         let scalar = numerical_greeks(&engine, &note, &context, request, shift)?;
         assert_eq!(batch, scalar, "{sampling:?} must replay the scalar paths");
-        for greek in [
-            Greek::Delta,
-            Greek::Gamma,
-            Greek::Vega,
-            Greek::Rho,
-            Greek::DividendRho,
-        ] {
+        for greek in measures {
             assert!(batch.require(greek)?.is_finite());
         }
     }

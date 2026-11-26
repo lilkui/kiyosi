@@ -510,7 +510,7 @@ def test_batched_phoenix_spot_and_market_greeks_replay_scalar_stencils(sampling)
     context = market(100, START)
     for greeks in (
         ["delta", "gamma", "vega", "rho"],
-        ["delta", "gamma", "vega", "rho", "dividend_rho"],
+        ["delta", "gamma", "vega", "rho", "dividend_rho", "vanna", "zomma", "speed"],
     ):
         batch = engine.price_with_greeks(note, context, greeks, spot_shift=4)
         scalar = numerical_greeks(engine, note, context, greeks, spot_shift=4)

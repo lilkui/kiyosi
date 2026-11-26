@@ -1013,9 +1013,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
                         return Ok(Some((PricingResult::new(*up)?, PricingResult::new(*down)?)));
                     }
                 }
-                if a.valuation_time() == b.valuation_time()
-                    && a.model_parameters() != b.model_parameters()
-                {
+                if a.valuation_time() == b.valuation_time() {
                     let cached = |context| {
                         market_batch
                             .iter()
