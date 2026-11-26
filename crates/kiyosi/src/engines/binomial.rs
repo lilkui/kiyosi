@@ -180,28 +180,191 @@ impl CoxRossRubinsteinVanillaEngine {
         context: &PricingContext,
         absolute_tolerance: f64,
     ) -> Result<f64> {
-        crate::error::finite(absolute_tolerance, true, "absolute_tolerance")?;
-        flat_rates(context)?;
-        if option.option_type() != OptionType::Put {
-            return Err(Error::UnsupportedOperation(
-                "rollback tolerance requires an American put".into(),
-            ));
-        }
+        validate_banded_put(option, context, absolute_tolerance)?;
+        Ok(self
+            .banded_native(option, context, absolute_tolerance, GreeksRequest::new([]))?
+            .price())
+    }
+
+    /// Prices an American put and its requested Greeks with tolerance-bounded rollback.
+    ///
+    /// The tolerance caps discarded tail value in each price calculation. The
+    /// engine tightens it for sensitivities whose differences amplify price errors.
+    /// Grid discretization and rounding errors still apply. See
+    /// [`Self::price_with_rollback_tolerance`] for the rollback contract.
+    ///
+    /// # Errors
+    ///
+    /// Propagates rollback, numerical shift and bumped pricing errors.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kiyosi::{AmericanOption, BinomialSettings, BlackScholesMertonParameters,
+    ///     CoxRossRubinsteinVanillaEngine, Date, Greek, GreeksRequest,
+    ///     NumericalShiftSettings, OptionType, PricingContext};
+    ///
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let put = AmericanOption::new(OptionType::Put, 100.0, start, start.add_days(365)?)?;
+    /// let market = PricingContext::new(
+    ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start)?;
+    /// let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 20_000 })?;
+    /// let result = engine.price_with_greeks_with_rollback_tolerance(
+    ///     &put, &market, GreeksRequest::new([Greek::Delta]), NumericalShiftSettings::default(), 1e-6)?;
+    /// assert!(result.require(Greek::Delta)? < 0.0);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn price_with_greeks_with_rollback_tolerance(
+        &self,
+        option: &AmericanOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        shifts: crate::NumericalShiftSettings,
+        absolute_tolerance: f64,
+    ) -> Result<PricingResult> {
+        validate_banded_put(option, context, absolute_tolerance)?;
+        shifts.validate()?;
+        time_step(option, context, self.settings)?;
+        let tolerance = stencil_tolerance(option, context, request, shifts, absolute_tolerance)?;
+        let evaluate = |context: &PricingContext, stencil| {
+            self.banded_native(option, context, tolerance, stencil)
+        };
+        crate::risk::numerical::complete_greeks(
+            option,
+            context,
+            request,
+            shifts,
+            true,
+            evaluate(context, request)?,
+            evaluate,
+        )
+    }
+
+    fn banded_native(
+        self,
+        option: &AmericanOption,
+        context: &PricingContext,
+        tolerance: f64,
+        request: GreeksRequest,
+    ) -> Result<PricingResult> {
+        let payoff = Payoff::vanilla(OptionType::Put, option.strike(), true);
+        let exact = || native(option, payoff, context, self.settings, request);
         let dt = time_step(option, context, self.settings)?;
-        if dt == 0.0 || crate::engines::deterministic::enabled(context) {
-            return self.price(option, context);
+        if dt == 0.0 || crate::engines::deterministic::enabled(context) || tolerance == 0.0 {
+            return exact();
         }
         let [spot, strike] = [context.spot_price(), option.strike()];
         let steps = self.settings.step_count.unsigned_abs() as usize;
-        let (width, up, _, discount, p) = parameters(context, dt)?;
-        let value = banded_put(
+        let (width, up, down, discount, p) = parameters(context, dt)?;
+        let h = spot * (up - 1.0);
+        let tolerance = if request.has(Greek::Gamma) {
+            tolerance * h.min(1.0).powi(2) * 0.125
+        } else if request.has(Greek::Delta) {
+            tolerance * h.min(1.0) * 0.25
+        } else {
+            tolerance
+        };
+        let Some(BandedValues {
+            price,
+            first,
+            second,
+            exercised,
+        }) = banded_put(steps, [spot, strike, width, up, p], discount, tolerance)?
+        else {
+            return exact();
+        };
+        if exercised {
+            let mut result = PricingResult::new(price)?;
+            result.set(request, Greek::Delta, -1.0)?;
+            result.set(request, Greek::Gamma, 0.0)?;
+            return Ok(result);
+        }
+        tree_result(
+            price,
+            first,
+            second,
+            spot,
+            [up, down, up * up],
+            request,
             steps,
-            [spot, strike, width, up, p],
-            discount,
-            absolute_tolerance,
-        )?;
-        value.map_or_else(|| self.price(option, context), Ok)
+        )
     }
+}
+
+fn validate_banded_put(
+    option: &AmericanOption,
+    context: &PricingContext,
+    tolerance: f64,
+) -> Result<()> {
+    crate::error::finite(tolerance, true, "absolute_tolerance")?;
+    flat_rates(context)?;
+    if option.option_type() != OptionType::Put {
+        return Err(Error::UnsupportedOperation(
+            "rollback tolerance requires an American put".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn stencil_tolerance(
+    option: &AmericanOption,
+    context: &PricingContext,
+    request: GreeksRequest,
+    shifts: crate::NumericalShiftSettings,
+    tolerance: f64,
+) -> Result<f64> {
+    let model = context.natural_bsm_parameters()?;
+    let sigma = model.volatility();
+    let vol = crate::risk::numerical::symmetric_shift(sigma, shifts.volatility_shift_at(sigma));
+    let spot = context.spot_price();
+    let bump = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
+    let time = if [Greek::Theta, Greek::Charm, Greek::Color]
+        .into_iter()
+        .any(|g| request.has(g))
+        && context.valuation_time() < option.expiry_time()
+    {
+        crate::risk::numerical::time_stencil(option, context, shifts)?
+            .map_or(0.0, |(before, after)| before.years_until(after))
+    } else {
+        0.0
+    };
+    let scale = [
+        (Greek::Speed, bump),
+        (Greek::Theta, time),
+        (Greek::Charm, time),
+        (Greek::Color, time),
+        (Greek::Vega, vol),
+        (Greek::Vanna, vol),
+        (Greek::Zomma, vol),
+        (Greek::Volga, vol * vol),
+        (
+            Greek::Rho,
+            crate::risk::numerical::symmetric_shift(
+                model.risk_free_curve().shift_origin(),
+                shifts.rate_shift,
+            ),
+        ),
+        (
+            Greek::DividendRho,
+            crate::risk::numerical::symmetric_shift(
+                model.dividend_curve().shift_origin(),
+                shifts.rate_shift,
+            ),
+        ),
+    ]
+    .into_iter()
+    .filter(|&(greek, span)| request.has(greek) && span > 0.0)
+    .fold(1.0_f64, |smallest, (_, span)| smallest.min(0.25 * span));
+    Ok(tolerance * scale)
+}
+
+struct BandedValues {
+    price: f64,
+    first: [f64; 2],
+    second: [f64; 3],
+    exercised: bool,
 }
 
 #[expect(
@@ -215,7 +378,7 @@ fn banded_put(
     [spot, strike, width, up, p]: [f64; 5],
     discount: StepDiscount,
     tolerance: f64,
-) -> Result<Option<f64>> {
+) -> Result<Option<BandedValues>> {
     // The maximal Hoeffding bound for either side of the centered walk is
     // exp(-2*r²/steps). An omitted payoff is at most strike, discounted to
     // the worst valuation factor over all exercise dates.
@@ -249,7 +412,15 @@ fn banded_put(
         *value = (strike - node_spot).max(0.0);
         node_spot *= step_up;
     }
+    let mut first = [0.0; 2];
+    let mut second = [0.0; 3];
+    let mut exercised = false;
     for level in (0..steps).rev() {
+        if level + 1 == 1 {
+            first.copy_from_slice(&values[..2]);
+        } else if level + 1 == 2 {
+            second.copy_from_slice(&values[..3]);
+        }
         crate::cancellation::check()?;
         let current = range(level);
         node_spot = asset(level, current.start);
@@ -264,9 +435,13 @@ fn banded_put(
             }
         };
         for (node, value) in current.clone().zip(&mut next) {
-            *value = discount
-                .rollback(child(node), child(node + 1), p)
-                .max((strike - node_spot).max(0.0));
+            let continuation = discount.rollback(child(node), child(node + 1), p);
+            let exercise = (strike - node_spot).max(0.0);
+            if level == 0 {
+                // Use the original spot at the root, as in the full rollback.
+                exercised = exercise > 0.0 && exercise > continuation;
+            }
+            *value = continuation.max(exercise);
             if !value.is_finite() {
                 return Err(unstable());
             }
@@ -275,7 +450,12 @@ fn banded_put(
         std::mem::swap(&mut values, &mut next);
         later = current;
     }
-    Ok(Some(values[0]))
+    Ok(Some(BandedValues {
+        price: values[0],
+        first,
+        second,
+        exercised,
+    }))
 }
 
 fn time_step(

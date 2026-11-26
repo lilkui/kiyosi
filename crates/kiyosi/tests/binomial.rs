@@ -831,3 +831,37 @@ fn one_step_speed_respects_automatic_and_explicit_spot_bumps() {
         GreekStatus::StencilUnavailable
     );
 }
+
+#[test]
+fn banded_put_greeks_match_the_full_tree() -> Result<()> {
+    let (start, end) = dates();
+    let put = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let snapshot = market(100.0, 0.05, 0.02, 0.2);
+    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 4800 })?;
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Rho, Greek::Vega]);
+    let exact = engine.price_with_greeks(&put, &snapshot, request)?;
+    let bounded = engine.price_with_greeks_with_rollback_tolerance(
+        &put,
+        &snapshot,
+        request,
+        NumericalShiftSettings::default(),
+        1e-6,
+    )?;
+    assert!((bounded.price() - exact.price()).abs() <= 1e-6);
+    for greek in [Greek::Delta, Greek::Gamma, Greek::Rho, Greek::Vega] {
+        assert!(
+            (bounded.require(greek)? - exact.require(greek)?).abs() < 1e-6,
+            "{greek:?}"
+        );
+    }
+    let fine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 20_000 })?;
+    let result = fine.price_with_greeks_with_rollback_tolerance(
+        &put,
+        &snapshot,
+        request,
+        NumericalShiftSettings::default(),
+        1e-6,
+    )?;
+    assert!(result.require(Greek::Gamma)? > 0.0);
+    Ok(())
+}

@@ -150,6 +150,56 @@ binomial_engine!(
                 self.0.price_with_rollback_tolerance(instrument, context, absolute_tolerance)
             })?)
         }
+
+        /// Price an American put and its requested Greeks with bounded lattice tails.
+        ///
+        /// Parameters
+        /// ----------
+        /// instrument : AmericanOption
+        ///     American put to price.
+        /// context : PricingContext
+        ///     Market data with flat rates.
+        /// greeks : str or iterable of str
+        ///     Requested Greek names or "all".
+        /// absolute_tolerance : float
+        ///     Positive truncation tolerance in price units. The engine tightens it
+        ///     for sensitivities whose differences amplify price errors.
+        /// spot_shift, volatility_shift, rate_shift, time_shift : optional
+        ///     Numerical controls as in price_with_greeks.
+        ///
+        /// Returns
+        /// -------
+        /// PricingResult
+        ///     The price and requested sensitivities. Grid and rounding errors still apply.
+        #[pyo3(signature = (instrument, context, greeks, *, absolute_tolerance,
+            spot_shift=crate::conversions::OMITTED, volatility_shift=crate::conversions::OMITTED,
+            rate_shift=crate::conversions::OMITTED, time_shift=crate::conversions::OMITTED))]
+        #[expect(clippy::too_many_arguments, clippy::needless_pass_by_value, reason = "PyO3 owns the instrument and accepts the shared Greek controls.")]
+        fn price_with_greeks_with_rollback_tolerance(
+            &self,
+            py: Python<'_>,
+            #[pyo3(from_py_with = crate::conversions::instrument)]
+            instrument: PyRef<'_, american::AmericanOption>,
+            context: &crate::market::PricingContext,
+            greeks: &Bound<'_, PyAny>,
+            #[pyo3(from_py_with = crate::conversions::real)] absolute_tolerance: f64,
+            #[pyo3(from_py_with = crate::conversions::supplied)] spot_shift: Option<&Bound<'_, PyAny>>,
+            #[pyo3(from_py_with = crate::conversions::supplied)] volatility_shift: Option<&Bound<'_, PyAny>>,
+            #[pyo3(from_py_with = crate::conversions::supplied)] rate_shift: Option<&Bound<'_, PyAny>>,
+            #[pyo3(from_py_with = crate::conversions::supplied)] time_shift: Option<&Bound<'_, PyAny>>,
+        ) -> PyResult<crate::risk::PricingResult> {
+            let request = crate::engines::NativeGreeksRequest::from_python(
+                greeks, spot_shift, volatility_shift, rate_shift, time_shift,
+            )?;
+            let instrument = &instrument.0;
+            let context = &context.0;
+            let result = crate::cancellation::run(py, || {
+                self.0.price_with_greeks_with_rollback_tolerance(
+                    instrument, context, request.request, request.settings, absolute_tolerance,
+                )
+            })?;
+            Ok(crate::risk::PricingResult(domain(result)?))
+        }
     }
 );
 

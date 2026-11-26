@@ -52,6 +52,18 @@ def bounded_lattice_price(put: AmericanOption, context: PricingContext) -> None:
         float,
     )
 
+    assert_type(
+        CoxRossRubinsteinVanillaEngine(
+            step_count=20_000
+        ).price_with_greeks_with_rollback_tolerance(
+            put,
+            context,
+            ["gamma", "vega"],
+            absolute_tolerance=1e-6,
+        ),
+        PricingResult,
+    )
+
 
 def heston_strike_batch(option: EuropeanOption, context: PricingContext) -> None:
     for engine in (

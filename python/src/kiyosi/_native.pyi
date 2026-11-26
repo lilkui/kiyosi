@@ -2546,6 +2546,40 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self, *, step_count: SupportsIndex = ...) -> None: ...
+    def price_with_greeks_with_rollback_tolerance(
+        self,
+        instrument: AmericanOption,
+        context: PricingContext,
+        greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        absolute_tolerance: _Real,
+        spot_shift: _Real | None | EllipsisType = ...,
+        volatility_shift: _Real | None | EllipsisType = ...,
+        rate_shift: _Real | EllipsisType = ...,
+        time_shift: timedelta | None | EllipsisType = ...,
+    ) -> PricingResult:
+        """Price an American put and its requested Greeks with bounded lattice tails.
+
+        Parameters
+        ----------
+        instrument : AmericanOption
+            American put to price.
+        context : PricingContext
+            Market data with flat rates.
+        greeks : str or iterable of str
+            Requested Greek names or "all".
+        absolute_tolerance : float
+            Positive truncation tolerance in price units. The engine tightens it
+            for sensitivities whose differences amplify price errors.
+        spot_shift, volatility_shift, rate_shift, time_shift : optional
+            Numerical controls as in price_with_greeks.
+
+        Returns
+        -------
+        PricingResult
+            The price and requested sensitivities. Grid and rounding errors still apply.
+        """
+
     def price_with_rollback_tolerance(
         self,
         instrument: AmericanOption,

@@ -87,6 +87,28 @@ def test_banded_american_put_preserves_price_within_the_truncation_budget():
         )
 
 
+def test_banded_put_greeks_match_the_full_tree():
+    put = AmericanOption(
+        option_type="put", strike=100, effective_time=START, expiry_time=END
+    )
+    snapshot = market(spot=100, rate=0.05, dividend=0.02, sigma=0.2)
+    engine = CoxRossRubinsteinVanillaEngine(step_count=4800)
+    greeks = ["delta", "gamma", "rho", "vega"]
+    exact = engine.price_with_greeks(put, snapshot, greeks, rate_shift=2e-4)
+    bounded = engine.price_with_greeks_with_rollback_tolerance(
+        put, snapshot, greeks, absolute_tolerance=1e-6, rate_shift=2e-4
+    )
+    assert bounded.price == pytest.approx(exact.price, rel=0, abs=1e-6)
+    for greek in greeks:
+        assert getattr(bounded, greek) == pytest.approx(
+            getattr(exact, greek), rel=0, abs=1e-6
+        )
+    with pytest.raises(TypeError):
+        engine.price_with_greeks_with_rollback_tolerance(
+            put, snapshot, greeks, absolute_tolerance=True
+        )
+
+
 @pytest.mark.parametrize(
     ("rate", "amount"), [(744.0, 1e300), (800.0, 1e300), (-800.0, 1e-300)]
 )
