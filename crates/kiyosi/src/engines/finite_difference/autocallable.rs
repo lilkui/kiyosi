@@ -261,8 +261,12 @@ fn native<T: AutocallableTerms>(
         None
     };
     let upper = grid.as_ref().map(|grid| grid.space.upper);
-    let result = AutocallableState { start, grid }
-        .evaluate_after_observations(note, context, &state, fixed, request, shifts)?;
+    let result = AutocallableState {
+        start,
+        grid,
+        prefix: None,
+    }
+    .evaluate_after_observations(note, context, &state, fixed, request, shifts)?;
     Ok((result, upper))
 }
 
@@ -599,6 +603,7 @@ struct AutocallableGrid {
 struct AutocallableState {
     start: Timestamp,
     grid: Option<AutocallableGrid>,
+    prefix: Option<Vec<deterministic::AutocallableFixing>>,
 }
 impl AutocallableState {
     fn evaluate_after_observations<T: AutocallableTerms>(
@@ -690,7 +695,12 @@ impl<T: AutocallableTerms> Backend<AutocallableNote<T>> for AutocallableState {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        let state = deterministic::autocallable_through(note, context, self.start)?;
+        let state = deterministic::autocallable_through_prepared(
+            note,
+            context,
+            self.start,
+            self.prefix.as_deref(),
+        )?;
         if let Some(value) = state.settlement {
             return PricingResult::new(value);
         }
@@ -713,11 +723,15 @@ impl<T: AutocallableTerms> super::FiniteDifferenceEngine<AutocallableNote<T>>
         let anchor = super::solution::at_spot(context, *range.end())?;
         validate(note, &anchor)?;
         let start = context.deterministic_until(note.expiry_time())?;
+        let prefix = deterministic::prepare_autocallable_prefix(note, context, start)?;
+        let through = |context: &PricingContext| {
+            deterministic::autocallable_through_prepared(note, context, start, prefix.as_deref())
+        };
         let mut pending = false;
         let mut starting_knocked = true;
         if start < note.expiry_time() {
             let low = super::solution::at_spot(context, *range.start())?;
-            let state = deterministic::autocallable_through(note, &low, start)?;
+            let state = through(&low)?;
             if state.settlement.is_none() {
                 pending = fixed_value_at(note, &low, start, state.knocked_in).is_none();
                 starting_knocked = state.knocked_in;
@@ -733,7 +747,7 @@ impl<T: AutocallableTerms> super::FiniteDifferenceEngine<AutocallableNote<T>>
                     while bits > lo {
                         crate::cancellation::check()?;
                         let probe = super::solution::at_spot(context, f64::from_bits(bits))?;
-                        let state = deterministic::autocallable_through(note, &probe, start)?;
+                        let state = through(&probe)?;
                         if state.settlement.is_some() {
                             hi = bits - 1;
                         } else if state.knocked_in {
@@ -764,7 +778,11 @@ impl<T: AutocallableTerms> super::FiniteDifferenceEngine<AutocallableNote<T>>
         } else {
             None
         };
-        let state = AutocallableState { start, grid };
+        let state = AutocallableState {
+            start,
+            grid,
+            prefix,
+        };
         state.evaluate(note, &anchor, GreeksRequest::new([]), Default::default())?;
         crate::cancellation::check()?;
         Ok(super::FiniteDifferenceSolution::new(

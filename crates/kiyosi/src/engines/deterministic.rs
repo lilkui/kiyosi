@@ -5,6 +5,7 @@ use crate::instruments::autocallable::pricing::{
     Initial, event_times_through, fixed_value, initial, validate,
 };
 use crate::instruments::{
+    autocallable::ObservationEvent,
     binary_barrier::{Contract, Settlement},
     monitoring::{Monitoring, validate_life},
 };
@@ -1140,6 +1141,111 @@ pub(super) fn autocallable_through<T: AutocallableTerms>(
     context: &PricingContext,
     horizon: Timestamp,
 ) -> Result<Initial> {
+    autocallable_through_prepared(note, context, horizon, None)
+}
+
+#[derive(Clone, Copy, PartialEq)]
+struct ForwardFixing {
+    time: Timestamp,
+    carry: f64,
+    discount: f64,
+}
+
+fn prepare_fixings<F>(fixings: Result<impl Iterator<Item = Result<F>>>) -> Result<Option<Vec<F>>> {
+    let load = || {
+        let fixings = fixings?;
+        let mut prepared = Vec::new();
+        if let Some(count) = fixings.size_hint().1 {
+            // Allow room for the accumulator's two observation indices as well.
+            if count.saturating_mul(size_of::<F>() + 2 * size_of::<usize>()) > 256 << 20
+                || prepared.try_reserve_exact(count).is_err()
+            {
+                return Ok(None);
+            }
+        } else {
+            return Ok(None);
+        }
+        for fixing in fixings {
+            prepared.push(fixing?);
+        }
+        Ok(Some(prepared))
+    };
+    match load() {
+        // A spot may settle before a bad forward factor or an uncovered date.
+        // Preserve the scalar evaluation order when eager preparation fails.
+        Err(error @ Error::Io(_)) => Err(error),
+        Err(_) => Ok(None),
+        prepared => prepared,
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+pub(super) struct AutocallableFixing {
+    forward: ForwardFixing,
+    daily: bool,
+    record: Option<usize>,
+}
+
+fn autocallable_fixings<'a, T: AutocallableTerms>(
+    note: &'a AutocallableNote<T>,
+    context: &'a PricingContext,
+    horizon: Timestamp,
+) -> Result<impl Iterator<Item = Result<AutocallableFixing>> + 'a> {
+    let daily = note.view().daily_knock_in();
+    let mut next = note
+        .events()
+        .partition_point(|record| record.time() <= context.valuation_time());
+    let mut forward_to = forward_factors(context);
+    Ok(event_times_through(note, context, daily, horizon)?
+        .into_iter()
+        .filter_map(move |time| {
+            let daily = daily && note.daily_time(time, note.calendar());
+            let record = note
+                .events()
+                .get(next)
+                .map(ObservationEvent::time)
+                .filter(|&at| at == time)
+                .map(|_| {
+                    let index = next;
+                    next += 1;
+                    index
+                });
+            if !daily && record.is_none() && time != note.expiry_time() {
+                return None;
+            }
+            Some(
+                forward_to(time).map(|(carry, discount)| AutocallableFixing {
+                    forward: ForwardFixing {
+                        time,
+                        carry,
+                        discount,
+                    },
+                    daily,
+                    record,
+                }),
+            )
+        }))
+}
+
+pub(super) fn prepare_autocallable_prefix<T: AutocallableTerms>(
+    note: &AutocallableNote<T>,
+    context: &PricingContext,
+    horizon: Timestamp,
+) -> Result<Option<Vec<AutocallableFixing>>> {
+    if horizon <= context.valuation_time()
+        || note.barrier_state() == Some(crate::AutocallableBarrierState::KnockedOut)
+    {
+        return Ok(None);
+    }
+    prepare_fixings(autocallable_fixings(note, context, horizon))
+}
+
+pub(super) fn autocallable_through_prepared<T: AutocallableTerms>(
+    note: &AutocallableNote<T>,
+    context: &PricingContext,
+    horizon: Timestamp,
+    prepared: Option<&[AutocallableFixing]>,
+) -> Result<Initial> {
     let mut state = initial(note, context);
     if state.settlement.is_some() || horizon == context.valuation_time() {
         return Ok(state);
@@ -1150,21 +1256,35 @@ pub(super) fn autocallable_through<T: AutocallableTerms>(
             return Ok(state);
         }
     }
-    let daily = note.view().daily_knock_in();
-    let mut next = note
-        .events()
-        .partition_point(|record| record.time() <= context.valuation_time());
-    let mut forward_to = forward_factors(context);
-    for time in event_times_through(note, context, daily, horizon)? {
-        let daily_fixing = daily && note.daily_time(time, note.calendar());
-        let record = note
-            .events()
-            .get(next)
-            .filter(|record| record.time() == time);
-        if !daily_fixing && record.is_none() && time != note.expiry_time() {
-            continue;
-        }
-        let (carry, log_discount) = forward_to(time)?;
+    match prepared {
+        Some(fixings) => replay_autocallable(note, context, state, fixings.iter().copied().map(Ok)),
+        None => replay_autocallable(
+            note,
+            context,
+            state,
+            autocallable_fixings(note, context, horizon)?,
+        ),
+    }
+}
+
+fn replay_autocallable<T: AutocallableTerms>(
+    note: &AutocallableNote<T>,
+    context: &PricingContext,
+    mut state: Initial,
+    fixings: impl Iterator<Item = Result<AutocallableFixing>>,
+) -> Result<Initial> {
+    for fixing in fixings {
+        crate::cancellation::check()?;
+        let AutocallableFixing {
+            forward:
+                ForwardFixing {
+                    time,
+                    carry,
+                    discount: log_discount,
+                },
+            daily,
+            record,
+        } = fixing?;
         let initial = context.spot_price();
         let spot = spot_after_carry(initial, carry)?;
         let compare = |level| context.forward_spot_cmp(time, initial, level, carry);
@@ -1173,11 +1293,10 @@ pub(super) fn autocallable_through<T: AutocallableTerms>(
                 .knock_in
                 .is_some_and(|ki| compare(ki.level).is_some_and(std::cmp::Ordering::is_lt))
         };
-        if daily_fixing {
+        if daily {
             state.knocked_in |= below_knock_in();
         }
-        if let Some(record) = record {
-            next += 1;
+        if let Some(record) = record.map(|index| &note.events()[index]) {
             let at_or_above = |level| compare(level).is_some_and(std::cmp::Ordering::is_ge);
             let coupon = note.observation_coupon(record, at_or_above);
             if record.has_knock_out() && at_or_above(record.knock_out_level()) {
@@ -1212,56 +1331,298 @@ pub(super) fn accumulator_through(
     context: &PricingContext,
     end: Timestamp,
 ) -> Result<(f64, Option<f64>)> {
-    let (mut quantity, settlement) = option.initial(context);
+    accumulator_through_prepared(option, context, end, None)
+}
+
+#[derive(Clone, Copy, PartialEq)]
+struct AccumulatorFixing {
+    forward: ForwardFixing,
+    knock_out: bool,
+    purchase: bool,
+}
+
+fn accumulator_fixings<'a>(
+    option: &'a Accumulator,
+    context: &'a PricingContext,
+    end: Timestamp,
+) -> Result<impl Iterator<Item = Result<AccumulatorFixing>> + 'a> {
+    let mut forward_to = forward_factors(context);
+    Ok(option
+        .future_observation_times_through(context, end)?
+        .into_iter()
+        .map(move |time| {
+            let (carry, discount) = forward_to(time)?;
+            Ok(AccumulatorFixing {
+                forward: ForwardFixing {
+                    time,
+                    carry,
+                    discount,
+                },
+                knock_out: option.observes_knock_out(time),
+                purchase: option.accumulates_at(time, option.calendar()),
+            })
+        }))
+}
+
+#[derive(PartialEq)]
+pub(super) struct AccumulatorPrefix {
+    fixings: Vec<AccumulatorFixing>,
+    index: Option<AccumulatorIndex>,
+    accrues: bool,
+}
+
+#[derive(PartialEq)]
+struct AccumulatorIndex {
+    knock_outs: Vec<usize>,
+    purchases: Vec<usize>,
+    increasing: bool,
+}
+
+pub(super) fn prepare_accumulator_prefix(
+    option: &Accumulator,
+    context: &PricingContext,
+    end: Timestamp,
+) -> Result<Option<AccumulatorPrefix>> {
+    if end <= context.valuation_time() || option.knock_out_settled() == Some(true) {
+        return Ok(None);
+    }
+    let Some(fixings) = prepare_fixings(accumulator_fixings(option, context, end))? else {
+        return Ok(None);
+    };
+    let model = context.model_parameters();
+    let flat = [model.risk_free_curve(), model.dividend_curve()]
+        .iter()
+        .all(|curve| curve.nodes().is_empty() && curve.exact_flat_rate().is_some());
+    let mut index = None;
+    if flat {
+        let mut increasing = true;
+        let mut decreasing = true;
+        let mut knock_outs = Vec::new();
+        let mut purchases = Vec::new();
+        let mut previous = None;
+        for (i, fixing) in fixings.iter().enumerate() {
+            if i % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
+            let carry = fixing.forward.carry;
+            if let Some(prior) = previous {
+                increasing &= prior <= carry;
+                decreasing &= prior >= carry;
+            }
+            previous = Some(carry);
+            if fixing.knock_out {
+                knock_outs.push(i);
+            }
+            if fixing.purchase {
+                purchases.push(i);
+            }
+        }
+        if increasing || decreasing {
+            index = Some(AccumulatorIndex {
+                knock_outs,
+                purchases,
+                increasing,
+            });
+        }
+    }
+    let accrues = option.accrues(context);
+    crate::cancellation::check()?;
+    Ok(Some(AccumulatorPrefix {
+        fixings,
+        index,
+        accrues,
+    }))
+}
+
+pub(super) fn accumulator_through_prepared(
+    option: &Accumulator,
+    context: &PricingContext,
+    end: Timestamp,
+    prepared: Option<&AccumulatorPrefix>,
+) -> Result<(f64, Option<f64>)> {
+    let (quantity, settlement) = option.initial_with_accrual(context, || {
+        prepared.map_or_else(|| option.accrues(context), |prefix| prefix.accrues)
+    });
     if let Some(value) = settlement {
         return Ok((quantity, Some(finite(value)?)));
     }
     if end == context.valuation_time() {
         return Ok((quantity, None));
     }
+    match prepared {
+        Some(prefix) => {
+            if let Some(settlement) = prefix.indexed(option, context, quantity) {
+                settlement
+            } else {
+                replay_accumulator(
+                    option,
+                    context,
+                    quantity,
+                    prefix.fixings.iter().copied().map(Ok),
+                )
+            }
+        }
+        None => replay_accumulator(
+            option,
+            context,
+            quantity,
+            accumulator_fixings(option, context, end)?,
+        ),
+    }
+}
+
+impl AccumulatorPrefix {
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "The bounded fixing arrays have far fewer than 2^53 events."
+    )]
+    fn indexed(
+        &self,
+        option: &Accumulator,
+        context: &PricingContext,
+        quantity: f64,
+    ) -> Option<Result<(f64, Option<f64>)>> {
+        let index = self.index.as_ref()?;
+        let first = self.fixings.first()?.forward;
+        let last = self.fixings.last()?.forward;
+        let spot = context.spot_price();
+        // Every intermediate spot is representable when both monotone endpoints are.
+        spot_after_carry(spot, first.carry).ok()?;
+        spot_after_carry(spot, last.carry).ok()?;
+        let call = option.option_type() == crate::OptionType::Call;
+        let forward_increasing = call == index.increasing;
+        let hit = |i: usize| accumulator_knocks_out(option, context, self.fixings[i].forward);
+        let knock_out = if forward_increasing {
+            index
+                .knock_outs
+                .get(index.knock_outs.partition_point(|&i| !hit(i)))
+                .copied()
+        } else {
+            index.knock_outs.first().copied().filter(|&i| hit(i))
+        };
+        let purchases = &index.purchases[..index
+            .purchases
+            .partition_point(|&i| knock_out.is_none_or(|stop| i < stop))];
+        let strike_distance = log_ratio(spot, option.strike());
+        let accelerated = |i: usize| {
+            let fixing = self.fixings[i].forward;
+            let distance = quoted_spot_distance(context, fixing.time, option.strike())
+                .unwrap_or(strike_distance + fixing.carry);
+            if call { distance < 0.0 } else { distance > 0.0 }
+        };
+        let count = if forward_increasing {
+            purchases.partition_point(|&i| accelerated(i))
+        } else {
+            purchases.len() - purchases.partition_point(|&i| !accelerated(i))
+        };
+        let mut quantity = quantity + (purchases.len() - count) as f64 * option.daily_quantity();
+        if count != 0 {
+            quantity += count as f64 * (option.daily_quantity() * option.acceleration_factor());
+        }
+        // The scalar addition order governs behavior near the overflow boundary.
+        if !quantity.is_finite() || quantity > f64::MAX / 2.0 {
+            return None;
+        }
+        let settlement = knock_out
+            .map(|i| self.fixings[i].forward)
+            .or_else(|| (last.time == option.expiry_time()).then_some(last));
+        Some(settlement.map_or(Ok((quantity, None)), |fixing| {
+            let spot = spot_after_carry(spot, fixing.carry)?;
+            Ok((
+                quantity,
+                Some(accumulator_settlement(
+                    option, context, fixing, spot, quantity,
+                )?),
+            ))
+        }))
+    }
+}
+
+fn accumulator_knocks_out(
+    option: &Accumulator,
+    context: &PricingContext,
+    fixing: ForwardFixing,
+) -> bool {
+    context
+        .forward_spot_cmp(
+            fixing.time,
+            context.spot_price(),
+            option.knock_out_level(),
+            fixing.carry,
+        )
+        .is_some_and(|ordering| match option.option_type() {
+            crate::OptionType::Call => ordering.is_ge(),
+            crate::OptionType::Put => ordering.is_le(),
+        })
+}
+
+fn replay_accumulator(
+    option: &Accumulator,
+    context: &PricingContext,
+    mut quantity: f64,
+    fixings: impl Iterator<Item = Result<AccumulatorFixing>>,
+) -> Result<(f64, Option<f64>)> {
     let initial = context.spot_price();
     let strike_distance = log_ratio(initial, option.strike());
-    let mut forward_to = forward_factors(context);
-    for time in option.future_observation_times_through(context, end)? {
-        let (carry, log_discount) = forward_to(time)?;
-        let spot = spot_after_carry(initial, carry)?;
-        let knocked_out = option.observes_knock_out(time)
-            && context
-                .forward_spot_cmp(time, initial, option.knock_out_level(), carry)
-                .is_some_and(|ordering| match option.option_type() {
-                    crate::OptionType::Call => ordering.is_ge(),
-                    crate::OptionType::Put => ordering.is_le(),
-                });
-        if !knocked_out && option.accumulates_at(time, option.calendar()) {
-            let distance = quoted_spot_distance(context, time, option.strike())
-                .unwrap_or(strike_distance + carry);
+    for fixing in fixings {
+        crate::cancellation::check()?;
+        let AccumulatorFixing {
+            forward,
+            knock_out,
+            purchase,
+        } = fixing?;
+        let spot = spot_after_carry(initial, forward.carry)?;
+        let knocked_out = knock_out && accumulator_knocks_out(option, context, forward);
+        if !knocked_out && purchase {
+            let distance = quoted_spot_distance(context, forward.time, option.strike())
+                .unwrap_or(strike_distance + forward.carry);
             quantity += option.purchase_from_strike_distance(distance);
         }
-        if knocked_out || time == option.expiry_time() {
-            let strike = option.strike();
-            let distance = context.log_forward_moneyness(time, strike, carry);
-            let unchanged_spot = carry == 0.0
-                && context
-                    .quoted_spot_cmp(time, 1.0, 1.0)
-                    .is_none_or(std::cmp::Ordering::is_eq);
-            let value = if !unchanged_spot && distance.abs() < 0.5 {
-                let difference = match option.option_type() {
-                    crate::OptionType::Call => distance.exp_m1(),
-                    crate::OptionType::Put => -distance.exp_m1(),
-                };
-                let unit_payoff = strike * difference;
-                if unit_payoff.is_normal() {
-                    discounted_product(quantity, unit_payoff, log_discount)
-                } else {
-                    discounted_product(quantity, difference, strike.ln() + log_discount)
-                }
-            } else {
-                discounted_product(quantity, option.unit_payoff(spot), log_discount)
-            };
-            return Ok((quantity, Some(finite(value)?)));
+        if knocked_out || forward.time == option.expiry_time() {
+            return Ok((
+                quantity,
+                Some(accumulator_settlement(
+                    option, context, forward, spot, quantity,
+                )?),
+            ));
         }
     }
     Ok((quantity, None))
+}
+
+fn accumulator_settlement(
+    option: &Accumulator,
+    context: &PricingContext,
+    fixing: ForwardFixing,
+    spot: f64,
+    quantity: f64,
+) -> Result<f64> {
+    let ForwardFixing {
+        time,
+        carry,
+        discount,
+    } = fixing;
+    let strike = option.strike();
+    let distance = context.log_forward_moneyness(time, strike, carry);
+    let unchanged_spot = carry == 0.0
+        && context
+            .quoted_spot_cmp(time, 1.0, 1.0)
+            .is_none_or(std::cmp::Ordering::is_eq);
+    let value = if !unchanged_spot && distance.abs() < 0.5 {
+        let difference = match option.option_type() {
+            crate::OptionType::Call => distance.exp_m1(),
+            crate::OptionType::Put => -distance.exp_m1(),
+        };
+        let unit_payoff = strike * difference;
+        if unit_payoff.is_normal() {
+            discounted_product(quantity, unit_payoff, discount)
+        } else {
+            discounted_product(quantity, difference, strike.ln() + discount)
+        }
+    } else {
+        discounted_product(quantity, option.unit_payoff(spot), discount)
+    };
+    finite(value)
 }
 
 pub(super) fn average(

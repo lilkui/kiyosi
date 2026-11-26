@@ -435,6 +435,14 @@ impl Accumulator {
     }
 
     pub(crate) fn initial(&self, context: &PricingContext) -> (f64, Option<f64>) {
+        self.initial_with_accrual(context, || self.accrues(context))
+    }
+
+    pub(crate) fn initial_with_accrual(
+        &self,
+        context: &PricingContext,
+        accrues: impl FnOnce() -> bool,
+    ) -> (f64, Option<f64>) {
         if self.knock_out_settled() == Some(true) {
             return (0.0, Some(0.0));
         }
@@ -449,7 +457,7 @@ impl Accumulator {
         if self.current_observation(context) {
             quantity += self.purchase(spot);
         }
-        let accrues = self.accrues(context);
+        let accrues = accrues();
         if quantity == 0.0 && !accrues {
             return (quantity, Some(0.0));
         }

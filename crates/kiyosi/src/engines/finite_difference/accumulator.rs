@@ -126,6 +126,7 @@ fn native(
         option,
         context,
         start,
+        None,
         request,
         shifts,
         |rolled, quantity, request, shifts| {
@@ -143,6 +144,7 @@ fn evaluate_after_observations(
     option: &Accumulator,
     context: &PricingContext,
     start: Timestamp,
+    prefix: Option<&deterministic::AccumulatorPrefix>,
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
     evaluate: impl FnOnce(
@@ -152,7 +154,8 @@ fn evaluate_after_observations(
         NumericalShiftSettings,
     ) -> Result<PricingResult>,
 ) -> Result<PricingResult> {
-    let (quantity, settlement) = deterministic::accumulator_through(option, context, start)?;
+    let (quantity, settlement) =
+        deterministic::accumulator_through_prepared(option, context, start, prefix)?;
     if let Some(value) = settlement {
         return PricingResult::new(value);
     }
@@ -348,6 +351,7 @@ impl AccumulatorGrid {
 struct AccumulatorState {
     start: Timestamp,
     grid: Option<AccumulatorGrid>,
+    prefix: Option<deterministic::AccumulatorPrefix>,
 }
 impl super::solution::Backend<Accumulator> for AccumulatorState {
     fn query_work(&self, option: &Accumulator, context: &PricingContext) -> usize {
@@ -374,6 +378,7 @@ impl super::solution::Backend<Accumulator> for AccumulatorState {
             option,
             context,
             self.start,
+            self.prefix.as_ref(),
             request,
             shifts,
             |rolled, quantity, request, shifts| {
@@ -398,11 +403,12 @@ impl super::FiniteDifferenceEngine<Accumulator> for FiniteDifferenceAccumulatorE
         let anchor = super::solution::at_spot(context, *range.end())?;
         option.validate_pricing(&anchor)?;
         let start = anchor.deterministic_until(option.expiry_time())?;
+        let prefix = deterministic::prepare_accumulator_prefix(option, context, start)?;
         let points = super::solution::probes(&range, [option.strike(), option.knock_out_level()]);
         let mut pending = false;
         for spot in points {
             let probe = super::solution::at_spot(context, spot)?;
-            if deterministic::accumulator_through(option, &probe, start)?
+            if deterministic::accumulator_through_prepared(option, &probe, start, prefix.as_ref())?
                 .1
                 .is_none()
             {
@@ -423,7 +429,11 @@ impl super::FiniteDifferenceEngine<Accumulator> for FiniteDifferenceAccumulatorE
         } else {
             None
         };
-        let state = AccumulatorState { start, grid };
+        let state = AccumulatorState {
+            start,
+            grid,
+            prefix,
+        };
         super::solution::Backend::evaluate(
             &state,
             option,

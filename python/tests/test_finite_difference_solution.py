@@ -17,6 +17,7 @@ from kiyosi.market import (
     LocalVolatilitySurface,
     PricingContext,
     RateTermStructure,
+    all_days_calendar,
 )
 from test_heston import context as heston_context
 from test_local_volatility import option
@@ -52,6 +53,43 @@ def context(kind="bsm", spot=150.0, valuation=START):
     return PricingContext(
         model_parameters=model, spot_price=spot, valuation_time=valuation
     )
+
+
+@pytest.mark.parametrize(("direction", "barrier"), (("call", 115), ("put", 85)))
+@pytest.mark.parametrize("rate", (-0.12, 0.0, 0.12))
+def test_saved_accumulator_matches_scalar_deterministic_fixings(
+    direction, barrier, rate
+):
+    option = ins.Accumulator(
+        option_type=direction,
+        strike=100,
+        knock_out_level=barrier,
+        daily_quantity=0.1,
+        acceleration_factor=2.5,
+        effective_time=START,
+        expiry_time=END,
+        observation_clock_time=time(),
+        calendar=all_days_calendar(),
+        knock_out_observation_times=[
+            START + timedelta(days=120),
+            START + timedelta(days=240),
+            END,
+        ],
+    )
+    snapshot = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=rate, dividend_yield=0, volatility=0
+        ),
+        spot_price=100,
+        valuation_time=START,
+    )
+    engine = pricing.FiniteDifferenceAccumulatorEngine()
+    solution = engine.solve(option, snapshot, spot_range=(75, 125))
+    spots = (125, 75, 85, 100, 115, 100, 93, 108)
+    expected = [
+        engine.price(option, snapshot.replace(spot_price=spot)) for spot in spots
+    ]
+    assert solution.price_many(spots) == pytest.approx(expected, rel=0, abs=1e-9)
 
 
 def test_log_grid_covers_low_saved_put_endpoint():

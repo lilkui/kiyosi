@@ -21,6 +21,39 @@ fn market(spot: f64) -> PricingContext {
 fn option() -> EuropeanOption {
     EuropeanOption::new(OptionType::Call, 100.0, dates().0, dates().1).unwrap()
 }
+
+#[test]
+fn saved_accumulator_matches_scalar_deterministic_fixings() -> Result<()> {
+    let (start, end) = dates();
+    let engine = FiniteDifferenceAccumulatorEngine::default();
+    for (direction, barrier) in [(OptionType::Call, 115.0), (OptionType::Put, 85.0)] {
+        let mut terms =
+            AccumulatorTerms::new(100.0, barrier, 0.1, 2.5, start, end, start.time_of_day());
+        terms.calendar = TradingCalendar::all_days();
+        terms.option_type = direction;
+        terms.knock_out_observation_times =
+            Some(vec![start.add_days(120)?, start.add_days(240)?, end]);
+        let option = Accumulator::new(terms)?;
+        for rate in [-0.12, 0.0, 0.12] {
+            let context = PricingContext::new(
+                BlackScholesMertonParameters::new(rate, 0.0, 0.0)?,
+                100.0,
+                start,
+            )?;
+            let solution = engine.solve(&option, &context, 75.0..=125.0)?;
+            let spots = [125.0, 75.0, 85.0, 100.0, 115.0, 100.0, 93.0, 108.0];
+            for (&spot, actual) in spots.iter().zip(solution.price_many(&spots)?) {
+                let scenario = context.replace(PricingContextChanges {
+                    spot_price: Some(spot),
+                    ..Default::default()
+                })?;
+                close(actual, engine.price(&option, &scenario)?, 1e-9);
+            }
+        }
+    }
+    Ok(())
+}
+
 fn close(actual: f64, expected: f64, tolerance: f64) {
     assert!(
         (actual - expected).abs() <= tolerance,
