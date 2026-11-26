@@ -1,10 +1,11 @@
-use crate::Result;
+use crate::{Result, numerics::Sum};
 
 #[derive(PartialEq)]
 pub(super) struct Curve {
     segments: Vec<Segment>,
     from_start: Vec<f64>,
     to_end: Vec<f64>,
+    blocks: Vec<Sum>,
 }
 
 #[derive(PartialEq)]
@@ -29,6 +30,7 @@ impl Segment {
 
 impl Curve {
     const BYTES_PER_INTERVAL: u64 = (size_of::<Segment>() + 2 * size_of::<f64>()) as u64;
+    const BLOCK_SIZE: usize = 8;
 
     fn interior_nodes(
         curve: &crate::RateTermStructure,
@@ -48,7 +50,9 @@ impl Curve {
     }
 
     pub fn bytes_for_intervals(count: u64) -> u64 {
-        count.saturating_mul(Self::BYTES_PER_INTERVAL)
+        count
+            .saturating_mul(Self::BYTES_PER_INTERVAL)
+            .saturating_add((count / Self::BLOCK_SIZE as u64) * (2 * size_of::<Sum>()) as u64)
     }
 
     pub fn workspace_bytes(&self) -> u64 {
@@ -107,10 +111,29 @@ impl Curve {
             to_end[index] = log;
             log -= segments[index].rate * segments[index].width;
         }
+        let block_count = count / Self::BLOCK_SIZE;
+        let mut blocks = vec![Sum::default(); 2 * block_count];
+        for (index, chunk) in segments.chunks_exact(Self::BLOCK_SIZE).enumerate() {
+            if index % 128 == 0 {
+                crate::cancellation::check()?;
+            }
+            for segment in chunk {
+                blocks[block_count + index].add(-segment.rate * segment.width);
+            }
+        }
+        for index in (1..block_count).rev() {
+            if index % 128 == 0 {
+                crate::cancellation::check()?;
+            }
+            let mut sum = blocks[2 * index];
+            sum.merge(blocks[2 * index + 1]);
+            blocks[index] = sum;
+        }
         Ok(Self {
             segments,
             from_start,
             to_end,
+            blocks,
         })
     }
 
@@ -150,10 +173,45 @@ impl Curve {
         if end == horizon && self.to_end[first].is_finite() {
             return self.segments[first].log_factor(start, end) + self.to_end[first];
         }
-        self.segments[first..=last]
-            .iter()
-            .map(|segment| segment.log_factor(start, end))
-            .sum()
+        let direct = || {
+            self.segments[first..=last]
+                .iter()
+                .map(|segment| segment.log_factor(start, end))
+                .sum()
+        };
+        let full_start = (first + 1).div_ceil(Self::BLOCK_SIZE);
+        let full_end = last / Self::BLOCK_SIZE;
+        if full_start >= full_end {
+            return direct();
+        }
+
+        // Sum just the blocks inside the interval. Subtracting two global
+        // prefixes can erase small intervals after a large accumulated rate.
+        let mut sum = Sum::default();
+        for segment in &self.segments[first..full_start * Self::BLOCK_SIZE] {
+            sum.add(segment.log_factor(start, end));
+        }
+        let (mut left, mut right) = (
+            self.blocks.len() / 2 + full_start,
+            self.blocks.len() / 2 + full_end,
+        );
+        while left < right {
+            if left % 2 != 0 {
+                sum.merge(self.blocks[left]);
+                left += 1;
+            }
+            if right % 2 != 0 {
+                right -= 1;
+                sum.merge(self.blocks[right]);
+            }
+            left /= 2;
+            right /= 2;
+        }
+        for segment in &self.segments[full_end * Self::BLOCK_SIZE..=last] {
+            sum.add(segment.log_factor(start, end));
+        }
+        let total = sum.total();
+        if total.is_finite() { total } else { direct() }
     }
 }
 
@@ -161,6 +219,39 @@ impl Curve {
 mod tests {
     use super::*;
     use crate::{Date, RateTermStructure};
+
+    #[test]
+    fn indexed_integrals_match_discount_curve_with_partial_edges() -> Result<()> {
+        let start = Date::new(2025, 1, 1)?.start_of_day();
+        let dates = (1..=59)
+            .map(|day| start.add_days(day))
+            .collect::<Result<Vec<_>>>()?;
+        let end = dates[58];
+        let factors = (1..=59)
+            .map(|day| {
+                let day = f64::from(day);
+                (0.02 * day.sin() - 0.0001 * day).exp()
+            })
+            .collect();
+        let rates = RateTermStructure::new(start, dates, factors)?;
+        let curve = Curve::new(&rates, start, end)?;
+        for (left, right) in [(1, 111), (17, 84), (31, 102), (53, 98), (87, 107)] {
+            let at = |index: i64| {
+                start
+                    .add_days(index / 2)
+                    .and_then(|date| date.add_micros((index % 2) * 43_200_000_000))
+            };
+            let left = at(left)?;
+            let right = at(right)?;
+            let expected = rates.log_factor(left, right)?;
+            let actual = curve.log_factor(start.years_until(left), start.years_until(right));
+            assert!(
+                (actual - expected).abs() < 2e-15,
+                "{left:?} to {right:?}: {actual} vs {expected}"
+            );
+        }
+        Ok(())
+    }
 
     #[test]
     fn interval_integrals_preserve_knots_partial_segments_and_short_intervals() -> Result<()> {

@@ -247,7 +247,7 @@ pub(crate) fn log_mean_exponential(log_growth: f64) -> f64 {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Copy, Default, PartialEq)]
 pub(crate) struct Sum {
     value: f64,
     correction: f64,
@@ -264,6 +264,11 @@ impl Sum {
     }
     pub(crate) fn total(&self) -> f64 {
         self.value + self.correction
+    }
+
+    pub(crate) fn merge(&mut self, other: Self) {
+        self.add(other.value);
+        self.add(other.correction);
     }
 }
 
