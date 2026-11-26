@@ -1632,6 +1632,7 @@ struct DirectionalMatrices {
     asset: Vec<[f64; 3]>,
     variance: Vec<[f64; 3]>,
     asset_factors: Vec<AssetFactor>,
+    asset_pivots_inverted: bool,
     variance_factors: Vec<[f64; 3]>,
     coefficients_key: Option<[u64; 3]>,
     weight: f64,
@@ -1643,6 +1644,7 @@ impl DirectionalMatrices {
             asset: vec![[0.0; 3]; nx * rows],
             variance: vec![[0.0; 3]; rows],
             asset_factors: vec![[[0.0; ASSET_LANES]; 3]; nx * dynamic_rows.div_ceil(ASSET_LANES)],
+            asset_pivots_inverted: false,
             variance_factors: vec![[0.0; 3]; rows],
             coefficients_key: None,
             weight: f64::NAN,
@@ -1855,6 +1857,8 @@ impl Operator {
             }
             factor_assets(assets, &mut self.matrices.asset_factors)?;
         }
+        self.matrices.asset_pivots_inverted =
+            invert_asset_pivots(&mut self.matrices.asset_factors)?;
         for (factor, &row) in self
             .matrices
             .variance_factors
@@ -2133,7 +2137,11 @@ impl Operator {
                 .zip(edges)
             {
                 crate::cancellation::check()?;
-                *edges = transpose_asset_tile(tile, factors);
+                *edges = if self.matrices.asset_pivots_inverted {
+                    transpose_asset_tile::<true>(tile, factors)
+                } else {
+                    transpose_asset_tile::<false>(tile, factors)
+                };
             }
             Ok(())
         };
@@ -2283,10 +2291,7 @@ impl Operator {
         let tile_width = ASSET_LANES * nx;
         let factor_count = rows.div_ceil(ASSET_LANES) * nx;
         let factor_rows = &self.matrices.asset_factors[..factor_count];
-        // Large grids amortize computing a reciprocal once and reusing it
-        // across a packed row. Use the same arithmetic for single payoffs on
-        // that grid so independent and batched solves agree exactly.
-        let reciprocals = active >= 128_000;
+        let reciprocals = self.matrices.asset_pivots_inverted;
         let solve_rows = |values: &mut [[f64; N]], factors: &[AssetFactor]| {
             for (tile, factors) in values.chunks_mut(tile_width).zip(factors.chunks_exact(nx)) {
                 crate::cancellation::check()?;
@@ -2366,7 +2371,32 @@ impl Operator {
     }
 }
 
-fn transpose_asset_tile(tile: &mut [f64], factors: &[AssetFactor]) -> [f64; 2] {
+fn invert_asset_pivots(factors: &mut [AssetFactor]) -> Result<bool> {
+    // Keep the original pivots when any reciprocal could overflow or be subnormal.
+    let normal_pivots = f64::MIN_POSITIVE..=1.0 / f64::MIN_POSITIVE;
+    for chunk in factors.chunks(1024) {
+        crate::cancellation::check()?;
+        if !chunk
+            .iter()
+            .flat_map(|factor| factor[1])
+            .all(|pivot| normal_pivots.contains(&pivot.abs()))
+        {
+            return Ok(false);
+        }
+    }
+    for chunk in factors.chunks_mut(1024) {
+        crate::cancellation::check()?;
+        for [_, pivots, _] in chunk {
+            *pivots = pivots.map(f64::recip);
+        }
+    }
+    Ok(true)
+}
+
+fn transpose_asset_tile<const INVERTED: bool>(
+    tile: &mut [f64],
+    factors: &[AssetFactor],
+) -> [f64; 2] {
     let nx = factors.len();
     let mut rows = tile.chunks_exact_mut(nx);
     let mut rows: [&mut [f64]; ASSET_LANES] =
@@ -2379,7 +2409,12 @@ fn transpose_asset_tile(tile: &mut [f64], factors: &[AssetFactor]) -> [f64; 2] {
             *value = row[i];
         }
         previous = std::array::from_fn(|lane| {
-            (rhs[lane] - factors[i - 1][2][lane] * previous[lane]) / factors[i][1][lane]
+            let value = rhs[lane] - factors[i - 1][2][lane] * previous[lane];
+            if INVERTED {
+                value * factors[i][1][lane]
+            } else {
+                value / factors[i][1][lane]
+            }
         });
         for (row, value) in rows[..lanes].iter_mut().zip(previous) {
             row[i] = value;
@@ -2423,7 +2458,7 @@ fn transpose_variance_strip(strip: &mut [&mut [f64]], factors: &[[f64; 3]]) -> R
     Ok(())
 }
 
-fn solve_asset_tile<const RECIPROCALS: bool>(
+fn solve_asset_tile<const INVERTED: bool>(
     tile: &mut [f64],
     factors: &[AssetFactor],
     edges: [f64; 2],
@@ -2454,8 +2489,8 @@ fn solve_asset_tile<const RECIPROCALS: bool>(
         }
         let values: [f64; ASSET_LANES] = std::array::from_fn(|lane| {
             let value = rhs[lane] - uppers[lane] * next[lane];
-            if RECIPROCALS {
-                divide_spot_pivot(value, diagonals[lane])
+            if INVERTED {
+                value * diagonals[lane]
             } else {
                 value / diagonals[lane]
             }
@@ -2475,16 +2510,7 @@ fn solve_asset_tile<const RECIPROCALS: bool>(
     Ok(())
 }
 
-fn divide_spot_pivot(value: f64, diagonal: f64) -> f64 {
-    let inverse = diagonal.recip();
-    if inverse.is_normal() {
-        value * inverse
-    } else {
-        value / diagonal
-    }
-}
-
-fn solve_packed_asset_tile<const N: usize, const RECIPROCALS: bool>(
+fn solve_packed_asset_tile<const N: usize, const INVERTED: bool>(
     tile: &mut [[f64; N]],
     factors: &[AssetFactor],
     [left, right]: [[f64; N]; 2],
@@ -2504,15 +2530,9 @@ fn solve_packed_asset_tile<const N: usize, const RECIPROCALS: bool>(
         }
         let mut next = right;
         for (cell, [_, diagonal, upper]) in interior.iter_mut().zip(factors).rev() {
-            // A spot pivot is shared by every payoff lane.
-            let inverse = if RECIPROCALS {
-                diagonal[variance].recip()
-            } else {
-                0.0
-            };
-            if inverse.is_normal() {
+            if INVERTED {
                 for (value, next) in cell.iter_mut().zip(next) {
-                    *value = (*value - upper[variance] * next) * inverse;
+                    *value = (*value - upper[variance] * next) * diagonal[variance];
                 }
             } else {
                 for (value, next) in cell.iter_mut().zip(next) {
@@ -2624,6 +2644,18 @@ fn factor(rows: &mut [[f64; 3]]) -> Result<()> {
 #[cfg(test)]
 mod adjoint_tests {
     use super::*;
+
+    #[test]
+    fn heston_asset_solve_keeps_pivots_when_a_reciprocal_overflows() -> Result<()> {
+        let mut factors = [[[0.0; ASSET_LANES], [2.0; ASSET_LANES], [0.0; ASSET_LANES]]; 4];
+        let tiny = f64::from_bits(1);
+        factors[2][1][0] = tiny;
+        assert!(!invert_asset_pivots(&mut factors)?);
+        let mut tile = [0.0, 4.0, -2.0 * tiny, 0.0];
+        solve_asset_tile::<false>(&mut tile, &factors, [0.0; 2])?;
+        assert_eq!(tile, [0.0, 2.0, -2.0, 0.0]);
+        Ok(())
+    }
 
     #[test]
     fn variance_solve_uses_division_when_the_reciprocal_overflows() {
