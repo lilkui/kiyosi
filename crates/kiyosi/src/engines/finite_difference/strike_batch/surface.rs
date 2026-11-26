@@ -241,7 +241,7 @@ fn strip_rows(
     .ok_or_else(unstable)?;
     let mut pending = [[0.0; 2]; 2];
     let stepper = || match model {
-        StripModel::Constant(_) => Stepper::new(space.count),
+        StripModel::Constant(_) => Stepper::new(),
         StripModel::Local(_) => Stepper::new_local(space.count),
     };
     let mut regular = stepper();

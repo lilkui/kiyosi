@@ -103,7 +103,7 @@ pub(super) trait Diffusion: Copy {
         if self.surface().is_some() {
             Stepper::new_local(count)
         } else {
-            Stepper::new(count)
+            Stepper::new()
         }
     }
 

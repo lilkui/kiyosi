@@ -190,7 +190,6 @@ pub(super) fn march_with_continuation<D: Diffusion>(
 
 pub(super) struct Stepper {
     factors: Vec<Factors>,
-    rhs: Vec<f64>,
     active: usize,
     local: Option<crate::market::LocalVolatilityProjection>,
     local_stencils: Option<Vec<super::grid::PreparedLogStencil>>,
@@ -269,15 +268,15 @@ impl PackedStep<'_> {
 impl Stepper {
     const FACTOR_CACHE_LEN: usize = 3;
     // Each factor has three coefficients and four solve values per row. A miss
-    // builds the new factor before eviction, with a separate right-hand side.
+    // builds the new factor before eviction.
     // One local factor, the projection and prepared stencils fit within this peak.
+    // Keep the grid admission budget conservative with one spare value per node.
     pub(super) const PEAK_BYTES_PER_NODE: u64 =
         ((Self::FACTOR_CACHE_LEN + 1) * size_of::<[f64; 7]>() + size_of::<f64>()) as u64;
 
-    pub fn new(count: usize) -> Self {
+    pub fn new() -> Self {
         Self {
             factors: Vec::new(),
-            rhs: vec![0.0; count - 1],
             active: 0,
             local: None,
             local_stencils: None,
@@ -296,7 +295,6 @@ impl Stepper {
                 diagonal: vec![0.0; size],
                 inverse: vec![0.0; size],
             }],
-            rhs: vec![0.0; size],
             active: 0,
             local: None,
             local_stencils: None,
@@ -574,7 +572,7 @@ impl Stepper {
     }
 
     fn apply(
-        &mut self,
+        &self,
         old: &[f64],
         next: &mut [f64],
         dt: f64,
@@ -591,7 +589,7 @@ impl Stepper {
         reason = "Theta selects an exact scheme and tangents add a source to the same solve."
     )]
     fn apply_with_source<const TANGENT: bool>(
-        &mut self,
+        &self,
         old: &[f64],
         next: &mut [f64],
         dt: f64,
@@ -605,43 +603,57 @@ impl Stepper {
         let factors = &self.factors[active];
         next[0] = boundaries[0];
         next[count] = boundaries[1];
-        for i in 0..size {
-            let [a, b, c] = factors.coefficients[i];
-            // Avoid evaluating an unused overflowing explicit term in implicit Euler.
-            self.rhs[i] = if theta == 1.0 {
-                old[i + 1]
-            } else {
-                old[i + 1] + (1.0 - theta) * dt * (a * old[i] + b * old[i + 1] + c * old[i + 2])
-            };
-            if TANGENT {
-                self.rhs[i] += source(i);
+        if theta == 0.0 {
+            for i in 0..size {
+                let [a, b, c] = factors.coefficients[i];
+                let mut value = old[i + 1] + dt * (a * old[i] + b * old[i + 1] + c * old[i + 2]);
+                if TANGENT {
+                    value += source(i);
+                }
+                next[i + 1] = value;
             }
-            if i == 0 {
-                self.rhs[i] += theta * dt * a * boundaries[0];
+        } else {
+            let mut previous = 0.0;
+            for i in 0..size {
+                let [a, b, c] = factors.coefficients[i];
+                // Avoid evaluating an unused overflowing explicit term in implicit Euler.
+                let mut value = if theta == 1.0 {
+                    old[i + 1]
+                } else {
+                    old[i + 1] + (1.0 - theta) * dt * (a * old[i] + b * old[i + 1] + c * old[i + 2])
+                };
+                if TANGENT {
+                    value += source(i);
+                }
+                if i == 0 {
+                    value += theta * dt * a * boundaries[0];
+                }
+                if i + 1 == size {
+                    value += theta * dt * c * boundaries[1];
+                }
+                if i != 0 {
+                    value -= factors.multipliers[i] * previous;
+                }
+                next[i + 1] = value;
+                previous = value;
             }
-            if i + 1 == size {
-                self.rhs[i] += theta * dt * c * boundaries[1];
-            }
-        }
-        if theta != 0.0 {
-            for i in 1..size {
-                self.rhs[i] -= factors.multipliers[i] * self.rhs[i - 1];
-            }
+            let mut following = 0.0;
             for i in (0..size).rev() {
-                let value = self.rhs[i]
-                    - if i + 1 < size {
-                        factors.upper[i] * self.rhs[i + 1]
-                    } else {
-                        0.0
-                    };
-                self.rhs[i] = if factors.inverse[i].is_finite() {
+                let tail = if i + 1 < size {
+                    factors.upper[i] * following
+                } else {
+                    0.0
+                };
+                let value = next[i + 1] - tail;
+                let solved = if factors.inverse[i].is_finite() {
                     value * factors.inverse[i]
                 } else {
                     value / factors.diagonal[i]
                 };
+                next[i + 1] = solved;
+                following = solved;
             }
         }
-        next[1..count].copy_from_slice(&self.rhs);
         if next.iter().any(|v| !v.is_finite()) {
             return Err(unstable());
         }
@@ -674,7 +686,7 @@ pub(super) fn march_tangents(
         }
     });
     let mut next_tangents = tangents.clone();
-    let mut stepper = Stepper::new(space.count);
+    let mut stepper = Stepper::new();
     let mut damping = 2;
     for step in (0..grid.widths.len()).rev() {
         crate::cancellation::check()?;

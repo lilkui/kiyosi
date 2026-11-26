@@ -431,7 +431,7 @@ impl MarketStrip {
         )]
         let term_budget = 0.25 * error_budget / steps as f64;
         let (mut stepper, offset) = match model {
-            StripModel::Constant(_) => (Stepper::new(space.count), 0.0),
+            StripModel::Constant(_) => (Stepper::new(), 0.0),
             StripModel::Local(surface) => (
                 Stepper::new_local(space.count),
                 surface.times()[0].years_until(valuation),
