@@ -81,6 +81,22 @@ def test_fixed_american_surface_uses_an_independent_mesh_for_short_tenors():
     assert rows[0] == expected
 
 
+def test_automatic_american_surface_uses_an_independent_mesh_for_short_tenors():
+    engine = FiniteDifferenceHestonVanillaEngine()
+    market = context(model(dividend_yield=0))
+    call = AmericanOption(
+        option_type="call", strike=100, effective_time=START, expiry_time=END
+    )
+    short = START + timedelta(seconds=1)
+    mid = START + timedelta(days=90)
+    expected = AnalyticHestonEuropeanEngine().price(option(expiry_time=short), market)
+    for expiries in ((short, END), (short, mid, END)):
+        rows = engine.price_american_surface(
+            call, market, expiries=expiries, strikes=(100,)
+        )
+        assert rows[0] == pytest.approx((expected,), rel=0, abs=1e-6)
+
+
 def test_european_surface_matches_analytic_prices_and_preserves_both_input_orders():
     engine = FiniteDifferenceHestonVanillaEngine()
     analytic = AnalyticHestonEuropeanEngine()

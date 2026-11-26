@@ -3518,8 +3518,8 @@ class FiniteDifferenceHestonVanillaEngine(
         Notes
         -----
         Compatible flat-rate markets share a rollback through the requested
-        tenors. Fixed bounds use strike tiles, with individual meshes for
-        short tenors. Compatible dated curves with automatic bounds share
+        tenors, with individual expiry meshes for short tenors. Fixed bounds
+        use strike tiles. Compatible dated curves with automatic bounds share
         factored operators in expiry tiles. Check convergence across the surface.
         Cancellation returns no partial result.
         """

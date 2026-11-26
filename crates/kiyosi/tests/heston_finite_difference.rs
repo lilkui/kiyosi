@@ -83,6 +83,35 @@ fn american_surface_matches_scalar_expiries_and_preserves_order() -> kiyosi::Res
 }
 
 #[test]
+fn automatic_american_surface_uses_an_independent_mesh_for_short_tenors() -> kiyosi::Result<()> {
+    let (start, end) = dates();
+    let short = start.add_micros(1_000_000)?;
+    let mid = start.add_days(90)?;
+    let market = context(0.3, -0.7);
+    let model = market
+        .model_parameters()
+        .as_heston()?
+        .replace(kiyosi::HestonParameterChanges {
+            dividend_yield: Some(0.0.into()),
+            ..Default::default()
+        })?;
+    let market = PricingContext::new(model, 100.0, start)?;
+    let engine = FiniteDifferenceHestonVanillaEngine::default();
+    let call = AmericanOption::new(OptionType::Call, 100.0, start, end)?;
+    let european = EuropeanOption::new(OptionType::Call, 100.0, start, short)?;
+    let reference = AnalyticHestonEuropeanEngine::default().price(&european, &market)?;
+    for expiries in [&[short, end][..], &[short, mid, end][..]] {
+        let rows = engine.price_american_surface(&call, &market, expiries, &[100.0])?;
+        assert!(
+            (rows[0][0] - reference).abs() < 1e-6,
+            "{} vs {reference}",
+            rows[0][0]
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn heston_finite_difference_with_recurring_calendar_rates() -> kiyosi::Result<()> {
     let (start, _) = dates();
     let end = start.add_days(364)?;

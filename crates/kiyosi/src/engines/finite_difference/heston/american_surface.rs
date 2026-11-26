@@ -15,8 +15,8 @@ impl FiniteDifferenceHestonVanillaEngine {
     /// time to maturity. Fixed asset bounds use strike tiles on absolute meshes.
     /// Compatible dated curves with automatic bounds share factored operators in
     /// expiry tiles. Other markets use independent expiry rollbacks.
-    /// The longest maturity sets each shared mesh. Short tenors on fixed
-    /// bounds can use individual meshes. Check convergence across the surface.
+    /// The longest maturity sets each shared mesh. Flat-rate short tenors use
+    /// individual expiry meshes. Check convergence across the surface.
     /// See [`Self::price_american_strikes`] for the contract and market inputs.
     ///
     /// # Errors
@@ -108,11 +108,15 @@ impl FiniteDifferenceHestonVanillaEngine {
         let shared_times = !times.is_empty()
             && times[0] < valuation.years_until(end)
             && times.windows(2).all(|pair| pair[0] > pair[1]);
-        let rows = if share && shared_times {
+        // A common variance and spot mesh can underresolve very short tenors.
+        let first = live.partition_point(|&expiry| {
+            integrated_variance(model, valuation.years_until(expiry)).sqrt() < 0.04
+        });
+        let rows = if share && shared_times && live.len() - first >= 2 {
             let mut surface = AmericanSurface {
-                times,
+                times: times[first..].to_vec(),
                 queries: SurfaceQueries::Normalized(queries),
-                rows: Vec::with_capacity(live.len()),
+                rows: Vec::with_capacity(live.len() - first),
             };
             let anchor = super::super::solution::at_spot(context, high)?;
             prepare_batch(
@@ -125,19 +129,17 @@ impl FiniteDifferenceHestonVanillaEngine {
                 &[],
                 Some(&mut surface),
             )?;
-            if surface.rows.len() != live.len() {
+            if surface.rows.len() != live.len() - first {
                 return Err(unstable());
             }
-            surface.rows
+            let mut rows = self.expiry_rows(template, context, &live[..first], strikes)?;
+            rows.extend(surface.rows);
+            rows
         } else if let Some(upper) = self
             .settings
             .asset_upper_boundary
             .filter(|_| shared_times && self.settings.asset_step_count >= 128)
         {
-            // A common variance and spot mesh can underresolve very short tenors.
-            let first = live.partition_point(|&expiry| {
-                integrated_variance(model, valuation.years_until(expiry)).sqrt() < 0.04
-            });
             if live.len() - first < 2 {
                 self.expiry_rows(template, context, live, strikes)?
             } else {
