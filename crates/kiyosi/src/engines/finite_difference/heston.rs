@@ -559,7 +559,11 @@ fn prepare(
         .collect();
     let mut values: Vec<_> = (0..length).map(|k| terminal[k % nx]).collect();
     let intrinsic: Vec<_> = (0..nx).map(|i| payoff.value(asset.asset(i))).collect();
-    let mut multiplier = vec![0.0; length];
+    let mut multiplier = if payoff.is_american() {
+        vec![0.0; length]
+    } else {
+        Vec::new()
+    };
     let mut first = vec![0.0; length];
     let mut second = vec![0.0; length];
     let mut predictor = vec![0.0; length];
@@ -595,18 +599,26 @@ fn prepare(
             op.predict(
                 &values,
                 &multiplier,
-                [&mut first, &mut second, &mut predictor],
+                [&mut first, &mut second, &mut predictor, &mut stage],
                 dt,
                 workers.as_ref(),
             )?;
             op.boundaries(&mut predictor, edges);
-            stage.copy_from_slice(&predictor);
-            op.solve(&mut stage, &first, &second, edges, workers.as_ref())?;
-            for (x, old) in stage.iter_mut().zip(&values) {
-                *x -= old;
-            }
+            op.solve(
+                &mut stage,
+                [&first, &second],
+                edges,
+                Some(&values),
+                workers.as_ref(),
+            )?;
             op.correct(&stage, &mut predictor, dt, workers.as_ref())?;
-            op.solve(&mut predictor, &first, &second, edges, workers.as_ref())?;
+            op.solve(
+                &mut predictor,
+                [&first, &second],
+                edges,
+                None,
+                workers.as_ref(),
+            )?;
             if payoff.is_american() {
                 for k in 0..length {
                     let raw = predictor[k];
@@ -953,6 +965,10 @@ impl Operator {
             row[0] = edges[0];
             row[self.nx - 1] = edges[1];
         }
+        self.variance_boundary(values);
+    }
+
+    fn variance_boundary(&self, values: &mut [f64]) {
         if self.rows > 1 {
             let top = (self.rows - 1) * self.nx;
             let (below, last) = values.split_at_mut(top);
@@ -960,61 +976,84 @@ impl Operator {
         }
     }
 
-    fn components(&self, values: &[f64], j: usize, i: usize) -> [f64; 3] {
-        let k = j * self.nx + i;
-        let [a, b, c] = self.asset[k];
-        let asset = a * values[k - 1] + b * values[k] + c * values[k + 1];
-        let [a, b, c] = self.variance[j];
-        let mut variance = b * values[k];
-        if j > 0 {
-            variance += a * values[k - self.nx];
-        }
-        if self.rows > 1 {
-            variance += c * values[k + self.nx];
-        }
-        let mixed = if j > 0 && self.rows > 1 {
-            // Difference across variance first so shared asset boundaries cancel exactly.
-            let [left, center, right] = [k - 1, k, k + 1].map(|index| {
-                self.dv[j][0] * (values[index - self.nx] - values[index])
-                    + self.dv[j][2] * (values[index + self.nx] - values[index])
-            });
-            self.mixed[j] * (self.dx[i][0] * (left - center) + self.dx[i][2] * (right - center))
-        } else {
-            0.0
+    #[inline]
+    fn for_each_component(&self, values: &[f64], j: usize, mut write: impl FnMut(usize, [f64; 3])) {
+        let nx = self.nx;
+        let start = j * nx;
+        let current = &values[start..start + nx];
+        let previous = &values[start.saturating_sub(nx)..][..nx];
+        let next = &values[if self.rows > 1 { start + nx } else { start }..][..nx];
+        let [lower, diagonal, upper] = self.variance[j];
+        let [left_weight, _, right_weight] = self.dv.get(j).copied().unwrap_or([0.0; 3]);
+        let has_mixed = j > 0 && self.rows > 1;
+        // Reuse the two neighboring variance differences as the asset stencil moves.
+        let difference = |i: usize| {
+            if has_mixed {
+                left_weight * (previous[i] - current[i]) + right_weight * (next[i] - current[i])
+            } else {
+                0.0
+            }
         };
-        [mixed, asset, variance]
+        let mut left = difference(0);
+        let mut center = difference(1);
+        for i in 1..nx - 1 {
+            let [a, b, c] = self.asset[start + i];
+            let asset = a * current[i - 1] + b * current[i] + c * current[i + 1];
+            let mut variance = diagonal * current[i];
+            if j > 0 {
+                variance += lower * previous[i];
+            }
+            if self.rows > 1 {
+                variance += upper * next[i];
+            }
+            let right = difference(i + 1);
+            let mixed = if has_mixed {
+                self.mixed[j] * (self.dx[i][0] * (left - center) + self.dx[i][2] * (right - center))
+            } else {
+                0.0
+            };
+            write(i, [mixed, asset, variance]);
+            left = center;
+            center = right;
+        }
     }
 
     fn predict(
         &self,
         values: &[f64],
         multiplier: &[f64],
-        [first, second, predictor]: [&mut [f64]; 3],
+        [first, second, predictor, stage]: [&mut [f64]; 4],
         dt: f64,
         workers: Option<&AssetWorkers>,
     ) -> Result<()> {
         let nx = self.nx;
-        let calculate =
-            |start: usize, first: &mut [f64], second: &mut [f64], predictor: &mut [f64]| {
-                for (row, ((first, second), predictor)) in first
-                    .chunks_exact_mut(nx)
-                    .zip(second.chunks_exact_mut(nx))
-                    .zip(predictor.chunks_exact_mut(nx))
-                    .enumerate()
-                {
-                    crate::cancellation::check()?;
-                    let j = start + row;
-                    for i in 1..nx - 1 {
-                        let k = j * nx + i;
-                        let [mixed, along_asset, along_variance] = self.components(values, j, i);
-                        first[i] = along_asset;
-                        second[i] = along_variance;
-                        predictor[i] =
-                            values[k] + dt * (mixed + along_asset + along_variance + multiplier[k]);
-                    }
-                }
-                Ok(())
-            };
+        let calculate = |start: usize,
+                         first: &mut [f64],
+                         second: &mut [f64],
+                         predictor: &mut [f64],
+                         stage: &mut [f64]| {
+            for (row, (((first, second), predictor), stage)) in first
+                .chunks_exact_mut(nx)
+                .zip(second.chunks_exact_mut(nx))
+                .zip(predictor.chunks_exact_mut(nx))
+                .zip(stage.chunks_exact_mut(nx))
+                .enumerate()
+            {
+                crate::cancellation::check()?;
+                let j = start + row;
+                self.for_each_component(values, j, |i, [mixed, along_asset, along_variance]| {
+                    let k = j * nx + i;
+                    first[i] = along_asset;
+                    second[i] = along_variance;
+                    let explicit = mixed + along_asset + along_variance;
+                    let correction = multiplier.get(k).copied().unwrap_or(0.0);
+                    let value = values[k] + dt * (explicit + correction);
+                    predictor[i] = value;
+                    stage[i] = value;
+                });
+            }
+            Ok(())
+        };
         let active = self.dynamic_rows() * nx;
         if let Some(workers) = workers {
             let chunk = workers.rows_per_task * nx;
@@ -1023,9 +1062,16 @@ impl Operator {
                     .par_chunks_mut(chunk)
                     .zip(second[..active].par_chunks_mut(chunk))
                     .zip(predictor[..active].par_chunks_mut(chunk))
+                    .zip(stage[..active].par_chunks_mut(chunk))
                     .enumerate(),
-                |(index, ((first, second), predictor))| {
-                    calculate(index * workers.rows_per_task, first, second, predictor)
+                |(index, (((first, second), predictor), stage))| {
+                    calculate(
+                        index * workers.rows_per_task,
+                        first,
+                        second,
+                        predictor,
+                        stage,
+                    )
                 },
             )
         } else {
@@ -1034,6 +1080,7 @@ impl Operator {
                 &mut first[..active],
                 &mut second[..active],
                 &mut predictor[..active],
+                &mut stage[..active],
             )
         }
     }
@@ -1050,10 +1097,9 @@ impl Operator {
             for (row, predictor) in predictor.chunks_exact_mut(nx).enumerate() {
                 crate::cancellation::check()?;
                 let j = start + row;
-                for (i, value) in predictor.iter_mut().enumerate().take(nx - 1).skip(1) {
-                    let [cross, along_asset, along_variance] = self.components(stage, j, i);
-                    *value += dt * (0.5 * cross + (along_asset + along_variance) / 6.0);
-                }
+                self.for_each_component(stage, j, |i, [cross, along_asset, along_variance]| {
+                    predictor[i] += dt * (0.5 * cross + (along_asset + along_variance) / 6.0);
+                });
             }
             Ok(())
         };
@@ -1072,9 +1118,9 @@ impl Operator {
     fn solve(
         &self,
         values: &mut [f64],
-        first: &[f64],
-        second: &[f64],
+        [first, second]: [&[f64]; 2],
         edges: [f64; 2],
+        previous: Option<&[f64]>,
         workers: Option<&AssetWorkers>,
     ) -> Result<()> {
         let nx = self.nx;
@@ -1125,13 +1171,22 @@ impl Operator {
         let mut strips: Vec<_> = (0..interior.div_ceil(columns))
             .map(|_| Vec::with_capacity(self.rows))
             .collect();
-        for (values, explicit) in values.chunks_exact_mut(nx).zip(second.chunks_exact(nx)) {
-            for ((strip, values), explicit) in strips
+        for (j, (values, explicit)) in values
+            .chunks_exact_mut(nx)
+            .zip(second.chunks_exact(nx))
+            .enumerate()
+        {
+            let prior = previous.map(|values| &values[j * nx + 1..(j + 1) * nx - 1]);
+            for (column, ((strip, values), explicit)) in strips
                 .iter_mut()
                 .zip(values[1..nx - 1].chunks_mut(columns))
                 .zip(explicit[1..nx - 1].chunks(columns))
+                .enumerate()
             {
-                strip.push((values, explicit));
+                let prior = prior.map_or(&[][..], |row| {
+                    &row[column * columns..column * columns + values.len()]
+                });
+                strip.push((values, explicit, prior));
             }
         }
         let solve = |strip: &mut Vec<_>| {
@@ -1144,13 +1199,23 @@ impl Operator {
                 solve(strip)?;
             }
         }
-        self.boundaries(values, edges);
+        if let Some(previous) = previous {
+            for (values, previous) in values.chunks_exact_mut(nx).zip(previous.chunks_exact(nx)) {
+                values[0] = edges[0] - previous[0];
+                values[nx - 1] = edges[1] - previous[nx - 1];
+            }
+            self.variance_boundary(values);
+        } else {
+            self.boundaries(values, edges);
+        }
         Ok(())
     }
 }
 
+type VarianceRow<'a> = (&'a mut [f64], &'a [f64], &'a [f64]);
+
 fn solve_variance_strip(
-    strip: &mut [(&mut [f64], &[f64])],
+    strip: &mut [VarianceRow<'_>],
     factors: &[[f64; 3]],
     dynamic_rows: usize,
     weight: f64,
@@ -1158,9 +1223,9 @@ fn solve_variance_strip(
     for (j, &[multiplier, _, _]) in factors.iter().enumerate() {
         crate::cancellation::check()?;
         let (previous, current) = strip.split_at_mut(j);
-        let (row, explicit) = &mut current[0];
+        let (row, explicit, _) = &mut current[0];
         match (previous.last(), j < dynamic_rows) {
-            (Some((prior, _)), true) => {
+            (Some((prior, _, _)), true) => {
                 for ((value, term), prior) in row.iter_mut().zip(*explicit).zip(prior.iter()) {
                     *value = (*value - weight * term) - multiplier * prior;
                 }
@@ -1170,7 +1235,7 @@ fn solve_variance_strip(
                     *value -= weight * term;
                 }
             }
-            (Some((prior, _)), false) => {
+            (Some((prior, _, _)), false) => {
                 for (value, prior) in row.iter_mut().zip(prior.iter()) {
                     *value = 0.0 - multiplier * prior;
                 }
@@ -1180,10 +1245,14 @@ fn solve_variance_strip(
     }
     for (j, &[_, diagonal, upper]) in factors.iter().enumerate().rev() {
         let (current, next) = strip.split_at_mut(j + 1);
-        let (row, _) = &mut current[j];
-        if let Some((next, _)) = next.first() {
+        let (row, _, prior) = &mut current[j];
+        if let Some((next, _, next_prior)) = next.first_mut() {
             for (value, next) in row.iter_mut().zip(next.iter()) {
                 *value = (*value - upper * next) / diagonal;
+            }
+            // The next row is no longer needed for back substitution.
+            for (value, &old) in next.iter_mut().zip(*next_prior) {
+                *value -= old;
             }
         } else {
             for value in row.iter_mut() {
@@ -1192,6 +1261,11 @@ fn solve_variance_strip(
         }
         if row.iter().any(|value| !value.is_finite()) {
             return Err(unstable());
+        }
+        if j == 0 {
+            for (value, &old) in row.iter_mut().zip(*prior) {
+                *value -= old;
+            }
         }
     }
     Ok(())
