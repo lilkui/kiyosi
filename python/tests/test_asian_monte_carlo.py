@@ -649,3 +649,19 @@ def test_arithmetic_asian_rejects_excessive_path_steps_before_sampling():
     with pytest.raises(InvalidInputError, match="path steps"):
         engine.price(contract, market())
     assert engine.price(contract, market(volatility=0)) > 0
+
+
+def test_arithmetic_control_reduces_sampling_error_for_calls_and_puts():
+    context = market(2, 0.5, rate=0.05, dividend=0)
+    engine = pricing.MonteCarloAsianEngine(
+        path_count=4096, step_count=128, seed=42, antithetic=True
+    )
+    call = 0.246416
+    parity = math.exp(-0.05) * (2 * math.expm1(0.05) / 0.05 - 2)
+    for direction, reference in (("call", call), ("put", call - parity)):
+        instrument = option(ArithmeticAveragePriceOption, direction, strike=2)
+        estimate = engine.price_with_statistics(instrument, context)
+        assert estimate.standard_error is not None
+        assert 0 < estimate.standard_error < 0.001
+        assert abs(estimate.price - reference) < 4 * estimate.standard_error + 0.0001
+        assert estimate.price == engine.price(instrument, context)

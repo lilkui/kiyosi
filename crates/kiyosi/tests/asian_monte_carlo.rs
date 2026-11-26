@@ -1025,3 +1025,38 @@ fn arithmetic_asian_rejects_excessive_path_steps_before_sampling() -> Result<()>
     assert!(engine.price(&option, &market(100.0, 0.0, start))? > 0.0);
     Ok(())
 }
+
+#[test]
+fn arithmetic_control_reduces_sampling_error_for_calls_and_puts() -> Result<()> {
+    let start = date(1, 1);
+    let end = Date::new(2026, 1, 1)?.start_of_day();
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.0, 0.5)?,
+        2.0,
+        start,
+    )?;
+    let engine = MonteCarloAsianEngine::new(MonteCarloGridSettings {
+        sampling: MonteCarloSettings {
+            path_count: 4096,
+            seed: Some(42),
+            antithetic: true,
+            ..Default::default()
+        },
+        step_count: 128,
+    })?;
+    // Vecer's continuous average call and the corresponding put from Asian parity.
+    let call = 0.246_416;
+    let parity = (-0.05_f64).exp() * (2.0 * 0.05_f64.exp_m1() / 0.05 - 2.0);
+    for (direction, reference) in [(OptionType::Call, call), (OptionType::Put, call - parity)] {
+        let option = ArithmeticAveragePriceOption::new(direction, 2.0, start, start, end, None)?;
+        let estimate = engine.price_with_statistics(&option, &context)?;
+        let error = estimate.standard_error().unwrap();
+        assert!(error > 0.0 && error < 0.001, "{direction:?}: {error}");
+        assert!((estimate.price() - reference).abs() < 4.0 * error + 0.0001);
+        assert_eq!(
+            estimate.price().to_bits(),
+            engine.price(&option, &context)?.to_bits()
+        );
+    }
+    Ok(())
+}

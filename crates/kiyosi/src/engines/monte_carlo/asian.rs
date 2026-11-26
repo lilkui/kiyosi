@@ -12,6 +12,8 @@ use crate::{Timestamp, TurnbullWakemanArithmeticAveragePriceEngine};
 /// Geometric averages and single fixings sample their exact distribution in one
 /// dimension. Arithmetic averages use trapezoidal integration with the first
 /// interval integrated conditionally; forward starts sample a separate lead interval.
+/// Near the money, a geometric payoff on the same integration grid reduces
+/// sampling variance for arithmetic prices and spot Greeks.
 /// Sampling, exact path counts, thread caps and reproducibility follow
 /// [`crate::MonteCarloVanillaEngine`]. Shared and distinct engines support concurrent
 /// calls with request-owned buffers and shared workers. See [`Self::price`].
@@ -385,9 +387,30 @@ impl MonteCarloAsianEngine {
                 return Err(crate::engines::monte_carlo::unstable());
             }
             let dimensions = step_count as usize - 1 + usize::from(lead > 0.0);
-            crate::engines::monte_carlo::path_means(settings, dimensions, statistics, |normals| {
-                p.arithmetic(normals, lead > 0.0, &interval_drifts, request)
-            })?
+            let control = p.geometric_control(&interval_drifts, request)?;
+            let sample = |settings, control: Option<&GeometricControl>| {
+                super::path_means(settings, dimensions, statistics, |normals| {
+                    p.arithmetic(normals, lead > 0.0, &interval_drifts, request, control)
+                })
+            };
+            let (mut means, error, seed) = sample(settings, control.as_ref())?;
+            if let Some(control) = control {
+                for (mean, expected) in means.iter_mut().zip(control.expected) {
+                    *mean += expected;
+                }
+            }
+            if means[0] < 0.0 {
+                // An unusually negative put residual can overwhelm the exact control mean.
+                sample(
+                    super::MonteCarloSettings {
+                        seed: Some(seed),
+                        ..settings
+                    },
+                    None,
+                )?
+            } else {
+                (means, error, seed)
+            }
         };
         Ok((
             result(means, request)?.with_seed(Some(seed)),
@@ -625,7 +648,98 @@ struct ArithmeticParameters {
     interval_forward: f64,
 }
 
+struct GeometricControl {
+    log_strike: f64,
+    log_asset_scale: f64,
+    first_weight: f64,
+    expected: [f64; 3],
+}
+
 impl ArithmeticParameters {
+    fn geometric_control(
+        &self,
+        interval_drifts: &[f64],
+        request: GreeksRequest,
+    ) -> Result<Option<GeometricControl>> {
+        let n = f64::from(self.step_count);
+        let first_weight = 1.0 - 0.5 / n;
+        let log_asset_scale = self.spot.ln() + self.weight.ln();
+        let adjusted_strike = (-self.prior_weight).mul_add(self.realized, self.strike);
+        let log_strike = adjusted_strike.ln();
+        if self.width < 1e-5
+            || self.width > 0.8
+            || self.log_discount.abs() > 50.0
+            || self.spot.ln().abs() > 200.0
+            || log_asset_scale.abs() > 200.0
+            || !log_strike.is_finite()
+        {
+            return Ok(None);
+        }
+        // Each increment contributes to all the future fixings after it.
+        // The tail weights are (n - 1/2)/n, ..., (1/2)/n.
+        let mut mean = self.lead_drift + first_weight * self.drift;
+        for step in 1..self.step_count {
+            super::check_path_step(usize::try_from(step).expect("positive step index"))?;
+            let drift = interval_drifts
+                .get(usize::try_from(step - 1).expect("nonnegative step index"))
+                .copied()
+                .unwrap_or(self.drift);
+            mean += (first_weight - f64::from(step) / n) * drift;
+        }
+        let variance = self.lead_width.powi(2) + self.width.powi(2) * (n / 3.0 - 1.0 / (12.0 * n));
+        let width = variance.sqrt();
+        let log_forward = log_asset_scale + mean + 0.5 * variance;
+        // Restrict the control to ordinary prices where the two average payoffs
+        // are closely related and the signed residual stays well scaled.
+        if !(0.02..=0.8).contains(&width) || (log_forward - log_strike).abs() > 2.0 * width {
+            return Ok(None);
+        }
+        let expected = self.geometric_values(log_forward, log_strike, width, request);
+        Ok(Some(GeometricControl {
+            log_strike,
+            log_asset_scale,
+            first_weight,
+            expected,
+        }))
+    }
+
+    fn geometric_values(
+        &self,
+        log_forward: f64,
+        log_strike: f64,
+        width: f64,
+        request: GreeksRequest,
+    ) -> [f64; 3] {
+        let d1 = (log_forward - log_strike) / width + 0.5 * width;
+        let d2 = d1 - width;
+        let log_asset =
+            log_forward + self.log_discount + crate::numerics::log_normal_cdf(self.sign * d1);
+        let log_cash =
+            log_strike + self.log_discount + crate::numerics::log_normal_cdf(self.sign * d2);
+        let price = if self.sign > 0.0 {
+            positive_difference(log_asset, log_cash)
+        } else {
+            positive_difference(log_cash, log_asset)
+        };
+        let log_spot = self.spot.ln();
+        let delta = if request.has(Greek::Delta) {
+            self.sign * (log_asset - log_spot).exp()
+        } else {
+            0.0
+        };
+        let gamma = if request.has(Greek::Gamma) {
+            (log_forward + self.log_discount
+                - 2.0 * log_spot
+                - width.ln()
+                - 0.5 * d1 * d1
+                - 0.5 * (2.0 * std::f64::consts::PI).ln())
+            .exp()
+        } else {
+            0.0
+        };
+        [price, delta, gamma]
+    }
+
     #[expect(
         clippy::cast_sign_loss,
         reason = "The constructor validates positive step counts before comparing them to path indices."
@@ -636,11 +750,13 @@ impl ArithmeticParameters {
         lead: bool,
         interval_drifts: &[f64],
         request: GreeksRequest,
+        control: Option<&GeometricControl>,
     ) -> Result<[f64; 3]> {
         let lead_normal = if lead { normals[0] } else { 0.0 };
         let lead_growth = self.lead_drift + self.lead_width * lead_normal;
         let (mut growth, mut relative_sum, mut log_sum) = (0.0, 0.0, f64::NEG_INFINITY);
         let (mut normal_sum, mut weighted_normals) = (0.0, 0.0);
+        let mut geometric_growth = 0.0;
         for (index, &normal) in normals[usize::from(lead)..].iter().enumerate() {
             super::check_path_step(index)?;
             let drift = if interval_drifts.is_empty() {
@@ -654,6 +770,9 @@ impl ArithmeticParameters {
             } else {
                 1.0
             } / f64::from(self.step_count);
+            if control.is_some() {
+                geometric_growth += fraction * growth;
+            }
             if self.width < f64::MIN_POSITIVE {
                 normal_sum += normal;
                 weighted_normals += fraction * normal_sum;
@@ -668,6 +787,22 @@ impl ArithmeticParameters {
                 relative_sum += fraction * growth.exp_m1();
             }
         }
+        let residual = |mut values: [f64; 3]| {
+            if let Some(control) = control {
+                let width = control.first_weight * self.width;
+                let log_forward = control.log_asset_scale
+                    + lead_growth
+                    + geometric_growth
+                    + control.first_weight * self.drift
+                    + 0.5 * width * width;
+                let geometric =
+                    self.geometric_values(log_forward, control.log_strike, width, request);
+                for (value, term) in values.iter_mut().zip(geometric) {
+                    *value -= term;
+                }
+            }
+            checked_sample(values)
+        };
         let half = 0.5 / f64::from(self.step_count);
         let rest = 1.0 - half;
         let log_spot = self.spot.ln();
@@ -687,13 +822,13 @@ impl ArithmeticParameters {
         let log_strike = self.strike.ln();
         if log_accrued >= log_strike {
             if self.sign < 0.0 {
-                return Ok([0.0; 3]);
+                return residual([0.0; 3]);
             }
             let cash = positive_difference(
                 log_accrued + self.log_discount,
                 log_strike + self.log_discount,
             );
-            return checked_sample([
+            return residual([
                 (log_q + self.log_discount).exp() + cash,
                 if request.has(Greek::Delta) {
                     (log_q + self.log_discount - log_spot).exp()
@@ -812,6 +947,6 @@ impl ArithmeticParameters {
         } else {
             0.0
         };
-        checked_sample([price, delta, gamma])
+        residual([price, delta, gamma])
     }
 }

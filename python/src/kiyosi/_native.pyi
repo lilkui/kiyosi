@@ -4720,7 +4720,9 @@ class MonteCarloAsianEngine(
     the parent's first parallel request. Use spawn or max_active_workers=1.
     Geometric averages and single fixings sample exact
     distributions. Arithmetic averages use step_count trapezoidal intervals
-    with the first interval integrated conditionally. Geometric pricing
+    with the first interval integrated conditionally. Near the money,
+    a geometric payoff on the same integration grid reduces sampling
+    variance for arithmetic prices and spot Greeks. Geometric pricing
     requires constant rates before expiry; arithmetic pricing accepts
     deterministic rate curves.
     """
