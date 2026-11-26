@@ -141,6 +141,25 @@ impl FiniteDifferenceSettings {
 
 const WORKSPACE_BUDGET: u64 = 1 << 30;
 
+/// Checks the workspace limit for finite-difference strike batches.
+///
+/// See [`FiniteDifferenceVanillaEngine::price_strikes`] for a pricing example.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidInput`] when the strike count exceeds the workspace limit.
+#[doc(hidden)]
+pub fn validate_finite_difference_strike_batch_size(strikes: usize) -> Result<()> {
+    // Allow for the input, ordering indices, and both the grouped and final quotes.
+    let bytes_per_strike = (size_of::<usize>() + 3 * size_of::<f64>()) as u64;
+    if (strikes as u64).saturating_mul(bytes_per_strike) > WORKSPACE_BUDGET / 4 {
+        return Err(invalid_grid(
+            "finite-difference strike batch exceeds workspace budget",
+        ));
+    }
+    Ok(())
+}
+
 /// Checks the surface workspace budget before collecting or pricing its inputs.
 ///
 /// # Errors
@@ -1750,6 +1769,19 @@ impl PricingEngine<DigitalOption> for FiniteDifferenceDigitalEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn strike_batch_size_checks_workspace_before_allocating() -> Result<()> {
+        let bytes_per_strike = size_of::<usize>() + 3 * size_of::<f64>();
+        let limit =
+            usize::try_from(WORKSPACE_BUDGET / 4).expect("budget fits usize") / bytes_per_strike;
+        validate_finite_difference_strike_batch_size(limit)?;
+        assert!(matches!(
+            validate_finite_difference_strike_batch_size(limit + 1),
+            Err(Error::InvalidInput(message)) if message.contains("strike batch exceeds workspace")
+        ));
+        Ok(())
+    }
 
     #[test]
     fn surface_size_bounds_both_axes_and_empty_surfaces() {

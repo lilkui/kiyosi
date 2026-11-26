@@ -164,7 +164,7 @@ pub use engines::finite_difference::{
     FiniteDifferenceDigitalEngine, FiniteDifferenceDoubleBarrierEngine,
     FiniteDifferenceDoubleTouchEngine, FiniteDifferenceEngine, FiniteDifferenceScheme,
     FiniteDifferenceSettings, FiniteDifferenceSolution, FiniteDifferenceVanillaEngine,
-    validate_finite_difference_surface_size,
+    validate_finite_difference_strike_batch_size, validate_finite_difference_surface_size,
 };
 pub use engines::monte_carlo::{
     MonteCarloAccumulatorEngine, MonteCarloAsianEngine, MonteCarloAutocallableEngine,

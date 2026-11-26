@@ -224,7 +224,7 @@ impl FiniteDifferenceHestonVanillaEngine {
     ///
     /// Propagates scalar pricing errors for the supplied strikes and returns
     /// [`crate::Error::InvalidInput`] for a nonpositive or non-finite strike or excessive
-    /// combined rollback work.
+    /// workspace or combined rollback work.
     /// An error or cancellation returns no partial prices.
     pub fn price_european_strikes(
         &self,
@@ -512,6 +512,7 @@ fn price_strikes(
     let model = context.model_parameters().as_heston()?;
     validate_life(option, context)?;
     context.validate_curve_coverage(option.expiry_time())?;
+    super::validate_finite_difference_strike_batch_size(strikes.len())?;
     let spot = context.spot_price();
     let mut low = f64::INFINITY;
     let mut high = 0.0_f64;

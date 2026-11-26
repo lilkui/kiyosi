@@ -6,6 +6,8 @@ import numbers
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from functools import partial
+from itertools import repeat
+from struct import calcsize
 from typing import get_args
 
 import pytest
@@ -48,6 +50,26 @@ FACTORIES = (
     FiniteDifferenceDoubleBarrierEngine,
 )
 SCHEMES = ("explicit_euler", "implicit_euler", "crank_nicolson", "rannacher")
+
+
+@pytest.mark.parametrize("heston", (False, True), ids=("bsm", "heston"))
+def test_fd_strike_batch_stops_reading_at_workspace_limit(heston):
+    from test_heston import context as heston_context
+
+    engine = (
+        FiniteDifferenceHestonVanillaEngine()
+        if heston
+        else FiniteDifferenceVanillaEngine()
+    )
+    context = heston_context() if heston else market()
+    limit = (1 << 28) // (calcsize("P") + 3 * calcsize("d"))
+
+    def strikes():
+        yield from repeat(100.0, limit + 1)
+        pytest.fail("read past the first strike exceeding the workspace limit")
+
+    with pytest.raises(InvalidInputError, match="strike batch exceeds workspace"):
+        engine.price_strikes(contract(EuropeanOption), context, strikes=strikes())
 
 
 @pytest.mark.parametrize("american", (False, True), ids=("european", "american"))

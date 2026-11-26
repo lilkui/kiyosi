@@ -31,7 +31,7 @@ impl FiniteDifferenceVanillaEngine {
     ///
     /// Returns invalid input for nonpositive or non-finite strikes and propagates pricing
     /// and cancellation errors without returning partial results. Excessive
-    /// combined rollback work returns [`crate::Error::InvalidInput`].
+    /// workspace or combined rollback work returns [`crate::Error::InvalidInput`].
     pub fn price_strikes(
         &self,
         option: &EuropeanOption,
@@ -40,6 +40,7 @@ impl FiniteDifferenceVanillaEngine {
     ) -> Result<Vec<f64>> {
         local_volatility::validate_model(context)?;
         validate_life(option, context)?;
+        super::validate_finite_difference_strike_batch_size(strikes.len())?;
         for &strike in strikes {
             crate::cancellation::check()?;
             crate::error::finite(strike, true, "strike")?;
@@ -165,8 +166,8 @@ impl FiniteDifferenceVanillaEngine {
     /// # Errors
     ///
     /// Returns [`crate::Error::InvalidInput`] for nonpositive or non-finite strikes
-    /// or valuation outside contract life, or excessive combined rollback
-    /// work. Pricing and cancellation errors return no partial results.
+    /// or valuation outside contract life, or excessive workspace or combined
+    /// rollback work. Pricing and cancellation errors return no partial results.
     pub fn price_american_strikes(
         &self,
         option: &AmericanOption,
@@ -175,6 +176,7 @@ impl FiniteDifferenceVanillaEngine {
     ) -> Result<Vec<f64>> {
         local_volatility::validate_model(context)?;
         validate_life(option, context)?;
+        super::validate_finite_difference_strike_batch_size(strikes.len())?;
         for &strike in strikes {
             crate::cancellation::check()?;
             crate::error::finite(strike, true, "strike")?;

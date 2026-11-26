@@ -302,6 +302,12 @@ pub(crate) fn surface_inputs(
     Ok((expiries, strikes))
 }
 
+pub(crate) fn finite_difference_strikes(value: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
+    collect_values_checked(value, real, |count| {
+        domain(kiyosi::validate_finite_difference_strike_batch_size(count))
+    })
+}
+
 pub(crate) fn clock_time(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::TimeOfDay> {
     let time = value.cast::<PyTime>()?;
     if !value

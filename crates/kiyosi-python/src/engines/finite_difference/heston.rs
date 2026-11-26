@@ -162,7 +162,8 @@ engine_methods!(
         /// an absolute grid. European batches can reuse one set of payoff weights.
         /// Check mesh convergence over the full range. Pricing releases the GIL
         /// and cancellation returns no partial result. The request caps combined
-        /// rollback work at one billion grid updates.
+        /// rollback work at one billion grid updates and bounds strike inputs
+        /// by the batch workspace limit.
         #[pyo3(signature = (instrument, context, *, strikes))]
         #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns the extracted inputs before core pricing.")]
         fn price_strikes<'py>(
@@ -170,7 +171,7 @@ engine_methods!(
             py: Python<'py>,
             #[pyo3(from_py_with = crate::conversions::instrument)] instrument: binomial::VanillaInstrument<'_>,
             context: &crate::market::PricingContext,
-            #[pyo3(from_py_with = crate::conversions::reals)] strikes: Vec<f64>,
+            #[pyo3(from_py_with = crate::conversions::finite_difference_strikes)] strikes: Vec<f64>,
         ) -> PyResult<Bound<'py, PyTuple>> {
             let context = &context.0;
             let values = match &instrument {

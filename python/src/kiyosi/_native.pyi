@@ -3481,7 +3481,8 @@ class FiniteDifferenceHestonVanillaEngine(
         an absolute grid. European batches can reuse one set of payoff weights.
         Check mesh convergence over the full range. Pricing releases the GIL
         and cancellation returns no partial result. The request caps combined
-        rollback work at one billion grid updates.
+        rollback work at one billion grid updates and bounds strike inputs
+        by the batch workspace limit.
         """
 
     def price_american_surface(
@@ -3849,6 +3850,7 @@ class FiniteDifferenceVanillaEngine(
         and compatible local-volatility strikes share an absolute-spot grid. Outliers can
         use individual solves. Check grid convergence across the strike range.
         The request caps combined rollback work at one billion grid updates.
+        Strike inputs are bounded by the batch workspace limit.
         Cancellation returns no partial result.
         """
 

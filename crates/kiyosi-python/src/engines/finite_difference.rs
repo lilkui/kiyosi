@@ -248,6 +248,7 @@ fd_engine!(
         /// and compatible local-volatility strikes share an absolute-spot grid. Outliers can
         /// use individual solves. Check grid convergence across the strike range.
         /// The request caps combined rollback work at one billion grid updates.
+        /// Strike inputs are bounded by the batch workspace limit.
         /// Cancellation returns no partial result.
         #[pyo3(signature = (instrument, context, *, strikes))]
         #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns extracted strikes.")]
@@ -256,7 +257,7 @@ fd_engine!(
             py: Python<'py>,
             #[pyo3(from_py_with = crate::conversions::instrument)] instrument: binomial::VanillaInstrument<'_>,
             context: &crate::market::PricingContext,
-            #[pyo3(from_py_with = crate::conversions::reals)] strikes: Vec<f64>,
+            #[pyo3(from_py_with = crate::conversions::finite_difference_strikes)] strikes: Vec<f64>,
         ) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
             let context = &context.0;
             let values = match &instrument {
