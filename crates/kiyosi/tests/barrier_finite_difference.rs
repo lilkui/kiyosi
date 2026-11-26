@@ -1,6 +1,39 @@
 use kiyosi::*;
 
 #[test]
+fn scheduled_barrier_rejects_drift_that_overwhelms_grid_diffusion() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_days(365)?;
+    let mut terms = BarrierOptionTerms::new(
+        OptionType::Put,
+        100.0,
+        start,
+        end,
+        102.0,
+        BarrierType::UpAndIn,
+    );
+    terms.rebate = 2.0;
+    terms.observation_times = Some(vec![start.add_days(30)?, start.add_days(100)?, end]);
+    terms.calendar = TradingCalendar::all_days();
+    let option = BarrierOption::new(terms)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.001)?,
+        100.0,
+        start,
+    )?;
+    let engine = FiniteDifferenceBarrierEngine::default();
+    assert!(matches!(
+        engine.price(&option, &context),
+        Err(Error::ComputationFailure(_))
+    ));
+    assert!(matches!(
+        engine.solve(&option, &context, 99.9..=100.1),
+        Err(Error::ComputationFailure(_))
+    ));
+    Ok(())
+}
+
+#[test]
 fn nearby_grid_sizes_resolve_narrow_up_and_out_payoff() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let option = BarrierOption::new(BarrierOptionTerms::new(

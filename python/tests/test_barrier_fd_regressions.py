@@ -1,16 +1,45 @@
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 from itertools import product
 
 import pytest
-from kiyosi import pricing
+from kiyosi import ComputationFailureError, pricing
 from kiyosi.instruments import BarrierOption, TouchOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
     LocalVolatilityParameters,
     LocalVolatilitySurface,
     PricingContext,
+    all_days_calendar,
 )
+
+
+def test_scheduled_barrier_rejects_drift_that_overwhelms_grid_diffusion():
+    start = datetime(2025, 1, 1)
+    end = start + timedelta(days=365)
+    option = BarrierOption(
+        option_type="put",
+        strike=100,
+        effective_time=start,
+        expiry_time=end,
+        barrier_level=102,
+        barrier_type="up_and_in",
+        rebate=2,
+        observation_times=[start + timedelta(days=day) for day in (30, 100, 365)],
+        calendar=all_days_calendar(),
+    )
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.001
+        ),
+        spot_price=100,
+        valuation_time=start,
+    )
+    engine = pricing.FiniteDifferenceBarrierEngine()
+    with pytest.raises(ComputationFailureError, match="drift"):
+        engine.price(option, context)
+    with pytest.raises(ComputationFailureError, match="drift"):
+        engine.solve(option, context, spot_range=(99.9, 100.1))
 
 
 @pytest.mark.parametrize("asset_steps", (799, 800))

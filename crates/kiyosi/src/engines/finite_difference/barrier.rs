@@ -32,6 +32,8 @@ impl FiniteDifferenceBarrierEngine {
     /// impossible history, clipped or
     /// degenerate grids, or unstable explicit steps. Numerical failures return
     /// [`Error::ComputationFailure`][crate::Error::ComputationFailure].
+    /// Scheduled constant-volatility grids also fail when one-sided drift on the mesh
+    /// would introduce excessive variance. Increase spatial resolution in that case.
     ///
     /// # Greeks
     ///
@@ -533,6 +535,26 @@ fn solve_grid<D: Diffusion>(
         [lower, grid_upper],
         terms.barrier_level(),
     )?;
+    if scheduled && !D::LOCAL {
+        let sigma = volatility.sigma(0.0, 0.0);
+        let variance = sigma * sigma;
+        let h = space.spacing;
+        for current in std::iter::once(0.0)
+            .chain(risk.ends())
+            .chain(dividend.ends())
+        {
+            crate::cancellation::check()?;
+            let [down, _, up] =
+                space.coefficients(1, risk.rate(current), dividend.rate(current), sigma);
+            // A one-sided jump can preserve carry only by adding variance on a coarse grid.
+            if (down + up) * h * h > 2.0 * variance {
+                return Err(crate::Error::ComputationFailure(
+                    "scheduled barrier grid drift overwhelms diffusion; increase asset_step_count"
+                        .into(),
+                ));
+            }
+        }
+    }
     if !scheduled && settings.scheme != super::FiniteDifferenceScheme::ExplicitEuler {
         space.resolve_barriers(
             [Some(terms.barrier_level()), upper_barrier],
