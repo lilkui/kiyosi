@@ -151,7 +151,7 @@ impl Date {
 ///
 /// Timestamps carry no timezone information; callers must use a consistent time
 /// basis. See [`Self::new`] for construction.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Hash, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Timestamp(i64);
 
 impl Timestamp {

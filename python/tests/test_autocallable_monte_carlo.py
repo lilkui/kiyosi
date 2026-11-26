@@ -77,6 +77,22 @@ def test_shared_portfolio_coupon_strips_match_two_lane_quotes(sampling):
             notes, snapshot, shared_grid=True
         )
 
+    outlier = snow.replace(knock_in_level=85)
+    notes = (
+        snow.replace(maturity_coupon_rate=0.01),
+        outlier,
+        snow,
+        snow.replace(maturity_coupon_rate=0.10),
+    )
+    actual = engine.price_many(notes, snapshot, shared_grid=True)
+    expected = tuple(
+        engine.price_many(
+            (note, snow if note is outlier else outlier), snapshot, shared_grid=True
+        )[0]
+        for note in notes
+    )
+    assert actual == pytest.approx(expected, rel=0, abs=2e-14)
+
 
 @pytest.mark.parametrize("sampling", ("pseudo_random", "sobol"))
 def test_portfolio_prices_replay_scalar_paths(sampling):

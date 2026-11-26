@@ -340,79 +340,122 @@ fn price_groups<T: AutocallableTerms>(
     prices: &mut [f64],
     share_daily_grid: bool,
 ) -> Result<()> {
-    for mut group in groups.drain(..) {
+    for group in groups.drain(..) {
         crate::cancellation::check()?;
         let (index, base) = &group[0];
         if group.len() == 1 {
             prices[*index] = scalar(base, engine, context)?;
         } else {
             let shared = share_daily_grid && base.shared_daily_grid();
-            if !shared || !price_coupon_group(&mut group, engine.settings, prices)? {
-                Portfolio::new(&group, shared)?.price(engine.settings, prices)?;
+            if shared && group.len() >= 3 {
+                price_coupon_families(&group, engine.settings, prices)?;
+            } else {
+                let notes = group.iter().collect::<Vec<_>>();
+                Portfolio::new(&notes, shared)?.price(engine.settings, prices)?;
             }
         }
     }
     Ok(())
 }
 
-fn price_coupon_group<T: AutocallableTerms>(
-    group: &mut [IndexedPlan<'_, T>],
+fn price_coupon_families<T: AutocallableTerms>(
+    group: &[IndexedPlan<'_, T>],
     settings: MonteCarloSettings,
     prices: &mut [f64],
-) -> Result<bool> {
-    if group.len() < 3 {
-        return Ok(false);
-    }
-    let first = group[0].1.note;
-    let mut low = (0, first.portfolio_coupon());
-    let mut high = low;
-    for (index, (_, plan)) in group.iter().enumerate().skip(1) {
+) -> Result<()> {
+    let mut by_key = HashMap::<_, Vec<usize>>::new();
+    let mut families = Vec::<Vec<usize>>::new();
+    for (index, (_, plan)) in group.iter().enumerate() {
         crate::cancellation::check()?;
-        if !first.shares_coupon_terms(plan.note)? {
-            return Ok(false);
+        let candidates = by_key.entry(plan.note.coupon_family_key()?).or_default();
+        let mut family = None;
+        for &candidate in &*candidates {
+            if plan
+                .note
+                .shares_coupon_terms(group[families[candidate][0]].1.note)?
+            {
+                family = Some(candidate);
+                break;
+            }
         }
-        let coupon = plan.note.portfolio_coupon();
-        if coupon < low.1 {
-            low = (index, coupon);
-        }
-        if coupon > high.1 {
-            high = (index, coupon);
-        }
+        let family = family.unwrap_or_else(|| {
+            candidates.push(families.len());
+            families.push(Vec::new());
+            families.len() - 1
+        });
+        families[family].push(index);
     }
-    let width = high.1 - low.1;
-    if !width.is_finite() {
-        return Ok(false);
-    }
-    // Equal event dates and thresholds preserve the union grid and its draws.
-    // Keep two endpoint lanes and interpolate the coupon cash flows afterward.
-    group.swap(0, low.0);
-    let high_index = if high.0 == 0 { low.0.max(1) } else { high.0 };
-    group.swap(1, high_index);
-    Portfolio::new(&group[..2], true)?.price(settings, prices)?;
-    let [lower_price, upper_price] = [prices[group[0].0], prices[group[1].0]];
-    // Restore the original lane order for a numerical fallback.
-    group.swap(1, high_index);
-    group.swap(0, low.0);
-    for (index, plan) in group {
+
+    let mut simulated = vec![true; group.len()];
+    let mut strips = Vec::new();
+    let coupon = |index: usize| group[index].1.note.portfolio_coupon();
+    for family in families.iter().filter(|family| family.len() >= 3) {
         crate::cancellation::check()?;
-        let fraction = if width > 0.0 {
-            (plan.note.portfolio_coupon() - low.1) / width
-        } else {
-            0.0
-        };
-        let value = [lower_price * (1.0 - fraction), upper_price * fraction];
-        let price = value[0] + value[1];
-        let magnitude = value[0].abs() + value[1].abs();
-        if !price.is_finite() || price.abs() < 1e-12 * magnitude {
-            return Ok(false);
+        let mut low = family[0];
+        let mut high = family[1];
+        if coupon(low) > coupon(high) {
+            std::mem::swap(&mut low, &mut high);
         }
-        prices[*index] = price;
+        for &index in &family[2..] {
+            check_path_step(index)?;
+            if coupon(index) < coupon(low) {
+                low = index;
+            }
+            if coupon(index) > coupon(high) {
+                high = index;
+            }
+        }
+        let width = coupon(high) - coupon(low);
+        if width.is_finite() {
+            strips.push((family, low, high, width));
+            for &index in family {
+                simulated[index] = index == low || index == high;
+            }
+        }
     }
-    Ok(true)
+
+    let sample = |simulated: &[bool], prices: &mut [f64]| {
+        // Every family retains its event dates and thresholds in the union grid.
+        let notes = group
+            .iter()
+            .zip(simulated)
+            .filter_map(|(note, &simulate)| simulate.then_some(note))
+            .collect::<Vec<_>>();
+        Portfolio::new(&notes, true)?.price(settings, prices)
+    };
+    sample(&simulated, prices)?;
+    let mut retry = false;
+    for (family, low, high, width) in strips {
+        let [lower_price, upper_price] = [prices[group[low].0], prices[group[high].0]];
+        for &index in family {
+            crate::cancellation::check()?;
+            if simulated[index] {
+                continue;
+            }
+            let fraction = if width > 0.0 {
+                (coupon(index) - coupon(low)) / width
+            } else {
+                0.0
+            };
+            let value = [lower_price * (1.0 - fraction), upper_price * fraction];
+            let price = value[0] + value[1];
+            let magnitude = value[0].abs() + value[1].abs();
+            if !price.is_finite() || price.abs() < 1e-12 * magnitude {
+                retry = true;
+                simulated[index] = true;
+            } else {
+                prices[group[index].0] = price;
+            }
+        }
+    }
+    if retry {
+        sample(&simulated, prices)?;
+    }
+    Ok(())
 }
 
 struct Portfolio<'a, 'b, T: AutocallableTerms> {
-    notes: &'a [IndexedPlan<'b, T>],
+    notes: &'a [&'a IndexedPlan<'b, T>],
     base: &'a PathPlan<'b, T>,
     events: Vec<Event>,
     shared: Option<SharedEvents>,
@@ -476,7 +519,7 @@ impl<T: AutocallableTerms> PathPlan<'_, T> {
 
 impl SharedEvents {
     fn new<T: AutocallableTerms>(
-        notes: &[IndexedPlan<'_, T>],
+        notes: &[&IndexedPlan<'_, T>],
         base: &PathPlan<'_, T>,
     ) -> Result<Self> {
         let steps = &base.steps;
@@ -631,7 +674,7 @@ struct Lane {
 }
 
 impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
-    fn new(notes: &'a [IndexedPlan<'b, T>], shared: bool) -> Result<Self> {
+    fn new(notes: &'a [&'a IndexedPlan<'b, T>], shared: bool) -> Result<Self> {
         let base = &notes[0].1;
         let expiry_discount = base
             .steps

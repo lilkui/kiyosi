@@ -140,6 +140,25 @@ fn shared_portfolio_coupon_strips_match_two_lane_quotes() -> Result<()> {
         check(&engine, &snows, &context)?;
         check(&engine, &phoenixes, &context)?;
     }
+    let outlier = snows[0].replace(SnowballOptionChanges {
+        knock_in_level: Some(85.0),
+        ..Default::default()
+    })?;
+    let engine = MonteCarloAutocallableEngine::new(MonteCarloSettings {
+        path_count: 2048,
+        seed: Some(42),
+        ..Default::default()
+    })?;
+    let notes = [&snows[0], &snows[1], &outlier, &snows[2], &snows[4]];
+    let mixed = engine.price_many_on_shared_grid(&notes, &context)?;
+    for (&note, value) in notes.iter().zip(mixed) {
+        let expected = if note == &outlier {
+            engine.price_many_on_shared_grid(&[note, &snows[0]], &context)?[0]
+        } else {
+            engine.price_many_on_shared_grid(&[note, &outlier], &context)?[0]
+        };
+        assert!((value - expected).abs() < 2e-14, "{value} vs {expected}");
+    }
     Ok(())
 }
 

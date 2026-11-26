@@ -1162,6 +1162,61 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         }
     }
 
+    pub(crate) fn coupon_family_key(&self) -> Result<u64> {
+        use std::hash::{DefaultHasher, Hash, Hasher};
+
+        // Equality accepts both signed zeros.
+        let bits = |value: f64| if value == 0.0 { 0 } else { value.to_bits() };
+        let terms = self.view();
+        let mut key = DefaultHasher::new();
+        (
+            terms.effective_time,
+            terms.expiry_time,
+            self.knock_in_affects_payoff(),
+        )
+            .hash(&mut key);
+        terms
+            .barrier_state
+            .map(|state| std::mem::discriminant(&state))
+            .hash(&mut key);
+        [
+            terms.principal_redemption_ratio,
+            terms.rebate_rate,
+            terms.annual_rebate_rate,
+        ]
+        .map(bits)
+        .hash(&mut key);
+        if let Some(knock_in) = terms.knock_in {
+            bits(knock_in.level).hash(&mut key);
+            std::mem::discriminant(&knock_in.observation).hash(&mut key);
+            match knock_in.redemption {
+                Redemption::FixedCoupon(coupon) => bits(coupon).hash(&mut key),
+                Redemption::Downside(downside) => {
+                    [
+                        downside.initial_spot,
+                        downside.upper_strike,
+                        downside.lower_strike,
+                    ]
+                    .map(bits)
+                    .hash(&mut key);
+                }
+            }
+        }
+        for events in self.events().chunks(1024) {
+            crate::cancellation::check()?;
+            for event in events {
+                (
+                    event.time,
+                    event.knock_out.map(|record| bits(record.knock_out_level)),
+                    event.coupon_barrier_level().map(bits),
+                    bits(event.coupon_rate),
+                )
+                    .hash(&mut key);
+            }
+        }
+        Ok(key.finish())
+    }
+
     #[expect(
         clippy::float_cmp,
         reason = "Exact payout terms are required for coupon interpolation."
