@@ -96,6 +96,12 @@ impl AccumulatorTerms {
 pub struct Accumulator {
     terms: AccumulatorTerms,
 }
+pub(crate) struct FixedPurchaseEvent {
+    pub time: Timestamp,
+    pub before: f64,
+    pub at: f64,
+}
+
 impl Accumulator {
     /// Creates a validated contract, allowing equal life times and zero quantities.
     ///
@@ -360,6 +366,62 @@ impl Accumulator {
         times.sort_unstable();
         times.dedup();
         Ok(times)
+    }
+
+    #[expect(
+        clippy::float_cmp,
+        reason = "Only exactly unit acceleration makes purchases independent of spot."
+    )]
+    pub(crate) fn fixed_purchase_events(
+        &self,
+        context: &PricingContext,
+    ) -> Result<Option<Vec<FixedPurchaseEvent>>> {
+        let Some(observations) = self.knock_out_observation_times() else {
+            return Ok(None);
+        };
+        if self.acceleration_factor() != 1.0 && self.daily_quantity() != 0.0 {
+            return Ok(None);
+        }
+        let valuation = context.valuation_time();
+        let expiry = self.expiry_time();
+        if valuation >= expiry {
+            return Ok(None);
+        }
+        let start = valuation.max(self.effective_time());
+        let fixings = if self.daily_quantity() == 0.0 {
+            Vec::new()
+        } else {
+            ObservationSchedule::daily_times(
+                start,
+                expiry,
+                self.calendar(),
+                start > valuation,
+                self.observation_clock_time(),
+            )?
+        };
+        let Ok(total) = u32::try_from(fixings.len()) else {
+            return Ok(None);
+        };
+        if !(f64::from(total) * self.daily_quantity()).is_finite() {
+            return Ok(None);
+        }
+        let future = &observations[observations.partition_point(|&time| time <= valuation)..];
+        let expiry_only = (future.last() != Some(&expiry)).then_some(expiry);
+        let mut events = Vec::with_capacity(future.len() + usize::from(expiry_only.is_some()));
+        let mut previous = 0;
+        for time in future.iter().copied().chain(expiry_only) {
+            crate::cancellation::check()?;
+            let before = previous + fixings[previous..].partition_point(|&fixing| fixing < time);
+            let at = fixings.get(before) == Some(&time);
+            let count = u32::try_from(before - previous).expect("fixing count is bounded above");
+            events.push(FixedPurchaseEvent {
+                time,
+                before: f64::from(count) * self.daily_quantity(),
+                at: if at { self.daily_quantity() } else { 0.0 },
+            });
+            previous = before + usize::from(at);
+        }
+        Ok(Some(events))
     }
 
     pub(crate) fn accrues(&self, context: &PricingContext) -> bool {

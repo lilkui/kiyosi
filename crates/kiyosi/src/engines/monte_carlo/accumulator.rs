@@ -214,7 +214,12 @@ impl MonteCarloAccumulatorEngine {
             }
         };
         let mut previous = valuation;
-        let dates = option.future_observation_times(context)?;
+        let fixed = option.fixed_purchase_events(context)?;
+        let dates = if let Some(events) = &fixed {
+            events.iter().map(|event| event.time).collect()
+        } else {
+            option.future_observation_times(context)?
+        };
         let mut steps = self.settings.scheduled_steps(dates.len())?;
         for date in dates {
             crate::cancellation::check()?;
@@ -230,7 +235,7 @@ impl MonteCarloAccumulatorEngine {
                 diffusion,
                 log_discount,
                 option.observes_knock_out(date),
-                option.accumulates_at(date, option.calendar()),
+                fixed.is_none() && option.accumulates_at(date, option.calendar()),
             ));
             previous = date;
         }
@@ -249,6 +254,9 @@ impl MonteCarloAccumulatorEngine {
                     if !spot.is_finite() || spot <= 0.0 {
                         return Err(unstable());
                     }
+                    if let Some(events) = &fixed {
+                        quantity += events[index].before;
+                    }
                     if *observe && sign * log_return >= sign * knock_out {
                         return Ok([scaled_value(
                             quantity,
@@ -256,7 +264,9 @@ impl MonteCarloAccumulatorEngine {
                             *log_discount,
                         )?]);
                     }
-                    if *accumulate {
+                    if let Some(events) = &fixed {
+                        quantity += events[index].at;
+                    } else if *accumulate {
                         quantity += option.daily_quantity()
                             * if sign * log_return < sign * strike {
                                 option.acceleration_factor()

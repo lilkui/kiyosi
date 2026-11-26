@@ -206,7 +206,12 @@ fn solve_grid<D: Diffusion>(
             (0.1 * horizon_width).max(1e-4),
         )?;
     }
-    let dates = option.future_observation_times(context)?;
+    let fixed = option.fixed_purchase_events(context)?;
+    let dates = if let Some(events) = &fixed {
+        events.iter().map(|event| event.time).collect()
+    } else {
+        option.future_observation_times(context)?
+    };
     let trading = diffusion::observation_times(context.valuation_time(), expiry, &dates)?;
     let grid = diffusion::time_grid(context, expiry, settings, &risk, &dividend, &trading)?;
     let count = if option.accrues(context) { 2 } else { 1 };
@@ -228,27 +233,42 @@ fn solve_grid<D: Diffusion>(
     let mut breaks = vec![option.strike(), option.knock_out_level()];
     breaks.sort_by(f64::total_cmp);
     breaks.dedup();
-    let event = |asset: f64, slope: f64, intercept: f64, observe: bool, accumulate: bool| {
-        if observe && option.is_knock_out(asset) {
-            [option.unit_payoff(asset), 0.0]
-        } else {
-            [
-                slope,
-                intercept
-                    + if accumulate {
-                        slope * option.purchase(asset)
+    let event =
+        |index: usize, asset: f64, slope: f64, intercept: f64, observe: bool, accumulate: bool| {
+            let (before, purchase) = if let Some(events) = &fixed {
+                (events[index].before, events[index].at)
+            } else {
+                (
+                    0.0,
+                    if accumulate {
+                        option.purchase(asset)
                     } else {
                         0.0
                     },
-            ]
-        }
-    };
+                )
+            };
+            if observe && option.is_knock_out(asset) {
+                [
+                    option.unit_payoff(asset),
+                    before * option.unit_payoff(asset),
+                ]
+            } else {
+                [slope, intercept + slope * (before + purchase)]
+            }
+        };
     let observe = option.observes_knock_out(expiry);
     let accumulate = option.accumulates_at(expiry, option.calendar());
     let [slope, intercept] = &mut layers;
     for (i, (slope, intercept)) in slope.iter_mut().zip(intercept).enumerate() {
         let value = super::grid::project_in_coordinates(&space, &breaks, i, |asset| {
-            event(asset, option.unit_payoff(asset), 0.0, observe, accumulate)
+            event(
+                dates.len() - 1,
+                asset,
+                option.unit_payoff(asset),
+                0.0,
+                observe,
+                accumulate,
+            )
         });
         *slope = value[0];
         *intercept = value[1];
@@ -261,21 +281,22 @@ fn solve_grid<D: Diffusion>(
             let middle = current + 0.5 * dt;
             let rate = risk.rate(middle);
             let q = dividend.rate(middle);
-            for layer in 0..count {
-                let values = &layers[layer];
-                let boundaries =
-                    space.discount_affine_edges(values, (-rate * dt).exp(), (-q * dt).exp());
-                diffusion.advance(
-                    &mut stepper,
-                    values,
-                    &mut next[layer],
-                    &space,
-                    middle,
-                    [dt, weight, rate, q],
-                    boundaries,
-                )?;
-                std::mem::swap(&mut layers[layer], &mut next[layer]);
-            }
+            let [slope, intercept] = &layers;
+            let [next_slope, next_intercept] = &mut next;
+            let discount = (-rate * dt).exp();
+            let dividend_discount = (-q * dt).exp();
+            let edges = [slope, intercept]
+                .map(|values| space.discount_affine_edges(values, discount, dividend_discount));
+            diffusion.advance_batch(
+                &mut stepper,
+                &[slope.as_slice(), intercept.as_slice()][..count],
+                &mut [next_slope.as_mut_slice(), next_intercept.as_mut_slice()][..count],
+                &space,
+                middle,
+                [dt, weight, rate, q],
+                &edges[..count],
+            )?;
+            std::mem::swap(&mut layers, &mut next);
         }
         if let Ok(event_index) = trading.binary_search_by(|t| t.total_cmp(&grid.times[step])) {
             let date = dates[event_index];
@@ -286,7 +307,7 @@ fn solve_grid<D: Diffusion>(
                 let correction = super::grid::project_in_coordinates(&space, &breaks, i, |asset| {
                     let slope = space.linear(&layers[0], asset);
                     let intercept = space.linear(&layers[1], asset);
-                    let value = event(asset, slope, intercept, observe, accumulate);
+                    let value = event(event_index, asset, slope, intercept, observe, accumulate);
                     [value[0] - slope, value[1] - intercept]
                 });
                 for layer in 0..count {

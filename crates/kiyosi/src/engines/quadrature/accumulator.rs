@@ -172,7 +172,12 @@ fn price(
             curve.discount,
         );
     }
-    let dates = option.future_observation_times(context)?;
+    let fixed = option.fixed_purchase_events(context)?;
+    let dates = if let Some(events) = &fixed {
+        events.iter().map(|event| event.time).collect()
+    } else {
+        option.future_observation_times(context)?
+    };
     let knock_out = log_ratio(option.knock_out_level(), strike);
     let sign = match option.option_type() {
         OptionType::Call => 1.0,
@@ -190,6 +195,16 @@ fn price(
         cash: -sign * strike,
         asset: sign,
     });
+    if let Some(last) = fixed.as_ref().and_then(|events| events.last()) {
+        if last.before != 0.0 {
+            layers[1].exact.push(TerminalPiece {
+                lower: f64::NEG_INFINITY,
+                upper: f64::INFINITY,
+                cash: -sign * strike * last.before,
+                asset: sign * last.before,
+            });
+        }
+    }
     if count == 2 && option.accumulates_at(option.expiry_time(), option.calendar()) {
         let (live_lower, live_upper) = if option.observes_knock_out(option.expiry_time()) {
             if sign > 0.0 {
@@ -280,17 +295,25 @@ fn price(
     let mut next_knock_out = None;
     let mut remaining_purchases = 0_usize;
     let mut purchases_before_knock_out = 0_usize;
+    let mut remaining_fixed = 0.0;
+    let mut fixed_before_knock_out = 0.0;
     for event in (0..dates.len()).rev() {
         crate::cancellation::check()?;
         let final_event = event + 1 == dates.len();
         let observes_knock_out = option.observes_knock_out(dates[event]);
         let accumulates = option.accumulates_at(dates[event], option.calendar());
+        let fixed_purchase = fixed.as_ref().map(|events| &events[event]);
+        let before = fixed_purchase.map_or(0.0, |event| event.before);
+        let fixed_amount = fixed_purchase.map_or(0.0, |event| event.before + event.at);
         remaining_purchases += usize::from(accumulates);
+        remaining_fixed += fixed_amount;
         if observes_knock_out {
             next_knock_out = Some(event);
             purchases_before_knock_out = 0;
+            fixed_before_knock_out = before;
         } else {
             purchases_before_knock_out += usize::from(accumulates);
+            fixed_before_knock_out += fixed_amount;
         }
         if !final_event {
             for (layer, result) in layers.iter_mut().enumerate().take(count) {
@@ -318,6 +341,12 @@ fn price(
                     let remaining = dates[event].years_until(dates[last]);
                     let quantity = if layer == 0 {
                         1.0
+                    } else if fixed_purchase.is_some() {
+                        if settlement.is_some() {
+                            fixed_before_knock_out
+                        } else {
+                            remaining_fixed
+                        }
                     } else {
                         (if settlement.is_some() {
                             purchases_before_knock_out
@@ -337,23 +366,30 @@ fn price(
                 result.cells = vec![[0.0; 4]; nodes.len() - 1];
             }
             if observes_knock_out {
-                layers[0].exact.push(TerminalPiece {
-                    lower: if sign > 0.0 {
-                        knock_out
-                    } else {
-                        f64::NEG_INFINITY
-                    },
-                    upper: if sign > 0.0 { f64::INFINITY } else { knock_out },
-                    cash: -sign * strike,
-                    asset: sign,
-                });
+                let (lower, upper) = if sign > 0.0 {
+                    (knock_out, f64::INFINITY)
+                } else {
+                    (f64::NEG_INFINITY, knock_out)
+                };
+                for (layer, quantity) in layers.iter_mut().zip([1.0, before]) {
+                    if quantity != 0.0 {
+                        layer.exact.push(TerminalPiece {
+                            lower,
+                            upper,
+                            cash: -sign * strike * quantity,
+                            asset: sign * quantity,
+                        });
+                    }
+                }
             }
             for (cell, edges) in nodes.windows(2).enumerate() {
                 let point = edges[0].midpoint(edges[1]);
                 if !(observes_knock_out && knocks_out(point)) {
                     layers[0].cells[cell] = continuation[0][cell];
                     if count == 2 {
-                        let purchase = if !accumulates {
+                        let purchase = if fixed_purchase.is_some() {
+                            fixed_amount
+                        } else if !accumulates {
                             0.0
                         } else if point < 0.0 {
                             option.purchase(0.0)
