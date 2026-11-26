@@ -1117,64 +1117,24 @@ impl MonteCarloVanillaEngine {
         context: &PricingContext,
         statistics: bool,
     ) -> Result<(Moments, Moments, f64, Option<u64>)> {
-        let model = context.natural_bsm_parameters()?;
-        context.validate_curve_horizon(option.expiry_time())?;
-        let rate = model.flat_risk_free_rate()?;
-        let dividend = model.flat_dividend_yield()?;
-        let valuation = context.valuation_time();
-        let expiry = option.expiry_time();
-        crate::instruments::monitoring::validate_life(option, context)?;
-        let sign = if option.option_type() == OptionType::Call {
-            1.0
-        } else {
-            -1.0
+        let payoff = match EuropeanPayoff::new(option, context)? {
+            EuropeanPayoff::Known(value) => {
+                let mut sample = Moments::default();
+                sample.add(value, false);
+                return Ok((sample, Moments::default(), 0.0, None));
+            }
+            EuropeanPayoff::Sampled(payoff) => payoff,
         };
-        let time = valuation.years_until(expiry);
-        if time == 0.0 {
-            let mut sample = Moments::default();
-            sample.add(
-                (sign * (context.spot_price() - option.strike())).max(0.0),
-                false,
-            );
-            return Ok((sample, Moments::default(), 0.0, None));
-        }
-        let sigma = model.volatility();
-        if sigma == 0.0 {
-            let mut sample = Moments::default();
-            sample.add(
-                crate::engines::deterministic::vanilla(
-                    option,
-                    crate::engines::Payoff::vanilla(option.option_type(), option.strike(), false),
-                    context,
-                )?,
-                false,
-            );
-            return Ok((sample, Moments::default(), 0.0, None));
-        }
-        let diffusion = sigma * time.sqrt();
-        let carry = (rate - dividend) * time;
-        let half_variance = (0.5 * diffusion) * diffusion;
-        let drift = carry - half_variance;
-        if !drift.is_finite() || !diffusion.is_finite() {
-            return Err(unstable());
-        }
-        let moneyness =
-            context.log_forward_moneyness(expiry, option.strike(), carry) - half_variance;
-        // Accumulate in units of the discounted paying leg so even an overflowing
-        // individual payoff can contribute to a representable mean and standard error.
-        let log_scale = if sign > 0.0 {
-            context.spot_price().ln() - dividend * time
-        } else {
-            option.strike().ln() - rate * time
-        };
-        if sign > 0.0 && diffusion > 25.0 {
+        if payoff.needs_peak_scaling() {
             // A wide distribution can underflow in units of spot. Scale these
             // samples to their observed peak, replaying the same draws for statistics.
             let settings = self.settings.sampling.with_resolved_seed()?;
             let log_payoff = |normal| {
-                let distance = diffusion.mul_add(normal, moneyness);
+                let distance = payoff.diffusion.mul_add(normal, payoff.moneyness);
                 if distance > 0.0 {
-                    diffusion.mul_add(normal, log_scale - half_variance)
+                    payoff
+                        .diffusion
+                        .mul_add(normal, payoff.log_scale - payoff.half_variance)
                         + (-(-distance).exp_m1()).ln()
                 } else {
                     f64::NEG_INFINITY
@@ -1196,20 +1156,119 @@ impl MonteCarloVanillaEngine {
         }
         let ([total], [pairs], seed) =
             path_samples(self.settings.sampling, 1, statistics, |normals| {
-                let distance = diffusion.mul_add(normals[0], moneyness);
-                let payoff = if sign * distance <= 0.0 {
-                    0.0
-                } else if sign < 0.0 {
-                    -distance.exp_m1()
-                } else {
-                    -(-distance).exp_m1() * diffusion.mul_add(normals[0], -half_variance).exp()
-                };
-                if !payoff.is_finite() {
-                    return Err(unstable());
-                }
-                Ok([payoff])
+                Ok([payoff.at_normal(normals[0])?])
             })?;
-        Ok((total, pairs, log_scale, Some(seed)))
+        Ok((total, pairs, payoff.log_scale, Some(seed)))
+    }
+
+    fn european_greek_prices<const N: usize>(
+        &self,
+        payoffs: &[TerminalPayoff],
+    ) -> Result<(Vec<PricingResult>, u64)> {
+        let (totals, _, seed) = path_samples(self.settings.sampling, 1, false, |normals| {
+            let mut values = [0.0; N];
+            for (value, payoff) in values.iter_mut().zip(payoffs) {
+                *value = payoff.at_normal(normals[0])?;
+            }
+            Ok(values)
+        })?;
+        let results = totals
+            .iter()
+            .zip(payoffs)
+            .map(|(sample, payoff)| {
+                PricingResult::new(scaled_value(sample.scale, sample.mean, payoff.log_scale)?)
+            })
+            .collect::<Result<_>>()?;
+        Ok((results, seed))
+    }
+}
+
+enum EuropeanPayoff {
+    Known(f64),
+    Sampled(TerminalPayoff),
+}
+
+impl EuropeanPayoff {
+    fn new(option: &EuropeanOption, context: &PricingContext) -> Result<Self> {
+        let model = context.natural_bsm_parameters()?;
+        context.validate_curve_horizon(option.expiry_time())?;
+        let rate = model.flat_risk_free_rate()?;
+        let dividend = model.flat_dividend_yield()?;
+        let valuation = context.valuation_time();
+        let expiry = option.expiry_time();
+        crate::instruments::monitoring::validate_life(option, context)?;
+        let sign = if option.option_type() == OptionType::Call {
+            1.0
+        } else {
+            -1.0
+        };
+        let time = valuation.years_until(expiry);
+        if time == 0.0 {
+            return Ok(Self::Known(
+                (sign * (context.spot_price() - option.strike())).max(0.0),
+            ));
+        }
+        let sigma = model.volatility();
+        if sigma == 0.0 {
+            return crate::engines::deterministic::vanilla(
+                option,
+                crate::engines::Payoff::vanilla(option.option_type(), option.strike(), false),
+                context,
+            )
+            .map(Self::Known);
+        }
+        let diffusion = sigma * time.sqrt();
+        let carry = (rate - dividend) * time;
+        let half_variance = (0.5 * diffusion) * diffusion;
+        let drift = carry - half_variance;
+        if !drift.is_finite() || !diffusion.is_finite() {
+            return Err(unstable());
+        }
+        let moneyness =
+            context.log_forward_moneyness(expiry, option.strike(), carry) - half_variance;
+        // Accumulate in units of the discounted paying leg so even an overflowing
+        // individual payoff can contribute to a representable mean and standard error.
+        let log_scale = if sign > 0.0 {
+            context.spot_price().ln() - dividend * time
+        } else {
+            option.strike().ln() - rate * time
+        };
+        Ok(Self::Sampled(TerminalPayoff {
+            sign,
+            diffusion,
+            half_variance,
+            moneyness,
+            log_scale,
+        }))
+    }
+}
+
+struct TerminalPayoff {
+    sign: f64,
+    diffusion: f64,
+    half_variance: f64,
+    moneyness: f64,
+    log_scale: f64,
+}
+
+impl TerminalPayoff {
+    fn needs_peak_scaling(&self) -> bool {
+        self.sign > 0.0 && self.diffusion > 25.0
+    }
+
+    fn at_normal(&self, normal: f64) -> Result<f64> {
+        let distance = self.diffusion.mul_add(normal, self.moneyness);
+        let payoff = if self.sign * distance <= 0.0 {
+            0.0
+        } else if self.sign < 0.0 {
+            -distance.exp_m1()
+        } else {
+            -(-distance).exp_m1() * self.diffusion.mul_add(normal, -self.half_variance).exp()
+        };
+        if !payoff.is_finite() {
+            return Err(unstable());
+        }
+        Ok(payoff)
     }
 }
 
@@ -1241,6 +1300,83 @@ impl PricingEngine for MonteCarloVanillaEngine {
     }
     fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
         Ok(self.price_with_seed(option, context)?.0)
+    }
+
+    fn price_with_greeks_with_settings(
+        &self,
+        option: &EuropeanOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        settings: crate::NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        use crate::risk::numerical::{complete_greeks, greek_scenarios};
+
+        let scalar = || crate::numerical_greeks(self, option, context, request, settings);
+        context.bsm_parameters()?;
+        <Self as PricingEngine>::validate_applicability(self, context)?;
+        settings.validate()?;
+        if request == GreeksRequest::new([]) {
+            return scalar();
+        }
+        let EuropeanPayoff::Sampled(base) = EuropeanPayoff::new(option, context)? else {
+            return scalar();
+        };
+        if base.needs_peak_scaling() {
+            return scalar();
+        }
+        let scenarios = match greek_scenarios(option, context, request, settings) {
+            Ok(scenarios) if scenarios.len() > 1 => scenarios,
+            Err(error @ Error::Io(_)) => return Err(error),
+            _ => return scalar(),
+        };
+        let shifted_payoffs =
+            scenarios
+                .iter()
+                .skip(1)
+                .map(|scenario| match EuropeanPayoff::new(option, scenario) {
+                    Ok(EuropeanPayoff::Sampled(payoff)) if !payoff.needs_peak_scaling() => {
+                        Some(payoff)
+                    }
+                    _ => None,
+                });
+        let Some(payoffs) = std::iter::once(Some(base))
+            .chain(shifted_payoffs)
+            .collect::<Option<Vec<_>>>()
+        else {
+            return scalar();
+        };
+        let engine = self.with_resolved_seed()?;
+        // The full stencil fits at most 21 scenarios. Smaller batches avoid
+        // carrying that many moment accumulators for selectively requested Greeks.
+        let result = match payoffs.len() {
+            2..=3 => engine.european_greek_prices::<3>(&payoffs),
+            4..=5 => engine.european_greek_prices::<5>(&payoffs),
+            6..=9 => engine.european_greek_prices::<9>(&payoffs),
+            10..=15 => engine.european_greek_prices::<15>(&payoffs),
+            16..=21 => engine.european_greek_prices::<21>(&payoffs),
+            _ => return scalar(),
+        };
+        let (prices, seed) = match result {
+            Ok(prices) => prices,
+            Err(error @ Error::Io(_)) => return Err(error),
+            // Scalar evaluation preserves the first failing scenario.
+            Err(_) => return crate::numerical_greeks(&engine, option, context, request, settings),
+        };
+        complete_greeks(
+            option,
+            context,
+            request,
+            settings,
+            false,
+            prices[0].clone(),
+            |scenario, _| {
+                if let Some(index) = scenarios.iter().position(|key| key == scenario) {
+                    return Ok(prices[index].clone());
+                }
+                PricingResult::new(engine.price(option, scenario)?)
+            },
+        )
+        .map(|result| result.with_seed(Some(seed)))
     }
 }
 

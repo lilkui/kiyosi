@@ -1121,6 +1121,17 @@ fn every_sampling_combination_replays_analytics_across_threads_and_failures() {
             let expected = engine
                 .price_with_greeks(&option, &context, GreeksRequest::all())
                 .unwrap();
+            assert_eq!(
+                expected,
+                numerical_greeks(
+                    &engine,
+                    &option,
+                    &context,
+                    GreeksRequest::all(),
+                    Default::default(),
+                )
+                .unwrap(),
+            );
             let bounds = ImpliedVolatilitySettings::new(0.1, 0.4);
             let sigma =
                 implied_volatility(&engine, &option, &context, expected.price(), bounds).unwrap();

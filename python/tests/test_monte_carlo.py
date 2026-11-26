@@ -843,8 +843,9 @@ def test_all_sampling_combinations_replay_analytics_and_preserve_failure_state(
     assert sigma == pytest.approx(0.2, rel=0, abs=1e-8)
     for threads in (0, 2, 4):
         other = MonteCarloVanillaEngine(**settings, max_active_workers=threads)
-        actual = numerical_greeks(other, option, context, greeks="all", **shifts)
+        actual = other.price_with_greeks(option, context, greeks="all", **shifts)
         assert actual.price == expected.price
+        assert actual.seed == expected.seed
         assert tuple(getattr(actual, name) for name in GREEKS) == tuple(
             getattr(expected, name) for name in GREEKS
         )
