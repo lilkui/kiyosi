@@ -1162,7 +1162,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         }
     }
 
-    pub(crate) fn coupon_family_key(&self) -> Result<u64> {
+    pub(crate) fn portfolio_family_key(&self, vary_knock_in: bool) -> Result<u64> {
         use std::hash::{DefaultHasher, Hash, Hasher};
 
         // Equality accepts both signed zeros.
@@ -1186,8 +1186,13 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         ]
         .map(bits)
         .hash(&mut key);
+        if vary_knock_in {
+            bits(self.portfolio_coupon()).hash(&mut key);
+        }
         if let Some(knock_in) = terms.knock_in {
-            bits(knock_in.level).hash(&mut key);
+            if !vary_knock_in {
+                bits(knock_in.level).hash(&mut key);
+            }
             std::mem::discriminant(&knock_in.observation).hash(&mut key);
             match knock_in.redemption {
                 Redemption::FixedCoupon(coupon) => bits(coupon).hash(&mut key),
@@ -1219,16 +1224,23 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
 
     #[expect(
         clippy::float_cmp,
-        reason = "Exact payout terms are required for coupon interpolation."
+        reason = "Portfolio reductions require exactly matching fixed terms."
     )]
-    pub(crate) fn shares_coupon_terms(&self, other: &Self) -> Result<bool> {
+    pub(crate) fn shares_portfolio_terms(&self, other: &Self, vary_knock_in: bool) -> Result<bool> {
         let a = self.view();
         let b = other.view();
+        let compare_knock_in = |mut terms: KnockIn| {
+            if vary_knock_in {
+                terms.level = 0.0;
+            }
+            terms
+        };
         if a.effective_time != b.effective_time
             || a.expiry_time != b.expiry_time
             || a.calendar != b.calendar
             || a.barrier_state != b.barrier_state
-            || a.knock_in != b.knock_in
+            || a.knock_in.map(compare_knock_in) != b.knock_in.map(compare_knock_in)
+            || vary_knock_in && self.portfolio_coupon() != other.portfolio_coupon()
             || self.knock_in_affects_payoff() != other.knock_in_affects_payoff()
             || a.principal_redemption_ratio != b.principal_redemption_ratio
             || a.rebate_rate != b.rebate_rate

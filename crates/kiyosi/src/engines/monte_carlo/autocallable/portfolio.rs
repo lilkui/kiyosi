@@ -8,6 +8,7 @@ use super::{
     MonteCarloSettings, PathPlan, PathStep, PricingContext, PricingEngine, Result, Sample,
     SkippingPath, check_path_step, scaled_value, transition, unstable,
 };
+use crate::numerics::Sum;
 use crate::{ObservationSchedule, TimeOfDay, Timestamp, TradingCalendar};
 
 // Leave room for the next note's preparation and the request's Sobol table.
@@ -305,7 +306,9 @@ fn key_and_workspace<T: AutocallableTerms>(
         + if shared {
             // Buckets and packed events coexist while assembling the schedule.
             6 * (events + 1) * size_of::<(usize, SharedAction)>()
-                + size_of::<(f64, usize)>()
+                + 2 * size_of::<(f64, usize)>()
+                + (blocks + 1) * size_of::<Option<Sum>>()
+                + blocks * size_of::<usize>()
                 + if plan.shared_events.is_none() {
                     plan.steps.len() * SHARED_STEP_BYTES
                 } else {
@@ -367,12 +370,14 @@ fn price_coupon_families<T: AutocallableTerms>(
     let mut families = Vec::<Vec<usize>>::new();
     for (index, (_, plan)) in group.iter().enumerate() {
         crate::cancellation::check()?;
-        let candidates = by_key.entry(plan.note.coupon_family_key()?).or_default();
+        let candidates = by_key
+            .entry(plan.note.portfolio_family_key(false)?)
+            .or_default();
         let mut family = None;
         for &candidate in &*candidates {
             if plan
                 .note
-                .shares_coupon_terms(group[families[candidate][0]].1.note)?
+                .shares_portfolio_terms(group[families[candidate][0]].1.note, false)?
             {
                 family = Some(candidate);
                 break;
@@ -421,7 +426,7 @@ fn price_coupon_families<T: AutocallableTerms>(
             .zip(simulated)
             .filter_map(|(note, &simulate)| simulate.then_some(note))
             .collect::<Vec<_>>();
-        Portfolio::new(&notes, true)?.price(settings, prices)
+        price_shared(&notes, settings, prices)
     };
     sample(&simulated, prices)?;
     let mut retry = false;
@@ -452,6 +457,114 @@ fn price_coupon_families<T: AutocallableTerms>(
         sample(&simulated, prices)?;
     }
     Ok(())
+}
+
+struct ThresholdStrip {
+    levels: Vec<(f64, usize)>,
+    offset: usize,
+}
+
+#[derive(Default)]
+struct ThresholdSums {
+    buckets: Vec<Option<Sum>>,
+    touched: Vec<usize>,
+}
+
+impl ThresholdSums {
+    fn add(&mut self, index: usize, term: f64) {
+        self.buckets[index]
+            .get_or_insert_with(|| {
+                self.touched.push(index);
+                Sum::default()
+            })
+            .add(term);
+    }
+
+    fn drain_into(&mut self, totals: &mut [Sum]) -> Result<()> {
+        for (i, index) in self.touched.drain(..).enumerate() {
+            check_path_step(i)?;
+            if let Some(sum) = self.buckets[index].take() {
+                totals[index].merge(sum);
+            }
+        }
+        Ok(())
+    }
+}
+
+fn price_shared<T: AutocallableTerms>(
+    notes: &[&IndexedPlan<'_, T>],
+    settings: MonteCarloSettings,
+    prices: &mut [f64],
+) -> Result<()> {
+    let scalar_lanes = |prices: &mut [f64]| Portfolio::new(notes, true)?.price(settings, prices);
+    if notes.len() < 3 {
+        return scalar_lanes(prices);
+    }
+    let mut by_key = HashMap::<_, Vec<usize>>::new();
+    let mut families: Vec<Vec<(f64, usize)>> = Vec::new();
+    let mut compressed = Vec::with_capacity(notes.len());
+    let mut strips = Vec::with_capacity(notes.len());
+    for (index, (_, plan)) in notes.iter().enumerate() {
+        check_path_step(index)?;
+        let Some(level) = plan.knock_in.filter(|level| {
+            level.is_finite() && !plan.state.knocked_in && plan.shared_events.is_some()
+        }) else {
+            compressed.push(notes[index]);
+            strips.push(None);
+            continue;
+        };
+        let candidates = by_key
+            .entry(plan.note.portfolio_family_key(true)?)
+            .or_default();
+        let mut family = None;
+        for &candidate in &*candidates {
+            let reference = &notes[families[candidate][0].1].1;
+            if Arc::ptr_eq(&plan.steps, &reference.steps)
+                && plan.note.shares_portfolio_terms(reference.note, true)?
+            {
+                family = Some(candidate);
+                break;
+            }
+        }
+        let family = family.unwrap_or_else(|| {
+            candidates.push(families.len());
+            families.push(Vec::new());
+            families.len() - 1
+        });
+        families[family].push((level, index));
+    }
+    let mut offset = 0;
+    for mut family in families {
+        crate::cancellation::check()?;
+        if family.len() < 3 {
+            for (_, index) in family {
+                compressed.push(notes[index]);
+                strips.push(None);
+            }
+            continue;
+        }
+        family.sort_unstable_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+        compressed.push(notes[family[0].1]);
+        for (i, (_, index)) in family.iter_mut().enumerate() {
+            check_path_step(i)?;
+            *index = notes[*index].0;
+        }
+        let len = family.len();
+        strips.push(Some(ThresholdStrip {
+            levels: family,
+            offset,
+        }));
+        offset += len;
+    }
+    if offset == 0 {
+        return scalar_lanes(prices);
+    }
+    let result =
+        Portfolio::new(&compressed, true)?.price_with_strips(settings, prices, &strips, offset);
+    match result {
+        Err(Error::ComputationFailure(_)) => scalar_lanes(prices),
+        result => result,
+    }
 }
 
 struct Portfolio<'a, 'b, T: AutocallableTerms> {
@@ -724,6 +837,16 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
     }
 
     fn price(&self, settings: MonteCarloSettings, prices: &mut [f64]) -> Result<()> {
+        self.price_with_strips(settings, prices, &[], 0)
+    }
+
+    fn price_with_strips(
+        &self,
+        settings: MonteCarloSettings,
+        prices: &mut [f64],
+        strips: &[Option<ThresholdStrip>],
+        buckets: usize,
+    ) -> Result<()> {
         let base = self.base;
         let dimensions = base.steps.len();
         let blocks = PathBlocks::new(settings, dimensions)?;
@@ -735,14 +858,19 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
                     vec![Moments::default(); lanes],
                     Vec::with_capacity(lanes),
                     Vec::with_capacity(lanes),
+                    ThresholdSums {
+                        buckets: vec![None; buckets],
+                        touched: Vec::with_capacity(buckets),
+                    },
                 )
             })
             .collect();
         let runner = BlockRunner::new(wave, settings.max_active_workers)?;
         let mut total = vec![Moments::default(); lanes];
+        let mut adjustments = vec![Sum::default(); buckets];
         for start in (0..blocks.count()).step_by(wave) {
             let partials = &mut partials[..wave.min(blocks.count() - start)];
-            runner.run(partials, |block, (moments, states, live)| {
+            runner.run(partials, |block, (moments, states, live, sums)| {
                 moments.fill(Moments::default());
                 blocks.sample(
                     start + block,
@@ -750,7 +878,7 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
                     |draws, paired| {
                         skipped_sample_pair(draws, dimensions, paired, |path, _| {
                             if let Some(events) = &self.shared {
-                                self.shared_payoffs(path, states, events)?;
+                                self.shared_payoffs(path, states, events, strips, sums)?;
                             } else {
                                 self.payoffs(path, states, live)?;
                             }
@@ -763,8 +891,9 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
                 )
             })?;
             // The original block indices and merge order make results independent of scheduling.
-            for (partial, _, _) in partials {
+            for (partial, _, _, sums) in partials {
                 crate::cancellation::check()?;
+                sums.drain_into(&mut adjustments)?;
                 for (total, &moment) in total.iter_mut().zip(&*partial) {
                     total.merge(moment, false);
                 }
@@ -772,6 +901,23 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
         }
         for ((index, _), moment) in self.notes.iter().zip(total) {
             prices[*index] = scaled_value(moment.scale, moment.mean, 0.0)?;
+        }
+        let path_count = f64::from(settings.path_count);
+        for strip in strips.iter().flatten() {
+            let base = prices[strip.levels[0].1];
+            let mut prefix = Sum::default();
+            for (i, &(_, index)) in strip.levels.iter().enumerate() {
+                check_path_step(i)?;
+                prefix.merge(adjustments[strip.offset + i]);
+                let delta = prefix.total() / path_count;
+                let price = base + delta;
+                if !price.is_finite()
+                    || (delta != 0.0 && price.abs() < 1e-10 * (base.abs() + delta.abs()))
+                {
+                    return Err(unstable());
+                }
+                prices[index] = price;
+            }
         }
         Ok(())
     }
@@ -795,6 +941,8 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
         normals: &mut SkippingPath<'_, '_>,
         states: &mut Vec<Lane>,
         schedule: &SharedEvents,
+        strips: &[Option<ThresholdStrip>],
+        sums: &mut ThresholdSums,
     ) -> Result<()> {
         self.reset_states(states)?;
         let base = self.base;
@@ -849,11 +997,27 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
                             minimum
                         };
                         knock_in(lane, floor);
-                        lane.cash +=
-                            plan.discounted_terminal(log_return, lane.knocked_in, *discount)?;
-                        if !lane.cash.is_finite() {
+                        let cash = lane.cash
+                            + plan.discounted_terminal(log_return, lane.knocked_in, *discount)?;
+                        if !cash.is_finite() {
                             return Err(unstable());
                         }
+                        if !lane.knocked_in {
+                            if let Some(Some(strip)) = strips.get(*index) {
+                                let start =
+                                    strip.levels.partition_point(|&(level, _)| level <= floor);
+                                if start < strip.levels.len() {
+                                    let hit = lane.cash
+                                        + plan.discounted_terminal(log_return, true, *discount)?;
+                                    let difference = hit - cash;
+                                    if !difference.is_finite() {
+                                        return Err(unstable());
+                                    }
+                                    sums.add(strip.offset + start, difference);
+                                }
+                            }
+                        }
+                        lane.cash = cash;
                         true
                     }
                 };

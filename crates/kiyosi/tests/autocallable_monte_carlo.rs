@@ -960,3 +960,52 @@ fn shared_daily_grid_settles_notes_at_their_own_maturities() -> Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn shared_knock_in_strip_matches_individual_thresholds_in_a_mixed_book() -> Result<()> {
+    let (terms, _, _) =
+        autocallable_support::multi_event_terms(KnockInObservation::EveryTradingDay {
+            observation_clock_time: date(1, 1).time_of_day(),
+        });
+    let first = SnowballOption::new(terms)?;
+    let mut notes = [90.0, 75.0, 95.0, 80.0, 90.0]
+        .into_iter()
+        .map(|level| {
+            first.replace(SnowballOptionChanges {
+                knock_in_level: Some(level),
+                ..Default::default()
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    notes.insert(
+        2,
+        first.replace(SnowballOptionChanges {
+            maturity_coupon_rate: Some(0.11),
+            ..Default::default()
+        })?,
+    );
+    let context = market(100.0, date(1, 1));
+    for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
+        let settings = MonteCarloSettings {
+            path_count: 32768,
+            seed: Some(42),
+            max_active_workers: 2,
+            antithetic: true,
+            sampling,
+        };
+        let engine = MonteCarloAutocallableEngine::new(settings)?;
+        let batch = notes.iter().collect::<Vec<_>>();
+        let prices = engine.price_many_on_shared_grid(&batch, &context)?;
+        assert_eq!(prices[0].to_bits(), prices[5].to_bits());
+        for (&actual, note) in prices.iter().zip(&notes) {
+            let expected = engine.price_many_on_shared_grid(&[note, note], &context)?[0];
+            assert!((actual - expected).abs() < 2e-14, "{actual} vs {expected}");
+        }
+        let serial = MonteCarloAutocallableEngine::new(MonteCarloSettings {
+            max_active_workers: 1,
+            ..settings
+        })?;
+        assert_eq!(prices, serial.price_many_on_shared_grid(&batch, &context)?);
+    }
+    Ok(())
+}

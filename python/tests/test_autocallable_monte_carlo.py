@@ -614,3 +614,30 @@ def test_shared_daily_grid_settles_notes_at_their_own_maturities():
             assert price == pytest.approx(
                 oracle.price(note, context), abs=5 * error, rel=0
             )
+
+
+@pytest.mark.parametrize("sampling", ("pseudo_random", "sobol"))
+def test_shared_knock_in_strip_matches_individual_thresholds_in_a_mixed_book(sampling):
+    first = contract(
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time())
+    )
+    levels = (90, 75, 95, 80, 90)
+    notes = [first.replace(knock_in_level=level) for level in levels]
+    notes.insert(2, first.replace(maturity_coupon_rate=0.11))
+    engine = MC(
+        path_count=8192,
+        seed=42,
+        max_active_workers=2,
+        antithetic=True,
+        sampling=sampling,
+    )
+    snapshot = market()
+    actual = engine.price_many(iter(notes), snapshot, shared_grid=True)
+    expected = tuple(
+        engine.price_many((note, note), snapshot, shared_grid=True)[0] for note in notes
+    )
+    assert actual == pytest.approx(expected, abs=2e-14, rel=0)
+    assert actual[0] == actual[5]
+    assert actual == engine.replace(max_active_workers=1).price_many(
+        notes, snapshot, shared_grid=True
+    )

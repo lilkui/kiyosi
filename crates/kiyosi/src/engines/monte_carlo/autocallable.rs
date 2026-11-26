@@ -174,7 +174,7 @@ impl MonteCarloAutocallableEngine {
     /// common life. Different maturities can share the grid when they fall on
     /// its observation dates. Cash events keep their contractual dates. The
     /// batch is reproducible with a fixed seed.
-    /// Notes that differ only by maturity or periodic coupon can share
+    /// Notes that differ only by maturity, periodic coupon or knock-in level can share
     /// cash-flow exposures on the common grid.
     /// Shared paths can differ from the seeded scalar Brownian bridge. See
     /// [`Self::price_many`] for an example of pricing a batch of notes.

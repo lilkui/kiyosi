@@ -4687,7 +4687,7 @@ class MonteCarloAutocallableEngine(
             cash-flow dates and maturities that fall on the grid. Defaults
             to False. With True, seeded batch prices can differ from
             individually seeded scalar prices. Notes that differ only by
-            maturity or periodic coupon can share cash-flow exposures.
+            maturity, periodic coupon or knock-in level can share cash-flow exposures.
 
         Returns
         -------
