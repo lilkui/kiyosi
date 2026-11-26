@@ -63,7 +63,8 @@ pub struct FiniteDifferenceSettings {
     /// Sets at least three spatial steps; defaults to 800.
     /// Continuous barrier grids use all intervals between their actual domain edges.
     pub asset_step_count: i32,
-    /// Sets at least one time step; defaults to 400. Curve/surface knots, model-calendar transitions and observations are added.
+    /// Sets at least one base time step; defaults to 400. The grid includes curve
+    /// and surface knots, model-calendar transitions and observations.
     pub time_step_count: i32,
     /// Selects time marching; defaults to [`FiniteDifferenceScheme::Rannacher`].
     pub scheme: FiniteDifferenceScheme,

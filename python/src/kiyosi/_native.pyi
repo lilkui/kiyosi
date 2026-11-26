@@ -2880,7 +2880,7 @@ class _FiniteDifferenceMethods[Instrument](_PricingMethods[Instrument]):
 
     @property
     def time_step_count(self) -> int:
-        """Return the configured base number of time intervals before event insertion."""
+        """Return the configured base number of time intervals."""
 
     @property
     def scheme(self) -> _pricing.FiniteDifferenceScheme:
@@ -2965,8 +2965,8 @@ class FiniteDifferenceAccumulatorEngine(_FiniteDifferenceMethods[Accumulator]):
         Number of spatial steps, at least 3; defaults to 800. Continuous
         barrier grids use all steps between their actual domain edges.
     time_step_count : int, optional
-        Positive base number of time intervals; event dates and curve knots are
-        added.
+        Positive base number of time intervals. The grid includes event dates
+        and curve knots.
         Read ``FiniteDifferenceAccumulatorEngine().time_step_count`` for the engine's default.
     scheme : FiniteDifferenceScheme, optional
         Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
@@ -3018,8 +3018,8 @@ class FiniteDifferenceBarrierEngine(_FiniteDifferenceMethods[BarrierOption]):
         Number of spatial steps, at least 3; defaults to 800. Continuous
         barrier grids use all steps between their actual domain edges.
     time_step_count : int, optional
-        Positive base number of time intervals; event dates and curve knots are
-        added.
+        Positive base number of time intervals. The grid includes event dates
+        and curve knots.
         Read ``FiniteDifferenceBarrierEngine().time_step_count`` for the engine's default.
     scheme : FiniteDifferenceScheme, optional
         Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
@@ -3071,8 +3071,8 @@ class FiniteDifferenceDoubleBarrierEngine(
         Number of spatial steps, at least 3; defaults to 800. Continuous
         barrier grids use all steps between their actual domain edges.
     time_step_count : int, optional
-        Positive base number of time intervals; event dates and curve knots are
-        added.
+        Positive base number of time intervals. The grid includes event dates
+        and curve knots.
         Read ``FiniteDifferenceDoubleBarrierEngine().time_step_count`` for the engine's default.
     scheme : FiniteDifferenceScheme, optional
         Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
@@ -3126,8 +3126,8 @@ class FiniteDifferenceAutocallableEngine(
         Number of spatial steps, at least 3; defaults to 800. Continuous
         barrier grids use all steps between their actual domain edges.
     time_step_count : int, optional
-        Positive base number of time intervals; event dates and curve knots are
-        added.
+        Positive base number of time intervals. The grid includes event dates
+        and curve knots.
         Read ``FiniteDifferenceAutocallableEngine().time_step_count`` for the engine's default.
     scheme : FiniteDifferenceScheme, optional
         Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
@@ -3166,6 +3166,9 @@ class FiniteDifferenceAutocallableEngine(
     strike. Surface coverage follows remaining stochastic evolution; rate
     coverage follows required future discounting. Automatic local-volatility
     domains require convergence checks.
+
+    When daily knock-in is active, implicit schemes subdivide the gaps between
+    mandatory dates to place the base time intervals.
     """
 
 class FiniteDifferenceDoubleTouchEngine(_FiniteDifferenceMethods[DoubleTouchOption]):
@@ -3177,8 +3180,8 @@ class FiniteDifferenceDoubleTouchEngine(_FiniteDifferenceMethods[DoubleTouchOpti
         Number of spatial steps, at least 3; defaults to 800. Continuous
         barrier grids use all steps between their actual domain edges.
     time_step_count : int, optional
-        Positive base number of time intervals; event dates and curve knots are
-        added.
+        Positive base number of time intervals. The grid includes event dates
+        and curve knots.
         Read ``FiniteDifferenceDoubleTouchEngine().time_step_count`` for the engine's default.
     scheme : FiniteDifferenceScheme, optional
         Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
@@ -3230,8 +3233,8 @@ class FiniteDifferenceBinaryBarrierEngine(
         Number of spatial steps, at least 3; defaults to 800. Continuous
         barrier grids use all steps between their actual domain edges.
     time_step_count : int, optional
-        Positive base number of time intervals; event dates and curve knots are
-        added.
+        Positive base number of time intervals. The grid includes event dates
+        and curve knots.
         Read ``FiniteDifferenceBinaryBarrierEngine().time_step_count`` for the engine's default.
     scheme : FiniteDifferenceScheme, optional
         Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
@@ -3561,8 +3564,8 @@ class FiniteDifferenceVanillaEngine(
         Number of spatial steps, at least 3; defaults to 800. Continuous
         barrier grids use all steps between their actual domain edges.
     time_step_count : int, optional
-        Positive base number of time intervals; event dates and curve knots are
-        added.
+        Positive base number of time intervals. The grid includes event dates
+        and curve knots.
         Read ``FiniteDifferenceVanillaEngine().time_step_count`` for the engine's default.
     scheme : FiniteDifferenceScheme, optional
         Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
@@ -3620,8 +3623,8 @@ class FiniteDifferenceDigitalEngine(
         Number of spatial steps, at least 3; defaults to 800. Continuous
         barrier grids use all steps between their actual domain edges.
     time_step_count : int, optional
-        Positive base number of time intervals; event dates and curve knots are
-        added.
+        Positive base number of time intervals. The grid includes event dates
+        and curve knots.
         Read ``FiniteDifferenceDigitalEngine().time_step_count`` for the engine's default.
     scheme : FiniteDifferenceScheme, optional
         Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).

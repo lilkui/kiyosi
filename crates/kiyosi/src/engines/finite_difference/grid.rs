@@ -789,6 +789,74 @@ impl TimeGrid {
     }
 
     #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_precision_loss,
+        reason = "Step counts are bounded by the validated base grid and time knots."
+    )]
+    pub fn aligned(
+        time: f64,
+        steps: i32,
+        risk: &Curve,
+        dividend: &Curve,
+        observations: &[f64],
+        validate_intervals: impl Fn(u64) -> Result<()>,
+    ) -> Result<Self> {
+        // Within this horizon the original integer microseconds round-trip through f64 years.
+        const MICROS_PER_YEAR: f64 = 31_536_000_000_000.0;
+        crate::cancellation::check()?;
+        let mut events: Vec<_> = risk
+            .ends()
+            .chain(dividend.ends())
+            .chain(observations.iter().copied())
+            .chain([0.0])
+            .collect();
+        events.sort_by(f64::total_cmp);
+        events.dedup();
+        let nominal_index = |t: f64| (t / time * f64::from(steps)).round() as usize;
+        let subdivisions = |a, b| (nominal_index(b) - nominal_index(a)).max(1);
+        let mut count = 0_usize;
+        for (i, pair) in events.windows(2).enumerate() {
+            if i % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
+            count += subdivisions(pair[0], pair[1]);
+        }
+        validate_intervals(count as u64)?;
+        let mut times = Vec::with_capacity(count + 1);
+        let mut widths = Vec::with_capacity(count);
+        times.push(0.0);
+        let exact_micros = time * MICROS_PER_YEAR < 2_f64.powi(51);
+        for pair in events.windows(2) {
+            crate::cancellation::check()?;
+            let [a, b] = [pair[0], pair[1]];
+            let n = subdivisions(a, b);
+            let raw = b - a;
+            let span = if exact_micros {
+                ((b * MICROS_PER_YEAR).round() - (a * MICROS_PER_YEAR).round()) / MICROS_PER_YEAR
+            } else {
+                raw
+            };
+            let width = span / n as f64;
+            for i in 1..n {
+                if i % 1024 == 0 {
+                    crate::cancellation::check()?;
+                }
+                let node = (i as f64 / n as f64).mul_add(raw, a);
+                if node <= times[times.len() - 1] || node >= b {
+                    return Err(invalid_grid(
+                        "finite-difference time nodes are not representably distinct",
+                    ));
+                }
+                times.push(node);
+            }
+            times.push(b);
+            widths.resize(widths.len() + n, width);
+        }
+        Ok(Self { times, widths })
+    }
+
+    #[expect(
         clippy::float_cmp,
         reason = "Exact uniform-grid endpoints identify reusable step widths without merging nearby events."
     )]
@@ -902,6 +970,32 @@ mod tests {
             }
         });
         assert_eq!(payoff, [1.5, 1.5]);
+    }
+
+    #[test]
+    fn aligned_time_grid_preserves_daily_dates_without_doubling_steps() -> Result<()> {
+        let start = crate::Date::new(2025, 1, 1)?.start_of_day();
+        let end = start.add_days(365)?;
+        let flat = crate::RateTermStructure::flat(0.0, None)?;
+        let curve = Curve::new(&flat, start, end)?;
+        let daily = (1..365)
+            .map(|day| Ok(start.years_until(start.add_days(day)?)))
+            .collect::<Result<Vec<_>>>()?;
+        let grid = TimeGrid::aligned(1.0, 366, &curve, &curve, &daily, |_| Ok(()))?;
+        assert_eq!(grid.widths.len(), 366);
+        assert!(daily.iter().all(|t| {
+            grid.times
+                .binary_search_by(|node| node.total_cmp(t))
+                .is_ok()
+        }));
+        assert_eq!(
+            grid.widths
+                .iter()
+                .filter(|w| w.to_bits() == (1.0_f64 / 365.0).to_bits())
+                .count(),
+            364
+        );
+        Ok(())
     }
 
     #[test]

@@ -46,8 +46,8 @@ macro_rules! fd_engine {
         ///     Number of spatial steps, at least 3; defaults to 800. Continuous
         ///     barrier grids use all steps between their actual domain edges.
         /// time_step_count : int, optional
-        ///     Positive base number of time intervals; event dates and curve knots are
-        ///     added.
+        ///     Positive base number of time intervals. The grid includes event dates
+        ///     and curve knots.
         #[doc = concat!("    Read ``", stringify!($name), "().time_step_count`` for the engine's default.")]
         /// scheme : FiniteDifferenceScheme, optional
         ///     Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
@@ -179,7 +179,7 @@ macro_rules! fd_engine {
                     self.0.settings().asset_step_count
                 }
 
-                /// Return the configured base number of time intervals before event insertion.
+                /// Return the configured base number of time intervals.
                 #[getter]
                 fn time_step_count(&self) -> i32 {
                     self.0.settings().time_step_count
@@ -249,6 +249,8 @@ fd_engine!(
     PyRef<'_, double_touch::DoubleTouchOption>,
 );
 fd_engine!(
+    /// When daily knock-in is active, implicit schemes subdivide the gaps between
+    /// mandatory dates to place the base time intervals.
     FiniteDifferenceAutocallableEngine,
     autocallable::AutocallableInstrument<'_>,
     autocallable::with_note,

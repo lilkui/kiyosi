@@ -279,6 +279,29 @@ pub(super) fn time_grid(
     dividend: &Curve,
     events: &[f64],
 ) -> Result<TimeGrid> {
+    time_grid_with(context, horizon, settings, risk, dividend, events, false)
+}
+
+pub(super) fn aligned_time_grid(
+    context: &PricingContext,
+    horizon: Timestamp,
+    settings: FiniteDifferenceSettings,
+    risk: &Curve,
+    dividend: &Curve,
+    events: &[f64],
+) -> Result<TimeGrid> {
+    time_grid_with(context, horizon, settings, risk, dividend, events, true)
+}
+
+fn time_grid_with(
+    context: &PricingContext,
+    horizon: Timestamp,
+    settings: FiniteDifferenceSettings,
+    risk: &Curve,
+    dividend: &Curve,
+    events: &[f64],
+    aligned: bool,
+) -> Result<TimeGrid> {
     let start = context.valuation_time();
     let time = start.years_until(horizon);
     let mut knots = events.to_vec();
@@ -302,14 +325,13 @@ pub(super) fn time_grid(
         );
     }
     let curve_bytes = risk.workspace_bytes() + dividend.workspace_bytes();
-    TimeGrid::with_events(
-        time,
-        settings.time_step_count,
-        risk,
-        dividend,
-        &knots,
-        |steps| validate_grid(settings, steps, curve_bytes),
-    )
+    let steps = settings.time_step_count;
+    let validate = |steps| validate_grid(settings, steps, curve_bytes);
+    if aligned {
+        TimeGrid::aligned(time, steps, risk, dividend, &knots, validate)
+    } else {
+        TimeGrid::with_events(time, steps, risk, dividend, &knots, validate)
+    }
 }
 
 pub(super) fn observation_times(

@@ -336,8 +336,12 @@ fn solve_layers<T: AutocallableTerms, D: Diffusion, const N: usize>(
     observations.extend_from_slice(&trading);
     observations.sort_unstable_by(f64::total_cmp);
     diffusion::validate_event_resolution(context.valuation_time(), expiry, &event_times)?;
-    let mut grid =
-        diffusion::time_grid(context, expiry, settings, &risk, &dividend, &observations)?;
+    let time_grid = if layered && settings.scheme != FiniteDifferenceScheme::ExplicitEuler {
+        diffusion::aligned_time_grid
+    } else {
+        diffusion::time_grid
+    };
+    let mut grid = time_grid(context, expiry, settings, &risk, &dividend, &observations)?;
     let mut nearest = observations
         .iter()
         .copied()
