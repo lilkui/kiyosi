@@ -605,3 +605,53 @@ fn daily_monitoring_and_all_variants_agree_with_quadrature() {
         );
     }
 }
+
+#[test]
+fn batched_phoenix_spot_greeks_replay_scalar_stencils() -> Result<()> {
+    let start = date(1, 1);
+    let end = date(4, 1);
+    let first = date(2, 3);
+    let note = PhoenixOption::new(PhoenixTerms::new(
+        0.02,
+        100.0,
+        90.0,
+        100.0,
+        60.0,
+        start,
+        end,
+        vec![
+            KnockOutObservation::new(first, 101.0)?,
+            KnockOutObservation::new(end, 105.0)?,
+        ],
+        vec![
+            CouponObservation::new(first, 99.0)?,
+            CouponObservation::new(end, 102.0)?,
+        ],
+        KnockInObservation::EveryTradingDay {
+            observation_clock_time: start.time_of_day(),
+        },
+        TradingCalendar::weekdays(),
+    ))?;
+    let context = market(100.0, start);
+    let shift = NumericalShiftSettings {
+        spot_shift: Some(4.0),
+        ..Default::default()
+    };
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Vega]);
+    for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
+        let engine = MonteCarloAutocallableEngine::new(MonteCarloSettings {
+            path_count: 2048,
+            seed: Some(31),
+            sampling,
+            antithetic: true,
+            max_active_workers: 2,
+        })?;
+        let batch = engine.price_with_greeks_with_settings(&note, &context, request, shift)?;
+        let scalar = numerical_greeks(&engine, &note, &context, request, shift)?;
+        assert_eq!(batch, scalar, "{sampling:?} must replay the scalar paths");
+        for greek in [Greek::Delta, Greek::Gamma, Greek::Vega] {
+            assert!(batch.require(greek)?.is_finite());
+        }
+    }
+    Ok(())
+}

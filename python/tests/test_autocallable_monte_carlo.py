@@ -379,3 +379,40 @@ def test_sobol_dimension_limit_uses_remaining_monitoring_dates():
     assert engine.price(contract(**fields), market()) == pytest.approx(
         expected, rel=0, abs=1e-12
     )
+
+
+@pytest.mark.parametrize("sampling", ["pseudo_random", "sobol"])
+def test_batched_phoenix_spot_greeks_replay_scalar_stencils(sampling):
+    first = datetime(2025, 2, 3)
+    note = phoenix(
+        coupon_per_period=0.02,
+        knock_in_level=90,
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
+        knock_out_observations=[
+            KnockOutObservation(first, 101),
+            KnockOutObservation(END, 105),
+        ],
+        coupon_observations=[
+            CouponObservation(first, 99),
+            CouponObservation(END, 102),
+        ],
+    )
+    engine = MC(
+        path_count=2048,
+        seed=31,
+        sampling=sampling,
+        antithetic=True,
+        max_active_workers=2,
+    )
+    context = market(100, START)
+    greeks = ["delta", "gamma", "vega"]
+    batch = engine.price_with_greeks(note, context, greeks, spot_shift=4)
+    scalar = numerical_greeks(engine, note, context, greeks, spot_shift=4)
+    assert (batch.price, batch.delta, batch.gamma, batch.vega, batch.seed) == (
+        scalar.price,
+        scalar.delta,
+        scalar.gamma,
+        scalar.vega,
+        scalar.seed,
+    )
+    assert all(math.isfinite(value) for value in (batch.delta, batch.gamma, batch.vega))

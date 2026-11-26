@@ -6,7 +6,10 @@ use crate::instruments::autocallable::pricing::{
     Initial, fixed_value, future_event_times, initial, validate,
 };
 use crate::numerics::log_ratio;
-use crate::{AutocallableNote, AutocallableTerms, PricingContext, PricingEngine, Result};
+use crate::{
+    AutocallableNote, AutocallableTerms, Error, Greek, GreeksRequest, NumericalShiftSettings,
+    OptionContract, PricingContext, PricingContextChanges, PricingEngine, PricingResult, Result,
+};
 
 /// Prices snowball variants and Phoenix notes with trading-day CPU Monte Carlo.
 ///
@@ -173,7 +176,7 @@ impl MonteCarloAutocallableEngine {
         context: &PricingContext,
         statistics: bool,
     ) -> Result<(Moments, Moments, bool, Option<u64>)> {
-        match self.prepare_sample(note, context, false)? {
+        match self.prepare_sample::<_, 1>(note, context)? {
             Sample::Fixed(value) => {
                 let mut sample = Moments::default();
                 sample.add(value, false);
@@ -189,11 +192,38 @@ impl MonteCarloAutocallableEngine {
         }
     }
 
-    fn prepare_sample<'a, T: AutocallableTerms>(
+    fn spot_prices<T: AutocallableTerms>(
+        &self,
+        note: &AutocallableNote<T>,
+        [base, high, low]: [&PricingContext; 3],
+    ) -> Result<Option<([f64; 3], u64)>> {
+        let Sample::Path(base) = self.prepare_sample::<_, 3>(note, base)? else {
+            return Ok(None);
+        };
+        let Sample::Path(high) = self.prepare_sample::<_, 3>(note, high)? else {
+            return Ok(None);
+        };
+        let Sample::Path(low) = self.prepare_sample::<_, 3>(note, low)? else {
+            return Ok(None);
+        };
+        if !base.shares_transitions(&high)? || !base.shares_transitions(&low)? {
+            return Ok(None);
+        }
+        let ([base_price, high_price, low_price], _, seed) =
+            path_samples_lazy(self.settings, base.steps.len(), false, |normals| {
+                base.spot_payoffs([&base, &high, &low], normals)
+            })?;
+        let price = |moment: Moments| scaled_value(moment.scale, moment.mean, 0.0);
+        Ok(Some((
+            [price(base_price)?, price(high_price)?, price(low_price)?],
+            seed,
+        )))
+    }
+
+    fn prepare_sample<'a, T: AutocallableTerms, const N: usize>(
         &self,
         note: &'a AutocallableNote<T>,
         context: &PricingContext,
-        shared_bounds: bool,
     ) -> Result<Sample<'a, T>> {
         let model = context.natural_bsm_parameters()?;
         let rate = model.flat_risk_free_rate()?;
@@ -226,9 +256,9 @@ impl MonteCarloAutocallableEngine {
         let high = f64::MAX.ln() - 1.0;
         let safe_returns = low.max(low - log_spot)..=high.min(high - log_spot);
         let knock_in = terms.knock_in.map(|ki| log_ratio(ki.level, initial_spot));
-        if shared_bounds {
+        if N > 1 {
             self.settings
-                .validate_scheduled_workspace::<[PathStep; 2]>(dates.len())?;
+                .validate_scheduled_workspace::<[PathStep; N]>(dates.len())?;
         }
         let mut steps = self.settings.scheduled_steps(dates.len())?;
         let mut next = note.events().partition_point(|r| r.time() <= valuation);
@@ -309,12 +339,105 @@ struct CashEvent {
     redemption: f64,
 }
 
+impl CashEvent {
+    fn discounted_payment(self, coupon_due: bool, knocked_out: bool, discount: f64) -> Result<f64> {
+        let coupon = if coupon_due { self.period_coupon } else { 0.0 };
+        let amount = if knocked_out {
+            self.redemption + coupon
+        } else {
+            coupon
+        };
+        scaled_value(1.0, amount, discount)
+    }
+}
+
 impl<T: AutocallableTerms> PathPlan<'_, T> {
+    fn shares_transitions(&self, other: &Self) -> Result<bool> {
+        if self.steps.len() != other.steps.len() {
+            return Ok(false);
+        }
+        for (left, right) in self.steps.chunks(1024).zip(other.steps.chunks(1024)) {
+            crate::cancellation::check()?;
+            if left
+                .iter()
+                .zip(right)
+                .any(|(a, b)| a.transition.map(f64::to_bits) != b.transition.map(f64::to_bits))
+            {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    fn validate_return(&self, log_return: f64) -> Result<()> {
+        if !self.safe_returns.contains(&log_return)
+            && scaled_value(self.initial_spot, 1.0, log_return)? <= 0.0
+        {
+            return Err(unstable());
+        }
+        Ok(())
+    }
+
+    fn spot_payoffs<const N: usize>(
+        &self,
+        plans: [&Self; N],
+        normals: &mut LazyPath<'_, '_>,
+    ) -> Result<[f64; N]> {
+        let mut log_return = 0.0;
+        let mut discount = 0.0;
+        let mut cash = plans.map(|plan| plan.state.coupon);
+        let mut knocked_in = plans.map(|plan| plan.state.knocked_in);
+        let mut active = [true; N];
+        for (index, step) in self.steps.iter().enumerate() {
+            check_path_step(index)?;
+            let [drift, diffusion, log_discount] = step.transition;
+            discount = log_discount;
+            log_return += diffusion.mul_add(normals.normal(), drift);
+            for lane in 0..N {
+                if !active[lane] {
+                    continue;
+                }
+                let plan = plans[lane];
+                plan.validate_return(log_return)?;
+                let step = &plan.steps[index];
+                if step.observe_knock_in {
+                    knocked_in[lane] |= plan.knock_in.is_some_and(|level| log_return < level);
+                }
+                if let Some(event) = step.event {
+                    let hit = event.knock_out.is_some_and(|level| log_return >= level);
+                    cash[lane] += event.discounted_payment(
+                        log_return >= event.coupon_barrier,
+                        hit,
+                        discount,
+                    )?;
+                    active[lane] = !hit;
+                }
+            }
+            if active.iter().all(|active| !active) {
+                return finite_payoffs(cash);
+            }
+        }
+        for lane in 0..N {
+            if active[lane] {
+                let plan = plans[lane];
+                knocked_in[lane] |=
+                    plan.expiry_knock_in && plan.knock_in.is_some_and(|level| log_return < level);
+                cash[lane] += plan.discounted_terminal(log_return, knocked_in[lane], discount)?;
+            }
+        }
+        finite_payoffs(cash)
+    }
+
+    fn discounted_terminal(&self, log_return: f64, knocked_in: bool, discount: f64) -> Result<f64> {
+        let spot = scaled_value(self.initial_spot, 1.0, log_return)?;
+        scaled_value(1.0, self.note.terminal(spot, knocked_in), discount)
+    }
+
     fn shares_thresholds(&self, other: &Self) -> Result<bool> {
         if self.state.knocked_in != other.state.knocked_in
             || self.knock_in != other.knock_in
             || self.expiry_knock_in != other.expiry_knock_in
-            || self.steps.len() != other.steps.len()
+            || !self.shares_transitions(other)?
         {
             return Ok(false);
         }
@@ -322,8 +445,7 @@ impl<T: AutocallableTerms> PathPlan<'_, T> {
             crate::cancellation::check()?;
             let event_shape = |event: CashEvent| (event.knock_out, event.coupon_barrier);
             if left.iter().zip(right).any(|(a, b)| {
-                a.transition.map(f64::to_bits) != b.transition.map(f64::to_bits)
-                    || a.observe_knock_in != b.observe_knock_in
+                a.observe_knock_in != b.observe_knock_in
                     || a.event.map(event_shape) != b.event.map(event_shape)
             }) {
                 return Ok(false);
@@ -348,11 +470,7 @@ impl<T: AutocallableTerms> PathPlan<'_, T> {
             discount = log_discount;
             // Keep threshold decisions before rounding the simulated spot.
             log_return += diffusion.mul_add(normals.normal(), drift);
-            if !self.safe_returns.contains(&log_return)
-                && scaled_value(self.initial_spot, 1.0, log_return)? <= 0.0
-            {
-                return Err(unstable());
-            }
+            self.validate_return(log_return)?;
             if step.observe_knock_in {
                 knocked_in |= below_knock_in(log_return);
             }
@@ -363,17 +481,7 @@ impl<T: AutocallableTerms> PathPlan<'_, T> {
                     let payment = plan.steps[index]
                         .event
                         .expect("shared paths identify the same cash events");
-                    let coupon = if coupon_due {
-                        payment.period_coupon
-                    } else {
-                        0.0
-                    };
-                    let amount = if knocked_out {
-                        payment.redemption + coupon
-                    } else {
-                        coupon
-                    };
-                    *cash += scaled_value(1.0, amount, discount)?;
+                    *cash += payment.discounted_payment(coupon_due, knocked_out, discount)?;
                 }
                 if knocked_out {
                     return finite_payoffs(coupons);
@@ -381,9 +489,8 @@ impl<T: AutocallableTerms> PathPlan<'_, T> {
             }
         }
         knocked_in |= self.expiry_knock_in && below_knock_in(log_return);
-        let spot = scaled_value(self.initial_spot, 1.0, log_return)?;
         for (cash, plan) in coupons.iter_mut().zip(plans) {
-            *cash += scaled_value(1.0, plan.note.terminal(spot, knocked_in), discount)?;
+            *cash += plan.discounted_terminal(log_return, knocked_in, discount)?;
         }
         finite_payoffs(coupons)
     }
@@ -413,6 +520,65 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
     ) -> Result<MonteCarloEstimate> {
         self.price_with_statistics(option, context)
     }
+    fn price_with_greeks_with_settings(
+        &self,
+        option: &AutocallableNote<T>,
+        context: &PricingContext,
+        request: GreeksRequest,
+        settings: NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
+        <Self as PricingEngine<AutocallableNote<T>>>::validate_applicability(self, context)?;
+        settings.validate()?;
+        let spot = context.spot_price();
+        let shift = crate::risk::numerical::symmetric_shift(spot, settings.spot_shift_at(spot));
+        if !(request.has(Greek::Delta) || request.has(Greek::Gamma))
+            || shift <= 0.0
+            || spot <= shift
+            || context.valuation_time() == option.expiry_time()
+            || option.all_greeks_unavailable(context)
+            || option.at_spot_discontinuity(context, shift)
+        {
+            return crate::numerical_greeks(self, option, context, request, settings);
+        }
+        let _sampling = super::RequestCache::new();
+        let engine = self.with_resolved_seed()?;
+        let shifted = |spot| {
+            context.replace(PricingContextChanges {
+                spot_price: Some(spot),
+                ..Default::default()
+            })
+        };
+        let high = shifted(spot + shift)?;
+        let low = shifted(spot - shift)?;
+        let (base, up, down, seed) = match engine.spot_prices(option, [context, &high, &low]) {
+            Ok(Some(([base, up, down], seed))) => (base, up, down, seed),
+            Ok(None) | Err(Error::InvalidInput(_)) => {
+                return crate::numerical_greeks(&engine, option, context, request, settings);
+            }
+            Err(error) => return Err(error),
+        };
+        let native =
+            |context: &PricingContext, _| PricingResult::new(engine.price(option, context)?);
+        crate::risk::numerical::complete_greeks_with_pair(
+            option,
+            context,
+            request,
+            settings,
+            false,
+            PricingResult::new(base)?,
+            native,
+            |a, b, _| {
+                if *a == high && *b == low {
+                    Ok(Some((PricingResult::new(up)?, PricingResult::new(down)?)))
+                } else {
+                    Ok(None)
+                }
+            },
+        )
+        .map(|result| result.with_seed(Some(seed)))
+    }
+
     fn price_coupon_bounds(
         &self,
         lower: &AutocallableNote<T>,
@@ -420,10 +586,10 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
         context: &PricingContext,
     ) -> Result<Option<[f64; 2]>> {
         self.settings.validate_solver_seed()?;
-        let Sample::Path(lower) = self.prepare_sample(lower, context, true)? else {
+        let Sample::Path(lower) = self.prepare_sample::<_, 2>(lower, context)? else {
             return Ok(None);
         };
-        let Sample::Path(upper) = self.prepare_sample(upper, context, true)? else {
+        let Sample::Path(upper) = self.prepare_sample::<_, 2>(upper, context)? else {
             return Ok(None);
         };
         if !lower.shares_thresholds(&upper)? {
