@@ -37,7 +37,7 @@ macro_rules! fd_engine {
     ($(#[$doc:meta])* $name:ident, $instrument:ty $(,)?) => {
         fd_engine!($(#[$doc])* $name, $instrument, with_contract);
     };
-    ($(#[$doc:meta])* $name:ident, $instrument:ty, $with:path $(, $short:path)? $(,)?) => {
+    ($(#[$doc:meta])* $name:ident, $instrument:ty, $with:path $(, $short:path)? $(,)? $(; {$($extra:item)*})?) => {
         /// Finite-difference pricing.
         ///
         /// Parameters
@@ -197,6 +197,7 @@ macro_rules! fd_engine {
                     self.0.settings().asset_upper_boundary
                 }
 
+                $($($extra)*)?
             }
         );
         engine_methods!(@evaluate $name, $instrument, $with $(, $short)?);
@@ -220,6 +221,43 @@ fd_engine!(
     binomial::VanillaInstrument<'_>,
     binomial::with_vanilla,
     expiry_short_pricing,
+    ; {
+        /// Price European options across strikes on a fixed market snapshot.
+        ///
+        /// Parameters
+        /// ----------
+        /// instrument : EuropeanOption
+        ///     Template supplying direction and dates.
+        /// context : PricingContext
+        ///     Fixed model inputs and valuation time.
+        /// strikes : iterable of float
+        ///     Finite positive strikes. Empty input is valid.
+        ///
+        /// Returns
+        /// -------
+        /// tuple of float
+        ///     Prices in strike order, preserving duplicates.
+        ///
+        /// Notes
+        /// -----
+        /// Compatible calendar-time local-volatility requests share an absolute
+        /// spot grid. Other requests use scalar pricing. Check grid convergence
+        /// across the strike range. Cancellation returns no partial result.
+        #[pyo3(signature = (instrument, context, *, strikes))]
+        #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns extracted strikes.")]
+        fn price_strikes<'py>(
+            &self,
+            py: Python<'py>,
+            #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, crate::instruments::vanilla::EuropeanOption>,
+            context: &crate::market::PricingContext,
+            #[pyo3(from_py_with = crate::conversions::reals)] strikes: Vec<f64>,
+        ) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+            let option = &instrument.0;
+            let context = &context.0;
+            let values = domain(crate::cancellation::run(py, || self.0.price_strikes(option, context, &strikes))?)?;
+            pyo3::types::PyTuple::new(py, values)
+        }
+    }
 );
 fd_engine!(
     /// The grid uses log spot and an automatically selected positive lower boundary.

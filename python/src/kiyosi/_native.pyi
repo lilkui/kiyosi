@@ -3665,6 +3665,36 @@ class FiniteDifferenceVanillaEngine(
     corresponding discount after rollback.
     """
 
+    def price_strikes(
+        self,
+        instrument: EuropeanOption,
+        context: PricingContext,
+        *,
+        strikes: Iterable[_Real],
+    ) -> tuple[float, ...]:
+        """Price European options across strikes on a fixed market snapshot.
+
+        Parameters
+        ----------
+        instrument : EuropeanOption
+            Template supplying direction and dates.
+        context : PricingContext
+            Fixed model inputs and valuation time.
+        strikes : iterable of float
+            Finite positive strikes. Empty input is valid.
+
+        Returns
+        -------
+        tuple of float
+            Prices in strike order, preserving duplicates.
+
+        Notes
+        -----
+        Compatible calendar-time local-volatility requests share an absolute
+        spot grid. Other requests use scalar pricing. Check grid convergence
+        across the strike range. Cancellation returns no partial result.
+        """
+
 class FiniteDifferenceDigitalEngine(
     _FiniteDifferenceMethods[CashOrNothingOption | AssetOrNothingOption]
 ):

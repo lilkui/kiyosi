@@ -119,6 +119,9 @@ def common_controls(option: EuropeanOption, context: PricingContext) -> None:
 def fd_request_shifts(option: EuropeanOption, context: PricingContext) -> None:
     engine = FiniteDifferenceVanillaEngine()
     assert_type(
+        engine.price_strikes(option, context, strikes=(90, 110)), tuple[float, ...]
+    )
+    assert_type(
         engine.price_with_greeks(
             option,
             context,

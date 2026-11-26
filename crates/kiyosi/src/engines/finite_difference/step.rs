@@ -246,6 +246,20 @@ impl Stepper {
         [dt, theta, rate, dividend]: [f64; 4],
         boundaries: &[[f64; 2]],
     ) -> Result<()> {
+        self.prepare_local(space, surface, [time, scale], [dt, theta, rate, dividend])?;
+        for ((old, next), &boundaries) in old.iter().zip(next).zip(boundaries) {
+            self.apply(old, next, dt, theta, boundaries, 0)?;
+        }
+        Ok(())
+    }
+
+    fn prepare_local(
+        &mut self,
+        space: &SpatialGrid,
+        surface: &crate::LocalVolatilitySurface,
+        [time, scale]: [f64; 2],
+        [dt, theta, rate, dividend]: [f64; 4],
+    ) -> Result<()> {
         if self.local.is_none() {
             self.local = Some(crate::market::LocalVolatilityProjection::new(
                 surface,
@@ -288,10 +302,61 @@ impl Stepper {
             self.local_operator = operator;
             factors.key = key;
         }
-        for ((old, next), &boundaries) in old.iter().zip(next).zip(boundaries) {
-            self.apply(old, next, dt, theta, boundaries, 0)?;
-        }
         Ok(())
+    }
+
+    pub fn transpose_local(
+        &mut self,
+        weights: &mut [f64],
+        previous: &mut [f64],
+        space: &SpatialGrid,
+        surface: &crate::LocalVolatilitySurface,
+        time: f64,
+        key: [f64; 4],
+    ) -> Result<[f64; 2]> {
+        self.prepare_local(space, surface, [time, 1.0], key)?;
+        let [dt, theta, _, _] = key;
+        let factors = &self.factors[0];
+        let count = space.count;
+        let mut edges = [weights[0], weights[count]];
+        let rhs = &mut weights[1..count];
+        // A = L U. Applying A^(-T) solves with U^T first, then L^T.
+        for i in 0..rhs.len() {
+            if i % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
+            let value = rhs[i]
+                - if i == 0 {
+                    0.0
+                } else {
+                    factors.upper[i - 1] * rhs[i - 1]
+                };
+            rhs[i] = if factors.inverse[i].is_finite() {
+                value * factors.inverse[i]
+            } else {
+                value / factors.diagonal[i]
+            };
+        }
+        for i in (1..rhs.len()).rev() {
+            rhs[i - 1] -= factors.multipliers[i] * rhs[i];
+        }
+        edges[0] += theta * dt * factors.coefficients[0][0] * rhs[0];
+        edges[1] += theta * dt * factors.coefficients[count - 2][2] * rhs[count - 2];
+        previous.fill(0.0);
+        let explicit = (1.0 - theta) * dt;
+        for (i, (&weight, &[a, b, c])) in rhs.iter().zip(&factors.coefficients).enumerate() {
+            previous[i] += explicit * a * weight;
+            previous[i + 1] += (1.0 + explicit * b) * weight;
+            previous[i + 2] += explicit * c * weight;
+        }
+        if previous
+            .iter()
+            .chain(&edges)
+            .any(|value| !value.is_finite())
+        {
+            return Err(unstable());
+        }
+        Ok(edges)
     }
 
     #[expect(

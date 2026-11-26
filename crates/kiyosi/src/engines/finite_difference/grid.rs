@@ -949,6 +949,40 @@ impl TimeGrid {
     }
 }
 
+pub(super) struct StrikeMoments {
+    sign: f64,
+    prefixes: Vec<(f64, [f64; 4])>,
+}
+
+impl StrikeMoments {
+    pub fn new(mut terms: Vec<[f64; 3]>, sign: f64) -> Self {
+        terms.sort_unstable_by(|left, right| (sign * right[0]).total_cmp(&(sign * left[0])));
+        let mut sums: [crate::numerics::Sum; 4] = Default::default();
+        let prefixes = terms
+            .into_iter()
+            .map(|[cutoff, asset, cash]| {
+                for (sum, term) in sums.iter_mut().zip([asset, cash, asset.abs(), cash.abs()]) {
+                    sum.add(term);
+                }
+                (cutoff, std::array::from_fn(|i| sums[i].total()))
+            })
+            .collect();
+        Self { sign, prefixes }
+    }
+
+    pub fn at(&self, strike: f64) -> Option<[f64; 2]> {
+        let count = self
+            .prefixes
+            .partition_point(|(cutoff, _)| self.sign * (cutoff - strike) > 0.0);
+        let [asset, cash, abs_asset, abs_cash] = count
+            .checked_sub(1)
+            .map_or([0.0; 4], |i| self.prefixes[i].1);
+        let value = self.sign * (-strike).mul_add(cash, asset);
+        let scale = strike.mul_add(abs_cash, abs_asset);
+        (value.is_finite() && scale.is_finite()).then_some([value, scale])
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

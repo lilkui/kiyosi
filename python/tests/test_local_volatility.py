@@ -562,3 +562,29 @@ def test_signatures_and_example_are_discoverable():
         "spots",
         "values",
     ]
+
+
+def test_european_strike_strip_matches_refined_local_volatility_prices():
+    snapshot = PricingContext(
+        model_parameters=LocalVolatilityParameters(
+            risk_free_rate=0.05,
+            dividend_yield=0.02,
+            surface=surface(((0.25, 0.18), (0.27, 0.20))),
+        ),
+        spot_price=100,
+        valuation_time=START,
+    )
+    batch = pricing.FiniteDifferenceVanillaEngine(asset_upper_boundary=400)
+    refined = batch.replace(asset_step_count=1600, time_step_count=800)
+    strikes = (115, 85, 100, 105, 85)
+    for direction in ("call", "put"):
+        template = EuropeanOption(
+            option_type=direction, strike=100, effective_time=START, expiry_time=END
+        )
+        actual = batch.price_strikes(template, snapshot, strikes=iter(strikes))
+        expected = tuple(
+            refined.price(template.replace(strike=strike), snapshot)
+            for strike in strikes
+        )
+        assert actual == pytest.approx(expected, abs=0.001, rel=0)
+        assert actual[1] == actual[4]

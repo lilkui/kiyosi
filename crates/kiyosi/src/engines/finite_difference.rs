@@ -18,6 +18,7 @@ mod local_volatility;
 mod payoff;
 mod solution;
 mod step;
+mod strike_batch;
 use diffusion::Diffusion;
 use grid::{SpatialGrid, TimeGrid};
 pub use solution::{FiniteDifferenceEngine, FiniteDifferenceSolution};
