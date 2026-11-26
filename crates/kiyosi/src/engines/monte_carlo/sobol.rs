@@ -210,6 +210,17 @@ impl SobolCursor<'_> {
         self.group_points = vec![self.index; self.values.len().div_ceil(LAZY_GROUP)];
     }
 
+    pub(super) fn defer_unused_dimensions(&mut self, used: usize) {
+        // Dense paths benefit from the contiguous eager XOR. Defer groups
+        // once an early exit shows the block can skip most of that work.
+        if self.group_points.is_empty()
+            && self.values.len() >= 4 * LAZY_GROUP
+            && used <= self.values.len() / 4
+        {
+            self.enable_skips();
+        }
+    }
+
     pub(super) fn seek(&mut self, dimension: usize) {
         self.dimension = dimension;
     }
@@ -312,6 +323,27 @@ fn inverse_normal_cdf(probability: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn deferred_groups_replay_eager_points_after_early_exit() -> Result<()> {
+        let sequence = SobolSequence::new(193, 42)?;
+        let mut eager = sequence.cursor(256);
+        let mut adaptive = sequence.cursor(256);
+        for used in [9, 5, 31, 193, 0, 1, 78, 193] {
+            for dimension in 0..used {
+                assert_eq!(
+                    eager.normal().to_bits(),
+                    adaptive.normal().to_bits(),
+                    "dimension {dimension}"
+                );
+            }
+            adaptive.defer_unused_dimensions(used);
+            eager.next_path();
+            adaptive.next_path();
+        }
+        assert_eq!(adaptive.group_points[0], adaptive.index - 1);
+        Ok(())
+    }
 
     #[test]
     fn cancelled_sobol_setup_stops_before_returning_a_sequence() {

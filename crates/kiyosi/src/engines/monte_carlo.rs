@@ -435,7 +435,7 @@ mod tests {
                             .map(|_| next())
                             .sum::<f64>()]
                 };
-                for dimensions in [13, 14] {
+                for dimensions in [13, 14, 257] {
                     let (eager, eager_pairs, _) =
                         path_samples(settings, dimensions, true, |normals| {
                             let mut values = normals.iter().copied();
@@ -1380,7 +1380,7 @@ fn path_samples_lazy<const N: usize>(
             } else {
                 None
             };
-            path.draws.skip_normals(dimensions - path.generated);
+            path.finish(dimensions);
             Ok((positive, negative))
         },
     )
@@ -1470,6 +1470,14 @@ impl LazyPath<'_, '_> {
         };
         self.consumed += 1;
         if self.opposite { -value } else { value }
+    }
+
+    fn finish(self, dimensions: usize) {
+        if let Some(cursor) = &mut self.draws.cursor {
+            cursor.defer_unused_dimensions(self.generated);
+        } else {
+            self.draws.skip_normals(dimensions - self.generated);
+        }
     }
 }
 
