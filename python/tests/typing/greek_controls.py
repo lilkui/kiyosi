@@ -51,7 +51,6 @@ def bounded_lattice_price(put: AmericanOption, context: PricingContext) -> None:
         ),
         float,
     )
-
     assert_type(
         CoxRossRubinsteinVanillaEngine(
             step_count=20_000
@@ -62,6 +61,15 @@ def bounded_lattice_price(put: AmericanOption, context: PricingContext) -> None:
             absolute_tolerance=1e-6,
         ),
         PricingResult,
+    )
+
+
+def binomial_batch(
+    call: EuropeanOption, put: AmericanOption, context: PricingContext
+) -> None:
+    assert_type(
+        CoxRossRubinsteinVanillaEngine().price_many((call, put), context),
+        tuple[float, ...],
     )
 
 

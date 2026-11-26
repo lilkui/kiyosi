@@ -2552,6 +2552,38 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
     def __init__(
         self, *, step_count: SupportsIndex = ..., rollback_tolerance: _Real | None = ...
     ) -> None: ...
+    def price_many(
+        self,
+        instruments: Iterable[EuropeanOption | AmericanOption],
+        context: PricingContext,
+    ) -> tuple[float, ...]:
+        """Price vanilla options in input order on one market snapshot.
+
+        Parameters
+        ----------
+        instruments : iterable of EuropeanOption or AmericanOption
+            Contracts to price. An empty iterable is valid.
+        context : PricingContext
+            Shared model inputs, spot and valuation time.
+
+        Returns
+        -------
+        tuple of float
+            Prices in input order, preserving duplicates.
+
+        Raises
+        ------
+        KiyosiError
+            If contract applicability, pricing validation or computation fails.
+        OSError
+            If interrupted or the pricing worker cannot start.
+
+        Notes
+        -----
+        Pricing runs in one cancellable request with the GIL released.
+        A failed request returns no partial results.
+        """
+
     def price_with_greeks_with_rollback_tolerance(
         self,
         instrument: AmericanOption,

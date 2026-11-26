@@ -59,6 +59,20 @@ VANILLA = (EuropeanOption, AmericanOption)
 DIGITAL = (CashOrNothingOption, AssetOrNothingOption)
 
 
+def test_vanilla_batch_matches_scalar_prices_and_preserves_input_order():
+    engine = CoxRossRubinsteinVanillaEngine(step_count=192)
+    snapshot = market()
+    call = contract(EuropeanOption)
+    put = contract(AmericanOption, "put")
+    instruments = (put, call, put)
+    expected = tuple(engine.price(option, snapshot) for option in instruments)
+    assert engine.price_many(iter(instruments), snapshot) == expected
+    assert engine.price_many((), snapshot) == ()
+    with pytest.raises(UnsupportedOperationError):
+        engine.price_many((call, contract(CashOrNothingOption)), snapshot)
+    assert engine.price_many(instruments, snapshot) == expected
+
+
 def test_banded_american_put_preserves_price_within_the_truncation_budget():
     put = AmericanOption(
         option_type="put", strike=100, effective_time=START, expiry_time=END

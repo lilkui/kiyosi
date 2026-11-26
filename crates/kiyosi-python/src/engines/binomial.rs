@@ -1,4 +1,5 @@
 use crate::conversions::integer;
+use crate::engines::{PricingRequest, ShortPricing};
 use crate::error::domain;
 use crate::instruments::american;
 use crate::instruments::barrier::BarrierOption;
@@ -28,7 +29,26 @@ macro_rules! with_vanilla {
 }
 pub(crate) use with_vanilla;
 
+fn short_pricing(step_count: i32, context: &kiyosi::PricingContext) -> ShortPricing {
+    let model = context.model_parameters();
+    if step_count <= 32
+        && model.risk_free_curve().nodes().is_empty()
+        && model.dividend_curve().nodes().is_empty()
+    {
+        ShortPricing::Scalar
+    } else {
+        ShortPricing::Never
+    }
+}
+
 macro_rules! binomial_engine {
+    // Barrier contracts can scan a monitoring schedule even on a short tree.
+    (@short CoxRossRubinsteinBarrierEngine, $engine:expr, $context:expr) => {
+        ShortPricing::Never
+    };
+    (@short $name:ident, $engine:expr, $context:expr) => {
+        short_pricing($engine.settings().step_count, $context)
+    };
     ($(#[$doc:meta])* $name:ident, $instrument:ty, $with:path) => {
         binomial_engine!(
             $(#[$doc])* $name, $instrument, $with,
@@ -87,7 +107,20 @@ macro_rules! binomial_engine {
                 $($extra)*
             }
         );
-        engine_methods!(@evaluate $name, $instrument, $with);
+        impl $name {
+            pub(crate) fn evaluate<R: Send>(
+                &self,
+                py: Python<'_>,
+                instrument: $instrument,
+                context: &crate::market::PricingContext,
+                request: impl PricingRequest<R>,
+            ) -> PyResult<R> {
+                let short = binomial_engine!(@short $name, self.0, &context.0);
+                $with!(&instrument, option, crate::engines::evaluate(
+                    py, &self.0, option, context, request, short,
+                ))
+            }
+        }
     };
 }
 
@@ -134,6 +167,67 @@ binomial_engine!(
         #[getter]
         fn rollback_tolerance(&self) -> Option<f64> {
             self.0.rollback_tolerance()
+        }
+
+        /// Price vanilla options in input order on one market snapshot.
+        ///
+        /// Parameters
+        /// ----------
+        /// instruments : iterable of EuropeanOption or AmericanOption
+        ///     Contracts to price. An empty iterable is valid.
+        /// context : PricingContext
+        ///     Shared model inputs, spot and valuation time.
+        ///
+        /// Returns
+        /// -------
+        /// tuple of float
+        ///     Prices in input order, preserving duplicates.
+        ///
+        /// Raises
+        /// ------
+        /// KiyosiError
+        ///     If contract applicability, pricing validation or computation fails.
+        /// OSError
+        ///     If interrupted or the pricing worker cannot start.
+        ///
+        /// Notes
+        /// -----
+        /// Pricing runs in one cancellable request with the GIL released.
+        /// A failed request returns no partial results.
+        fn price_many<'py>(
+            &self,
+            py: Python<'py>,
+            instruments: &Bound<'py, PyAny>,
+            context: &crate::market::PricingContext,
+        ) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+            enum Contract<'a> {
+                European(&'a kiyosi::EuropeanOption),
+                American(&'a kiyosi::AmericanOption),
+            }
+            let instruments = instruments.try_iter()?.enumerate().map(|(index, instrument)| {
+                if index % 1024 == 0 {
+                    py.check_signals()?;
+                }
+                crate::conversions::instrument::<VanillaInstrument<'py>>(&instrument?)
+            }).collect::<PyResult<Vec<_>>>()?;
+            if instruments.is_empty() {
+                return Ok(pyo3::types::PyTuple::empty(py));
+            }
+            let contracts: Vec<_> = instruments.iter().map(|instrument| match instrument {
+                VanillaInstrument::European(option) => Contract::European(&option.0),
+                VanillaInstrument::American(option) => Contract::American(&option.0),
+            }).collect();
+            let context = &context.0;
+            let prices = domain(crate::cancellation::run_with_token(py, |token| {
+                contracts.into_iter().map(|contract| {
+                    token.check()?;
+                    match contract {
+                        Contract::European(option) => self.0.price(option, context),
+                        Contract::American(option) => self.0.price(option, context),
+                    }
+                }).collect::<kiyosi::Result<Vec<_>>>()
+            })?)?;
+            pyo3::types::PyTuple::new(py, prices)
         }
 
         /// Price an American option with a bound on the discarded lattice tails.
@@ -259,3 +353,24 @@ binomial_engine!(
     PyRef<'_, BarrierOption>,
     with_contract
 );
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engines::ScalarRequest;
+
+    #[test]
+    fn short_trees_dispatch_only_bounded_scalar_prices_inline() -> kiyosi::Result<()> {
+        let start = kiyosi::Date::new(2025, 1, 1)?.start_of_day();
+        let flat = kiyosi::BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?;
+        let context = kiyosi::PricingContext::new(flat, 100.0, start)?;
+        assert!(short_pricing(32, &context).allows_inline(ScalarRequest::Price, &context));
+        assert!(!short_pricing(33, &context).allows_inline(ScalarRequest::Price, &context));
+
+        let curve = kiyosi::RateTermStructure::new(start, vec![start.add_days(365)?], vec![0.95])?;
+        let model = kiyosi::BlackScholesMertonParameters::new(curve, 0.02, 0.2)?;
+        let context = kiyosi::PricingContext::new(model, 100.0, start)?;
+        assert!(!short_pricing(3, &context).allows_inline(ScalarRequest::Price, &context));
+        Ok(())
+    }
+}

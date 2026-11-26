@@ -172,6 +172,7 @@ def test_autocallable_observation_iterable_polls_signals_before_consuming_record
         "parallel_mc",
         "seeded_mc",
         "tree",
+        "tree_batch",
         "fd",
         "quadrature",
         "heston_fd",
@@ -213,7 +214,7 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                                 effective_time=start, averaging_start_time=start, expiry_time=end)
                             engine = p.MonteCarloAsianEngine(path_count=1_000_000, step_count=256,
                                 seed=42, max_active_workers=2 if case == "parallel_mc" else 1)
-                        elif case == "tree":
+                        elif case in ("tree", "tree_batch"):
                             option = i.AmericanOption(option_type="put", strike=100,
                                 effective_time=start, expiry_time=end)
                             engine = p.CoxRossRubinsteinVanillaEngine(step_count=16_000)
@@ -269,6 +270,8 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                                 engine.solve(option, context, spot_range=(80, 120))
                             elif case == "fd_solution_batch":
                                 saved.price_many(spots)
+                            elif case == "tree_batch":
+                                engine.price_many([option] * 32, context)
                             elif case == "seeded_mc":
                                 engine.price_with_seed(option, context)
                             elif case in ("analytic_greeks", "tree"):
@@ -300,7 +303,7 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                         else:
                             # A terminal payoff exercises the interrupted engine with bounded work.
                             terminal = context.replace(
-                                spot_price=90 if case == "tree" else 110,
+                                spot_price=90 if case in ("tree", "tree_batch") else 110,
                                 valuation_time=end,
                             )
                             if case in ("serial_mc", "parallel_mc", "seeded_mc",
