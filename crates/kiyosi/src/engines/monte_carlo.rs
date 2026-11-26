@@ -1658,12 +1658,23 @@ impl BlockRunner {
         Ok(Self { parallel })
     }
 
+    fn install<T: Send>(&self, operation: impl FnOnce() -> Result<T> + Send) -> Result<T> {
+        let Some((pool, _)) = &self.parallel else {
+            return operation();
+        };
+        if pool.current_thread_index().is_some() {
+            return operation();
+        }
+        let tokens = crate::cancellation::current();
+        pool.install(|| crate::cancellation::with_tokens(tokens, operation))
+    }
+
     fn run<T: Send>(
         &self,
         blocks: &mut [T],
         apply: impl Fn(usize, &mut T) -> Result<()> + Sync,
     ) -> Result<()> {
-        let Some((pool, chunk_size)) = &self.parallel else {
+        let Some((_, chunk_size)) = &self.parallel else {
             for (index, block) in blocks.iter_mut().enumerate() {
                 crate::cancellation::check()?;
                 apply(index, block)?;
@@ -1672,7 +1683,7 @@ impl BlockRunner {
         };
         let tokens = crate::cancellation::current();
         let failed = AtomicBool::new(false);
-        pool.install(|| {
+        self.install(|| {
             // Each chunk runs sequentially, keeping the number of active workers within the cap.
             blocks
                 .par_chunks_mut(*chunk_size)

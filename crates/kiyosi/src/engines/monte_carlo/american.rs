@@ -690,95 +690,107 @@ impl MonteCarloVanillaEngine {
             Ok(())
         };
         let mut coefficients = [None; N];
-        for step in (0..intervals - 1).rev() {
-            if step < window_start {
-                window_start -= window;
-                runner.run(&mut blocks, |index, block| {
-                    if coefficients.iter().any(Option::is_some) {
-                        let width = block.cash.len() * growth_count;
-                        for (spots, cash) in block.spots[..width]
-                            .chunks_exact(growth_count)
-                            .zip(&mut block.cash)
+        // Regression synchronizes all paths at every exercise date. Small
+        // per-date rows are cheaper to scan serially even on long time grids.
+        let regression = if paths < 8_192 {
+            BlockRunner::new(block_count, 1)?
+        } else {
+            runner
+        };
+        regression.install(|| {
+            for step in (0..intervals - 1).rev() {
+                if step < window_start {
+                    window_start -= window;
+                    regression.run(&mut blocks, |index, block| {
+                        if coefficients.iter().any(Option::is_some) {
+                            let width = block.cash.len() * growth_count;
+                            for (spots, cash) in block.spots[..width]
+                                .chunks_exact(growth_count)
+                                .zip(&mut block.cash)
+                            {
+                                apply_exercise(cash, spots, scales_at(step + 1), &coefficients)?;
+                            }
+                        }
+                        exercise_paths.replay(index, block, window_start)
+                    })?;
+                    coefficients.fill(None);
+                }
+                let row = step - window_start;
+                let decide = coefficients.iter().any(Option::is_some);
+                // Apply the next date's exercise decision while its cash is in cache,
+                // then use that cash immediately in the current date's regression.
+                regression.run(&mut blocks, |_, block| {
+                    let mut matrices = [[[0.0; 4]; 3]; N];
+                    let width = block.cash.len() * growth_count;
+                    let spots = &block.spots[row * width..(row + 1) * width];
+                    let next_spots = if decide {
+                        &block.spots[(row + 1) * width..(row + 2) * width]
+                    } else {
+                        spots
+                    };
+                    for ((base, following), cash) in spots
+                        .chunks_exact(growth_count)
+                        .zip(next_spots.chunks_exact(growth_count))
+                        .zip(&mut block.cash)
+                    {
+                        if decide {
+                            apply_exercise(cash, following, scales_at(step + 1), &coefficients)?;
+                        }
+                        for (index, (cash, matrix)) in
+                            cash.iter_mut().zip(&mut matrices).enumerate()
                         {
-                            apply_exercise(cash, spots, scales_at(step + 1), &coefficients)?;
+                            let spot = base[growth_index[index]] * scales_at(step)[index];
+                            *cash *= discount[index];
+                            if !cash.is_finite() {
+                                return Err(unstable());
+                            }
+                            if payoff(spot) > 0.0 {
+                                let x = spot / strike;
+                                let square = x * x;
+                                let target = *cash / strike;
+                                matrix[0][0] += 1.0;
+                                matrix[0][1] += x;
+                                matrix[0][2] += square;
+                                matrix[1][1] += square;
+                                matrix[1][2] += x * square;
+                                matrix[2][2] += square * square;
+                                matrix[0][3] += target;
+                                matrix[1][3] += x * target;
+                                matrix[2][3] += square * target;
+                            }
                         }
                     }
-                    exercise_paths.replay(index, block, window_start)
+                    block.regression = matrices;
+                    Ok(())
                 })?;
-                coefficients.fill(None);
-            }
-            let row = step - window_start;
-            let decide = coefficients.iter().any(Option::is_some);
-            // Apply the next date's exercise decision while its cash is in cache,
-            // then use that cash immediately in the current date's regression.
-            runner.run(&mut blocks, |_, block| {
+                // Merge fixed blocks in path order, independent of the worker count.
                 let mut matrices = [[[0.0; 4]; 3]; N];
-                let width = block.cash.len() * growth_count;
-                let spots = &block.spots[row * width..(row + 1) * width];
-                let next_spots = if decide {
-                    &block.spots[(row + 1) * width..(row + 2) * width]
-                } else {
-                    spots
-                };
-                for ((base, following), cash) in spots
-                    .chunks_exact(growth_count)
-                    .zip(next_spots.chunks_exact(growth_count))
-                    .zip(&mut block.cash)
-                {
-                    if decide {
-                        apply_exercise(cash, following, scales_at(step + 1), &coefficients)?;
-                    }
-                    for (index, (cash, matrix)) in cash.iter_mut().zip(&mut matrices).enumerate() {
-                        let spot = base[growth_index[index]] * scales_at(step)[index];
-                        *cash *= discount[index];
-                        if !cash.is_finite() {
-                            return Err(unstable());
-                        }
-                        if payoff(spot) > 0.0 {
-                            let x = spot / strike;
-                            let square = x * x;
-                            let target = *cash / strike;
-                            matrix[0][0] += 1.0;
-                            matrix[0][1] += x;
-                            matrix[0][2] += square;
-                            matrix[1][1] += square;
-                            matrix[1][2] += x * square;
-                            matrix[2][2] += square * square;
-                            matrix[0][3] += target;
-                            matrix[1][3] += x * target;
-                            matrix[2][3] += square * target;
-                        }
+                for block in &blocks {
+                    for (sum, partial) in matrices
+                        .iter_mut()
+                        .flatten()
+                        .flatten()
+                        .zip(block.regression.iter().flatten().flatten())
+                    {
+                        *sum += partial;
                     }
                 }
-                block.regression = matrices;
-                Ok(())
-            })?;
-            // Merge fixed blocks in path order, independent of the worker count.
-            let mut matrices = [[[0.0; 4]; 3]; N];
-            for block in &blocks {
-                for (sum, partial) in matrices
-                    .iter_mut()
-                    .flatten()
-                    .flatten()
-                    .zip(block.regression.iter().flatten().flatten())
-                {
-                    *sum += partial;
+                coefficients.fill(None);
+                for (mut matrix, coefficient) in matrices.into_iter().zip(&mut coefficients) {
+                    if matrix[0][0] == 0.0 {
+                        continue;
+                    }
+                    if matrix.iter().flatten().any(|value| !value.is_finite()) {
+                        return Err(unstable());
+                    }
+                    matrix[1][0] = matrix[0][1];
+                    matrix[2][0] = matrix[0][2];
+                    matrix[2][1] = matrix[1][2];
+                    *coefficient = Some(solve_quadratic(matrix).ok_or_else(unstable)?);
                 }
             }
-            coefficients.fill(None);
-            for (mut matrix, coefficient) in matrices.into_iter().zip(&mut coefficients) {
-                if matrix[0][0] == 0.0 {
-                    continue;
-                }
-                if matrix.iter().flatten().any(|value| !value.is_finite()) {
-                    return Err(unstable());
-                }
-                matrix[1][0] = matrix[0][1];
-                matrix[2][0] = matrix[0][2];
-                matrix[2][1] = matrix[1][2];
-                *coefficient = Some(solve_quadratic(matrix).ok_or_else(unstable)?);
-            }
-        }
+            Ok(())
+        })?;
         let mut means = [Moments::default(); N];
         let decide = coefficients.iter().any(Option::is_some);
         for block in blocks {
