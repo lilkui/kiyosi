@@ -16,7 +16,7 @@ from kiyosi import (
     UnsupportedOperationError,
     pricing,
 )
-from kiyosi.instruments import BarrierOption, EuropeanOption
+from kiyosi.instruments import BarrierOption, CashOrNothingOption, EuropeanOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
@@ -113,6 +113,34 @@ def test_expiry_only_observation_matches_one_step_payment():
     assert pricing.CoxRossRubinsteinBarrierEngine(step_count=1).price(
         contract, context
     ) == pytest.approx(2 / (1 + up), rel=0, abs=1e-12)
+
+
+def test_expiry_only_barrier_prices_a_tree_above_the_rollback_limit():
+    expiry = START + timedelta(days=365)
+    contract = option(
+        "up_and_out",
+        expiry_time=expiry,
+        strike=120,
+        rebate=2,
+        observation_times=[expiry],
+    )
+    context = market(rate=0.05)
+    digital = pricing.AnalyticDigitalEngine().price(
+        CashOrNothingOption(
+            option_type="call",
+            strike=120,
+            payout=2,
+            effective_time=START,
+            expiry_time=expiry,
+        ),
+        context,
+    )
+    engine = pricing.CoxRossRubinsteinBarrierEngine(step_count=20_000)
+    result = engine.price_with_greeks(contract, context, greeks=["delta", "gamma"])
+    assert result.price == pytest.approx(digital, abs=0.005, rel=0)
+    assert result.price == engine.price(contract, context)
+    assert result.delta > 0
+    assert math.isfinite(result.gamma)
 
 
 def test_defaults_strict_settings_and_owned_values():

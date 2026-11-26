@@ -86,6 +86,42 @@ fn barrier_crr_prices_an_expiry_only_observation() {
     assert!((engine.price(&option, &context).unwrap() - expected).abs() < 1e-12);
 }
 
+#[test]
+fn expiry_only_barrier_prices_a_tree_above_the_rollback_limit() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_days(365)?;
+    let option = BarrierOption::new(BarrierOptionTerms {
+        calendar: TradingCalendar::all_days(),
+        observation_times: Some(vec![end]),
+        rebate: 2.0,
+        ..BarrierOptionTerms::new(
+            OptionType::Call,
+            120.0,
+            start,
+            end,
+            120.0,
+            BarrierType::UpAndOut,
+        )
+    })?;
+    let context = market(start, 100.0, 0.05, 0.2);
+    let digital = DigitalOption::cash_or_nothing(OptionType::Call, 120.0, 2.0, start, end)?;
+    let reference = AnalyticDigitalEngine.price(&digital, &context)?;
+    let engine = CoxRossRubinsteinBarrierEngine::new(BinomialSettings { step_count: 20_000 })?;
+    let result = engine.price_with_greeks(
+        &option,
+        &context,
+        GreeksRequest::new([Greek::Delta, Greek::Gamma]),
+    )?;
+    assert!((result.price() - reference).abs() < 0.005);
+    assert_eq!(
+        result.price().to_bits(),
+        engine.price(&option, &context)?.to_bits()
+    );
+    assert!(result.require(Greek::Delta)? > 0.0);
+    assert!(result.require(Greek::Gamma)?.is_finite());
+    Ok(())
+}
+
 fn terms(kind: BarrierType, days: u32) -> BarrierOptionTerms {
     BarrierOptionTerms::new(
         OptionType::Call,

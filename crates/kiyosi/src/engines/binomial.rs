@@ -203,8 +203,34 @@ fn unstable() -> Error {
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
     clippy::cast_sign_loss,
+    reason = "Bounded step counts fit f64 and the binomial mode is floored."
+)]
+fn binomial_log_weights(steps: usize, p: f64) -> Result<(Vec<f64>, f64)> {
+    let mode = steps.min(((steps + 1) as f64 * p) as usize);
+    let log_odds = p.ln() - (-p).ln_1p();
+    let mut weights = vec![0.0; steps + 1];
+    for node in (1..=mode).rev() {
+        if node % 256 == 0 {
+            crate::cancellation::check()?;
+        }
+        weights[node - 1] =
+            weights[node] + (node as f64 / (steps - node + 1) as f64).ln() - log_odds;
+    }
+    for node in mode..steps {
+        if node % 256 == 0 {
+            crate::cancellation::check()?;
+        }
+        weights[node + 1] =
+            weights[node] + ((steps - node) as f64 / (node + 1) as f64).ln() + log_odds;
+    }
+    let normalization: f64 = weights.iter().map(|w| w.exp()).sum();
+    Ok((weights, normalization))
+}
+
+#[expect(
+    clippy::cast_precision_loss,
     clippy::float_cmp,
-    reason = "Exact probability endpoints select degenerate trees; bounded node counts fit f64 and the mode is intentionally floored."
+    reason = "Exact probability endpoints select degenerate trees and bounded node counts fit f64."
 )]
 fn european_levels(
     values: &[f64],
@@ -229,24 +255,7 @@ fn european_levels(
             }),
         ));
     }
-    let mode = steps.min(((steps + 1) as f64 * p) as usize);
-    let log_odds = p.ln() - (-p).ln_1p();
-    let mut weights = vec![0.0; steps + 1];
-    for node in (1..=mode).rev() {
-        if node % 256 == 0 {
-            crate::cancellation::check()?;
-        }
-        weights[node - 1] =
-            weights[node] + (node as f64 / (steps - node + 1) as f64).ln() - log_odds;
-    }
-    for node in mode..steps {
-        if node % 256 == 0 {
-            crate::cancellation::check()?;
-        }
-        weights[node + 1] =
-            weights[node] + ((steps - node) as f64 / (node + 1) as f64).ln() + log_odds;
-    }
-    let normalization: f64 = weights.iter().map(|w| w.exp()).sum();
+    let (weights, normalization) = binomial_log_weights(steps, p)?;
     // Sum positive terms in log space so neither large totals nor tiny weights lose a finite price.
     let weighted = |offset: usize, removed: usize| -> Result<f64> {
         let term = |index: usize| {

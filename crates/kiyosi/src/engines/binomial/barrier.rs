@@ -1,9 +1,10 @@
 use super::{
     BinomialSettings, Error, Greek, GreeksRequest, ImpliedVolatilitySettings, OptionContract,
-    OptionType, PricingContext, PricingEngine, PricingResult, Result, flat_rates, parameters,
-    prepare_implied, scaled, time_step, unstable,
+    OptionType, PricingContext, PricingEngine, PricingResult, Result, european_levels, flat_rates,
+    parameters, prepare_implied, scaled, time_step, unstable,
 };
 use crate::{AnalyticEuropeanEngine, BarrierOption, RebateTiming};
+use rustfft::{FftPlanner, num_complex::Complex64};
 
 /// Prices single-barrier vanilla contracts with a flat-rate CRR tree.
 ///
@@ -151,14 +152,25 @@ impl CoxRossRubinsteinBarrierEngine {
             return Ok(result);
         }
         context.validate_curve_horizon(option.expiry_time())?;
-        self.settings.validate_rollback()?;
         let time = context.valuation_time();
+        let observations = option.observation_times().unwrap_or(&[]);
+        let future = &observations[observations.partition_point(|&at| at <= time)..];
+        let terminal_only = option.observation_mode() == crate::ObservationMode::Scheduled
+            && future.iter().all(|&at| at == option.expiry_time());
+        if !terminal_only {
+            self.settings.validate_rollback()?;
+        }
         let duration = time.micros_until(option.expiry_time());
-        let mut observed =
-            vec![option.observation_mode() == crate::ObservationMode::Continuous; steps + 1];
-        if option.observation_mode() == crate::ObservationMode::Scheduled {
+        let continuous = option.observation_mode() == crate::ObservationMode::Continuous;
+        let direct = terminal_only && steps >= 256;
+        let mut observed = if direct {
+            Vec::new()
+        } else {
+            vec![continuous; steps + 1]
+        };
+        if !continuous && !direct {
             // Integer arithmetic preserves exact microsecond alignment without overflowing i64.
-            for &date in option.observation_times().unwrap_or(&[]) {
+            for &date in observations {
                 let offset = time.micros_until(date);
                 if offset < 0 {
                     continue;
@@ -195,7 +207,7 @@ impl CoxRossRubinsteinBarrierEngine {
                 distance <= 0.0
             }
         };
-        let reflection = option.observation_mode() == crate::ObservationMode::Continuous
+        let reflection = continuous
             && steps >= 1024
             && (1e-6..=1.0 - 1e-6).contains(&p)
             && (discount.log_factor * f64::from(self.settings.step_count)).abs() < 100.0
@@ -204,7 +216,7 @@ impl CoxRossRubinsteinBarrierEngine {
             && (1e-100..=1e100).contains(&option.strike())
             && option.rebate() <= 1e100;
         let mut values = vec![0.0; steps + 1];
-        let mut vanilla = if knock_in && !reflection {
+        let mut vanilla = if knock_in && !reflection && !direct {
             vec![0.0; steps + 1]
         } else {
             Vec::new()
@@ -213,6 +225,11 @@ impl CoxRossRubinsteinBarrierEngine {
             1.0
         } else {
             -1.0
+        };
+        let observes_expiry = if direct {
+            future.last() == Some(&option.expiry_time())
+        } else {
+            observed[steps]
         };
         for node in 0..=steps {
             if node % 256 == 0 {
@@ -223,7 +240,7 @@ impl CoxRossRubinsteinBarrierEngine {
                 return Err(unstable());
             }
             let payoff = (sign * (asset - option.strike())).max(0.0);
-            values[node] = if reflection || (observed[steps] && breached(steps, node)) == knock_in {
+            values[node] = if reflection || (observes_expiry && breached(steps, node)) == knock_in {
                 payoff
             } else {
                 option.rebate()
@@ -234,7 +251,27 @@ impl CoxRossRubinsteinBarrierEngine {
         }
         let mut first = [0.0; 2];
         let mut second = [0.0; 3];
-        if reflection {
+        if direct {
+            let level = if request.has(Greek::Gamma) {
+                2
+            } else {
+                usize::from(request.has(Greek::Delta))
+            };
+            let (price, nodes) = european_levels(&values, p, discount.log_factor, level)?;
+            if !price.is_finite() || nodes.iter().any(|value| !value.is_finite()) {
+                return Err(unstable());
+            }
+            second = nodes;
+            first = if level == 2 {
+                [
+                    discount.rollback(nodes[0], nodes[1], p),
+                    discount.rollback(nodes[1], nodes[2], p),
+                ]
+            } else {
+                [nodes[0], nodes[1]]
+            };
+            values[0] = price;
+        } else if reflection {
             // Check each integer walk state, including the opposite parity from expiry.
             let boundary = barrier_boundary(2 * steps + 1, |index| {
                 let level = index.abs_diff(steps);
@@ -270,6 +307,56 @@ impl CoxRossRubinsteinBarrierEngine {
                 }
             }
             values[0] = price;
+        } else if !continuous
+            && future.len() <= steps / 128
+            && (discount.log_factor * f64::from(self.settings.step_count)).abs() < 100.0
+        {
+            let mut planner = FftPlanner::new();
+            let mut upper_level = steps;
+            for level in (0..steps).rev().filter(|&i| i <= 2 || observed[i]) {
+                crate::cancellation::check()?;
+                let count = level + 1;
+                rollback_gap(
+                    &mut values[..=upper_level],
+                    count,
+                    p,
+                    discount,
+                    &mut planner,
+                )?;
+                if !vanilla.is_empty() {
+                    rollback_gap(
+                        &mut vanilla[..=upper_level],
+                        count,
+                        p,
+                        discount,
+                        &mut planner,
+                    )?;
+                }
+                if observed[level] {
+                    let boundary = barrier_boundary(count, |node| breached(level, node) != upper);
+                    let hit = if upper { boundary..count } else { 0..boundary };
+                    if knock_in {
+                        values[hit.clone()].copy_from_slice(&vanilla[hit]);
+                    } else {
+                        let log_discount = if option.rebate_timing() == RebateTiming::AtHit {
+                            0.0
+                        } else {
+                            -rate * (steps - level) as f64 * dt
+                        };
+                        values[hit].fill(scaled(option.rebate(), log_discount));
+                    }
+                }
+                if values[..count].iter().any(|x| !x.is_finite()) {
+                    return Err(unstable());
+                }
+                if level == 1 {
+                    first.copy_from_slice(&values[..2]);
+                }
+                if level == 2 {
+                    second.copy_from_slice(&values[..3]);
+                }
+                upper_level = level;
+            }
         } else {
             for level in (0..=steps).rev() {
                 crate::cancellation::check()?;
@@ -457,6 +544,113 @@ fn barrier_boundary(count: usize, below: impl Fn(usize) -> bool) -> usize {
     low
 }
 
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "Bounded rollback indices fit exactly in f64."
+)]
+fn rollback_gap(
+    values: &mut [f64],
+    count: usize,
+    probability: f64,
+    discount: super::StepDiscount,
+    planner: &mut FftPlanner<f64>,
+) -> Result<()> {
+    let gap = values.len() - count;
+    if gap < 128 {
+        for end in (count..values.len()).rev() {
+            crate::cancellation::check()?;
+            rollback_level(&mut values[..=end], &mut [], 0.0, 0..end, |lower, upper| {
+                discount.rollback(lower, upper, probability)
+            })?;
+        }
+        return Ok(());
+    }
+    let log_discount = gap as f64 * discount.log_factor;
+    if count <= 3 {
+        let mut next = [0.0; 3];
+        for (i, value) in next[..count].iter_mut().enumerate() {
+            *value = european_levels(&values[i..=i + gap], probability, discount.log_factor, 0)?.0;
+        }
+        values[..count].copy_from_slice(&next[..count]);
+        return Ok(());
+    }
+    if probability <= 0.0 || probability >= 1.0 {
+        let offset = if probability >= 1.0 { gap } else { 0 };
+        for i in 0..count {
+            values[i] = scaled(values[i + offset], log_discount);
+        }
+        return Ok(());
+    }
+
+    let (weights, normalization) = super::binomial_log_weights(gap, probability)?;
+    let scale = values.iter().copied().fold(0.0, f64::max);
+    if scale == 0.0 {
+        return Ok(());
+    }
+    let size = (values.len() + gap).next_power_of_two();
+    let mut payoff = vec![Complex64::default(); size];
+    let mut kernel = vec![Complex64::default(); size];
+    for (slot, &value) in payoff.iter_mut().zip(values.iter()) {
+        slot.re = value / scale;
+    }
+    for (slot, &weight) in kernel.iter_mut().zip(weights.iter().rev()) {
+        slot.re = weight.exp() / normalization;
+    }
+    let forward = planner.plan_fft_forward(size);
+    let inverse = planner.plan_fft_inverse(size);
+    let mut scratch = vec![
+        Complex64::default();
+        forward
+            .get_inplace_scratch_len()
+            .max(inverse.get_inplace_scratch_len())
+    ];
+    forward.process_with_scratch(&mut payoff, &mut scratch);
+    crate::cancellation::check()?;
+    forward.process_with_scratch(&mut kernel, &mut scratch);
+    for (sample, weight) in payoff.iter_mut().zip(kernel) {
+        *sample *= weight;
+    }
+    inverse.process_with_scratch(&mut payoff, &mut scratch);
+
+    // Recover tails below the FFT's absolute accuracy with positive log-weighted sums.
+    let last = values.iter().rposition(|&value| value > 0.0).unwrap_or(0);
+    let first = values
+        .iter()
+        .position(|&value| value > 0.0)
+        .unwrap_or(values.len());
+    let log_normalization = normalization.ln();
+    for i in 0..count {
+        if i % 256 == 0 {
+            crate::cancellation::check()?;
+        }
+        let value = payoff[i + gap].re / size as f64;
+        values[i] = if value > 1e-8 {
+            scaled(scale, value.ln() + log_discount)
+        } else if i > last || i + gap < first {
+            0.0
+        } else {
+            let start = first.saturating_sub(i);
+            let end = (last - i).min(gap);
+            let log_term = |j: usize| values[i + j].ln() + weights[j];
+            let maximum = (start..=end)
+                .map(log_term)
+                .fold(f64::NEG_INFINITY, f64::max);
+            if maximum.is_finite() {
+                let total = (start..=end)
+                    .map(|j| (log_term(j) - maximum).exp())
+                    .sum::<f64>();
+                (maximum + total.ln() + log_discount - log_normalization).exp()
+            } else {
+                0.0
+            }
+        };
+        if !values[i].is_finite() {
+            return Err(unstable());
+        }
+    }
+    Ok(())
+}
+
 fn rollback_level(
     values: &mut [f64],
     vanilla: &mut [f64],
@@ -531,5 +725,46 @@ impl PricingEngine<BarrierOption> for CoxRossRubinsteinBarrierEngine {
         settings: ImpliedVolatilitySettings,
     ) -> Result<ImpliedVolatilitySettings> {
         prepare_implied(option, context, self.settings, settings)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scheduled_gap_convolution_matches_single_step_rollback_in_the_tails() -> Result<()> {
+        let mut prices = vec![0.0; 513];
+        prices[250..300].fill(2.0);
+        prices[280] = 9.0;
+        let mut reference = prices.clone();
+        let discount = super::super::StepDiscount {
+            factor: (-0.001_f64).exp(),
+            log_factor: -0.001,
+        };
+        let probability = 0.42;
+        for end in (257..prices.len()).rev() {
+            rollback_level(
+                &mut reference[..=end],
+                &mut [],
+                0.0,
+                0..end,
+                |lower, upper| discount.rollback(lower, upper, probability),
+            )?;
+        }
+        rollback_gap(
+            &mut prices,
+            257,
+            probability,
+            discount,
+            &mut FftPlanner::new(),
+        )?;
+        for (i, (&value, &expected)) in prices[..257].iter().zip(&reference).enumerate() {
+            assert!(
+                (value - expected).abs() <= 1e-7 * expected,
+                "node {i}: {value} vs {expected}"
+            );
+        }
+        Ok(())
     }
 }
