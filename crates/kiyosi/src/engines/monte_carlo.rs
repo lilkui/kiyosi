@@ -1798,9 +1798,76 @@ fn sample_normal(
         value
     } else {
         let radius = (-2.0 * generator.uniform().ln()).sqrt();
-        let (sin, cos) = (TAU * generator.uniform()).sin_cos();
+        let (sin, cos) = sin_cos_turns(generator.uniform());
         *spare = Some(radius * sin);
         radius * cos
+    }
+}
+
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "A uniform turn selects the nearest quadrant index from zero through four."
+)]
+fn sin_cos_turns(turns: f64) -> (f64, f64) {
+    const SINE: [f64; 7] = [
+        -1.0 / 1_307_674_368_000.0,
+        1.0 / 6_227_020_800.0,
+        -1.0 / 39_916_800.0,
+        1.0 / 362_880.0,
+        -1.0 / 5_040.0,
+        1.0 / 120.0,
+        -1.0 / 6.0,
+    ];
+    const COSINE: [f64; 8] = [
+        1.0 / 20_922_789_888_000.0,
+        -1.0 / 87_178_291_200.0,
+        1.0 / 479_001_600.0,
+        -1.0 / 3_628_800.0,
+        1.0 / 40_320.0,
+        -1.0 / 720.0,
+        1.0 / 24.0,
+        -0.5,
+    ];
+    // Reduce in turns before converting to radians. On ±π/4 the first
+    // omitted Taylor terms are below machine epsilon.
+    let quadrant = (turns * 4.0 + 0.5) as u32;
+    let angle = TAU * (turns - 0.25 * f64::from(quadrant));
+    let square = angle * angle;
+    let polynomial = |coefficients: &[f64]| {
+        coefficients
+            .iter()
+            .fold(0.0, |value, coefficient| value * square + coefficient)
+    };
+    let sin = angle + angle * square * polynomial(&SINE);
+    let cos = 1.0 + square * polynomial(&COSINE);
+    let (sin, cos) = if quadrant & 1 == 0 {
+        (sin, cos)
+    } else {
+        (cos, -sin)
+    };
+    if quadrant & 2 == 0 {
+        (sin, cos)
+    } else {
+        (-sin, -cos)
+    }
+}
+
+#[test]
+fn box_muller_angles_match_standard_trigonometry() {
+    for i in 0..=4096 {
+        let turns = f64::from(i) / 4096.0;
+        let (sin, cos) = sin_cos_turns(turns);
+        let (expected_sin, expected_cos) = (TAU * turns).sin_cos();
+        let tolerance = 6.0 * f64::EPSILON;
+        assert!(
+            (sin - expected_sin).abs() <= tolerance,
+            "sine at {turns} turns"
+        );
+        assert!(
+            (cos - expected_cos).abs() <= tolerance,
+            "cosine at {turns} turns"
+        );
     }
 }
 
