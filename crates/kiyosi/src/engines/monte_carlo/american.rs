@@ -15,6 +15,7 @@ use crate::{
 const WORKSPACE_BUDGET: usize = 1 << 30;
 const WORK_BUDGET: usize = 1_000_000_000;
 const PREFERRED_PATH_WORKSPACE: usize = 256 << 20;
+const FULL_PATH_OVERHEAD: usize = 8 << 20;
 const MAX_CACHED_PATH_VALUES: usize = 128 * 1024 * 1024 / size_of::<f64>();
 const PATH_BLOCK_OVERHEAD: usize = size_of::<Vec<f64>>() + 2 * size_of::<usize>();
 
@@ -152,7 +153,18 @@ fn exercise_window<const N: usize>(
             "American Monte Carlo workspace exceeds 1 GiB; reduce path_count or step_count".into(),
         ));
     }
-    let target = PREFERRED_PATH_WORKSPACE.max(minimum_bytes);
+    // Keep a complete matrix when only its cash, block or sampler bookkeeping
+    // would force another pass through the paths.
+    let full = workspace(intervals);
+    let matrix = reserved_paths.saturating_mul(intervals * growth_count * size_of::<f64>());
+    let preferred = if matrix <= PREFERRED_PATH_WORKSPACE
+        && full <= PREFERRED_PATH_WORKSPACE + FULL_PATH_OVERHEAD
+    {
+        full
+    } else {
+        PREFERRED_PATH_WORKSPACE
+    };
+    let target = preferred.max(minimum_bytes);
     let mut low = minimum_window;
     let mut high = intervals;
     while low < high {
@@ -227,6 +239,9 @@ impl ExercisePaths<'_> {
         mut initial: impl FnMut(usize, usize) -> f64,
         mut save: impl FnMut(usize, usize, usize, f64),
     ) -> Result<()> {
+        if self.sobol.is_none() {
+            return self.fill_pseudorandom::<N>(block, steps, initial, save);
+        }
         let begin = block * BLOCK_SIZE;
         let end = (begin + BLOCK_SIZE).min(self.samples);
         let cursor = self.sobol.map(|sequence| {
@@ -244,13 +259,6 @@ impl ExercisePaths<'_> {
         };
         draws.skip_normals(steps.start);
         let mut lane = 0;
-        let evolve = |spot: &mut f64, growth: f64| -> Result<f64> {
-            *spot *= growth;
-            if !spot.is_finite() || *spot <= 0.0 {
-                return Err(unstable());
-            }
-            Ok(*spot)
-        };
         for sample in begin..end {
             crate::cancellation::check()?;
             let paired = self.settings.antithetic && sample < self.paths / 2;
@@ -273,10 +281,10 @@ impl ExercisePaths<'_> {
                 let normal = draws.normal();
                 for (index, &[drift, diffusion]) in self.growth.iter().enumerate() {
                     let spot =
-                        evolve(&mut positive[index], diffusion.mul_add(normal, drift).exp())?;
+                        evolve_spot(&mut positive[index], diffusion.mul_add(normal, drift).exp())?;
                     save(step, lane, index, spot);
                     if paired {
-                        let spot = evolve(
+                        let spot = evolve_spot(
                             &mut negative[index],
                             (-diffusion).mul_add(normal, drift).exp(),
                         )?;
@@ -290,6 +298,69 @@ impl ExercisePaths<'_> {
                 cursor.seek(steps.start);
             } else {
                 draws.skip_normals(self.intervals - steps.len());
+            }
+        }
+        Ok(())
+    }
+
+    fn fill_pseudorandom<const N: usize>(
+        &self,
+        block: usize,
+        steps: std::ops::Range<usize>,
+        mut initial: impl FnMut(usize, usize) -> f64,
+        mut save: impl FnMut(usize, usize, usize, f64),
+    ) -> Result<()> {
+        const TILE: usize = 16;
+        let begin = block * BLOCK_SIZE;
+        let end = (begin + BLOCK_SIZE).min(self.samples);
+        let mut lane = 0;
+        let generator = Pcg32::new(self.seed, block as u64);
+        for first in (begin..end).step_by(TILE) {
+            crate::cancellation::check()?;
+            let count = TILE.min(end - first);
+            let mut draws: [NormalDraws<'_>; TILE] = std::array::from_fn(|i| {
+                let mut draws = NormalDraws {
+                    generator,
+                    spare: None,
+                    cursor: None,
+                };
+                // Assign each lane the original path's position in the block's stream.
+                draws.skip_normals((first + i - begin) * self.intervals + steps.start);
+                draws
+            });
+            let mut paths = [(0, false); TILE];
+            let mut positive = [[self.anchor; N]; TILE];
+            let mut negative = [[self.anchor; N]; TILE];
+            for i in 0..count {
+                let paired = self.settings.antithetic && first + i < self.paths / 2;
+                paths[i] = (lane, paired);
+                for model in 0..self.growth.len() {
+                    positive[i][model] = initial(lane, model);
+                    if paired {
+                        negative[i][model] = initial(lane + 1, model);
+                    }
+                }
+                lane += 1 + usize::from(paired);
+            }
+            for step in steps.clone() {
+                check_path_step(step)?;
+                for (i, &(lane, paired)) in paths[..count].iter().enumerate() {
+                    let normal = draws[i].normal();
+                    for (model, &[drift, diffusion]) in self.growth.iter().enumerate() {
+                        let spot = evolve_spot(
+                            &mut positive[i][model],
+                            diffusion.mul_add(normal, drift).exp(),
+                        )?;
+                        save(step, lane, model, spot);
+                        if paired {
+                            let spot = evolve_spot(
+                                &mut negative[i][model],
+                                (-diffusion).mul_add(normal, drift).exp(),
+                            )?;
+                            save(step, lane + 1, model, spot);
+                        }
+                    }
+                }
             }
         }
         Ok(())
@@ -345,6 +416,14 @@ impl ExercisePaths<'_> {
             },
         )
     }
+}
+
+fn evolve_spot(spot: &mut f64, growth: f64) -> Result<f64> {
+    *spot *= growth;
+    if !spot.is_finite() || *spot <= 0.0 {
+        return Err(unstable());
+    }
+    Ok(*spot)
 }
 
 impl MonteCarloVanillaEngine {
@@ -1260,6 +1339,29 @@ fn checkpoint_replay_preserves_pseudorandom_and_sobol_paths() -> Result<()> {
                 let begin = block_index * BLOCK_SIZE;
                 let count = full.block_path_count(begin, (begin + BLOCK_SIZE).min(samples));
                 let (expected, _) = full.generate::<1>(block_index, count)?;
+                if sequence.is_none() {
+                    let mut draws = NormalDraws {
+                        generator: Pcg32::new(1729, block_index as u64),
+                        spare: None,
+                        cursor: None,
+                    };
+                    let [drift, diffusion] = full.growth[0];
+                    let mut lane = 0;
+                    for sample in begin..(begin + BLOCK_SIZE).min(samples) {
+                        let paired = antithetic && sample < paths / 2;
+                        let [mut positive, mut negative] = [1.0_f64; 2];
+                        for row in expected.chunks_exact(count) {
+                            let normal = draws.normal();
+                            positive *= diffusion.mul_add(normal, drift).exp();
+                            assert_eq!(row[lane].to_bits(), positive.to_bits());
+                            if paired {
+                                negative *= (-diffusion).mul_add(normal, drift).exp();
+                                assert_eq!(row[lane + 1].to_bits(), negative.to_bits());
+                            }
+                        }
+                        lane += 1 + usize::from(paired);
+                    }
+                }
                 let (spots, checkpoints) = windowed.generate::<1>(block_index, count)?;
                 let mut block = ExerciseBlock {
                     spots: Arc::new(spots),
