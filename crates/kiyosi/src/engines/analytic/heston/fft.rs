@@ -1,4 +1,4 @@
-use std::f64::consts::TAU;
+use std::{collections::HashSet, f64::consts::TAU};
 
 use rustfft::FftPlanner;
 
@@ -26,7 +26,7 @@ pub(super) fn price_strikes(
     strikes: &[f64],
     settings: HestonIntegrationSettings,
 ) -> Result<Option<Vec<Option<f64>>>> {
-    if !(256..=16_384).contains(&strikes.len())
+    if !(16..=16_384).contains(&strikes.len())
         || model.vol_of_vol() == 0.0
         || model.initial_variance() == 0.0
         || settings.absolute_tolerance == 0.0
@@ -54,6 +54,7 @@ pub(super) fn price_strikes(
     };
     let mut max_moneyness: f64 = 0.0;
     let mut max_weight: f64 = 0.0;
+    let mut distinct = HashSet::with_capacity(strikes.len());
     let mut quotes = Vec::with_capacity(strikes.len());
     for &strike in strikes {
         crate::cancellation::check()?;
@@ -70,6 +71,7 @@ pub(super) fn price_strikes(
         }
         max_moneyness = max_moneyness.max(moneyness.abs());
         max_weight = max_weight.max(weight);
+        distinct.insert(strike.to_bits());
         let base = lognormal_price(
             spot,
             strike,
@@ -116,6 +118,14 @@ pub(super) fn price_strikes(
     // Oversampling bounds the interpolation error through the highest retained
     // frequency. The inverse FFT has the same sign as the pricing transform.
     let len = 8 * count;
+    // The direct integrator starts with five sampled panels per strike even
+    // when their characteristic functions are cached. Weight the more expensive
+    // characteristic samples and the cheaper FFT butterflies separately.
+    let direct_work = distinct.len() * 5 * super::PANEL_SAMPLES;
+    let transform_work = count + len * len.ilog2() as usize / 64 + 16 * distinct.len();
+    if transform_work >= direct_work {
+        return Ok(None);
+    }
     let mut coefficients = vec![Complex64::default(); len];
     let mut absolute = 0.0;
     let mut derivative = 0.0;
@@ -227,7 +237,7 @@ mod tests {
     use crate::{AnalyticHestonEuropeanEngine, Date, HestonParameterInputs};
 
     #[test]
-    fn dense_irregular_strikes_use_fft_and_isolate_outliers() -> Result<()> {
+    fn irregular_strikes_below_old_threshold_use_fft_and_isolate_outliers() -> Result<()> {
         let start = Date::new(2025, 1, 1)?.start_of_day();
         let end = start.add_days(365)?;
         let model = HestonParameters::new(HestonParameterInputs {
@@ -242,10 +252,10 @@ mod tests {
         let market = PricingContext::new(model.clone(), 100.0, start)?;
         let engine = AnalyticHestonEuropeanEngine::default();
         let settings = engine.settings();
-        let mut strikes: Vec<_> = (0..512)
+        let mut strikes: Vec<_> = (0..128)
             .map(|index| {
-                let i = f64::from(index * 173 % 512);
-                60.0 * ((160.0_f64 / 60.0).ln() * i / 511.0).exp() + 0.012 * i.sin()
+                let i = f64::from(index * 173 % 128);
+                60.0 * ((160.0_f64 / 60.0).ln() * i / 127.0).exp() + 0.012 * i.sin()
             })
             .collect();
         strikes.insert(30, 1e12);
@@ -253,9 +263,10 @@ mod tests {
         for direction in [OptionType::Call, OptionType::Put] {
             let option = EuropeanOption::new(direction, 100.0, start, end)?;
             let actual = price_strikes(&option, &market, &model, &strikes, settings)?
-                .expect("dense strikes and ordinary Heston inputs use the transform");
+                .expect("ordinary Heston inputs use the transform for this strip");
             assert!(actual[30].is_none());
-            assert_eq!(actual[0].map(f64::to_bits), actual[513].map(f64::to_bits));
+            assert_eq!(actual[0].map(f64::to_bits), actual[129].map(f64::to_bits));
+            assert!(price_strikes(&option, &market, &model, &[100.0; 256], settings)?.is_none());
             for (index, (value, &strike)) in actual.into_iter().zip(&strikes).enumerate() {
                 if index == 30 {
                     continue;
