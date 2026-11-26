@@ -147,7 +147,7 @@ macro_rules! sampling_settings {
     (@sampling $engine:expr, [$step:ident]) => {
         $engine.settings().sampling
     };
-    (@structured $engine:ident, $instrument:ty, $with:path) => {
+    (@structured $engine:ident, $instrument:ty, $with:path $(, {$($extra:item)*})?) => {
         sampling_settings!(
             $engine, $instrument, [],
             [
@@ -162,16 +162,18 @@ macro_rules! sampling_settings {
                 /// use terminal-payoff stencils with those shifts. Use numerical_greeks for scalar
                 /// bump calculations on supported BSM pairs.
                 ///
-            ]
+            ] $(, {$($extra)*})?
         );
         engine_methods!(@evaluate $engine, $instrument, $with);
     };
-    ($engine:ident, $instrument:ty, [$($step:ident)?], [$(#[$greeks_doc:meta])*]) => {
+    ($engine:ident, $instrument:ty, [$($step:ident)?], [$(#[$greeks_doc:meta])*] $(, {$($extra:item)*})?) => {
         engine_methods!(@price $engine, $instrument, [$(#[$greeks_doc])*], [
             /// OSError
             ///     If system entropy or worker creation fails.
             ///
         ], {
+            $($($extra)*)?
+
             /// Return the scalar price and the seed used by this request.
             ///
             /// Parameters
@@ -514,7 +516,76 @@ sampling_settings!(
 sampling_settings!(
     @structured MonteCarloAutocallableEngine,
     autocallable::AutocallableInstrument<'_>,
-    autocallable::with_note
+    autocallable::with_note,
+    {
+    /// Price a batch of notes of one product type using one market snapshot.
+    ///
+    /// Parameters
+    /// ----------
+    /// instruments : iterable of SnowballOption, BinarySnowballOption, TernarySnowballOption, or PhoenixOption
+    ///     Notes of the same concrete type. Compatible observation grids share
+    ///     simulated paths. Other observation grids use scalar pricing.
+    /// context : PricingContext
+    ///     Shared market snapshot and valuation instant.
+    ///
+    /// Returns
+    /// -------
+    /// tuple of float
+    ///     Prices in input order. All simulation in the batch uses one seed.
+    ///     Configure a seed or call with_resolved_seed() to replay the prices.
+    ///
+    /// Raises
+    /// ------
+    /// UnsupportedOperationError
+    ///     If the instruments have different types or the market is unsupported.
+    /// KiyosiError
+    ///     If scalar pricing validation or computation fails.
+    /// OSError
+    ///     If interrupted or worker creation or entropy retrieval fails.
+    fn price_many<'py>(
+        &self,
+        py: Python<'py>,
+        instruments: &Bound<'py, PyAny>,
+        context: &PricingContext,
+    ) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        use autocallable::AutocallableInstrument;
+        let instruments = instruments.try_iter()?.enumerate().map(|(index, instrument)| {
+            if index % 1024 == 0 {
+                py.check_signals()?;
+            }
+            crate::conversions::instrument::<AutocallableInstrument<'py>>(&instrument?)
+        }).collect::<PyResult<Vec<_>>>()?;
+        macro_rules! price {
+            ($variant:ident) => {{
+                let notes = instruments
+                    .iter()
+                    .map(|instrument| {
+                        if let AutocallableInstrument::$variant(note) = instrument {
+                            Ok(&note.0)
+                        } else {
+                            Err(kiyosi::Error::UnsupportedOperation(
+                                "Monte Carlo price_many requires one autocallable product type"
+                                    .into(),
+                            ))
+                        }
+                    })
+                    .collect::<kiyosi::Result<Vec<_>>>();
+                let notes = crate::error::domain(notes)?;
+                crate::error::domain(crate::cancellation::run(py, || {
+                    self.0.price_many(&notes, &context.0)
+                })?)?
+            }};
+        }
+        let prices = match instruments.first() {
+            Some(AutocallableInstrument::Snowball(_)) => price!(Snowball),
+            Some(AutocallableInstrument::Binary(_)) => price!(Binary),
+            Some(AutocallableInstrument::Ternary(_)) => price!(Ternary),
+            Some(AutocallableInstrument::Phoenix(_)) => price!(Phoenix),
+            None => Vec::new(),
+        };
+        pyo3::types::PyTuple::new(py, prices)
+    }
+    }
 );
 
 sampling_settings!(

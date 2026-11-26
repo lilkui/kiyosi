@@ -32,6 +32,28 @@ from test_phoenix import contract as phoenix
 from test_snowball import END, START, contract, market
 
 
+@pytest.mark.parametrize("sampling", ("pseudo_random", "sobol"))
+def test_portfolio_prices_replay_scalar_paths(sampling):
+    note = contract(
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
+        autocall_observations=autocallable_observations(
+            [datetime(2025, 2, 3), datetime(2025, 3, 3), END],
+            [103, 108, 105],
+            knock_out_coupon_rates=[0.08] * 3,
+        ),
+    )
+    variation = note.replace(maturity_coupon_rate=0.09, knock_in_level=95)
+    context = market()
+    engine = MC(path_count=2048, seed=42, sampling=sampling, antithetic=True)
+    notes = (variation, note, variation)
+    assert engine.price_many(iter(notes), context) == tuple(
+        engine.price(item, context) for item in notes
+    )
+    assert engine.price_many([], context) == ()
+    with pytest.raises(UnsupportedOperationError):
+        engine.price_many((note, phoenix()), context)
+
+
 def test_terminal_price_matches_quadrature_with_sampling_error():
     note, context = contract(), market()
     engine = MC(path_count=32768, seed=42)

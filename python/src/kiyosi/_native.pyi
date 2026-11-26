@@ -6,6 +6,7 @@ from decimal import Decimal as _Decimal
 from numbers import Real as _RealNumber
 from types import EllipsisType
 from typing import Literal, Never, Self, SupportsIndex, overload
+
 from . import pricing as _pricing
 
 type _Real = float | _RealNumber | _Decimal
@@ -4436,6 +4437,40 @@ class MonteCarloAutocallableEngine(
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
+    def price_many(
+        self,
+        instruments: Iterable[SnowballOption]
+        | Iterable[BinarySnowballOption]
+        | Iterable[TernarySnowballOption]
+        | Iterable[PhoenixOption],
+        context: PricingContext,
+    ) -> tuple[float, ...]:
+        """Price a batch of notes of one product type using one market snapshot.
+
+        Parameters
+        ----------
+        instruments : iterable of SnowballOption, BinarySnowballOption, TernarySnowballOption, or PhoenixOption
+            Notes of the same concrete type. Compatible observation grids share
+            simulated paths. Other observation grids use scalar pricing.
+        context : PricingContext
+            Shared market snapshot and valuation instant.
+
+        Returns
+        -------
+        tuple of float
+            Prices in input order. All simulation in the batch uses one seed.
+            Configure a seed or call with_resolved_seed() to replay the prices.
+
+        Raises
+        ------
+        UnsupportedOperationError
+            If the instruments have different types or the market is unsupported.
+        KiyosiError
+            If scalar pricing validation or computation fails.
+        OSError
+            If interrupted or worker creation or entropy retrieval fails.
+        """
+
     def replace(
         self,
         *,

@@ -71,6 +71,10 @@ def sampling_estimates(
         autocallable.price_with_statistics(phoenix, context), MonteCarloEstimate
     )
     assert_type(autocallable.with_resolved_seed(), MonteCarloAutocallableEngine)
+    assert_type(
+        autocallable.price_many((snowball, snowball), context), tuple[float, ...]
+    )
+    autocallable.price_many((snowball, phoenix), context)  # ty: ignore[invalid-argument-type]
     MonteCarloDigitalEngine().price_with_statistics(barrier, context)  # ty: ignore[invalid-argument-type]
 
 

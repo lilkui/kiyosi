@@ -3,6 +3,41 @@ mod autocallable_support;
 
 use kiyosi::*;
 
+#[test]
+fn portfolio_prices_replay_scalar_paths() -> Result<()> {
+    let (mut terms, _, _) =
+        autocallable_support::multi_event_terms(KnockInObservation::EveryTradingDay {
+            observation_clock_time: date(1, 1).time_of_day(),
+        });
+    let first = SnowballOption::new(terms.clone())?;
+    terms.maturity_coupon_rate = 0.09;
+    terms.knock_in_level = 90.0;
+    let second = SnowballOption::new(terms.clone())?;
+    terms.knock_in_observation = KnockInObservation::AtExpiry;
+    let different_grid = SnowballOption::new(terms)?;
+    let context = market(100.0, date(1, 1));
+    for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
+        let engine = MonteCarloAutocallableEngine::new(MonteCarloSettings {
+            path_count: 2048,
+            seed: Some(42),
+            sampling,
+            antithetic: true,
+            max_active_workers: 2,
+        })?;
+        for notes in [
+            [&first, &second, &first],
+            [&first, &different_grid, &second],
+        ] {
+            let expected = notes.map(|note| engine.price(note, &context).map(f64::to_bits));
+            let actual = engine.price_many(&notes, &context)?;
+            for (price, scalar) in actual.into_iter().zip(expected) {
+                assert_eq!(price.to_bits(), scalar?);
+            }
+        }
+    }
+    Ok(())
+}
+
 fn date(month: u32, day: u32) -> Timestamp {
     Date::new(2025, month, day).unwrap().start_of_day()
 }
