@@ -16,6 +16,41 @@ fn dates() -> (Timestamp, Timestamp) {
 }
 
 #[test]
+fn european_surface_matches_analytic_prices_and_preserves_both_input_orders() -> kiyosi::Result<()>
+{
+    let (start, end) = dates();
+    let middle = start.add_days(90)?;
+    let market = context(0.3, -0.7);
+    let template = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let strikes = [110.0, 90.0, 100.0, 90.0];
+    let expiries = [end, start, middle, end];
+    let engine = FiniteDifferenceHestonVanillaEngine::default();
+    let rows = engine.price_european_surface(&template, &market, &expiries, &strikes)?;
+    assert_eq!(rows.len(), expiries.len());
+    assert_eq!(rows[0], rows[3]);
+    assert_eq!(rows[1], [0.0, 10.0, 0.0, 10.0]);
+    let analytic = AnalyticHestonEuropeanEngine::default();
+    for (&expiry, row) in expiries.iter().zip(rows) {
+        assert_eq!(row.len(), strikes.len());
+        assert_eq!(row[1].to_bits(), row[3].to_bits());
+        for (value, strike) in row.into_iter().zip(strikes) {
+            let contract = EuropeanOption::new(OptionType::Call, strike, start, expiry)?;
+            let reference = analytic.price(&contract, &market)?;
+            assert!((value - reference).abs() < 0.002, "{value} vs {reference}");
+        }
+    }
+    assert_eq!(
+        engine.price_european_surface(&template, &market, &[end], &[])?,
+        vec![Vec::<f64>::new()]
+    );
+    assert!(matches!(
+        engine.price_european_surface(&template, &market, &[start.add_days(-1)?], &strikes),
+        Err(Error::InvalidInput(_))
+    ));
+    Ok(())
+}
+
+#[test]
 fn heston_finite_difference_with_recurring_calendar_rates() -> kiyosi::Result<()> {
     let (start, _) = dates();
     let end = start.add_days(364)?;

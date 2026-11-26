@@ -185,6 +185,55 @@ engine_methods!(
             crate::conversions::python_tuple(py, domain(values)?, Ok)
         }
 
+        /// Price a European strike and expiry surface on a shared forward grid.
+        ///
+        /// Parameters
+        /// ----------
+        /// instrument : EuropeanOption
+        ///     Template supplying the payoff direction and effective time.
+        /// context : PricingContext
+        ///     Fixed Heston market and valuation time.
+        /// expiries : iterable of datetime
+        ///     Expiries at or after valuation and the effective time.
+        /// strikes : iterable of float
+        ///     Finite positive strikes.
+        ///
+        /// Returns
+        /// -------
+        /// tuple of tuple of float
+        ///     Rows in expiry order, with prices in strike order and duplicates preserved.
+        ///
+        /// Raises
+        /// ------
+        /// KiyosiError
+        ///     If applicability, input, workspace or numerical checks fail.
+        /// TypeError, ValueError, OverflowError
+        ///     If a Python input representation is invalid.
+        ///
+        /// Notes
+        /// -----
+        /// Time steps span the longest maturity and include every requested expiry.
+        /// Check mesh and domain convergence, especially for short maturities and
+        /// wide strike ranges. Cancellation returns no partial result.
+        #[pyo3(signature = (instrument, context, *, expiries, strikes))]
+        #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns the extracted inputs before core pricing.")]
+        fn price_european_surface<'py>(
+            &self,
+            py: Python<'py>,
+            #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, crate::instruments::vanilla::EuropeanOption>,
+            context: &crate::market::PricingContext,
+            #[pyo3(from_py_with = crate::conversions::timestamps)] expiries: Vec<kiyosi::Timestamp>,
+            #[pyo3(from_py_with = crate::conversions::reals)] strikes: Vec<f64>,
+        ) -> PyResult<Bound<'py, PyTuple>> {
+            let instrument = &instrument.0;
+            let values = crate::cancellation::run(py, || {
+                self.0.price_european_surface(instrument, &context.0, &expiries, &strikes)
+            })?;
+            crate::conversions::python_tuple(py, domain(values)?, |row| {
+                crate::conversions::python_tuple(py, row, Ok)
+            })
+        }
+
         #[classattr]
         const _STATE_FIELDS: &'static [&'static str] = &[
             "asset_step_count", "variance_step_count", "time_step_count",

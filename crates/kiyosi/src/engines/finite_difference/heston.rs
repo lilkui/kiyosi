@@ -13,8 +13,8 @@ use crate::engines::deterministic::{self, AmericanExercise, ExerciseBoundaries};
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{checked_with_scale, scaled_cash};
 use crate::{
-    AmericanOption, EuropeanOption, GreeksRequest, HestonParameters, OptionContract,
-    PricingContext, PricingEngine, PricingResult, Result,
+    AmericanOption, EuropeanOption, EuropeanOptionChanges, GreeksRequest, HestonParameters,
+    OptionContract, PricingContext, PricingEngine, PricingResult, Result, Timestamp,
 };
 
 /// Configures fixed Heston grids; see [`FiniteDifferenceHestonVanillaEngine::new`].
@@ -257,6 +257,142 @@ impl FiniteDifferenceHestonVanillaEngine {
             strikes,
         )
     }
+
+    /// Prices a European strike and expiry surface on a shared forward grid.
+    ///
+    /// The template supplies the payoff direction and effective time. Outer rows
+    /// follow `expiries`, and each row follows `strikes`, including duplicates.
+    /// Time steps span the longest maturity and include every requested expiry.
+    /// Check mesh and domain convergence, especially for short maturities and
+    /// wide strike ranges. See [`Self::price_european_strikes`] for the inputs.
+    ///
+    /// # Examples
+    ///
+    /// With the template, market and dates in [`Self::price_european_strikes`],
+    /// pass `&[start.add_days(90)?, end]` and `&[90.0, 110.0]` to price both
+    /// strikes at both expiries. The first row contains the 90-day prices.
+    ///
+    /// # Errors
+    ///
+    /// Propagates scalar validation and pricing errors and rejects excessive
+    /// output size or grid work. Cancellation returns no partial prices.
+    pub fn price_european_surface(
+        &self,
+        template: &EuropeanOption,
+        context: &PricingContext,
+        expiries: &[Timestamp],
+        strikes: &[f64],
+    ) -> Result<Vec<Vec<f64>>> {
+        let model = context.model_parameters().as_heston()?;
+        let valuation = context.valuation_time();
+        let mut strike_range = [f64::INFINITY, 0.0_f64];
+        for &strike in strikes {
+            crate::cancellation::check()?;
+            crate::error::finite(strike, true, "strike")?;
+            strike_range = [strike_range[0].min(strike), strike_range[1].max(strike)];
+        }
+        let mut ordered = Vec::new();
+        if (expiries.len() as u64).saturating_mul(64 + (strikes.len() as u64).saturating_mul(16))
+            > WORKSPACE_BUDGET / 4
+        {
+            return Err(invalid_grid(
+                "Heston surface output exceeds workspace budget",
+            ));
+        }
+        for &expiry in expiries {
+            crate::cancellation::check()?;
+            if expiry < template.effective_time() || expiry < valuation {
+                return Err(invalid_grid(
+                    "Heston surface expiry precedes effective or valuation time",
+                ));
+            }
+            ordered.push(expiry);
+        }
+        let contract = |expiry, strike| {
+            template.replace(EuropeanOptionChanges {
+                expiry_time: Some(expiry),
+                strike: Some(strike),
+                ..Default::default()
+            })
+        };
+        let Some(end) = ordered.iter().copied().max() else {
+            return Ok(Vec::new());
+        };
+        context.validate_curve_coverage(end)?;
+        let Some((&first, rest)) = strikes.split_first() else {
+            return Ok(vec![Vec::new(); expiries.len()]);
+        };
+        ordered.sort_unstable();
+        ordered.dedup();
+        let live = ordered.partition_point(|&expiry| expiry <= valuation);
+        let absorbing = model.initial_variance() == 0.0
+            && (model.mean_reversion_speed() == 0.0 || model.long_run_variance() == 0.0);
+        let surface = if ordered.len() - live < 2 || absorbing {
+            ordered[live..]
+                .iter()
+                .try_fold(Vec::new(), |mut prices, &expiry| {
+                    prices.extend(self.price_european_strikes(
+                        &contract(expiry, first)?,
+                        context,
+                        strikes,
+                    )?);
+                    Ok::<_, crate::Error>(prices)
+                })?
+        } else {
+            if self
+                .settings
+                .asset_upper_boundary
+                .is_some_and(|upper| upper <= context.spot_price().max(strike_range[1]))
+            {
+                return Err(invalid_grid(
+                    "Heston asset boundary must exceed spot and strike",
+                ));
+            }
+            let times = ordered[live..]
+                .iter()
+                .map(|&expiry| valuation.years_until(expiry))
+                .collect::<Vec<_>>();
+            let option = contract(end, first)?;
+            let payoff = Payoff::vanilla(option.option_type(), first, false);
+            prepare_batch(
+                &option,
+                context,
+                payoff,
+                self.settings,
+                context.spot_price().min(strike_range[0]),
+                rest,
+                &times,
+            )?
+            .1
+        };
+        expiries
+            .iter()
+            .map(|expiry| {
+                crate::cancellation::check()?;
+                let row = ordered.binary_search(expiry).map_err(|_| unstable())?;
+                if row < live {
+                    return strikes
+                        .iter()
+                        .map(|&strike| {
+                            crate::cancellation::check()?;
+                            Ok(Payoff::vanilla(template.option_type(), strike, false)
+                                .value(context.spot_price()))
+                        })
+                        .collect();
+                }
+                let start = (row - live) * strikes.len();
+                let values = surface
+                    .get(start..start + strikes.len())
+                    .ok_or_else(unstable)?;
+                let mut result = Vec::with_capacity(values.len());
+                for chunk in values.chunks(1024) {
+                    crate::cancellation::check()?;
+                    result.extend_from_slice(chunk);
+                }
+                Ok(result)
+            })
+            .collect()
+    }
 }
 
 macro_rules! pricing {
@@ -444,7 +580,7 @@ fn fixed_boundary_prices(
                 strike: first,
                 ..payoff
             };
-            match prepare_batch(option, context, template, settings, low, rest) {
+            match prepare_batch(option, context, template, settings, low, rest, &[]) {
                 Ok((state, values)) => {
                     if let Some(state) = state {
                         prices.push(state.price(option, context)?);
@@ -485,7 +621,7 @@ fn prepare(
     settings: HestonFiniteDifferenceSettings,
     minimum_spot: f64,
 ) -> Result<HestonState> {
-    prepare_batch(option, context, payoff, settings, minimum_spot, &[])
+    prepare_batch(option, context, payoff, settings, minimum_spot, &[], &[])
         .map(|(state, _)| state.expect("scalar preparation returns a saved state"))
 }
 
@@ -506,6 +642,7 @@ fn prepare_batch(
     settings: HestonFiniteDifferenceSettings,
     minimum_spot: f64,
     additional_strikes: &[f64],
+    expiries: &[f64],
 ) -> Result<(Option<HestonState>, Vec<f64>)> {
     // Live values, multiplier, ADI stage buffers, operator coefficients and factors.
     const BYTES_PER_GRID_POINT: u64 = 112;
@@ -534,7 +671,11 @@ fn prepare_batch(
         context.validate_curve_horizon(end)?;
         return Ok((Some(HestonState::Direct(payoff)), Vec::new()));
     }
-    let scale = payoff.strike.max(context.spot_price());
+    let scale = if expiries.is_empty() {
+        payoff.strike.max(context.spot_price())
+    } else {
+        context.spot_price()
+    };
     let minimum_spot = minimum_spot / scale;
     payoff.strike /= scale;
     if minimum_spot == 0.0 || payoff.strike == 0.0 {
@@ -559,13 +700,13 @@ fn prepare_batch(
     let steps = u64::try_from(settings.time_step_count).map_err(|_| unstable())?;
     let factor_rows = if deterministic { rows } else { rows - 1 };
     let padded = factor_rows.next_multiple_of(ASSET_LANES as u64) - factor_rows;
-    let adjoint = !payoff.is_american() && !additional_strikes.is_empty();
+    let adjoint = !payoff.is_american() && (!additional_strikes.is_empty() || !expiries.is_empty());
     let extra_rhs = if adjoint {
         0
     } else {
         additional_strikes.len() as u64
     };
-    let strikes_count = additional_strikes.len() as u64 + 1;
+    let strikes_count = (additional_strikes.len() as u64 + 1) * expiries.len().max(1) as u64;
     let batch_bytes = if adjoint {
         // Terminal weights, hinge terms and their cumulative sums.
         assets * 80 + strikes_count * 16 + assets * rows * size_of::<f64>() as u64
@@ -610,7 +751,18 @@ fn prepare_batch(
         lower_drift = lower_drift.max(-carry);
     }
     let upper = settings.asset_upper_boundary.map_or_else(
-        || (drift + 6.0 * integrated.sqrt()).exp().max(4.0),
+        || {
+            let mesh = (drift + 6.0 * integrated.sqrt()).exp().max(4.0);
+            if expiries.is_empty() {
+                mesh
+            } else {
+                let farthest = additional_strikes
+                    .iter()
+                    .copied()
+                    .fold(payoff.strike, |high, strike| high.max(strike / scale));
+                mesh.max(2.0 * farthest)
+            }
+        },
         |x| x / scale,
     );
     let curve_bytes = risk.workspace_bytes() + dividend.workspace_bytes();
@@ -623,12 +775,20 @@ fn prepare_batch(
     } else {
         TimeGrid::with_events
     };
+    let mut events = expiries.to_vec();
+    if let Some(&first) = expiries
+        .first()
+        .filter(|&&first| first >= 24.0 / 31_536_000_000_000.0)
+    {
+        // Preserve resolution of the initial point mass for short first expiries.
+        events.extend((1..24).map(|index| first * f64::from(index) / 24.0));
+    }
     let times = time_grid(
         time,
         settings.time_step_count,
         &risk,
         &dividend,
-        &[],
+        &events,
         |steps| validate_grid(steps, curve_bytes),
     )?;
     let width = integrated.sqrt();
@@ -638,13 +798,21 @@ fn prepare_batch(
         payoff.strike,
         lower_drift + 0.5 * integrated + 6.0 * tail_width,
     );
-    let mut asset = SpatialGrid::new(settings.asset_step_count, [lower, upper], payoff.strike)?;
+    let anchor = if expiries.is_empty() {
+        payoff.strike
+    } else {
+        1.0
+    };
+    let mut asset = SpatialGrid::new(settings.asset_step_count, [lower, upper], anchor)?;
     let carry = dividend.log_factor(0.0, time) - risk.log_factor(0.0, time);
     if width > 0.0 && width < 0.04 && carry.abs() > 4.0 * width {
-        asset.resolve_drift_band(payoff.strike, carry, width)?;
+        asset.resolve_drift_band(anchor, carry, width)?;
     } else {
-        let asset_scale = if width < 0.04 {
-            (0.3 * width).max(f64::EPSILON)
+        let front_width = expiries
+            .first()
+            .map_or(width, |&first| integrated_variance(model, first).sqrt());
+        let asset_scale = if front_width < 0.04 {
+            (0.3 * front_width).max(f64::EPSILON)
         } else {
             0.06
         };
@@ -743,7 +911,8 @@ fn prepare_batch(
             [lower, upper],
             valuation_row * nx + node,
             payoff,
-            strikes(),
+            &strikes().collect::<Vec<_>>(),
+            expiries,
             scale,
         )
         .map(|prices| (None, prices));
@@ -923,12 +1092,19 @@ fn european_strike_weights(
     bounds: [f64; 2],
     valuation_node: usize,
     payoff: Payoff,
-    strikes: impl Iterator<Item = f64>,
+    strikes: &[f64],
+    expiries: &[f64],
     scale: f64,
 ) -> Result<Vec<f64>> {
     let nx = op.nx;
     let length = nx * op.rows;
     let end = times.times[times.times.len() - 1];
+    let mut remaining = if expiries.is_empty() {
+        std::slice::from_ref(&end)
+    } else {
+        expiries
+    };
+    let mut prices = Vec::with_capacity(remaining.len() * strikes.len());
     let mut edge_weights = Vec::with_capacity(times.widths.len());
     let mut weights = vec![0.0; length];
     let mut previous = vec![0.0; length];
@@ -989,6 +1165,26 @@ fn european_strike_weights(
             }
             edge_weights.push(edges);
             std::mem::swap(&mut previous, &mut weights);
+            let next = times.times[step + 1];
+            while remaining
+                .first()
+                .is_some_and(|expiry| expiry.to_bits() == next.to_bits())
+            {
+                european_weighted_prices(
+                    asset,
+                    &weights,
+                    &times.times[..=step],
+                    &edge_weights,
+                    [risk, dividend],
+                    bounds,
+                    next,
+                    payoff,
+                    strikes,
+                    scale,
+                    &mut prices,
+                )?;
+                remaining = &remaining[1..];
+            }
         }
         Ok(())
     };
@@ -997,6 +1193,32 @@ fn european_strike_weights(
     } else {
         propagate()?;
     }
+    if !remaining.is_empty() {
+        return Err(invalid_grid(
+            "Heston surface expiry is missing from the time grid",
+        ));
+    }
+    Ok(prices)
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Values a payoff strip using the current grid and boundary weights."
+)]
+fn european_weighted_prices(
+    asset: &SpatialGrid,
+    weights: &[f64],
+    times: &[f64],
+    edge_weights: &[[f64; 2]],
+    [risk, dividend]: [&super::Curve; 2],
+    bounds: [f64; 2],
+    end: f64,
+    payoff: Payoff,
+    strikes: &[f64],
+    scale: f64,
+    prices: &mut Vec<f64>,
+) -> Result<()> {
+    let nx = asset.count + 1;
     let mut terminal = vec![0.0; nx];
     for row in weights.chunks_exact(nx) {
         for (weight, &value) in terminal.iter_mut().zip(row) {
@@ -1005,7 +1227,7 @@ fn european_strike_weights(
     }
     let mut edge_terms = Vec::with_capacity(edge_weights.len() * 2);
     let mut regular_edges = true;
-    for (&time, edges) in times.times.iter().zip(&edge_weights) {
+    for (&time, edges) in times.iter().zip(edge_weights) {
         crate::cancellation::check()?;
         let risk_factor = risk.log_factor(time, end).exp();
         let dividend_factor = dividend.log_factor(time, end).exp();
@@ -1040,59 +1262,61 @@ fn european_strike_weights(
             .collect(),
         payoff.sign,
     );
-    strikes
-        .map(|strike| {
-            crate::cancellation::check()?;
-            let payoff = Payoff { strike, ..payoff };
-            if let Some(([boundary, boundary_scale], [mut value, terminal_scale])) = edges
-                .as_ref()
-                .and_then(|edges| edges.at(strike))
-                .zip(terminal_moments.at(strike))
+    let price = |strike| {
+        crate::cancellation::check()?;
+        let payoff = Payoff { strike, ..payoff };
+        if let Some(([boundary, boundary_scale], [mut value, terminal_scale])) = edges
+            .as_ref()
+            .and_then(|edges| edges.at(strike))
+            .zip(terminal_moments.at(strike))
+        {
+            // A strike splits at most one interior control volume.
+            let coordinate = asset.coordinate(strike);
+            let right = asset
+                .nodes
+                .partition_point(|&node| node < coordinate)
+                .min(nx - 1);
+            for (i, &weight) in terminal
+                .iter()
+                .enumerate()
+                .take(right + 1)
+                .skip(right.saturating_sub(1))
             {
-                // A strike splits at most one interior control volume.
-                let coordinate = asset.coordinate(strike);
-                let right = asset
-                    .nodes
-                    .partition_point(|&node| node < coordinate)
-                    .min(nx - 1);
-                for (i, &weight) in terminal
-                    .iter()
-                    .enumerate()
-                    .take(right + 1)
-                    .skip(right.saturating_sub(1))
-                {
-                    let payment = project_payoff(asset, &[strike], i, |spot| payoff.value(spot));
-                    value += weight * (payment - payoff.value(asset.asset(i)));
-                }
-                let price = value + boundary;
-                if price.is_finite()
-                    && (boundary_scale + terminal_scale == 0.0
-                        || price.abs() > 1e-6 * (boundary_scale + terminal_scale))
-                {
-                    return checked_with_scale(scale * price, scale);
-                }
+                let payment = project_payoff(asset, &[strike], i, |spot| payoff.value(spot));
+                value += weight * (payment - payoff.value(asset.asset(i)));
             }
-            // Use the original compensated evaluation for extreme scales or cancellation.
-            let mut boundary =
-                ExerciseBoundaries::new(payoff, bounds, end, [risk, dividend], times.widths.len())?;
-            let mut value = crate::numerics::Sum::default();
-            for (i, (&time, edges)) in times.times.iter().zip(&edge_weights).enumerate() {
-                if i % 1024 == 0 {
-                    crate::cancellation::check()?;
-                }
-                let [left, right] = boundary.at(time)?;
-                value.add(edges[0] * left + edges[1] * right);
+            let price = value + boundary;
+            if price.is_finite()
+                && (boundary_scale + terminal_scale == 0.0
+                    || price.abs() > 1e-6 * (boundary_scale + terminal_scale))
+            {
+                return checked_with_scale(scale * price, scale);
             }
-            for (i, &weight) in terminal.iter().enumerate() {
-                if i % 1024 == 0 {
-                    crate::cancellation::check()?;
-                }
-                let payment = project_payoff(asset, &[payoff.strike], i, |spot| payoff.value(spot));
-                value.add(weight * payment);
+        }
+        // Use the original compensated evaluation for extreme scales or cancellation.
+        let mut boundary =
+            ExerciseBoundaries::new(payoff, bounds, end, [risk, dividend], times.len())?;
+        let mut value = crate::numerics::Sum::default();
+        for (i, (&time, edges)) in times.iter().zip(edge_weights).enumerate() {
+            if i % 1024 == 0 {
+                crate::cancellation::check()?;
             }
-            checked_with_scale(scale * value.total(), scale)
-        })
-        .collect()
+            let [left, right] = boundary.at(time)?;
+            value.add(edges[0] * left + edges[1] * right);
+        }
+        for (i, &weight) in terminal.iter().enumerate() {
+            if i % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
+            let payment = project_payoff(asset, &[payoff.strike], i, |spot| payoff.value(spot));
+            value.add(weight * payment);
+        }
+        checked_with_scale(scale * value.total(), scale)
+    };
+    for &strike in strikes {
+        prices.push(price(strike)?);
+    }
+    Ok(())
 }
 
 #[derive(PartialEq)]

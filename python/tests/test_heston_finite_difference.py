@@ -26,6 +26,40 @@ from kiyosi.pricing import (
 from test_heston import END, START, context, model, option, reference
 
 
+def test_european_surface_matches_analytic_prices_and_preserves_both_input_orders():
+    engine = FiniteDifferenceHestonVanillaEngine()
+    analytic = AnalyticHestonEuropeanEngine()
+    market = context(model())
+    template = option()
+    expiries = (END, START, START + timedelta(days=90), END)
+    strikes = (110, 90, 100, 90)
+    rows = engine.price_european_surface(
+        template, market, expiries=iter(expiries), strikes=iter(strikes)
+    )
+    assert rows[0] == rows[3]
+    assert rows[1] == (0.0, 10.0, 0.0, 10.0)
+    for expiry, row in zip(expiries, rows, strict=True):
+        expected = analytic.price_strikes(
+            template.replace(expiry_time=expiry), market, strikes=strikes
+        )
+        assert row == pytest.approx(expected, rel=0, abs=0.002)
+        assert row[1] == row[3]
+    assert engine.price_european_surface(
+        template, market, expiries=(END,), strikes=()
+    ) == ((),)
+    with pytest.raises(InvalidInputError):
+        engine.price_european_surface(
+            template, market, expiries=(START - timedelta(days=1),), strikes=strikes
+        )
+    american = AmericanOption(
+        option_type="put", strike=100, effective_time=START, expiry_time=END
+    )
+    with pytest.raises(UnsupportedOperationError):
+        engine.price_european_surface(
+            american, market, expiries=(END,), strikes=strikes
+        )
+
+
 def test_heston_strike_batches_match_independent_prices_in_input_order():
     engine = FiniteDifferenceHestonVanillaEngine()
     market = context(model())
