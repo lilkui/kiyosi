@@ -14,8 +14,7 @@ use crate::{
     OptionContract, PricingContext, PricingEngine, PricingResult, Result, Timestamp,
 };
 
-mod edge_weights;
-use edge_weights::EdgeWeights;
+use super::edge_weights::{self, EdgeWeights};
 mod american_surface;
 use american_surface::AmericanSurface;
 

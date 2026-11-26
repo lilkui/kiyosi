@@ -1,3 +1,5 @@
+mod surface;
+
 use super::diffusion::{BusinessDiffusion, Diffusion};
 use super::grid::{StrikeMoments, concentrate, project_payoff, spot_floor};
 use super::{
@@ -264,26 +266,17 @@ impl MarketStrip {
         let valuation = context.valuation_time();
         let time = valuation.years_until(expiry);
         let spot = context.spot_price();
-        let [low, high] = [spot.min(strikes[0]), spot.max(strikes[1])];
         let settings = engine.settings;
         let (risk, dividend) = diffusion::rate_curves(context, expiry, settings)?;
-        let domain_width =
-            (1.5 * diffusion_log_width(context, expiry, &risk, &dividend)?).max(4.0_f64.ln());
-        let lower = spot_floor(low, low, domain_width);
-        let upper = settings
-            .asset_upper_boundary
-            .unwrap_or_else(|| super::scaled(high, domain_width));
-        if upper <= high {
-            return Err(invalid_grid(
-                "finite-difference upper bound must exceed spot and strike",
-            ));
-        }
-        let mut space = SpatialGrid::new(settings.asset_step_count, [lower, upper], spot)?;
-        concentrate(&mut space, vec![spot], 0.3 * width)?;
-        let node = space.nearest(spot);
-        if space.asset(node).to_bits() != spot.to_bits() {
-            return Err(super::unstable());
-        }
+        let (space, node) = strip_grid(
+            settings,
+            context,
+            expiry,
+            [&risk, &dividend],
+            strikes,
+            width,
+        )?;
+        let [lower, upper] = [space.lower, space.upper];
         let time_grid = diffusion::time_grid(context, expiry, settings, &risk, &dividend, &[])?;
         let steps = time_grid.rollback_steps(settings.scheme, &[])?;
         validate_work(space.count as u64, steps)?;
@@ -393,15 +386,7 @@ impl MarketStrip {
                 std::mem::swap(&mut weights, &mut previous);
             }
         }
-        let terminal = StrikeMoments::new(
-            space
-                .spots
-                .iter()
-                .zip(&weights)
-                .map(|(&spot, &weight)| [spot, spot * weight, weight])
-                .collect(),
-            sign,
-        );
+        let terminal = terminal_moments(&space, &weights, sign);
         let boundary = match model {
             StripModel::Constant(sigma) => Boundary::Constant {
                 sigma,
@@ -457,23 +442,17 @@ impl MarketStrip {
             }
             Boundary::Local { moments, .. } => (moments.at(strike), 0.0),
         };
-        if let Some(([mut value, scale], [edge, edge_scale])) =
-            self.terminal.at(strike).zip(boundary)
-        {
-            let coordinate = self.space.coordinate(strike);
-            let right = self.space.nodes.partition_point(|&node| node < coordinate);
-            for index in right.saturating_sub(1)..=(right.min(self.space.count)) {
-                let payment =
-                    project_payoff(&self.space, &[strike], index, |spot| payoff.value(spot));
-                value += self.weights[index] * (payment - payoff.value(self.space.asset(index)));
-            }
-            value += edge;
-            if value.is_finite()
-                && (error_budget == 0.0 || value > error_budget)
-                && (scale + edge_scale == 0.0 || value.abs() > 1e-6 * (scale + edge_scale))
-            {
-                return payoff::checked_price(payoff, spot, value, self.discount, 0.0);
-            }
+        if let Some(value) = boundary.and_then(|boundary| {
+            indexed_value(
+                &self.space,
+                &self.weights,
+                &self.terminal,
+                payoff,
+                boundary,
+                error_budget,
+            )
+        }) {
+            return payoff::checked_price(payoff, spot, value, self.discount, 0.0);
         }
         let mut value = crate::numerics::Sum::default();
         for (index, &weight) in self.weights.iter().enumerate() {
@@ -509,6 +488,73 @@ impl MarketStrip {
         }
         payoff::checked_price(payoff, spot, value.total(), self.discount, 0.0)
     }
+}
+
+fn strip_grid(
+    settings: super::FiniteDifferenceSettings,
+    context: &PricingContext,
+    expiry: crate::Timestamp,
+    [risk, dividend]: [&super::Curve; 2],
+    strikes: [f64; 2],
+    width: f64,
+) -> Result<(SpatialGrid, usize)> {
+    let spot = context.spot_price();
+    let [low, high] = [spot.min(strikes[0]), spot.max(strikes[1])];
+    let domain_width =
+        (1.5 * diffusion_log_width(context, expiry, risk, dividend)?).max(4.0_f64.ln());
+    let lower = spot_floor(low, low, domain_width);
+    let upper = settings
+        .asset_upper_boundary
+        .unwrap_or_else(|| super::scaled(high, domain_width));
+    if upper <= high {
+        return Err(invalid_grid(
+            "finite-difference upper bound must exceed spot and strike",
+        ));
+    }
+    let mut space = SpatialGrid::new(settings.asset_step_count, [lower, upper], spot)?;
+    concentrate(&mut space, vec![spot], 0.3 * width)?;
+    let node = space.nearest(spot);
+    if space.asset(node).to_bits() != spot.to_bits() {
+        return Err(super::unstable());
+    }
+    Ok((space, node))
+}
+
+fn terminal_moments(space: &SpatialGrid, weights: &[f64], sign: f64) -> StrikeMoments {
+    StrikeMoments::new(
+        space
+            .spots
+            .iter()
+            .zip(weights)
+            .map(|(&spot, &weight)| [spot, spot * weight, weight])
+            .collect(),
+        sign,
+    )
+}
+
+fn indexed_value(
+    space: &SpatialGrid,
+    weights: &[f64],
+    terminal: &StrikeMoments,
+    payoff: Payoff,
+    [edge, edge_scale]: [f64; 2],
+    error_budget: f64,
+) -> Option<f64> {
+    let strike = payoff.strike;
+    let [mut value, scale] = terminal.at(strike)?;
+    let coordinate = space.coordinate(strike);
+    let right = space.nodes.partition_point(|&node| node < coordinate);
+    let start = right.saturating_sub(1);
+    for (offset, &weight) in weights[start..=right.min(space.count)].iter().enumerate() {
+        let index = start + offset;
+        let payment = project_payoff(space, &[strike], index, |spot| payoff.value(spot));
+        value += weight * (payment - payoff.value(space.asset(index)));
+    }
+    value += edge;
+    (value.is_finite()
+        && (error_budget == 0.0 || value > error_budget)
+        && (scale + edge_scale == 0.0 || value.abs() > 1e-6 * (scale + edge_scale)))
+        .then_some(value)
 }
 
 #[cfg(test)]

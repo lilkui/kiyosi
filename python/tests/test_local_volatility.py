@@ -24,6 +24,43 @@ from test_support_matrix import HESTON_ENGINES, terminal_cases, terminal_delta
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 
 
+def test_european_surface_matches_independent_strips_and_preserves_order():
+    pricer = engine()
+    template = option()
+    market = context(surface(((0.30, 0.15), (0.35, 0.20))))
+    short = START + timedelta(days=1)
+    expiries = (
+        END,
+        START,
+        START + timedelta(days=30),
+        START + timedelta(days=90),
+        short,
+        END,
+    )
+    strikes = (110, 90, 100, 90, 95)
+    rows = pricer.price_european_surface(
+        template, market, expiries=iter(expiries), strikes=iter(strikes)
+    )
+    assert rows[0] == rows[5]
+    assert rows[1] == (0, 10, 0, 10, 5)
+    for expiry, row in zip(expiries, rows, strict=True):
+        assert row[1] == row[3]
+        expected = pricer.price_strikes(
+            template.replace(expiry_time=expiry), market, strikes=strikes
+        )
+        if expiry == short:
+            assert row == expected
+        else:
+            assert row == pytest.approx(expected, abs=0.001, rel=0)
+    assert pricer.price_european_surface(
+        template, market, expiries=(END,), strikes=()
+    ) == ((),)
+    with pytest.raises(InvalidInputError):
+        pricer.price_european_surface(
+            template, market, expiries=(END + timedelta(days=1),), strikes=strikes
+        )
+
+
 def test_stationary_skew_is_reused_across_scheme_weights_and_rate_knots():
     risk = RateTermStructure(
         reference_time=START,

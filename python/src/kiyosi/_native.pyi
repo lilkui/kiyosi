@@ -3817,6 +3817,47 @@ class FiniteDifferenceVanillaEngine(
         Cancellation returns no partial result.
         """
 
+    def price_european_surface(
+        self,
+        instrument: EuropeanOption,
+        context: PricingContext,
+        *,
+        expiries: Iterable[datetime],
+        strikes: Iterable[_Real],
+    ) -> tuple[tuple[float, ...], ...]:
+        """Price a European strike and expiry surface.
+
+        Parameters
+        ----------
+        instrument : EuropeanOption
+            Template supplying direction and effective time.
+        context : PricingContext
+            Fixed model inputs and valuation time.
+        expiries : iterable of datetime
+            Expiries at or after valuation and the effective time.
+        strikes : iterable of float
+            Finite positive strikes.
+
+        Returns
+        -------
+        tuple of tuple of float
+            Prices in expiry and strike order, preserving duplicates.
+
+        Raises
+        ------
+        KiyosiError
+            If applicability, input, workspace or numerical checks fail.
+        TypeError, ValueError, OverflowError
+            If a Python input representation is invalid.
+
+        Notes
+        -----
+        Compatible local-volatility strips share one log-spot grid and
+        propagation. Each expiry uses its own damping steps. Short tenors
+        and other strips use price_strikes. Check convergence across the surface.
+        Cancellation returns no partial result.
+        """
+
 class FiniteDifferenceDigitalEngine(
     _FiniteDifferenceMethods[CashOrNothingOption | AssetOrNothingOption]
 ):

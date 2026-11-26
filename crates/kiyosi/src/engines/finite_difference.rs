@@ -12,6 +12,7 @@ mod autocallable;
 mod barrier;
 mod binary_barrier;
 mod diffusion;
+mod edge_weights;
 mod grid;
 pub(crate) mod heston;
 mod local_volatility;

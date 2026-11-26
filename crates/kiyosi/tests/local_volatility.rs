@@ -32,6 +32,46 @@ fn close(a: f64, b: f64, tol: f64) {
 }
 
 #[test]
+fn european_surface_matches_independent_strips_and_preserves_order() -> Result<()> {
+    let (start, end) = dates();
+    let market = context(surface(vec![vec![0.30, 0.15], vec![0.35, 0.20]]));
+    let engine = engine(800, 800, 400.0);
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let short = start.add_days(1)?;
+    let expiries = [
+        end,
+        start,
+        start.add_days(30)?,
+        start.add_days(90)?,
+        short,
+        end,
+    ];
+    let strikes = [110.0, 90.0, 100.0, 90.0, 95.0];
+    let rows = engine.price_european_surface(&option, &market, &expiries, &strikes)?;
+    assert_eq!(rows[0], rows[5]);
+    assert_eq!(rows[1], [0.0, 10.0, 0.0, 10.0, 5.0]);
+    for (&expiry, row) in expiries.iter().zip(rows) {
+        assert_eq!(row[1].to_bits(), row[3].to_bits());
+        let option = option.replace(EuropeanOptionChanges {
+            expiry_time: Some(expiry),
+            ..Default::default()
+        })?;
+        let expected = engine.price_strikes(&option, &market, &strikes)?;
+        if expiry == short {
+            assert_eq!(row, expected);
+        }
+        for (actual, expected) in row.into_iter().zip(expected) {
+            close(actual, expected, 0.001);
+        }
+    }
+    assert!(matches!(
+        engine.price_european_surface(&option, &market, &[end.add_days(1)?], &strikes),
+        Err(Error::InvalidInput(_))
+    ));
+    Ok(())
+}
+
+#[test]
 fn stationary_skew_is_reused_across_scheme_weights_and_rate_knots() -> Result<()> {
     let (start, end) = dates();
     let middle = start.add_days(182)?;

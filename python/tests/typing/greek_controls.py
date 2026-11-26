@@ -90,6 +90,15 @@ def heston_strike_batch(option: EuropeanOption, context: PricingContext) -> None
     )
 
 
+def local_volatility_surface(option: EuropeanOption, context: PricingContext) -> None:
+    assert_type(
+        FiniteDifferenceVanillaEngine().price_european_surface(
+            option, context, expiries=[option.expiry_time], strikes=[90, 100, 110]
+        ),
+        tuple[tuple[float, ...], ...],
+    )
+
+
 def heston_american_surface(option: AmericanOption, context: PricingContext) -> None:
     assert_type(
         FiniteDifferenceHestonVanillaEngine().price_american_surface(

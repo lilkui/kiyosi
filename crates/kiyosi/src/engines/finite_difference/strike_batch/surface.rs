@@ -1,0 +1,305 @@
+use super::{
+    BusinessDiffusion, Diffusion, EuropeanOption, FiniteDifferenceScheme,
+    FiniteDifferenceVanillaEngine, Payoff, PricingContext, Result, Stepper, diffusion,
+    indexed_value, invalid_grid, local_volatility, payoff, strip_grid, terminal_moments,
+    validate_work, validate_workspace,
+};
+use crate::engines::finite_difference::{
+    WORKSPACE_BUDGET,
+    edge_weights::{BYTES_PER_STEP, EdgeWeights},
+    unstable,
+};
+use crate::{Error, LocalVolatilityParameters, Timestamp};
+
+impl FiniteDifferenceVanillaEngine {
+    /// Prices a European strike and expiry surface in input order.
+    ///
+    /// Uses the template's direction and effective time. Compatible local-volatility
+    /// strips share one log-spot grid and propagation, with separate damping at
+    /// each expiry. Short tenors and other strips use [`Self::price_strikes`].
+    /// Check convergence at the shortest maturity and across the strike range.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for oversized output, invalid strikes or
+    /// expiries outside contract life or model coverage. Pricing and cancellation
+    /// errors return no partial surface.
+    pub fn price_european_surface(
+        &self,
+        template: &EuropeanOption,
+        context: &PricingContext,
+        expiries: &[Timestamp],
+        strikes: &[f64],
+    ) -> Result<Vec<Vec<f64>>> {
+        local_volatility::validate_model(context)?;
+        let valuation = context.valuation_time();
+        if (expiries.len() as u64).saturating_mul(64 + (strikes.len() as u64).saturating_mul(16))
+            > WORKSPACE_BUDGET / 4
+        {
+            return Err(invalid_grid(
+                "finite-difference surface output exceeds workspace budget",
+            ));
+        }
+        let mut limits = [f64::INFINITY, 0.0_f64];
+        for &strike in strikes {
+            crate::cancellation::check()?;
+            crate::error::finite(strike, true, "strike")?;
+            limits = [limits[0].min(strike), limits[1].max(strike)];
+        }
+        for &expiry in expiries {
+            crate::cancellation::check()?;
+            if expiry < valuation || expiry < template.effective_time() {
+                return Err(invalid_grid(
+                    "surface expiry precedes effective or valuation time",
+                ));
+            }
+        }
+        let mut ordered = expiries.to_vec();
+        ordered.sort_unstable();
+        ordered.dedup();
+        let Some(&end) = ordered.last() else {
+            return Ok(Vec::new());
+        };
+        context.validate_curve_coverage(end)?;
+        if strikes.is_empty() {
+            return Ok(vec![Vec::new(); expiries.len()]);
+        }
+        let anchor = context.spot_price();
+        let live = ordered.partition_point(|&expiry| expiry == valuation);
+        let active = &ordered[live..];
+        let payoff = Payoff::vanilla(template.option_type(), anchor, false);
+        let contract = |expiry| {
+            template.replace(crate::EuropeanOptionChanges {
+                expiry_time: Some(expiry),
+                ..Default::default()
+            })
+        };
+        let scalar = |expiries: &[Timestamp]| {
+            expiries
+                .iter()
+                .map(|&expiry| {
+                    crate::cancellation::check()?;
+                    self.price_strikes(&contract(expiry)?, context, strikes)
+                })
+                .collect::<Result<Vec<_>>>()
+        };
+        let settings = self.settings;
+        let rows = if let Some(model) = local_volatility::local_model(context).filter(|_| {
+            active.len() >= 2
+                && strikes.len() >= 4
+                && settings.asset_step_count >= 128
+                && settings.scheme == FiniteDifferenceScheme::Rannacher
+                && limits[0] < limits[1]
+                && 0.5 * anchor.max(limits[1]) <= anchor.min(limits[0])
+        }) {
+            let shared = || {
+                let sigma = model.surface().volatility(valuation, anchor)?;
+                let width = |expiry| {
+                    model
+                        .variance_time_convention()
+                        .year_fraction(valuation, expiry)
+                        .map(|years| sigma * years.sqrt())
+                };
+                let (mut first, mut last) = (0, active.len());
+                while first < last {
+                    crate::cancellation::check()?;
+                    let middle = first + (last - first) / 2;
+                    if width(active[middle])? >= 0.04 {
+                        last = middle;
+                    } else {
+                        first = middle + 1;
+                    }
+                }
+                let (short, compatible) = active.split_at(first);
+                if compatible.len() < 2 {
+                    return scalar(active);
+                }
+                let mut rows = scalar(short)?;
+                rows.extend(local_rows(
+                    self,
+                    context,
+                    model,
+                    compatible,
+                    strikes,
+                    limits,
+                    (payoff, width(compatible[0])?),
+                )?);
+                Ok(rows)
+            };
+            match shared() {
+                Ok(rows) => rows,
+                Err(error @ Error::Io(_)) => return Err(error),
+                Err(_) => scalar(active)?,
+            }
+        } else {
+            scalar(active)?
+        };
+        expiries
+            .iter()
+            .map(|expiry| {
+                crate::cancellation::check()?;
+                let row = ordered.binary_search(expiry).map_err(|_| unstable())?;
+                if row < live {
+                    return strikes
+                        .iter()
+                        .map(|&strike| {
+                            crate::cancellation::check()?;
+                            Ok(Payoff { strike, ..payoff }.value(anchor))
+                        })
+                        .collect();
+                }
+                let values = &rows[row - live];
+                let mut output = Vec::with_capacity(values.len());
+                for chunk in values.chunks(1024) {
+                    crate::cancellation::check()?;
+                    output.extend_from_slice(chunk);
+                }
+                Ok(output)
+            })
+            .collect()
+    }
+}
+
+fn local_rows(
+    engine: &FiniteDifferenceVanillaEngine,
+    context: &PricingContext,
+    model: &LocalVolatilityParameters,
+    expiries: &[Timestamp],
+    strikes: &[f64],
+    limits: [f64; 2],
+    (payoff, width): (Payoff, f64),
+) -> Result<Vec<Vec<f64>>> {
+    let valuation = context.valuation_time();
+    let end = expiries[expiries.len() - 1];
+    let surface = model.surface();
+    let spot = context.spot_price();
+    if surface
+        .constant_volatility_between(valuation, end)?
+        .is_some()
+    {
+        return Err(unstable());
+    }
+    let settings = engine.settings;
+    let times: Vec<_> = expiries
+        .iter()
+        .map(|&expiry| valuation.years_until(expiry))
+        .collect();
+    let (risk, dividend) = diffusion::rate_curves(context, end, settings)?;
+    let (space, node) = strip_grid(settings, context, end, [&risk, &dividend], limits, width)?;
+    let grid = diffusion::time_grid(context, end, settings, &risk, &dividend, &times)?;
+    let count = space.count as u64 + 1;
+    let steps = grid.widths.len() as u64;
+    validate_work(count, steps + 5 * times.len() as u64)?;
+    validate_workspace(
+        settings.scheme,
+        4 * count,
+        steps,
+        risk.workspace_bytes() + dividend.workspace_bytes() + BYTES_PER_STEP * steps,
+    )?;
+    let bounds = [space.lower, space.upper];
+    let sign = payoff.sign;
+    let mut edges = EdgeWeights::new(
+        &grid.times[..grid.widths.len()],
+        [&risk, &dividend],
+        bounds,
+        sign,
+    )?
+    .ok_or_else(unstable)?;
+    let mut pending = [[0.0; 2]; 2];
+    let mut regular = Stepper::new_local(space.count);
+    let mut damped = Stepper::new_local(space.count);
+    let mut base: [Vec<f64>; 3] = std::array::from_fn(|_| vec![0.0; space.count + 1]);
+    let mut current = base[0].clone();
+    let mut next = base[0].clone();
+    base[2][node] = 1.0;
+    let offset = surface.times()[0].years_until(valuation);
+    let clock =
+        diffusion::uses_business_time(context).then(|| BusinessDiffusion::new(context, 0.0));
+    let advance = |stepper: &mut Stepper,
+                   weights: &mut [f64],
+                   next: &mut [f64],
+                   (start, dt, theta): (f64, f64, f64)| {
+        let middle = start + 0.5 * dt;
+        stepper.transpose_local(
+            weights,
+            next,
+            &space,
+            surface,
+            [
+                offset + middle,
+                clock.map_or(1.0, |clock| clock.variance_rate(middle).sqrt()),
+            ],
+            [dt, theta, risk.rate(middle), dividend.rate(middle)],
+        )
+    };
+    let mut rows = Vec::with_capacity(times.len());
+    for (step, &dt) in grid.widths.iter().enumerate() {
+        crate::cancellation::check()?;
+        current.copy_from_slice(&base[2]);
+        let slot = step % 2;
+        // The last two steps belong to the expiry's damping branch.
+        if step >= 2 {
+            edges.add(step - 2, pending[slot]).ok_or_else(unstable)?;
+        }
+        pending[slot] = advance(
+            &mut regular,
+            &mut current,
+            &mut base[0],
+            (grid.times[step], dt, 0.5),
+        )?;
+        base.rotate_left(1);
+        let maturity = grid.times[step + 1];
+        if times[rows.len()].to_bits() != maturity.to_bits() {
+            continue;
+        }
+        let first = step.saturating_sub(1);
+        current.copy_from_slice(&base[usize::from(step == 0)]);
+        let mut boundary = Vec::with_capacity(8);
+        for index in first..=step {
+            let mut damping = 1;
+            let mut substeps = grid.substeps(index, settings.scheme, &mut damping);
+            let later = substeps.next().expect("each interval has a substep");
+            for time @ (start, _, _) in substeps.chain([later]) {
+                let edge = advance(&mut damped, &mut current, &mut next, time)?;
+                let cash = risk.log_factor(start, maturity).exp();
+                let asset = dividend.log_factor(start, maturity).exp();
+                for (bound, weight) in bounds.into_iter().zip(edge) {
+                    let present = bound * asset;
+                    if !cash.is_normal() || !(present / cash).is_normal() {
+                        return Err(unstable());
+                    }
+                    boundary.push([present / cash, weight * present, weight * cash]);
+                }
+                std::mem::swap(&mut current, &mut next);
+            }
+        }
+        let terminal = terminal_moments(&space, &current, sign);
+        let discount = [
+            risk.log_factor(0.0, maturity),
+            dividend.log_factor(0.0, maturity),
+        ];
+        let factors = discount.map(f64::exp);
+        let row = strikes
+            .iter()
+            .map(|&strike| {
+                crate::cancellation::check()?;
+                let mut edge = edges.at(strike, factors).ok_or_else(unstable)?;
+                for &[cutoff, asset, cash] in &boundary {
+                    if sign * (cutoff - strike) > 0.0 {
+                        edge[0] += sign * (-strike).mul_add(cash, asset);
+                        edge[1] += strike.mul_add(cash.abs(), asset.abs());
+                    }
+                }
+                let payoff = Payoff { strike, ..payoff };
+                let value = indexed_value(&space, &current, &terminal, payoff, edge, 0.0)
+                    .ok_or_else(unstable)?;
+                payoff::checked_price(payoff, spot, value, discount, 0.0)
+            })
+            .collect::<Result<_>>()?;
+        rows.push(row);
+        if rows.len() == times.len() {
+            return Ok(rows);
+        }
+    }
+    Err(unstable())
+}

@@ -1,6 +1,6 @@
 use crate::{Result, numerics::Sum};
 
-use super::super::Curve;
+use super::Curve;
 
 pub(super) const BYTES_PER_STEP: u64 = 256;
 
