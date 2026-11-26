@@ -895,6 +895,13 @@ impl ObservationEvent {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PortfolioVariation {
+    Coupon,
+    KnockIn,
+    KnockOut,
+}
+
 impl<T: AutocallableTerms> AutocallableNote<T> {
     /// Validates all terms before creating an owning note.
     ///
@@ -1162,7 +1169,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         }
     }
 
-    pub(crate) fn portfolio_family_key(&self, vary_knock_in: bool) -> Result<u64> {
+    pub(crate) fn portfolio_family_key(&self, variation: PortfolioVariation) -> Result<u64> {
         use std::hash::{DefaultHasher, Hash, Hasher};
 
         // Equality accepts both signed zeros.
@@ -1186,11 +1193,11 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         ]
         .map(bits)
         .hash(&mut key);
-        if vary_knock_in {
+        if variation != PortfolioVariation::Coupon {
             bits(self.portfolio_coupon()).hash(&mut key);
         }
         if let Some(knock_in) = terms.knock_in {
-            if !vary_knock_in {
+            if variation != PortfolioVariation::KnockIn {
                 bits(knock_in.level).hash(&mut key);
             }
             std::mem::discriminant(&knock_in.observation).hash(&mut key);
@@ -1212,7 +1219,13 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
             for event in events {
                 (
                     event.time,
-                    event.knock_out.map(|record| bits(record.knock_out_level)),
+                    event.knock_out.map(|record| {
+                        if variation == PortfolioVariation::KnockOut {
+                            0
+                        } else {
+                            bits(record.knock_out_level)
+                        }
+                    }),
                     event.coupon_barrier_level().map(bits),
                     bits(event.coupon_rate),
                 )
@@ -1229,13 +1242,12 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     pub(crate) fn shares_portfolio_terms(
         &self,
         other: &Self,
-        vary_knock_in: bool,
-        vary_knock_out: bool,
+        variation: PortfolioVariation,
     ) -> Result<bool> {
         let a = self.view();
         let b = other.view();
         let compare_knock_in = |mut terms: KnockIn| {
-            if vary_knock_in {
+            if variation == PortfolioVariation::KnockIn {
                 terms.level = 0.0;
             }
             terms
@@ -1245,7 +1257,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
             || a.calendar != b.calendar
             || a.barrier_state != b.barrier_state
             || a.knock_in.map(compare_knock_in) != b.knock_in.map(compare_knock_in)
-            || (vary_knock_in || vary_knock_out)
+            || variation != PortfolioVariation::Coupon
                 && self.portfolio_coupon() != other.portfolio_coupon()
             || self.knock_in_affects_payoff() != other.knock_in_affects_payoff()
             || a.principal_redemption_ratio != b.principal_redemption_ratio
@@ -1258,7 +1270,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         for (left, right) in self.events().chunks(1024).zip(other.events().chunks(1024)) {
             crate::cancellation::check()?;
             if left.iter().zip(right).any(|(a, b)| {
-                if vary_knock_out {
+                if variation == PortfolioVariation::KnockOut {
                     a.time != b.time
                         || a.has_knock_out() != b.has_knock_out()
                         || a.coupon != b.coupon

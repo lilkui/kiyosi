@@ -8,6 +8,7 @@ use super::{
     MonteCarloSettings, PathPlan, PathStep, PricingContext, PricingEngine, Result, Sample,
     SkippingPath, check_path_step, scaled_value, transition, unstable,
 };
+use crate::instruments::autocallable::PortfolioVariation;
 use crate::numerics::Sum;
 use crate::{ObservationSchedule, TimeOfDay, Timestamp, TradingCalendar};
 
@@ -371,14 +372,13 @@ fn price_coupon_families<T: AutocallableTerms>(
     for (index, (_, plan)) in group.iter().enumerate() {
         crate::cancellation::check()?;
         let candidates = by_key
-            .entry(plan.note.portfolio_family_key(false)?)
+            .entry(plan.note.portfolio_family_key(PortfolioVariation::Coupon)?)
             .or_default();
         let mut family = None;
         for &candidate in &*candidates {
             if plan.note.shares_portfolio_terms(
                 group[families[candidate][0]].1.note,
-                false,
-                false,
+                PortfolioVariation::Coupon,
             )? {
                 family = Some(candidate);
                 break;
@@ -463,7 +463,7 @@ fn price_coupon_families<T: AutocallableTerms>(
 struct ThresholdStrip {
     levels: Vec<(f64, usize)>,
     offset: usize,
-    knock_out: bool,
+    variation: PortfolioVariation,
 }
 
 #[derive(Default)]
@@ -502,41 +502,104 @@ fn price_shared<T: AutocallableTerms>(
     if notes.len() < 3 {
         return scalar_lanes(prices);
     }
-    if let Some(strip) = knock_out_strip(notes)? {
-        let representative = [notes[0]];
-        match Portfolio::new(&representative, true)?.price_with_strips(
-            settings,
-            prices,
-            &[Some(strip)],
-            notes.len(),
-        ) {
-            Err(Error::ComputationFailure(_)) => return scalar_lanes(prices),
-            result => return result,
-        }
-    }
-    let mut by_key = HashMap::<_, Vec<usize>>::new();
-    let mut families: Vec<Vec<(f64, usize)>> = Vec::new();
+    let mut selected = vec![false; notes.len()];
     let mut compressed = Vec::with_capacity(notes.len());
     let mut strips = Vec::with_capacity(notes.len());
-    for (index, (_, plan)) in notes.iter().enumerate() {
-        check_path_step(index)?;
-        let Some(level) = plan.knock_in.filter(|level| {
-            level.is_finite() && !plan.state.knocked_in && plan.shared_events.is_some()
-        }) else {
-            compressed.push(notes[index]);
+    let mut offset = 0;
+    for variation in [PortfolioVariation::KnockOut, PortfolioVariation::KnockIn] {
+        for mut levels in threshold_families(notes, &selected, variation)? {
+            if levels.len() < 3 {
+                continue;
+            }
+            crate::cancellation::check()?;
+            levels.sort_unstable_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+            let representative = levels[0].1;
+            for (i, (_, index)) in levels.iter_mut().enumerate() {
+                check_path_step(i)?;
+                selected[*index] = true;
+                *index = notes[*index].0;
+            }
+            compressed.push(notes[representative]);
+            let len = levels.len();
+            strips.push(Some(ThresholdStrip {
+                levels,
+                offset,
+                variation,
+            }));
+            offset += len;
+        }
+    }
+    if offset == 0 {
+        return scalar_lanes(prices);
+    }
+    for (i, (&note, selected)) in notes.iter().zip(selected).enumerate() {
+        check_path_step(i)?;
+        if !selected {
+            compressed.push(note);
             strips.push(None);
+        }
+    }
+    let result =
+        Portfolio::new(&compressed, true)?.price_with_strips(settings, prices, &strips, offset);
+    match result {
+        Err(Error::ComputationFailure(_)) => scalar_lanes(prices),
+        result => result,
+    }
+}
+
+#[expect(
+    clippy::float_cmp,
+    reason = "The strip requires exactly matching cash flows and thresholds."
+)]
+fn threshold_families<T: AutocallableTerms>(
+    notes: &[&IndexedPlan<'_, T>],
+    selected: &[bool],
+    variation: PortfolioVariation,
+) -> Result<Vec<Vec<(f64, usize)>>> {
+    let mut by_key = HashMap::<_, Vec<usize>>::new();
+    let mut families: Vec<Vec<(f64, usize)>> = Vec::new();
+    for (index, ((_, plan), &selected)) in notes.iter().zip(selected).enumerate() {
+        check_path_step(index)?;
+        let Some(schedule) = plan.shared_events.as_ref().filter(|_| !selected) else {
+            continue;
+        };
+        let level = if variation == PortfolioVariation::KnockOut {
+            // Only a constant barrier with pure redemption events admits first-passage ranges.
+            let Some(level) = schedule
+                .events
+                .first()
+                .and_then(|(_, event)| event.knock_out)
+            else {
+                continue;
+            };
+            let mut constant = true;
+            for (i, (_, event)) in schedule.events.iter().enumerate() {
+                check_path_step(i)?;
+                if event.knock_out != Some(level) || event.period_coupon != 0.0 {
+                    constant = false;
+                    break;
+                }
+            }
+            constant.then_some(level)
+        } else {
+            plan.knock_in.filter(|_| !plan.state.knocked_in)
+        };
+        let Some(level) = level.filter(|level| level.is_finite()) else {
             continue;
         };
         let candidates = by_key
-            .entry(plan.note.portfolio_family_key(true)?)
+            .entry(plan.note.portfolio_family_key(variation)?)
             .or_default();
         let mut family = None;
         for &candidate in &*candidates {
             let reference = &notes[families[candidate][0].1].1;
             if Arc::ptr_eq(&plan.steps, &reference.steps)
+                && (variation != PortfolioVariation::KnockOut
+                    || (plan.state.coupon == reference.state.coupon
+                        && plan.state.knocked_in == reference.state.knocked_in))
                 && plan
                     .note
-                    .shares_portfolio_terms(reference.note, true, false)?
+                    .shares_portfolio_terms(reference.note, variation)?
             {
                 family = Some(candidate);
                 break;
@@ -549,91 +612,7 @@ fn price_shared<T: AutocallableTerms>(
         });
         families[family].push((level, index));
     }
-    let mut offset = 0;
-    for mut family in families {
-        crate::cancellation::check()?;
-        if family.len() < 3 {
-            for (_, index) in family {
-                compressed.push(notes[index]);
-                strips.push(None);
-            }
-            continue;
-        }
-        family.sort_unstable_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
-        compressed.push(notes[family[0].1]);
-        for (i, (_, index)) in family.iter_mut().enumerate() {
-            check_path_step(i)?;
-            *index = notes[*index].0;
-        }
-        let len = family.len();
-        strips.push(Some(ThresholdStrip {
-            levels: family,
-            offset,
-            knock_out: false,
-        }));
-        offset += len;
-    }
-    if offset == 0 {
-        return scalar_lanes(prices);
-    }
-    let result =
-        Portfolio::new(&compressed, true)?.price_with_strips(settings, prices, &strips, offset);
-    match result {
-        Err(Error::ComputationFailure(_)) => scalar_lanes(prices),
-        result => result,
-    }
-}
-
-// A constant knock-out schedule turns first passages into ranges of quotes.
-// Restrict the reduction to pure redemption events on a common daily grid.
-#[expect(
-    clippy::float_cmp,
-    reason = "The strip requires exactly matching cash flows and thresholds."
-)]
-fn knock_out_strip<T: AutocallableTerms>(
-    notes: &[&IndexedPlan<'_, T>],
-) -> Result<Option<ThresholdStrip>> {
-    let reference = &notes[0].1;
-    let mut levels = Vec::new();
-    for &(index, plan) in notes {
-        crate::cancellation::check()?;
-        let Some(schedule) = &plan.shared_events else {
-            return Ok(None);
-        };
-        let Some(level) = schedule
-            .events
-            .first()
-            .and_then(|(_, event)| event.knock_out)
-        else {
-            return Ok(None);
-        };
-        if !level.is_finite()
-            || !Arc::ptr_eq(&reference.steps, &plan.steps)
-            || reference.state.coupon != plan.state.coupon
-            || reference.state.knocked_in != plan.state.knocked_in
-            || !plan
-                .note
-                .shares_portfolio_terms(reference.note, false, true)?
-        {
-            return Ok(None);
-        }
-        for (i, (_, event)) in schedule.events.iter().enumerate() {
-            check_path_step(i)?;
-            if event.knock_out != Some(level) || event.period_coupon != 0.0 {
-                return Ok(None);
-            }
-        }
-        levels.push((level, *index));
-    }
-    levels.sort_unstable_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
-    if levels[0].0 == levels[levels.len() - 1].0 {
-        return Ok(None);
-    }
-    Ok(Some(ThresholdStrip {
-        levels,
-        offset: 0,
-        knock_out: true,
-    }))
+    Ok(families)
 }
 
 struct Portfolio<'a, 'b, T: AutocallableTerms> {
@@ -974,7 +953,7 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
         }
         let path_count = f64::from(settings.path_count);
         for strip in strips.iter().flatten() {
-            let base = if strip.knock_out {
+            let base = if strip.variation == PortfolioVariation::KnockOut {
                 0.0
             } else {
                 prices[strip.levels[0].1]
@@ -1065,7 +1044,9 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
                 let strip = strips.get(*index).and_then(Option::as_ref);
                 let terminated = match action {
                     SharedAction::Cash(event) => {
-                        if let Some(strip) = strip.filter(|strip| strip.knock_out) {
+                        if let Some(strip) =
+                            strip.filter(|strip| strip.variation == PortfolioVariation::KnockOut)
+                        {
                             let crossed = lane.next_threshold
                                 + strip.levels[lane.next_threshold..]
                                     .partition_point(|&(level, _)| level <= log_return);
@@ -1074,9 +1055,9 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
                                 if !cash.is_finite() {
                                     return Err(unstable());
                                 }
-                                sums.add(lane.next_threshold, cash);
+                                sums.add(strip.offset + lane.next_threshold, cash);
                                 if crossed < strip.levels.len() {
-                                    sums.add(crossed, -cash);
+                                    sums.add(strip.offset + crossed, -cash);
                                 }
                                 lane.next_threshold = crossed;
                             }
@@ -1098,8 +1079,10 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
                         if !cash.is_finite() {
                             return Err(unstable());
                         }
-                        if strip.is_some_and(|strip| strip.knock_out) {
-                            sums.add(lane.next_threshold, cash);
+                        if let Some(strip) =
+                            strip.filter(|strip| strip.variation == PortfolioVariation::KnockOut)
+                        {
+                            sums.add(strip.offset + lane.next_threshold, cash);
                         } else {
                             if let Some(strip) = strip.filter(|_| !lane.knocked_in) {
                                 let start =

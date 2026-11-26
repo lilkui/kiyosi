@@ -1011,24 +1011,34 @@ fn shared_knock_in_strip_matches_individual_thresholds_in_a_mixed_book() -> Resu
 }
 
 #[test]
-fn shared_knock_out_strip_matches_individual_first_passages() -> Result<()> {
+fn mixed_knock_out_strips_match_individual_first_passages() -> Result<()> {
     let (terms, _, _) =
         autocallable_support::multi_event_terms(KnockInObservation::EveryTradingDay {
             observation_clock_time: date(1, 1).time_of_day(),
         });
-    let notes = [110.0, 70.0, 135.0, 93.0, 110.0]
-        .map(|level| {
-            SnowballOption::new(SnowballTerms {
-                autocall_observations: autocallable_observations(
-                    &[date(2, 3), date(3, 3), date(4, 1)],
-                    &[level; 3],
-                    &[0.08, 0.09, 0.10],
-                )?,
-                ..terms.clone()
-            })
+    let notes = [
+        (110.0, 100.0),
+        (70.0, 100.0),
+        (110.0, 95.0),
+        (135.0, 100.0),
+        (93.0, 95.0),
+        (110.0, 100.0),
+        (120.0, 95.0),
+        (105.0, 99.0),
+    ]
+    .map(|(level, upper_strike)| {
+        SnowballOption::new(SnowballTerms {
+            autocall_observations: autocallable_observations(
+                &[date(2, 3), date(3, 3), date(4, 1)],
+                &[level; 3],
+                &[0.08, 0.09, 0.10],
+            )?,
+            upper_strike,
+            ..terms.clone()
         })
-        .into_iter()
-        .collect::<Result<Vec<_>>>()?;
+    })
+    .into_iter()
+    .collect::<Result<Vec<_>>>()?;
     let batch = notes.iter().collect::<Vec<_>>();
     let context = market(100.0, date(1, 1));
     for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
@@ -1041,7 +1051,7 @@ fn shared_knock_out_strip_matches_individual_first_passages() -> Result<()> {
         };
         let engine = MonteCarloAutocallableEngine::new(settings)?;
         let prices = engine.price_many_on_shared_grid(&batch, &context)?;
-        assert_eq!(prices[0].to_bits(), prices[4].to_bits());
+        assert_eq!(prices[0].to_bits(), prices[5].to_bits());
         for (&actual, note) in prices.iter().zip(&notes) {
             let expected = engine.price_many_on_shared_grid(&[note, note], &context)?[0];
             assert!((actual - expected).abs() < 2e-14, "{actual} vs {expected}");
