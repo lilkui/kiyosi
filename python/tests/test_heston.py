@@ -67,6 +67,32 @@ def option(**changes):
     )
 
 
+def test_analytic_strike_batch_preserves_independent_prices_and_errors():
+    engine = AnalyticHestonEuropeanEngine()
+    strikes = (125, 40, 100, 200, 100)
+    for at in (START, END):
+        snapshot = context(valuation_time=at)
+        for direction in ("call", "put"):
+            template = option(option_type=direction)
+            expected = tuple(
+                engine.price(template.replace(strike=strike), snapshot)
+                for strike in strikes
+            )
+            assert (
+                engine.price_strikes(template, snapshot, strikes=iter(strikes))
+                == expected
+            )
+            assert engine.price_strikes(template, snapshot, strikes=[]) == ()
+            with pytest.raises(InvalidInputError, match="strike"):
+                engine.price_strikes(template, snapshot, strikes=(100, 0))
+            with pytest.raises(TypeError):
+                engine.price_strikes(template, snapshot, strikes=(100, True))
+    with pytest.raises(NonConvergenceError):
+        AnalyticHestonEuropeanEngine(max_evaluations=1).price_strikes(
+            option(), context(), strikes=strikes
+        )
+
+
 def test_default_heston_budget_prices_deep_out_of_money_call():
     parameters = model(
         dividend_yield=-0.02,

@@ -26,6 +26,50 @@ fn option(kind: OptionType) -> EuropeanOption {
 }
 
 #[test]
+fn analytic_strike_batch_preserves_independent_prices_and_errors() -> Result<()> {
+    let engine = AnalyticHestonEuropeanEngine::default();
+    let market = context(model());
+    let strikes = [125.0, 40.0, 100.0, 200.0, 100.0];
+    for context in [
+        market.clone(),
+        market.replace(PricingContextChanges {
+            valuation_time: Some(dates().1),
+            ..Default::default()
+        })?,
+    ] {
+        for kind in [OptionType::Call, OptionType::Put] {
+            let template = option(kind);
+            let batch = engine.price_strikes(&template, &context, &strikes)?;
+            for (&strike, actual) in strikes.iter().zip(batch) {
+                let contract = template.replace(EuropeanOptionChanges {
+                    strike: Some(strike),
+                    ..Default::default()
+                })?;
+                assert_eq!(
+                    actual,
+                    engine.price(&contract, &context)?,
+                    "{kind:?} {strike}"
+                );
+            }
+            assert_eq!(engine.price_strikes(&template, &context, &[])?, []);
+            assert!(matches!(
+                engine.price_strikes(&template, &context, &[100.0, 0.0]),
+                Err(Error::InvalidInput(_))
+            ));
+        }
+    }
+    let limited = AnalyticHestonEuropeanEngine::new(HestonIntegrationSettings {
+        max_evaluations: 1,
+        ..Default::default()
+    })?;
+    assert!(matches!(
+        limited.price_strikes(&option(OptionType::Call), &market, &strikes),
+        Err(Error::NonConvergence(_))
+    ));
+    Ok(())
+}
+
+#[test]
 fn heston_matches_quantlib_and_put_call_parity() {
     // QuantLib 1.43, adaptive Gatheral integration at relative tolerance 1e-12.
     for (model, reference) in [

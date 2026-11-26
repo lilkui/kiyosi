@@ -1,7 +1,7 @@
 use crate::conversions::{integer_usize, real};
 use crate::error::domain;
 use crate::instruments::vanilla::EuropeanOption;
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyTuple};
 
 /// Price European calls and puts under Heston by adaptive Fourier integration.
 ///
@@ -73,6 +73,50 @@ engine_methods!(
         ///
     ],
     {
+        /// Price European calls or puts across strikes with fixed dates and market inputs.
+        ///
+        /// Parameters
+        /// ----------
+        /// instrument : EuropeanOption
+        ///     Template supplying direction and dates.
+        /// context : PricingContext
+        ///     Heston market snapshot.
+        /// strikes : iterable of float
+        ///     Finite positive strikes in the desired output order.
+        ///
+        /// Returns
+        /// -------
+        /// tuple of float
+        ///     Prices in input order, including duplicates. An empty input
+        ///     validates the market and returns an empty tuple.
+        ///
+        /// Raises
+        /// ------
+        /// KiyosiError
+        ///     If applicability, coverage, strike or numerical checks fail.
+        /// TypeError, ValueError, OverflowError
+        ///     If an input representation is invalid.
+        ///
+        /// Notes
+        /// -----
+        /// Strikes share Fourier transforms and retain independent convergence
+        /// budgets. Pricing releases the GIL and cancellation returns no partial
+        /// result.
+        #[pyo3(signature = (instrument, context, *, strikes))]
+        #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns the extracted inputs before core pricing.")]
+        fn price_strikes<'py>(
+            &self,
+            py: Python<'py>,
+            #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, EuropeanOption>,
+            context: &crate::market::PricingContext,
+            #[pyo3(from_py_with = crate::conversions::reals)] strikes: Vec<f64>,
+        ) -> PyResult<Bound<'py, PyTuple>> {
+            let option = &instrument.0;
+            let context = &context.0;
+            let values = crate::cancellation::run(py, || self.0.price_strikes(option, context, &strikes))?;
+            crate::conversions::python_tuple(py, domain(values)?, Ok)
+        }
+
         #[classattr]
         const _STATE_FIELDS: &'static [&'static str] = &[
             "absolute_tolerance", "relative_tolerance", "max_evaluations",

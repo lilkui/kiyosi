@@ -1,4 +1,8 @@
-use std::{cmp::Ordering, collections::BinaryHeap, f64::consts::PI};
+use std::{
+    cmp::Ordering,
+    collections::{BinaryHeap, HashMap},
+    f64::consts::PI,
+};
 
 use num_complex::Complex64;
 
@@ -9,6 +13,8 @@ use crate::{
     Error, EuropeanOption, GreeksRequest, HestonParameters, OptionType, PricingContext,
     PricingEngine, PricingResult, Result,
 };
+
+const TRANSFORM_CACHE_CAPACITY: usize = 16_384;
 
 /// Configures adaptive Heston Fourier integration; see [`AnalyticHestonEuropeanEngine::new`].
 ///
@@ -152,13 +158,78 @@ impl AnalyticHestonEuropeanEngine {
     /// results. Only rounding-sized negative prices may be clipped. Inputs and
     /// engine settings remain unchanged on success and failure.
     pub fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
-        let model = context.model_parameters().as_heston()?;
-        validate_life(option, context)?;
+        let model = validate_market(option, context)?;
+        self.price_one(option, context, model, option.strike(), None)
+    }
+
+    /// Prices European calls or puts across strikes with fixed dates and market inputs.
+    ///
+    /// Uses the template's direction and dates. The result preserves input order
+    /// and duplicates. The empty batch validates the market and returns an empty
+    /// vector. A request-local cache shares Fourier transforms across strikes.
+    /// Each strike retains the integration settings and budget of [`Self::price`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for nonpositive or non-finite strikes.
+    /// Propagates scalar pricing errors and cancellation without a partial result.
+    /// An output reservation failure returns [`Error::ComputationFailure`].
+    ///
+    /// # Examples
+    ///
+    /// Given the option and context from [`Self::new`], price a call spread.
+    ///
+    /// ```
+    /// # use kiyosi::*;
+    /// # fn main() -> Result<()> {
+    /// # let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// # let option = EuropeanOption::new(OptionType::Call, 100.0, start, start.add_days(365)?)?;
+    /// # let context = PricingContext::new(HestonParameters::new(HestonParameterInputs {
+    /// #     risk_free_rate: 0.05.into(), dividend_yield: 0.02.into(), initial_variance: 0.04,
+    /// #     long_run_variance: 0.04, mean_reversion_speed: 1.5, vol_of_vol: 0.3, correlation: -0.7,
+    /// # })?, 100.0, start)?;
+    /// let engine = AnalyticHestonEuropeanEngine::default();
+    /// let prices = engine.price_strikes(&option, &context, &[90.0, 110.0])?;
+    /// let spread = prices[0] - prices[1];
+    /// assert!(spread > 0.0);
+    /// # Ok(()) }
+    /// ```
+    pub fn price_strikes(
+        &self,
+        option: &EuropeanOption,
+        context: &PricingContext,
+        strikes: &[f64],
+    ) -> Result<Vec<f64>> {
+        let model = validate_market(option, context)?;
+        crate::cancellation::check()?;
+        for &strike in strikes {
+            crate::cancellation::check()?;
+            crate::error::finite(strike, true, "strike")?;
+        }
+        let mut prices = Vec::new();
+        prices.try_reserve_exact(strikes.len()).map_err(|_| {
+            Error::ComputationFailure("cannot reserve Heston strike batch output".into())
+        })?;
+        let mut transforms = HashMap::new();
+        for &strike in strikes {
+            crate::cancellation::check()?;
+            let cache = (strikes.len() > 1).then_some(&mut transforms);
+            prices.push(self.price_one(option, context, model, strike, cache)?);
+        }
+        Ok(prices)
+    }
+
+    fn price_one(
+        &self,
+        option: &EuropeanOption,
+        context: &PricingContext,
+        model: &HestonParameters,
+        strike: f64,
+        transforms: Option<&mut HashMap<u64, Complex64>>,
+    ) -> Result<f64> {
         let start = context.valuation_time();
         let end = option.expiry_time();
-        context.validate_curve_coverage(end)?;
         let spot = context.spot_price();
-        let strike = option.strike();
         let sign = if option.option_type() == OptionType::Call {
             1.0
         } else {
@@ -214,9 +285,20 @@ impl AnalyticHestonEuropeanEngine {
             log_moneyness,
             weight,
             remaining: self.settings.max_evaluations,
+            transforms,
         };
         integrate(&mut integrand, base, self.settings, scale)
     }
+}
+
+fn validate_market<'a>(
+    option: &EuropeanOption,
+    context: &'a PricingContext,
+) -> Result<&'a HestonParameters> {
+    let model = context.model_parameters().as_heston()?;
+    validate_life(option, context)?;
+    context.validate_curve_coverage(option.expiry_time())?;
+    Ok(model)
 }
 
 impl PricingEngine for AnalyticHestonEuropeanEngine {
@@ -369,6 +451,7 @@ struct Integrand<'a> {
     log_moneyness: f64,
     weight: f64,
     remaining: usize,
+    transforms: Option<&'a mut HashMap<u64, Complex64>>,
 }
 
 impl Integrand<'_> {
@@ -379,13 +462,23 @@ impl Integrand<'_> {
         }
         self.remaining -= 2;
         let u = self.frequency_scale * t / (1.0 - t);
-        let log_heston = log_characteristic(self.model, self.time, u);
-        let log_black = -0.5 * self.variance * (u * u + 0.25);
-        let difference = log_heston - log_black;
-        let transform = if difference.norm_sqr() < 0.25 {
-            -log_black.exp() * complex_expm1(difference)
-        } else {
-            Complex64::new(log_black.exp(), 0.0) - log_heston.exp()
+        let evaluate = || {
+            let log_heston = log_characteristic(self.model, self.time, u);
+            let log_black = -0.5 * self.variance * (u * u + 0.25);
+            let difference = log_heston - log_black;
+            if difference.norm_sqr() < 0.25 {
+                -log_black.exp() * complex_expm1(difference)
+            } else {
+                Complex64::new(log_black.exp(), 0.0) - log_heston.exp()
+            }
+        };
+        let transform = match self.transforms.as_mut() {
+            // Size the shared cache independently of the supplied strike list and evaluation budget.
+            Some(cache) if cache.len() < TRANSFORM_CACHE_CAPACITY => {
+                *cache.entry(u.to_bits()).or_insert_with(evaluate)
+            }
+            Some(cache) => cache.get(&u.to_bits()).copied().unwrap_or_else(evaluate),
+            None => evaluate(),
         };
         let value = self.weight
             * (Complex64::from_polar(1.0, u * self.log_moneyness) * transform).re

@@ -1881,6 +1881,44 @@ class AnalyticHestonEuropeanEngine(_PricingMethods[EuropeanOption]):
     the GIL for core computation, with independent state for concurrent calls.
     """
 
+    def price_strikes(
+        self,
+        instrument: EuropeanOption,
+        context: PricingContext,
+        *,
+        strikes: Iterable[_Real],
+    ) -> tuple[float, ...]:
+        """Price European calls or puts across strikes with fixed dates and market inputs.
+
+        Parameters
+        ----------
+        instrument : EuropeanOption
+            Template supplying direction and dates.
+        context : PricingContext
+            Heston market snapshot.
+        strikes : iterable of float
+            Finite positive strikes in the desired output order.
+
+        Returns
+        -------
+        tuple of float
+            Prices in input order, including duplicates. An empty input
+            validates the market and returns an empty tuple.
+
+        Raises
+        ------
+        KiyosiError
+            If applicability, coverage, strike or numerical checks fail.
+        TypeError, ValueError, OverflowError
+            If an input representation is invalid.
+
+        Notes
+        -----
+        Strikes share Fourier transforms and retain independent convergence
+        budgets. Pricing releases the GIL and cancellation returns no partial
+        result.
+        """
+
     def __eq__(self, other: object) -> bool: ...
     def __init__(
         self,
