@@ -193,6 +193,7 @@ pub(super) struct Stepper {
     rhs: Vec<f64>,
     active: usize,
     local: Option<crate::market::LocalVolatilityProjection>,
+    local_stencils: Option<Vec<super::grid::PreparedLogStencil>>,
     local_operator: Option<(usize, [u64; 3])>,
 }
 
@@ -269,7 +270,7 @@ impl Stepper {
     const FACTOR_CACHE_LEN: usize = 3;
     // Each factor has three coefficients and four solve values per row. A miss
     // builds the new factor before eviction, with a separate right-hand side.
-    // Local volatility uses one factor and two projected rows, within this peak.
+    // One local factor, the projection and prepared stencils fit within this peak.
     pub(super) const PEAK_BYTES_PER_NODE: u64 =
         ((Self::FACTOR_CACHE_LEN + 1) * size_of::<[f64; 7]>() + size_of::<f64>()) as u64;
 
@@ -279,6 +280,7 @@ impl Stepper {
             rhs: vec![0.0; count - 1],
             active: 0,
             local: None,
+            local_stencils: None,
             local_operator: None,
         }
     }
@@ -297,6 +299,7 @@ impl Stepper {
             rhs: vec![0.0; size],
             active: 0,
             local: None,
+            local_stencils: None,
             local_operator: None,
         }
     }
@@ -352,6 +355,9 @@ impl Stepper {
         [dt, theta, rate, dividend]: [f64; 4],
     ) -> Result<()> {
         if self.local.is_none() {
+            if theta != 0.0 {
+                self.local_stencils = space.prepared_stencils()?;
+            }
             self.local = Some(crate::market::LocalVolatilityProjection::new(
                 surface,
                 &space.spots,
@@ -372,12 +378,24 @@ impl Stepper {
             let volatility = (!same_operator)
                 .then(|| projection.at_year(surface, time))
                 .transpose()?;
+            let carry = rate - dividend;
+            let prepared = self.local_stencils.as_deref().filter(|_| {
+                theta != 0.0 && super::grid::PreparedLogStencil::bounded([rate, carry])
+            });
             for i in 0..factors.coefficients.len() {
                 if i % 1024 == 0 {
                     crate::cancellation::check()?;
                 }
                 if let Some(volatility) = &volatility {
-                    let row = space.coefficients(i + 1, rate, dividend, volatility(i + 1) * scale);
+                    let sigma = volatility(i + 1) * scale;
+                    let variance = sigma * sigma;
+                    let row = if let Some(stencils) =
+                        prepared.filter(|_| super::grid::PreparedLogStencil::bounded([variance]))
+                    {
+                        stencils[i].coefficients(rate, carry, variance)
+                    } else {
+                        space.coefficients(i + 1, rate, dividend, sigma)
+                    };
                     if row.iter().any(|v| !v.is_finite()) {
                         return Err(unstable());
                     }
