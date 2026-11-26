@@ -748,3 +748,43 @@ fn monte_carlo_step_counts_are_intervals_with_two_required_for_american_exercise
         .unwrap();
     assert_eq!(one.price(&put, &expiry).unwrap(), 10.0);
 }
+
+#[test]
+fn batched_volatility_scenarios_replay_scalar_exercise_paths() -> Result<()> {
+    let put = option(OptionType::Put, 100.0);
+    let sigma = 0.25;
+    let shift = 0.03125;
+    let context = |volatility| market(0.05, 0.02, volatility, 100.0);
+    for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
+        let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+            sampling: MonteCarloSettings {
+                path_count: 16_384,
+                seed: Some(42),
+                max_active_workers: 4,
+                sampling,
+                ..Default::default()
+            },
+            step_count: 360,
+        })?;
+        let result = engine.price_with_greeks_with_settings(
+            &put,
+            &context(sigma),
+            GreeksRequest::new([Greek::Vega, Greek::Volga]),
+            NumericalShiftSettings {
+                volatility_shift: Some(shift),
+                ..Default::default()
+            },
+        )?;
+        let center = engine.price(&put, &context(sigma))?;
+        let up = engine.price(&put, &context(sigma + shift))?;
+        let down = engine.price(&put, &context(sigma - shift))?;
+        assert_eq!(result.seed(), Some(42));
+        assert_eq!(result.price(), center);
+        assert_eq!(result.require(Greek::Vega)?, (up - down) / (2.0 * shift));
+        assert_eq!(
+            result.require(Greek::Volga)?,
+            ((up - center) - (center - down)) / (shift * shift)
+        );
+    }
+    Ok(())
+}

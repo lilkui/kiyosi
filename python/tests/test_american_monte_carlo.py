@@ -406,6 +406,34 @@ def test_checkpointed_spot_greeks_match_scalar_price_stencils():
     assert result.gamma == ((up - center) - (center - down)) / 64
 
 
+@pytest.mark.parametrize("sampling", ("pseudo_random", "sobol"))
+def test_batched_volatility_scenarios_replay_scalar_exercise_paths(sampling):
+    option = contract()
+    context = market(rate=0.05, dividend=0.02, sigma=0.25)
+    model = context.model_parameters
+    shift = 0.03125
+    engine = MonteCarloVanillaEngine(
+        path_count=16_384,
+        step_count=360,
+        seed=42,
+        max_active_workers=4,
+        sampling=sampling,
+    )
+    result = engine.price_with_greeks(
+        option, context, ["vega", "volga"], volatility_shift=shift
+    )
+    center, up, down = (
+        engine.price(
+            option, context.replace(model_parameters=model.replace(volatility=vol))
+        )
+        for vol in (0.25, 0.25 + shift, 0.25 - shift)
+    )
+    assert result.seed == 42
+    assert result.price == center
+    assert result.vega == (up - down) / (2 * shift)
+    assert result.volga == ((up - center) - (center - down)) / shift**2
+
+
 def test_price_sampling_error_and_exercise_grid_convergence():
     option, context = contract(), market()
     reference = CoxRossRubinsteinVanillaEngine(step_count=3200).price(option, context)

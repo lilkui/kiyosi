@@ -306,7 +306,7 @@ pub(crate) fn complete_greeks_with_pair(
     native_spot_greeks: bool,
     mut result: PricingResult,
     native: impl Fn(&PricingContext, GreeksRequest) -> Result<PricingResult>,
-    spot_pair: impl Fn(
+    scenario_pair: impl Fn(
         &PricingContext,
         &PricingContext,
         GreeksRequest,
@@ -372,13 +372,19 @@ pub(crate) fn complete_greeks_with_pair(
     let price = |s, vol, r, t| -> Result<f64> {
         Ok(native(&shifted(s, vol, r, t)?, GreeksRequest::new([]))?.price())
     };
-    let pair = |distance, vol, t, measures| -> Result<(PricingResult, PricingResult)> {
-        let high = shifted(spot + distance, vol, 0.0, t)?;
-        let low = shifted(spot - distance, vol, 0.0, t)?;
-        if let Some(results) = spot_pair(&high, &low, measures)? {
+    let evaluate_pair = |high: &PricingContext,
+                         low: &PricingContext,
+                         measures|
+     -> Result<(PricingResult, PricingResult)> {
+        if let Some(results) = scenario_pair(high, low, measures)? {
             return Ok(results);
         }
-        Ok((native(&high, measures)?, native(&low, measures)?))
+        Ok((native(high, measures)?, native(low, measures)?))
+    };
+    let pair = |distance, vol, t, measures| {
+        let high = shifted(spot + distance, vol, 0.0, t)?;
+        let low = shifted(spot - distance, vol, 0.0, t)?;
+        evaluate_pair(&high, &low, measures)
     };
     let spot_samples = |vol, t, center| -> Result<(f64, f64, f64)> {
         let (up, down) = pair(h, vol, t, GreeksRequest::new([]))?;
@@ -425,10 +431,11 @@ pub(crate) fn complete_greeks_with_pair(
         let measures = spot_request(delta, gamma);
         let (first, last) = match prices {
             Some(prices) => prices,
-            None => (
-                native(&shifted(spot, first_vol, 0.0, first_time)?, measures)?,
-                native(&shifted(spot, last_vol, 0.0, last_time)?, measures)?,
-            ),
+            None => evaluate_pair(
+                &shifted(spot, first_vol, 0.0, first_time)?,
+                &shifted(spot, last_vol, 0.0, last_time)?,
+                measures,
+            )?,
         };
         let native_delta = first.get(Greek::Delta).zip(last.get(Greek::Delta));
         let native_gamma = first.get(Greek::Gamma).zip(last.get(Greek::Gamma));
@@ -483,10 +490,11 @@ pub(crate) fn complete_greeks_with_pair(
     {
         let measures = spot_request(spot_ok && want(Greek::Vanna), spot_ok && want(Greek::Zomma));
         let prices = if want(Greek::Vega) || want(Greek::Volga) {
-            Some((
-                native(&shifted(spot, vol + v, 0.0, time)?, measures)?,
-                native(&shifted(spot, vol - v, 0.0, time)?, measures)?,
-            ))
+            Some(evaluate_pair(
+                &shifted(spot, vol + v, 0.0, time)?,
+                &shifted(spot, vol - v, 0.0, time)?,
+                measures,
+            )?)
         } else {
             None
         };
@@ -519,10 +527,15 @@ pub(crate) fn complete_greeks_with_pair(
     if want(Greek::Rho) {
         let r = symmetric_shift(model.risk_free_curve().shift_origin(), settings.rate_shift);
         if r > 0.0 && (2.0 * r).is_finite() {
+            let (high, low) = evaluate_pair(
+                &shifted(spot, vol, r, time)?,
+                &shifted(spot, vol, -r, time)?,
+                GreeksRequest::new([]),
+            )?;
             result.set(
                 request,
                 Greek::Rho,
-                (price(spot, vol, r, time)? - price(spot, vol, -r, time)?) / (2.0 * r),
+                (high.price() - low.price()) / (2.0 * r),
             )?;
         }
     }
@@ -530,21 +543,21 @@ pub(crate) fn complete_greeks_with_pair(
         let dividend = model.dividend_curve().shift_origin();
         let q = symmetric_shift(dividend, settings.rate_shift);
         if q > 0.0 && (2.0 * q).is_finite() {
-            let evaluate = |shift| -> Result<f64> {
+            let evaluate = |shift| -> Result<PricingContext> {
                 let model = model.replace(BlackScholesMertonParameterChanges {
                     dividend_yield: Some(model.dividend_curve().shifted(shift)?.into()),
                     ..Default::default()
                 })?;
-                let shifted = context.replace(PricingContextChanges {
+                context.replace(PricingContextChanges {
                     model_parameters: Some(model.into()),
                     ..Default::default()
-                })?;
-                Ok(native(&shifted, GreeksRequest::new([]))?.price())
+                })
             };
+            let (high, low) = evaluate_pair(&evaluate(q)?, &evaluate(-q)?, GreeksRequest::new([]))?;
             result.set(
                 request,
                 Greek::DividendRho,
-                (evaluate(q)? - evaluate(-q)?) / (2.0 * q),
+                (high.price() - low.price()) / (2.0 * q),
             )?;
         }
     }
