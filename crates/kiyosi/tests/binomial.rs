@@ -1,6 +1,35 @@
 use kiyosi::*;
 
 #[test]
+fn banded_american_call_matches_full_tree_and_original_spot_greeks() -> Result<()> {
+    let (start, end) = dates();
+    let call = AmericanOption::new(OptionType::Call, 92.0, start, end)?;
+    let snapshot = market(100.0, 0.05, 0.08, 0.2);
+    let full = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 4_800 })?;
+    let bounded = full.with_rollback_tolerance(Some(1e-6))?;
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Vega]);
+    let expected = full.price_with_greeks(&call, &snapshot, request)?;
+    let actual = bounded.price_with_greeks(&call, &snapshot, request)?;
+    assert!((actual.price() - expected.price()).abs() < 1e-6);
+    for greek in [Greek::Delta, Greek::Gamma, Greek::Vega] {
+        assert!(
+            (actual.require(greek)? - expected.require(greek)?).abs() < 1e-6,
+            "{greek:?}"
+        );
+    }
+    let fine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 20_000 })?;
+    assert!(matches!(
+        fine.price(&call, &snapshot),
+        Err(Error::InvalidInput(_))
+    ));
+    let fine = fine.with_rollback_tolerance(Some(1e-6))?;
+    let price = fine.price(&call, &snapshot)?;
+    let dual = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    assert!((price - fine.price(&dual, &market(92.0, 0.08, 0.05, 0.2))?).abs() < 1e-7);
+    Ok(())
+}
+
+#[test]
 fn banded_american_put_preserves_price_within_the_truncation_budget() -> Result<()> {
     let (start, end) = dates();
     let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;

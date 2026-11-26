@@ -96,10 +96,32 @@ def test_banded_american_put_preserves_price_within_the_truncation_budget():
         fine.price_with_rollback_tolerance(put, snapshot, absolute_tolerance=0)
     with pytest.raises(TypeError):
         fine.price_with_rollback_tolerance(put, snapshot, absolute_tolerance=True)
-    with pytest.raises(UnsupportedOperationError):
-        fine.price_with_rollback_tolerance(
-            put.replace(option_type="call"), snapshot, absolute_tolerance=1e-6
+
+
+def test_banded_american_call_matches_full_tree_and_original_spot_greeks():
+    call = AmericanOption(
+        option_type="call", strike=92, effective_time=START, expiry_time=END
+    )
+    snapshot = market(spot=100, rate=0.05, dividend=0.08, sigma=0.2)
+    engine = CoxRossRubinsteinVanillaEngine(step_count=4800)
+    greeks = ["delta", "gamma", "vega"]
+    exact = engine.price_with_greeks(call, snapshot, greeks)
+    bounded = engine.replace(rollback_tolerance=1e-6).price_with_greeks(
+        call, snapshot, greeks
+    )
+    for member in ["price", *greeks]:
+        assert getattr(bounded, member) == pytest.approx(
+            getattr(exact, member), rel=0, abs=1e-6
         )
+    fine = engine.replace(step_count=20_000)
+    with pytest.raises(InvalidInputError):
+        fine.price(call, snapshot)
+    price = fine.price_with_rollback_tolerance(call, snapshot, absolute_tolerance=1e-6)
+    dual = call.replace(option_type="put", strike=100)
+    dual_snapshot = market(spot=92, rate=0.08, dividend=0.05, sigma=0.2)
+    assert fine.replace(rollback_tolerance=1e-6).price(
+        dual, dual_snapshot
+    ) == pytest.approx(price, rel=0, abs=1e-7)
 
 
 def test_banded_put_greeks_match_the_full_tree():

@@ -101,14 +101,14 @@ impl CoxRossRubinsteinVanillaEngine {
         self.settings
     }
 
-    /// Returns the configured American put truncation tolerance in price units.
+    /// Returns the configured American option truncation tolerance in price units.
     ///
     /// See [`Self::with_rollback_tolerance`] for configuration.
     pub fn rollback_tolerance(&self) -> Option<f64> {
         self.rollback_tolerance
     }
 
-    /// Configures tolerance-bounded rollback for American puts.
+    /// Configures tolerance-bounded rollback for American options.
     ///
     /// Ordinary price, Greek and implied-volatility requests use the bound.
     /// Pass `None` to use full rollback. See
@@ -184,10 +184,11 @@ impl CoxRossRubinsteinVanillaEngine {
         <Self as PricingEngine<I>>::price(self, option, context)
     }
 
-    /// Prices an American put with an absolute tolerance for discarding lattice tails.
+    /// Prices an American option with an absolute tolerance for discarding lattice tails.
     ///
     /// The tolerance is in price units. The omitted paths' contribution is bounded
-    /// using their exit probability and the largest discounted exercise payoff.
+    /// using their exit probability and a discounted payoff bound. Calls use
+    /// share-weighted probabilities to bound payouts that grow with spot.
     /// The bound concerns lattice truncation. The usual discretization and
     /// floating-point errors still apply. A wide band falls back to full rollback.
     ///
@@ -195,7 +196,7 @@ impl CoxRossRubinsteinVanillaEngine {
     ///
     /// Returns [`Error::InvalidInput`] for a nonpositive or nonfinite tolerance,
     /// out-of-life valuation, or excessive rollback work.
-    /// Returns [`Error::UnsupportedOperation`] for calls and nonconstant rate curves.
+    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves.
     /// Propagates the numerical and cancellation errors of [`Self::price`].
     ///
     /// # Examples
@@ -220,11 +221,12 @@ impl CoxRossRubinsteinVanillaEngine {
         context: &PricingContext,
         absolute_tolerance: f64,
     ) -> Result<f64> {
-        validate_banded_put(option, context, absolute_tolerance)?;
+        crate::error::finite(absolute_tolerance, true, "absolute_tolerance")?;
+        flat_rates(context)?;
         Ok(self
             .banded_native(
                 option,
-                option.strike(),
+                Payoff::vanilla(option.option_type(), option.strike(), true),
                 context,
                 absolute_tolerance,
                 GreeksRequest::new([]),
@@ -232,7 +234,7 @@ impl CoxRossRubinsteinVanillaEngine {
             .price())
     }
 
-    /// Prices an American put and its requested Greeks with tolerance-bounded rollback.
+    /// Prices an American option and its requested Greeks with tolerance-bounded rollback.
     ///
     /// The tolerance caps discarded tail value in each price calculation. The
     /// engine tightens it for sensitivities whose differences amplify price errors.
@@ -270,12 +272,13 @@ impl CoxRossRubinsteinVanillaEngine {
         shifts: crate::NumericalShiftSettings,
         absolute_tolerance: f64,
     ) -> Result<PricingResult> {
-        validate_banded_put(option, context, absolute_tolerance)?;
+        crate::error::finite(absolute_tolerance, true, "absolute_tolerance")?;
+        flat_rates(context)?;
         shifts.validate()?;
         time_step(option, context, self.settings)?;
         self.banded_greeks(
             option,
-            option.strike(),
+            Payoff::vanilla(option.option_type(), option.strike(), true),
             context,
             request,
             shifts,
@@ -286,7 +289,7 @@ impl CoxRossRubinsteinVanillaEngine {
     fn banded_greeks(
         &self,
         option: &impl OptionContract,
-        strike: f64,
+        payoff: Payoff,
         context: &PricingContext,
         request: GreeksRequest,
         shifts: crate::NumericalShiftSettings,
@@ -294,7 +297,7 @@ impl CoxRossRubinsteinVanillaEngine {
     ) -> Result<PricingResult> {
         let tolerance = stencil_tolerance(option, context, request, shifts, absolute_tolerance)?;
         let evaluate = |context: &PricingContext, stencil| {
-            self.banded_native(option, strike, context, tolerance, stencil)
+            self.banded_native(option, payoff, context, tolerance, stencil)
         };
         crate::risk::numerical::complete_greeks(
             option,
@@ -310,15 +313,19 @@ impl CoxRossRubinsteinVanillaEngine {
     fn banded_native(
         self,
         option: &impl OptionContract,
-        strike: f64,
+        payoff: Payoff,
         context: &PricingContext,
         tolerance: f64,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let payoff = Payoff::vanilla(OptionType::Put, strike, true);
         let exact = || native(option, payoff, context, self.settings, request);
         let dt = time_step(option, context, self.settings)?;
-        if dt == 0.0 || crate::engines::deterministic::enabled(context) || tolerance == 0.0 {
+        let (rate, dividend) = flat_rates(context)?;
+        if dt == 0.0
+            || crate::engines::deterministic::enabled(context)
+            || tolerance == 0.0
+            || (payoff.sign > 0.0 && dividend <= 0.0 && rate >= 0.0)
+        {
             return exact();
         }
         let spot = context.spot_price();
@@ -332,18 +339,35 @@ impl CoxRossRubinsteinVanillaEngine {
         } else {
             tolerance
         };
+        let (center, log_payoff_bound, log_step_discount) = if payoff.sign > 0.0 {
+            // In share units, a call is bounded by one share. The tilted
+            // up probability is p * up / forward_growth. Keep the original
+            // exercise amounts and transition probabilities for the solve.
+            let carry = (rate - dividend) * dt;
+            let center = (p.ln() + (width - carry)).exp().min(1.0);
+            (center, spot.ln() + 2.0 * width, -dividend * dt)
+        } else {
+            (p, payoff.strike.ln(), discount.log_factor)
+        };
+        let band = [
+            center,
+            std::f64::consts::LN_2
+                + log_payoff_bound
+                + f64::from(self.settings.step_count) * log_step_discount.max(0.0)
+                - tolerance.ln(),
+        ];
         let Some(BandedValues {
             price,
             first,
             second,
             exercised,
-        }) = banded_put(steps, [spot, strike, width, up, p], discount, tolerance)?
+        }) = banded_american(steps, payoff, [spot, width, up, p], discount, band)?
         else {
             return exact();
         };
         if exercised {
             let mut result = PricingResult::new(price)?;
-            result.set(request, Greek::Delta, -1.0)?;
+            result.set(request, Greek::Delta, payoff.sign)?;
             result.set(request, Greek::Gamma, 0.0)?;
             return Ok(result);
         }
@@ -357,21 +381,6 @@ impl CoxRossRubinsteinVanillaEngine {
             steps,
         )
     }
-}
-
-fn validate_banded_put(
-    option: &AmericanOption,
-    context: &PricingContext,
-    tolerance: f64,
-) -> Result<()> {
-    crate::error::finite(tolerance, true, "absolute_tolerance")?;
-    flat_rates(context)?;
-    if option.option_type() != OptionType::Put {
-        return Err(Error::UnsupportedOperation(
-            "rollback tolerance requires an American put".into(),
-        ));
-    }
-    Ok(())
 }
 
 fn stencil_tolerance(
@@ -439,18 +448,15 @@ struct BandedValues {
     clippy::cast_sign_loss,
     reason = "The configured maximum of one million tree steps bounds the lattice indices."
 )]
-fn banded_put(
+fn banded_american(
     steps: usize,
-    [spot, strike, width, up, p]: [f64; 5],
+    payoff: Payoff,
+    [spot, width, up, p]: [f64; 4],
     discount: StepDiscount,
-    tolerance: f64,
+    [center, log_bound]: [f64; 2],
 ) -> Result<Option<BandedValues>> {
-    // The maximal Hoeffding bound for either side of the centered walk is
-    // exp(-2*r²/steps). An omitted payoff is at most strike, discounted to
-    // the worst valuation factor over all exercise dates.
-    let log_bound =
-        std::f64::consts::LN_2 + strike.ln() + steps as f64 * discount.log_factor.max(0.0)
-            - tolerance.ln();
+    // Each side of the centered walk has a maximal Hoeffding bound of
+    // exp(-2*r²/steps). Two extra nodes cover the first two Greek levels.
     let radius = (0.5 * steps as f64 * log_bound.max(0.0)).sqrt().ceil() + 2.0;
     if !radius.is_finite() || 2.0 * radius >= steps as f64 {
         return Ok(None);
@@ -461,7 +467,7 @@ fn banded_put(
         return Ok(None);
     }
     let range = |level: usize| {
-        let center = (p * level as f64) as usize;
+        let center = (center * level as f64) as usize;
         center.saturating_sub(radius)..(center + radius + 1).min(level + 1)
     };
     let mut later = range(steps);
@@ -475,7 +481,7 @@ fn banded_put(
         return Ok(None);
     }
     for value in &mut values[..later.len()] {
-        *value = (strike - node_spot).max(0.0);
+        *value = payoff.value(node_spot);
         node_spot *= step_up;
     }
     let mut first = [0.0; 2];
@@ -502,7 +508,7 @@ fn banded_put(
         };
         for (node, value) in current.clone().zip(&mut next) {
             let continuation = discount.rollback(child(node), child(node + 1), p);
-            let exercise = (strike - node_spot).max(0.0);
+            let exercise = payoff.value(node_spot);
             if level == 0 {
                 // Use the original spot at the root, as in the full rollback.
                 exercised = exercise > 0.0 && exercise > continuation;
@@ -1038,15 +1044,12 @@ macro_rules! vanilla_pricing {
 
             fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
                 context.natural_bsm_parameters()?;
-                if let Some(tolerance) = self
-                    .rollback_tolerance
-                    .filter(|_| $american && option.option_type() == OptionType::Put)
-                {
+                if let Some(tolerance) = self.rollback_tolerance.filter(|_| $american) {
                     flat_rates(context)?;
                     return Ok(self
                         .banded_native(
                             option,
-                            option.strike(),
+                            Payoff::vanilla(option.option_type(), option.strike(), true),
                             context,
                             tolerance,
                             GreeksRequest::new([]),
@@ -1073,14 +1076,11 @@ macro_rules! vanilla_pricing {
                 context.natural_bsm_parameters()?;
                 flat_rates(context)?;
                 settings.validate()?;
-                if let Some(tolerance) = self
-                    .rollback_tolerance
-                    .filter(|_| $american && option.option_type() == OptionType::Put)
-                {
+                if let Some(tolerance) = self.rollback_tolerance.filter(|_| $american) {
                     time_step(option, context, self.settings)?;
                     return self.banded_greeks(
                         option,
-                        option.strike(),
+                        Payoff::vanilla(option.option_type(), option.strike(), true),
                         context,
                         request,
                         settings,

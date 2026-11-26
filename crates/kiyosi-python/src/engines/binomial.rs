@@ -97,7 +97,7 @@ binomial_engine!(
     /// -----
     /// Accepts EuropeanOption and AmericanOption.
     /// Set rollback_tolerance to a positive absolute tolerance in price units
-    /// to bound discarded lattice tails in ordinary American put pricing,
+    /// to bound discarded lattice tails in ordinary American option pricing,
     /// Greeks, and implied volatility. The default, None, uses full rollback.
     ///
     CoxRossRubinsteinVanillaEngine,
@@ -130,18 +130,18 @@ binomial_engine!(
             ).and_then(|engine| engine.with_rollback_tolerance(rollback_tolerance)))?))
         }
 
-        /// Return the American put lattice truncation tolerance in price units.
+        /// Return the American option lattice truncation tolerance in price units.
         #[getter]
         fn rollback_tolerance(&self) -> Option<f64> {
             self.0.rollback_tolerance()
         }
 
-        /// Price an American put with a bound on the discarded lattice tails.
+        /// Price an American option with a bound on the discarded lattice tails.
         ///
         /// Parameters
         /// ----------
         /// instrument : AmericanOption
-        ///     American put to price.
+        ///     American option to price.
         /// context : PricingContext
         ///     Market data with flat rates.
         /// absolute_tolerance : float
@@ -158,7 +158,7 @@ binomial_engine!(
         /// InvalidInputError
         ///     If the tolerance or valuation is invalid, or rollback work exceeds the limit.
         /// UnsupportedOperationError
-        ///     If the American option is a call or the rate curves are nonconstant.
+        ///     If the rate curves are nonconstant.
         #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns the extracted instrument.")]
         #[pyo3(signature = (instrument, context, *, absolute_tolerance))]
         fn price_with_rollback_tolerance(
@@ -176,12 +176,12 @@ binomial_engine!(
             })?)
         }
 
-        /// Price an American put and its requested Greeks with bounded lattice tails.
+        /// Price an American option and its requested Greeks with bounded lattice tails.
         ///
         /// Parameters
         /// ----------
         /// instrument : AmericanOption
-        ///     American put to price.
+        ///     American option to price.
         /// context : PricingContext
         ///     Market data with flat rates.
         /// greeks : str or iterable of str

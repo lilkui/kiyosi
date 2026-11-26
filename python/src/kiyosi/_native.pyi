@@ -6,7 +6,6 @@ from decimal import Decimal as _Decimal
 from numbers import Real as _RealNumber
 from types import EllipsisType
 from typing import Literal, Never, Self, SupportsIndex, overload
-
 from . import pricing as _pricing
 
 type _Real = float | _RealNumber | _Decimal
@@ -2543,7 +2542,7 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
     -----
     Accepts EuropeanOption and AmericanOption.
     Set rollback_tolerance to a positive absolute tolerance in price units
-    to bound discarded lattice tails in ordinary American put pricing,
+    to bound discarded lattice tails in ordinary American option pricing,
     Greeks, and implied volatility. The default, None, uses full rollback.
     """
 
@@ -2563,12 +2562,12 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
         rate_shift: _Real | EllipsisType = ...,
         time_shift: timedelta | None | EllipsisType = ...,
     ) -> PricingResult:
-        """Price an American put and its requested Greeks with bounded lattice tails.
+        """Price an American option and its requested Greeks with bounded lattice tails.
 
         Parameters
         ----------
         instrument : AmericanOption
-            American put to price.
+            American option to price.
         context : PricingContext
             Market data with flat rates.
         greeks : str or iterable of str
@@ -2592,12 +2591,12 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
         *,
         absolute_tolerance: _Real,
     ) -> float:
-        """Price an American put with a bound on the discarded lattice tails.
+        """Price an American option with a bound on the discarded lattice tails.
 
         Parameters
         ----------
         instrument : AmericanOption
-            American put to price.
+            American option to price.
         context : PricingContext
             Market data with flat rates.
         absolute_tolerance : float
@@ -2614,7 +2613,7 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
         InvalidInputError
             If the tolerance or valuation is invalid, or rollback work exceeds the limit.
         UnsupportedOperationError
-            If the American option is a call or the rate curves are nonconstant.
+            If the rate curves are nonconstant.
         """
 
     def replace(
@@ -2649,7 +2648,7 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
 
     @property
     def rollback_tolerance(self) -> float | None:
-        """Return the American put lattice truncation tolerance in price units."""
+        """Return the American option lattice truncation tolerance in price units."""
 
     @property
     def step_count(self) -> int:
