@@ -759,6 +759,36 @@ fn shared_daily_grid_prices_staggered_cash_flows() -> Result<()> {
         actual,
         parallel.price_many_on_shared_grid(&notes, &context)?
     );
+    let off_clock = SnowballOption::new(SnowballTerms {
+        autocall_observations: autocallable_observations(
+            &[date(2, 3).add_micros(1)?, date(3, 3), date(4, 1)],
+            &[103.0, 108.0, 105.0],
+            &[0.08; 3],
+        )?,
+        ..first.terms().clone()
+    })?;
+    for sampler in [
+        engine,
+        MonteCarloAutocallableEngine::new(MonteCarloSettings {
+            sampling: MonteCarloSampling::Sobol,
+            antithetic: true,
+            ..settings
+        })?,
+    ] {
+        let dense = sampler.price_many_on_shared_grid(&[&off_clock, &off_clock], &context)?;
+        let sparse = sampler.price_many_on_shared_grid(&notes, &context)?;
+        assert_eq!(
+            sampler.price_many_on_shared_grid(
+                &[&second, &off_clock, &first, &off_clock, &second],
+                &context,
+            )?,
+            [sparse[0], dense[0], sparse[1], dense[1], sparse[2]],
+        );
+        assert_eq!(
+            sampler.price_many_on_shared_grid(&[&first], &context)?,
+            [sampler.price(&first, &context)?],
+        );
+    }
     for (&price, note) in actual.iter().zip(notes) {
         let reference = QuadratureAutocallableEngine::default().price(note, &context)?;
         let estimate = engine.price_with_statistics(note, &context)?;

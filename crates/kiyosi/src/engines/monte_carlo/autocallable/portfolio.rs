@@ -1,18 +1,147 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::hash::{DefaultHasher, Hash, Hasher};
+use std::sync::Arc;
 
 use super::super::{BLOCK_SIZE, BlockRunner, PathBlocks, skipped_sample_pair};
 use super::{
     AutocallableNote, AutocallableTerms, CashEvent, Error, Moments, MonteCarloAutocallableEngine,
-    MonteCarloSettings, PathPlan, PricingContext, PricingEngine, Result, Sample, SkippingPath,
-    check_path_step, scaled_value, unstable,
+    MonteCarloSettings, PathPlan, PathStep, PricingContext, PricingEngine, Result, Sample,
+    SkippingPath, check_path_step, scaled_value, transition, unstable,
 };
+use crate::{ObservationSchedule, TimeOfDay, Timestamp, TradingCalendar};
 
 // Leave room for the next note's preparation and the request's Sobol table.
 const BATCH_BYTES: usize = 256 * 1024 * 1024;
 const PLAN_RESERVATION: usize = 16;
+const DAILY_GRID_SLOTS: usize = 4;
+const DAILY_GRID_BYTES: usize = 2 * 1024 * 1024;
 
 type IndexedPlan<'a, T> = (usize, PathPlan<'a, T>);
+
+pub(super) struct SparseEvents {
+    key: u64,
+    events: Vec<(usize, CashEvent)>,
+}
+
+pub(super) struct SparsePath {
+    pub steps: Arc<Vec<PathStep>>,
+    pub events: SparseEvents,
+    pub excursion: f64,
+}
+
+struct DailyGrid<'a> {
+    expiry: Timestamp,
+    calendar: &'a TradingCalendar,
+    clock: TimeOfDay,
+    dates: Vec<Timestamp>,
+    steps: Arc<Vec<PathStep>>,
+    key: u64,
+    excursion: f64,
+}
+
+#[derive(Default)]
+pub(super) struct DailyGrids<'a>(Vec<DailyGrid<'a>>);
+
+impl<'a> DailyGrids<'a> {
+    pub(super) fn prepare<T: AutocallableTerms>(
+        &mut self,
+        note: &'a AutocallableNote<T>,
+        context: &PricingContext,
+        settings: MonteCarloSettings,
+        [rate, dividend, sigma]: [f64; 3],
+    ) -> Result<Option<SparsePath>> {
+        let Some(clock) = note.observation_clock_time() else {
+            return Ok(None);
+        };
+        let expiry = note.expiry_time();
+        let calendar = note.calendar();
+        let valuation = context.valuation_time();
+        let events = note.events();
+        let first = events.partition_point(|record| record.time <= valuation);
+        let events = &events[first..];
+        let grid = if let Some(index) = self.0.iter().position(|grid| {
+            grid.expiry == expiry && grid.clock == clock && grid.calendar == calendar
+        }) {
+            self.0.remove(index)
+        } else {
+            let max_days = DAILY_GRID_BYTES / (size_of::<Timestamp>() + size_of::<PathStep>());
+            let days = valuation.date().days_until(expiry.date());
+            if usize::try_from(days).unwrap_or(usize::MAX) >= max_days - 1 {
+                return Ok(None);
+            }
+            for record in events {
+                crate::cancellation::check()?;
+                if record.time != expiry && !note.daily_time(record.time, calendar) {
+                    return Ok(None);
+                }
+            }
+            let mut dates =
+                ObservationSchedule::daily_times(valuation, expiry, calendar, false, clock)?;
+            if dates.is_empty() {
+                return Ok(None);
+            }
+            if dates.last() != Some(&expiry) {
+                dates.push(expiry);
+            }
+            if dates.capacity() * size_of::<Timestamp>() + dates.len() * size_of::<PathStep>()
+                > DAILY_GRID_BYTES
+            {
+                return Ok(None);
+            }
+            let mut steps = settings.scheduled_steps::<PathStep>(dates.len())?;
+            let mut previous = valuation;
+            let mut excursion = 0.0;
+            for &date in &dates {
+                crate::cancellation::check()?;
+                let (drift, diffusion, discount) = transition(
+                    rate,
+                    dividend,
+                    sigma,
+                    previous.years_until(date),
+                    valuation.years_until(date),
+                )?;
+                excursion += drift.abs() + 20.0 * diffusion;
+                steps.push(PathStep {
+                    transition: [drift, diffusion, discount],
+                    event: None,
+                    observe_knock_in: note.daily_time(date, calendar),
+                });
+                previous = date;
+            }
+            let key = grid_key(&steps, true, false)?.0;
+            if self.0.len() == DAILY_GRID_SLOTS {
+                self.0.remove(0);
+            }
+            DailyGrid {
+                expiry,
+                calendar,
+                clock,
+                dates,
+                steps: Arc::new(steps),
+                key,
+                excursion,
+            }
+        };
+        self.0.push(grid);
+        let grid = self.0.last().expect("the daily grid was retained");
+        let mut sparse = Vec::with_capacity(events.len());
+        for record in events {
+            crate::cancellation::check()?;
+            let Ok(index) = grid.dates.binary_search(&record.time) else {
+                return Ok(None);
+            };
+            sparse.push((index, CashEvent::new(note, record, context.spot_price())));
+        }
+        Ok(Some(SparsePath {
+            steps: Arc::clone(&grid.steps),
+            events: SparseEvents {
+                key: grid.key,
+                events: sparse,
+            },
+            excursion: grid.excursion,
+        }))
+    }
+}
 
 pub(super) fn price_many<T: AutocallableTerms>(
     mut engine: MonteCarloAutocallableEngine,
@@ -28,10 +157,22 @@ pub(super) fn price_many<T: AutocallableTerms>(
     prices.resize(notes.len(), 0.0);
     let mut groups: Vec<Vec<IndexedPlan<'_, T>>> = Vec::new();
     let mut index_by_grid: HashMap<u64, Vec<usize>> = HashMap::new();
+    let mut daily_grids = DailyGrids::default();
+    let mut charged_grids = HashSet::new();
+    let budget = BATCH_BYTES
+        - if share_daily_grid {
+            DAILY_GRID_SLOTS * DAILY_GRID_BYTES
+        } else {
+            0
+        };
     let mut bytes = 0;
     for (index, note) in notes.iter().enumerate() {
         crate::cancellation::check()?;
-        let plan = match engine.prepare_sample::<_, PLAN_RESERVATION>(note, context) {
+        let plan = match engine.prepare_sample_on_grid::<_, PLAN_RESERVATION>(
+            note,
+            context,
+            share_daily_grid.then_some(&mut daily_grids),
+        ) {
             Ok(Sample::Fixed(price)) => {
                 prices[index] = price;
                 continue;
@@ -39,8 +180,9 @@ pub(super) fn price_many<T: AutocallableTerms>(
             Ok(Sample::Path(plan)) => plan,
             Err(Error::InvalidInput(_)) => {
                 // A schedule may fit only as a scalar request.
-                price_groups(&mut groups, engine.settings, &mut prices, share_daily_grid)?;
+                price_groups(&mut groups, engine, context, &mut prices, share_daily_grid)?;
                 index_by_grid.clear();
+                charged_grids.clear();
                 bytes = 0;
                 let (price, seed) = engine.price_with_seed(note, context)?;
                 engine.settings.seed = seed.or(engine.settings.seed);
@@ -52,14 +194,28 @@ pub(super) fn price_many<T: AutocallableTerms>(
         engine = engine.with_resolved_seed()?;
         let shared = share_daily_grid && plan.shared_daily_grid();
         let (key, plan_bytes) = key_and_workspace(&plan, engine.settings, shared)?;
-        if bytes > BATCH_BYTES.saturating_sub(plan_bytes) {
-            price_groups(&mut groups, engine.settings, &mut prices, share_daily_grid)?;
+        let grid = plan
+            .shared_events
+            .as_ref()
+            .map(|_| Arc::as_ptr(&plan.steps));
+        let grid_bytes = plan.steps.len() * (size_of::<PathStep>() + 4 * size_of::<usize>());
+        let mut charge = plan_bytes
+            + grid
+                .filter(|grid| !charged_grids.contains(grid))
+                .map_or(0, |_| grid_bytes);
+        if bytes > budget.saturating_sub(charge) {
+            price_groups(&mut groups, engine, context, &mut prices, share_daily_grid)?;
             index_by_grid.clear();
+            charged_grids.clear();
             bytes = 0;
+            charge = plan_bytes + grid.map_or(0, |_| grid_bytes);
         }
-        if plan_bytes > BATCH_BYTES {
-            prices[index] = scalar(&plan, engine.settings)?;
+        if charge > budget {
+            prices[index] = scalar(&plan, engine, context)?;
             continue;
+        }
+        if let Some(grid) = grid {
+            charged_grids.insert(grid);
         }
         let candidates = index_by_grid.entry(key).or_default();
         let mut matched = None;
@@ -80,25 +236,21 @@ pub(super) fn price_many<T: AutocallableTerms>(
             groups.len() - 1
         });
         groups[group].push((index, plan));
-        bytes += plan_bytes;
+        bytes += charge;
     }
-    price_groups(&mut groups, engine.settings, &mut prices, share_daily_grid)?;
+    price_groups(&mut groups, engine, context, &mut prices, share_daily_grid)?;
     Ok(prices)
 }
 
-fn key_and_workspace<T: AutocallableTerms>(
-    plan: &PathPlan<'_, T>,
-    settings: MonteCarloSettings,
-    shared: bool,
-) -> Result<(u64, usize)> {
+fn grid_key(steps: &[PathStep], shared: bool, bridge: bool) -> Result<(u64, usize)> {
     let mut key = DefaultHasher::new();
-    plan.steps.len().hash(&mut key);
+    steps.len().hash(&mut key);
     shared.hash(&mut key);
     if !shared {
-        plan.bridge.is_some().hash(&mut key);
+        bridge.hash(&mut key);
     }
     let mut events = 0;
-    for chunk in plan.steps.chunks(1024) {
+    for chunk in steps.chunks(1024) {
         crate::cancellation::check()?;
         for step in chunk {
             step.transition.map(f64::to_bits).hash(&mut key);
@@ -109,34 +261,63 @@ fn key_and_workspace<T: AutocallableTerms>(
             events += usize::from(step.event.is_some());
         }
     }
-    let schedule = std::mem::size_of_val(plan.steps.as_slice())
-        + plan.bridge.as_ref().map_or(0, |bridge| {
-            std::mem::size_of_val(bridge.daily.as_slice())
-                + bridge.intervals.capacity() * size_of::<super::BridgeInterval>()
-        });
+    Ok((key.finish(), events))
+}
+
+fn key_and_workspace<T: AutocallableTerms>(
+    plan: &PathPlan<'_, T>,
+    settings: MonteCarloSettings,
+    shared: bool,
+) -> Result<(u64, usize)> {
+    let (key, events) = if let Some(sparse) = &plan.shared_events {
+        (sparse.key, sparse.events.len())
+    } else {
+        grid_key(&plan.steps, shared, plan.bridge.is_some())?
+    };
+    let schedule = if let Some(sparse) = &plan.shared_events {
+        sparse.events.capacity() * size_of::<(usize, CashEvent)>()
+    } else {
+        std::mem::size_of_val(plan.steps.as_slice())
+            + plan.bridge.as_ref().map_or(0, |bridge| {
+                std::mem::size_of_val(bridge.daily.as_slice())
+                    + bridge.intervals.capacity() * size_of::<super::BridgeInterval>()
+            })
+    };
     let blocks = settings.sample_count().div_ceil(BLOCK_SIZE);
     let bytes = schedule
         + if shared {
-            events * size_of::<(usize, Event)>() + plan.steps.len() * size_of::<usize>()
+            // Buckets and packed events coexist while assembling the schedule.
+            6 * events * size_of::<(usize, Event)>()
+                + if plan.shared_events.is_none() {
+                    plan.steps.len() * 4 * size_of::<usize>()
+                } else {
+                    0
+                }
         } else {
             events * size_of::<Event>()
         }
         + blocks * (size_of::<Moments>() + size_of::<Lane>() + size_of::<usize>())
         + 2 * size_of::<IndexedPlan<'_, T>>();
-    Ok((key.finish(), bytes))
+    Ok((key, bytes))
 }
 
 fn scalar<T: AutocallableTerms>(
     plan: &PathPlan<'_, T>,
-    settings: MonteCarloSettings,
+    engine: MonteCarloAutocallableEngine,
+    context: &PricingContext,
 ) -> Result<f64> {
-    let ([moment], _, _) = plan.sample(settings, [plan], false, false)?;
+    if plan.shared_events.is_some() {
+        // A singleton uses the ordinary estimator, including its bridge if eligible.
+        return engine.price(plan.note, context);
+    }
+    let ([moment], _, _) = plan.sample(engine.settings, [plan], false, false)?;
     scaled_value(moment.scale, moment.mean, 0.0)
 }
 
 fn price_groups<T: AutocallableTerms>(
     groups: &mut Vec<Vec<IndexedPlan<'_, T>>>,
-    settings: MonteCarloSettings,
+    engine: MonteCarloAutocallableEngine,
+    context: &PricingContext,
     prices: &mut [f64],
     share_daily_grid: bool,
 ) -> Result<()> {
@@ -144,10 +325,10 @@ fn price_groups<T: AutocallableTerms>(
         crate::cancellation::check()?;
         let (index, base) = &group[0];
         if group.len() == 1 {
-            prices[*index] = scalar(base, settings)?;
+            prices[*index] = scalar(base, engine, context)?;
         } else {
             Portfolio::new(&group, share_daily_grid && base.shared_daily_grid())?
-                .price(settings, prices)?;
+                .price(engine.settings, prices)?;
         }
     }
     Ok(())
@@ -167,10 +348,13 @@ struct SharedEvents {
 
 impl<T: AutocallableTerms> PathPlan<'_, T> {
     fn shared_daily_grid(&self) -> bool {
-        self.steps.iter().any(|step| step.observe_knock_in)
+        self.shared_events.is_some() || self.steps.iter().any(|step| step.observe_knock_in)
     }
 
     fn same_daily_grid(&self, other: &Self) -> Result<bool> {
+        if Arc::ptr_eq(&self.steps, &other.steps) {
+            return Ok(true);
+        }
         if self.steps.len() != other.steps.len() {
             return Ok(false);
         }
@@ -192,14 +376,27 @@ impl SharedEvents {
         let steps = &notes[0].1.steps;
         let mut ends = Vec::with_capacity(steps.len());
         let mut events = Vec::new();
-        for (step, base) in steps.iter().enumerate() {
-            check_path_step(step)?;
-            for (lane, (_, note)) in notes.iter().enumerate() {
-                check_path_step(lane)?;
-                if let Some(event) = note.steps[step].event {
-                    events.push((lane, Event::new(event, base.transition[2])));
+        let mut buckets = Vec::with_capacity(steps.len());
+        buckets.resize_with(steps.len(), Vec::new);
+        for (lane, (_, note)) in notes.iter().enumerate() {
+            check_path_step(lane)?;
+            if let Some(sparse) = &note.shared_events {
+                for (i, &(step, event)) in sparse.events.iter().enumerate() {
+                    check_path_step(i)?;
+                    buckets[step].push((lane, Event::new(event, steps[step].transition[2])));
+                }
+            } else {
+                for (i, (step, bucket)) in note.steps.iter().zip(&mut buckets).enumerate() {
+                    check_path_step(i)?;
+                    if let Some(event) = step.event {
+                        bucket.push((lane, Event::new(event, step.transition[2])));
+                    }
                 }
             }
+        }
+        for (step, mut bucket) in buckets.into_iter().enumerate() {
+            check_path_step(step)?;
+            events.append(&mut bucket);
             ends.push(events.len());
         }
         Ok(Self { events, ends })
@@ -300,19 +497,23 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
         let simulate = |block, moments: &mut [Moments]| {
             let mut states = Vec::with_capacity(lanes);
             let mut live = Vec::with_capacity(lanes);
-            blocks.sample(block, base.bridge.is_some(), |draws, paired| {
-                skipped_sample_pair(draws, dimensions, paired, |path, _| {
-                    if let Some(events) = &self.shared {
-                        self.shared_payoffs(path, &mut states, events)?;
-                    } else {
-                        self.payoffs(path, &mut states, &mut live)?;
-                    }
-                    for (moment, lane) in moments.iter_mut().zip(&states) {
-                        moment.add(lane.cash, false);
-                    }
-                    Ok(())
-                })
-            })
+            blocks.sample(
+                block,
+                base.bridge.is_some() || self.shared.is_some(),
+                |draws, paired| {
+                    skipped_sample_pair(draws, dimensions, paired, |path, _| {
+                        if let Some(events) = &self.shared {
+                            self.shared_payoffs(path, &mut states, events)?;
+                        } else {
+                            self.payoffs(path, &mut states, &mut live)?;
+                        }
+                        for (moment, lane) in moments.iter_mut().zip(&states) {
+                            moment.add(lane.cash, false);
+                        }
+                        Ok(())
+                    })
+                },
+            )
         };
         BlockRunner::new(blocks.count(), settings.max_active_workers)?
             .run(&mut blocks_out, |block, moments| simulate(block, moments))?;

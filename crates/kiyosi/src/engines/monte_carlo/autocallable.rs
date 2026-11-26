@@ -1,10 +1,11 @@
-use std::ops::RangeInclusive;
+use std::{ops::RangeInclusive, sync::Arc};
 
 use super::{LazyPath, Moments, MonteCarloEstimate, MonteCarloSettings, SkippingPath};
 use super::{
     check_path_step, estimate, path_samples_lazy, path_samples_skipping, scaled_value, transition,
     unstable,
 };
+use crate::instruments::autocallable::ObservationEvent;
 use crate::instruments::autocallable::pricing::{
     Initial, fixed_value, future_event_times, initial, validate,
 };
@@ -312,6 +313,15 @@ impl MonteCarloAutocallableEngine {
         note: &'a AutocallableNote<T>,
         context: &PricingContext,
     ) -> Result<Sample<'a, T>> {
+        self.prepare_sample_on_grid::<T, N>(note, context, None)
+    }
+
+    fn prepare_sample_on_grid<'a, T: AutocallableTerms, const N: usize>(
+        &self,
+        note: &'a AutocallableNote<T>,
+        context: &PricingContext,
+        shared: Option<&mut portfolio::DailyGrids<'a>>,
+    ) -> Result<Sample<'a, T>> {
         let model = context.natural_bsm_parameters()?;
         let rate = model.flat_risk_free_rate()?;
         let dividend = model.flat_dividend_yield()?;
@@ -333,8 +343,6 @@ impl MonteCarloAutocallableEngine {
         let terms = note.view();
         let daily = terms.daily_knock_in() && !state.knocked_in && note.knock_in_affects_payoff();
         let valuation = context.valuation_time();
-        let dates = future_event_times(note, context, daily)?;
-        let mut previous = valuation;
         let sigma = model.volatility();
         let initial_spot = context.spot_price();
         let log_spot = initial_spot.ln();
@@ -343,6 +351,37 @@ impl MonteCarloAutocallableEngine {
         let high = f64::MAX.ln() - 1.0;
         let safe_returns = low.max(low - log_spot)..=high.min(high - log_spot);
         let knock_in = terms.knock_in.map(|ki| log_ratio(ki.level, initial_spot));
+        let expiry_knock_in = note.observes_knock_in(note.expiry_time());
+        if let Some(shared) = shared.filter(|_| daily) {
+            if let Some(portfolio::SparsePath {
+                steps,
+                events,
+                excursion,
+            }) = shared.prepare(note, context, self.settings, [rate, dividend, sigma])?
+            {
+                self.settings
+                    .validate_scheduled_workspace::<[PathStep; N]>(steps.len())?;
+                if safe_returns.contains(&excursion) && safe_returns.contains(&-excursion) {
+                    self.settings
+                        .validate_scheduled_workspace::<[(PathStep, BridgeInterval, [f64; 2]); N]>(
+                            steps.len(),
+                        )?;
+                }
+                return Ok(Sample::Path(PathPlan {
+                    note,
+                    state,
+                    steps,
+                    initial_spot,
+                    safe_returns,
+                    knock_in,
+                    expiry_knock_in,
+                    bridge: None,
+                    shared_events: Some(events),
+                }));
+            }
+        }
+        let dates = future_event_times(note, context, daily)?;
+        let mut previous = valuation;
         if N > 1 {
             self.settings
                 .validate_scheduled_workspace::<[PathStep; N]>(dates.len())?;
@@ -364,22 +403,7 @@ impl MonteCarloAutocallableEngine {
             if record.is_some() {
                 next += 1;
             }
-            let event = record.map(|record| {
-                let knock_out = record
-                    .has_knock_out()
-                    .then(|| log_ratio(record.knock_out_level(), initial_spot));
-                let coupon_barrier = record.coupon_barrier_level();
-                CashEvent {
-                    knock_out,
-                    coupon_barrier: log_ratio(coupon_barrier.unwrap_or(0.0), initial_spot),
-                    period_coupon: if coupon_barrier.is_some() {
-                        note.period_coupon()
-                    } else {
-                        0.0
-                    },
-                    redemption: knock_out.map_or(0.0, |_| note.knock_out_payment(record)),
-                }
-            });
+            let event = record.map(|record| CashEvent::new(note, record, initial_spot));
             steps.push(PathStep {
                 transition: [drift, diffusion, discount],
                 event,
@@ -400,12 +424,13 @@ impl MonteCarloAutocallableEngine {
         Ok(Sample::Path(PathPlan {
             note,
             state,
-            steps,
+            steps: Arc::new(steps),
             initial_spot,
             safe_returns,
             knock_in,
-            expiry_knock_in: note.observes_knock_in(note.expiry_time()),
+            expiry_knock_in,
             bridge,
+            shared_events: None,
         }))
     }
 }
@@ -418,12 +443,13 @@ enum Sample<'a, T: AutocallableTerms> {
 struct PathPlan<'a, T: AutocallableTerms> {
     note: &'a AutocallableNote<T>,
     state: Initial,
-    steps: Vec<PathStep>,
+    steps: Arc<Vec<PathStep>>,
     initial_spot: f64,
     safe_returns: RangeInclusive<f64>,
     knock_in: Option<f64>,
     expiry_knock_in: bool,
     bridge: Option<BridgePlan>,
+    shared_events: Option<portfolio::SparseEvents>,
 }
 
 #[derive(PartialEq)]
@@ -508,6 +534,27 @@ struct CashEvent {
 }
 
 impl CashEvent {
+    fn new<T: AutocallableTerms>(
+        note: &AutocallableNote<T>,
+        record: &ObservationEvent,
+        initial_spot: f64,
+    ) -> Self {
+        let knock_out = record
+            .has_knock_out()
+            .then(|| log_ratio(record.knock_out_level(), initial_spot));
+        let coupon_barrier = record.coupon_barrier_level();
+        Self {
+            knock_out,
+            coupon_barrier: log_ratio(coupon_barrier.unwrap_or(0.0), initial_spot),
+            period_coupon: if coupon_barrier.is_some() {
+                note.period_coupon()
+            } else {
+                0.0
+            },
+            redemption: knock_out.map_or(0.0, |_| note.knock_out_payment(record)),
+        }
+    }
+
     fn discounted_payment(self, coupon_due: bool, knocked_out: bool, discount: f64) -> Result<f64> {
         let coupon = if coupon_due { self.period_coupon } else { 0.0 };
         let amount = if knocked_out {

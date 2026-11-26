@@ -484,6 +484,27 @@ def test_shared_daily_grid_prices_staggered_cash_flows():
     assert actual == engine.replace(max_active_workers=2).price_many(
         notes, context, shared_grid=True
     )
+    off_clock = first.replace(
+        autocall_observations=autocallable_observations(
+            [datetime(2025, 2, 3, 1), datetime(2025, 3, 3), END],
+            [103, 108, 105],
+            knock_out_coupon_rates=[0.08] * 3,
+        )
+    )
+    for sampler in (engine, engine.replace(sampling="sobol", antithetic=True)):
+        dense = sampler.price_many((off_clock, off_clock), context, shared_grid=True)
+        sparse = sampler.price_many(notes, context, shared_grid=True)
+        mixed = (second, off_clock, first, off_clock, second)
+        assert sampler.price_many(mixed, context, shared_grid=True) == (
+            sparse[0],
+            dense[0],
+            sparse[1],
+            dense[1],
+            sparse[2],
+        )
+        assert sampler.price_many((first,), context, shared_grid=True) == (
+            sampler.price(first, context),
+        )
     oracle = QuadratureAutocallableEngine()
     for price, note in zip(actual, notes, strict=True):
         estimate = engine.price_with_statistics(note, context)
