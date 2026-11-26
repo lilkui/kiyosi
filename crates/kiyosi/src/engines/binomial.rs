@@ -143,6 +143,139 @@ impl CoxRossRubinsteinVanillaEngine {
         context.natural_bsm_parameters()?;
         <Self as PricingEngine<I>>::price(self, option, context)
     }
+
+    /// Prices an American put with an absolute tolerance for discarding lattice tails.
+    ///
+    /// The tolerance is in price units. The omitted paths' contribution is bounded
+    /// using their exit probability and the largest discounted exercise payoff.
+    /// The bound concerns lattice truncation. The usual discretization and
+    /// floating-point errors still apply. A wide band falls back to full rollback.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for a nonpositive or nonfinite tolerance,
+    /// out-of-life valuation, or excessive rollback work.
+    /// Returns [`Error::UnsupportedOperation`] for calls and nonconstant rate curves.
+    /// Propagates the numerical and cancellation errors of [`Self::price`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kiyosi::{AmericanOption, BinomialSettings, BlackScholesMertonParameters,
+    ///     CoxRossRubinsteinVanillaEngine, Date, OptionType, PricingContext};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let end = Date::new(2026, 1, 1)?.start_of_day();
+    /// let put = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    /// let market = PricingContext::new(
+    ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start)?;
+    /// let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 20_000 })?;
+    /// assert!(engine.price_with_rollback_tolerance(&put, &market, 1e-6)? > 0.0);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn price_with_rollback_tolerance(
+        &self,
+        option: &AmericanOption,
+        context: &PricingContext,
+        absolute_tolerance: f64,
+    ) -> Result<f64> {
+        crate::error::finite(absolute_tolerance, true, "absolute_tolerance")?;
+        flat_rates(context)?;
+        if option.option_type() != OptionType::Put {
+            return Err(Error::UnsupportedOperation(
+                "rollback tolerance requires an American put".into(),
+            ));
+        }
+        let dt = time_step(option, context, self.settings)?;
+        if dt == 0.0 || crate::engines::deterministic::enabled(context) {
+            return self.price(option, context);
+        }
+        let [spot, strike] = [context.spot_price(), option.strike()];
+        let steps = self.settings.step_count.unsigned_abs() as usize;
+        let (width, up, _, discount, p) = parameters(context, dt)?;
+        let value = banded_put(
+            steps,
+            [spot, strike, width, up, p],
+            discount,
+            absolute_tolerance,
+        )?;
+        value.map_or_else(|| self.price(option, context), Ok)
+    }
+}
+
+#[expect(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "The configured maximum of one million tree steps bounds the lattice indices."
+)]
+fn banded_put(
+    steps: usize,
+    [spot, strike, width, up, p]: [f64; 5],
+    discount: StepDiscount,
+    tolerance: f64,
+) -> Result<Option<f64>> {
+    // The maximal Hoeffding bound for either side of the centered walk is
+    // exp(-2*r²/steps). An omitted payoff is at most strike, discounted to
+    // the worst valuation factor over all exercise dates.
+    let log_bound =
+        std::f64::consts::LN_2 + strike.ln() + steps as f64 * discount.log_factor.max(0.0)
+            - tolerance.ln();
+    let radius = (0.5 * steps as f64 * log_bound.max(0.0)).sqrt().ceil() + 2.0;
+    if !radius.is_finite() || 2.0 * radius >= steps as f64 {
+        return Ok(None);
+    }
+    let radius = radius as usize;
+    let capacity = 2 * radius + 2;
+    if steps.saturating_mul(capacity) > 128_000_000 {
+        return Ok(None);
+    }
+    let range = |level: usize| {
+        let center = (p * level as f64) as usize;
+        center.saturating_sub(radius)..(center + radius + 1).min(level + 1)
+    };
+    let mut later = range(steps);
+    let mut values = vec![0.0; capacity];
+    let mut next = vec![0.0; capacity];
+    let asset =
+        |level: usize, lower: usize| scaled(spot, (2.0 * lower as f64 - level as f64) * width);
+    let step_up = up * up;
+    let mut node_spot = asset(steps, later.start);
+    if !step_up.is_normal() || !node_spot.is_normal() {
+        return Ok(None);
+    }
+    for value in &mut values[..later.len()] {
+        *value = (strike - node_spot).max(0.0);
+        node_spot *= step_up;
+    }
+    for level in (0..steps).rev() {
+        crate::cancellation::check()?;
+        let current = range(level);
+        node_spot = asset(level, current.start);
+        if !node_spot.is_normal() {
+            return Ok(None);
+        }
+        let child = |node| {
+            if later.contains(&node) {
+                values[node - later.start]
+            } else {
+                0.0
+            }
+        };
+        for (node, value) in current.clone().zip(&mut next) {
+            *value = discount
+                .rollback(child(node), child(node + 1), p)
+                .max((strike - node_spot).max(0.0));
+            if !value.is_finite() {
+                return Err(unstable());
+            }
+            node_spot *= step_up;
+        }
+        std::mem::swap(&mut values, &mut next);
+        later = current;
+    }
+    Ok(Some(values[0]))
 }
 
 fn time_step(

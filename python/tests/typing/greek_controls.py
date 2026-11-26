@@ -5,6 +5,7 @@ from typing import assert_type
 
 from kiyosi import PricingResult
 from kiyosi.instruments import (
+    AmericanOption,
     BarrierOption,
     CashOrNothingOption,
     DoubleBarrierOption,
@@ -40,6 +41,15 @@ def native_barrier_controls(
             double, context, "delta", spot_shift=None
         ),
         PricingResult,
+    )
+
+
+def bounded_lattice_price(put: AmericanOption, context: PricingContext) -> None:
+    assert_type(
+        CoxRossRubinsteinVanillaEngine(step_count=20_000).price_with_rollback_tolerance(
+            put, context, absolute_tolerance=1e-6
+        ),
+        float,
     )
 
 

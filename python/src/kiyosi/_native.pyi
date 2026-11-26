@@ -2544,6 +2544,38 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
 
     def __eq__(self, other: object) -> bool: ...
     def __init__(self, *, step_count: SupportsIndex = ...) -> None: ...
+    def price_with_rollback_tolerance(
+        self,
+        instrument: AmericanOption,
+        context: PricingContext,
+        *,
+        absolute_tolerance: _Real,
+    ) -> float:
+        """Price an American put with a bound on the discarded lattice tails.
+
+        Parameters
+        ----------
+        instrument : AmericanOption
+            American put to price.
+        context : PricingContext
+            Market data with flat rates.
+        absolute_tolerance : float
+            Positive truncation tolerance in price units. Grid discretization
+            and floating-point errors still apply.
+
+        Returns
+        -------
+        float
+            Price calculated on the bounded tree, or on the full tree when cheaper.
+
+        Raises
+        ------
+        InvalidInputError
+            If the tolerance or valuation is invalid, or rollback work exceeds the limit.
+        UnsupportedOperationError
+            If the American option is a call or the rate curves are nonconstant.
+        """
+
     def replace(self, *, step_count: SupportsIndex | EllipsisType = ...) -> Self:
         """Return a validated copy with replacement fields.
 

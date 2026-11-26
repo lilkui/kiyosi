@@ -59,6 +59,34 @@ VANILLA = (EuropeanOption, AmericanOption)
 DIGITAL = (CashOrNothingOption, AssetOrNothingOption)
 
 
+def test_banded_american_put_preserves_price_within_the_truncation_budget():
+    put = AmericanOption(
+        option_type="put", strike=100, effective_time=START, expiry_time=END
+    )
+    snapshot = market(spot=100, rate=0.05, dividend=0.02, sigma=0.2)
+    engine = CoxRossRubinsteinVanillaEngine(step_count=4800)
+    exact = engine.price(put, snapshot)
+    for tolerance in (0.1, 1e-6):
+        bounded = engine.price_with_rollback_tolerance(
+            put, snapshot, absolute_tolerance=tolerance
+        )
+        assert exact - tolerance - 1e-9 <= bounded <= exact + 1e-9
+    fine = engine.replace(step_count=20_000)
+    with pytest.raises(InvalidInputError):
+        fine.price(put, snapshot)
+    assert fine.price_with_rollback_tolerance(
+        put, snapshot, absolute_tolerance=1e-6
+    ) == pytest.approx(engine.replace(step_count=10_000).price(put, snapshot), abs=1e-4)
+    with pytest.raises(InvalidInputError):
+        fine.price_with_rollback_tolerance(put, snapshot, absolute_tolerance=0)
+    with pytest.raises(TypeError):
+        fine.price_with_rollback_tolerance(put, snapshot, absolute_tolerance=True)
+    with pytest.raises(UnsupportedOperationError):
+        fine.price_with_rollback_tolerance(
+            put.replace(option_type="call"), snapshot, absolute_tolerance=1e-6
+        )
+
+
 @pytest.mark.parametrize(
     ("rate", "amount"), [(744.0, 1e300), (800.0, 1e300), (-800.0, 1e-300)]
 )

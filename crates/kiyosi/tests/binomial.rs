@@ -1,6 +1,37 @@
 use kiyosi::*;
 
 #[test]
+fn banded_american_put_preserves_price_within_the_truncation_budget() -> Result<()> {
+    let (start, end) = dates();
+    let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    for (spot, rate, dividend) in [(100.0, 0.05, 0.02), (120.0, -0.03, 0.01), (75.0, 0.08, 0.0)] {
+        let snapshot = market(spot, rate, dividend, 0.2);
+        let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 4800 })?;
+        let exact = engine.price(&option, &snapshot)?;
+        for tolerance in [0.1, 1e-6] {
+            let bounded = engine.price_with_rollback_tolerance(&option, &snapshot, tolerance)?;
+            assert!(bounded <= exact + 1e-9);
+            assert!(exact - bounded <= tolerance + 1e-9);
+        }
+    }
+    let snapshot = market(100.0, 0.05, 0.02, 0.2);
+    let fine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 20_000 })?;
+    assert!(matches!(
+        fine.price(&option, &snapshot),
+        Err(Error::InvalidInput(_))
+    ));
+    let actual = fine.price_with_rollback_tolerance(&option, &snapshot, 1e-6)?;
+    let reference = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 10_000 })?
+        .price(&option, &snapshot)?;
+    assert!((actual - reference).abs() < 1e-4);
+    assert!(matches!(
+        fine.price_with_rollback_tolerance(&option, &snapshot, 0.0),
+        Err(Error::InvalidInput(_))
+    ));
+    Ok(())
+}
+
+#[test]
 fn tree_discounts_preserve_representable_prices_after_factor_rounding() -> Result<()> {
     let (start, end) = dates();
     let settings = BinomialSettings { step_count: 1 };
