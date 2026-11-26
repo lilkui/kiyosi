@@ -176,6 +176,8 @@ binomial_engine!(
     ///
     /// Notes
     /// -----
+    /// Reflected trees and sparse schedules can exceed 16,000 steps when
+    /// their rollback fits the work budget.
     /// Provides node delta/gamma for its product family; other Greeks are absent.
     ///
     CoxRossRubinsteinBarrierEngine,

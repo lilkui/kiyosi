@@ -21,6 +21,30 @@ fn barrier_rollback_budget_preserves_resolved_settlement() -> Result<()> {
 }
 
 #[test]
+fn sparse_barrier_rolls_back_a_tree_above_the_full_rollback_limit() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_days(365)?;
+    let option = BarrierOption::new(BarrierOptionTerms {
+        calendar: TradingCalendar::all_days(),
+        observation_times: Some(vec![start.add_days(73)?, end]),
+        rebate: 2.0,
+        ..BarrierOptionTerms::new(
+            OptionType::Call,
+            100.0,
+            start,
+            end,
+            80.0,
+            BarrierType::DownAndOut,
+        )
+    })?;
+    let context = market(start, 100.0, 0.05, 0.2);
+    let tree = CoxRossRubinsteinBarrierEngine::new(BinomialSettings { step_count: 20_000 })?;
+    let reference = QuadratureBarrierEngine::default().price(&option, &context)?;
+    assert!((tree.price(&option, &context)? - reference).abs() < 0.005);
+    Ok(())
+}
+
+#[test]
 fn reflected_tree_matches_rollback_with_every_node_observed() -> Result<()> {
     const HOUR: i64 = 3_600_000_000;
     let start = Date::new(2025, 1, 1)?.start_of_day();

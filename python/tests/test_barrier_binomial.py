@@ -81,6 +81,19 @@ def test_barrier_rollback_budget_preserves_resolved_settlement():
     assert engine.price(contract, market(spot=120, volatility=10)) == 2.0
 
 
+def test_sparse_barrier_rolls_back_a_tree_above_the_full_rollback_limit():
+    expiry = START + timedelta(days=365)
+    contract = option(
+        expiry_time=expiry,
+        observation_times=(START + timedelta(days=73), expiry),
+        rebate=2,
+    )
+    context = market(rate=0.05)
+    tree = pricing.CoxRossRubinsteinBarrierEngine(step_count=20_000)
+    reference = pricing.QuadratureBarrierEngine().price(contract, context)
+    assert tree.price(contract, context) == pytest.approx(reference, rel=0, abs=0.005)
+
+
 def test_crr_requires_exact_future_observation_alignment():
     contract = option(
         observation_times=[START + timedelta(days=91), END],

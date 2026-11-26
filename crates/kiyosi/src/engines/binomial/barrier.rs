@@ -5,6 +5,9 @@ use super::{
 };
 use crate::{AnalyticEuropeanEngine, BarrierOption, RebateTiming};
 use rustfft::{FftPlanner, num_complex::Complex64};
+use std::ops::Range;
+
+const GAP_ROLLBACK_BUDGET: usize = 128_000_000;
 
 /// Prices single-barrier vanilla contracts with a flat-rate CRR tree.
 ///
@@ -48,7 +51,8 @@ impl CoxRossRubinsteinBarrierEngine {
     ///
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves or unsupported
     /// fixings. Returns [`Error::InvalidInput`] outside life, for impossible history,
-    /// outside required curve coverage or above 16,000 steps when rollback is needed.
+    /// outside required curve coverage, above 16,000 steps when full rollback is needed,
+    /// or when scheduled rollback exceeds its work budget.
     /// Unstable tree parameters, nodes or results return [`Error::ComputationFailure`].
     ///
     /// # Examples
@@ -158,7 +162,8 @@ impl CoxRossRubinsteinBarrierEngine {
         let terminal_only = option.observation_mode() == crate::ObservationMode::Scheduled
             && future.iter().all(|&at| at == option.expiry_time());
         let continuous = option.observation_mode() == crate::ObservationMode::Continuous;
-        if !terminal_only && !continuous {
+        let sparse = !continuous && future.len() <= steps / 128;
+        if !terminal_only && !continuous && !sparse {
             self.settings.validate_rollback()?;
         }
         let duration = time.micros_until(option.expiry_time());
@@ -215,7 +220,9 @@ impl CoxRossRubinsteinBarrierEngine {
             && (1e-100..=1e100).contains(&spot)
             && (1e-100..=1e100).contains(&option.strike())
             && option.rebate() <= 1e100;
-        if continuous && !reflection {
+        let scheduled_gaps =
+            sparse && (discount.log_factor * f64::from(self.settings.step_count)).abs() < 100.0;
+        if !terminal_only && !reflection && !scheduled_gaps {
             self.settings.validate_rollback()?;
         }
         let mut values = vec![0.0; steps + 1];
@@ -310,30 +317,84 @@ impl CoxRossRubinsteinBarrierEngine {
                 }
             }
             values[0] = price;
-        } else if !continuous
-            && future.len() <= steps / 128
-            && (discount.log_factor * f64::from(self.settings.step_count)).abs() < 100.0
-        {
+        } else if scheduled_gaps {
             let mut planner = FftPlanner::new();
+            let mut work = GAP_ROLLBACK_BUDGET * (1 + usize::from(!vanilla.is_empty()));
             let mut upper_level = steps;
             for level in (0..steps).rev().filter(|&i| i <= 2 || observed[i]) {
                 crate::cancellation::check()?;
                 let count = level + 1;
-                rollback_gap(
-                    &mut values[..=upper_level],
-                    count,
-                    p,
-                    discount,
-                    &mut planner,
-                )?;
-                if !vanilla.is_empty() {
+                let gap = upper_level - level;
+                if upper_level == steps
+                    && gap >= 128
+                    && count > 3
+                    && (1e-6..=1.0 - 1e-6).contains(&p)
+                    && steps as f64 * width + spot.ln().abs() < 600.0
+                {
+                    let terminal_asset =
+                        |node: usize| scaled(spot, (2.0 * node as f64 - steps as f64) * width);
+                    let strike = option.strike();
+                    let strike_node = barrier_boundary(steps + 1, |node| {
+                        if sign > 0.0 {
+                            terminal_asset(node) <= strike
+                        } else {
+                            terminal_asset(node) < strike
+                        }
+                    });
+                    let paying = if sign > 0.0 {
+                        strike_node..steps + 1
+                    } else {
+                        0..strike_node
+                    };
+                    let boundary = if observes_expiry {
+                        barrier_boundary(steps + 1, |node| breached(steps, node) != upper)
+                    } else if upper {
+                        steps + 1
+                    } else {
+                        0
+                    };
+                    let (live, rebate) = if upper == knock_in {
+                        (boundary..steps + 1, 0..boundary)
+                    } else {
+                        (0..boundary, boundary..steps + 1)
+                    };
+                    let terminal = TerminalGap::new(gap, p, width, &mut work)?;
+                    terminal.rollback(
+                        &mut values,
+                        [
+                            paying.start.max(live.start)..paying.end.min(live.end),
+                            rebate,
+                        ],
+                        [spot, strike, sign, option.rebate(), discount.log_factor],
+                        &mut work,
+                    )?;
+                    if !vanilla.is_empty() {
+                        terminal.rollback(
+                            &mut vanilla,
+                            [paying, 0..0],
+                            [spot, strike, sign, 0.0, discount.log_factor],
+                            &mut work,
+                        )?;
+                    }
+                } else {
                     rollback_gap(
-                        &mut vanilla[..=upper_level],
+                        &mut values[..=upper_level],
                         count,
                         p,
                         discount,
                         &mut planner,
+                        &mut work,
                     )?;
+                    if !vanilla.is_empty() {
+                        rollback_gap(
+                            &mut vanilla[..=upper_level],
+                            count,
+                            p,
+                            discount,
+                            &mut planner,
+                            &mut work,
+                        )?;
+                    }
                 }
                 if observed[level] {
                     let boundary = barrier_boundary(count, |node| breached(level, node) != upper);
@@ -547,6 +608,162 @@ fn barrier_boundary(count: usize, below: impl Fn(usize) -> bool) -> usize {
     low
 }
 
+fn charge_gap_work(work: &mut usize, visits: usize) -> Result<()> {
+    *work = work.checked_sub(visits).ok_or_else(|| {
+        Error::InvalidInput("scheduled binomial rollback exceeds its work budget".into())
+    })?;
+    Ok(())
+}
+
+struct BinomialTails {
+    prefix: Vec<f64>,
+    suffix: Vec<f64>,
+}
+
+impl BinomialTails {
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "Bounded tree counts fit exactly in f64."
+    )]
+    fn new(weights: &[f64], width: f64) -> Result<Self> {
+        let len = weights.len();
+        let mut prefix = vec![f64::NEG_INFINITY; len + 1];
+        let mut suffix = vec![f64::NEG_INFINITY; len + 1];
+        let add_logs = |a: f64, b: f64| a.max(b) + (a.min(b) - a.max(b)).exp().ln_1p();
+        let term = |i: usize| weights[i] + (2.0 * i as f64 - (len - 1) as f64) * width;
+        for i in 0..len {
+            if i % 256 == 0 {
+                crate::cancellation::check()?;
+            }
+            prefix[i + 1] = add_logs(prefix[i], term(i));
+            let j = len - 1 - i;
+            suffix[j] = add_logs(suffix[j + 1], term(j));
+        }
+        Ok(Self { prefix, suffix })
+    }
+
+    fn log_mass(&self, range: Range<usize>) -> f64 {
+        if range.is_empty() {
+            return f64::NEG_INFINITY;
+        }
+        let prefix = [self.prefix[range.end], self.prefix[range.start]];
+        let suffix = [self.suffix[range.start], self.suffix[range.end]];
+        // Take the better-conditioned difference. Far tails remain in log space.
+        let [high, low] = if prefix[0] - prefix[1] >= suffix[0] - suffix[1] {
+            prefix
+        } else {
+            suffix
+        };
+        crate::numerics::log_difference(high, low)
+    }
+}
+
+struct TerminalGap {
+    cash: BinomialTails,
+    asset: BinomialTails,
+    log_weights: Vec<f64>,
+    log_normalization: f64,
+    width: f64,
+}
+
+impl TerminalGap {
+    fn new(gap: usize, p: f64, width: f64, work: &mut usize) -> Result<Self> {
+        charge_gap_work(work, 7 * (gap + 1))?;
+        let (log_weights, normalization) = super::binomial_log_weights(gap, p)?;
+        Ok(Self {
+            cash: BinomialTails::new(&log_weights, 0.0)?,
+            asset: BinomialTails::new(&log_weights, width)?,
+            log_weights,
+            log_normalization: normalization.ln(),
+            width,
+        })
+    }
+
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "Bounded tree counts fit exactly in f64."
+    )]
+    fn rollback(
+        &self,
+        values: &mut [f64],
+        [paying, rebate_nodes]: [Range<usize>; 2],
+        [spot, strike, sign, rebate, log_discount]: [f64; 5],
+        work: &mut usize,
+    ) -> Result<()> {
+        let dimensions = self.log_weights.len();
+        let level = values.len() - dimensions;
+        charge_gap_work(work, level + 1)?;
+        let weight_scale = (dimensions - 1) as f64 * log_discount - self.log_normalization;
+        let log_spot = spot.ln();
+        let log_strike = strike.ln();
+        let log_rebate = rebate.ln();
+        for i in 0..=level {
+            if i % 256 == 0 {
+                crate::cancellation::check()?;
+            }
+            let relative = |range: &Range<usize>| {
+                range.start.saturating_sub(i).min(dimensions)
+                    ..range.end.saturating_sub(i).min(dimensions)
+            };
+            let paid = relative(&paying);
+            let payoff = if paid.is_empty() {
+                0.0
+            } else {
+                let cash = log_strike + self.cash.log_mass(paid.clone()) + weight_scale;
+                let asset = log_spot
+                    + (2.0 * i as f64 - level as f64) * self.width
+                    + self.asset.log_mass(paid.clone())
+                    + weight_scale;
+                let [high, low] = if sign > 0.0 {
+                    [asset, cash]
+                } else {
+                    [cash, asset]
+                };
+                if high - low > 1e-4 {
+                    crate::numerics::log_difference(high, low).exp()
+                } else {
+                    direct_gap_sum(&values[i..], &self.log_weights, paid, weight_scale, work)?
+                }
+            };
+            values[i] = payoff
+                + (log_rebate + self.cash.log_mass(relative(&rebate_nodes)) + weight_scale).exp();
+            if !values[i].is_finite() {
+                return Err(unstable());
+            }
+        }
+        Ok(())
+    }
+}
+
+fn direct_gap_sum(
+    values: &[f64],
+    log_weights: &[f64],
+    range: Range<usize>,
+    weight_scale: f64,
+    work: &mut usize,
+) -> Result<f64> {
+    charge_gap_work(work, 2 * range.len())?;
+    let term = |i: usize| values[i].ln() + log_weights[i];
+    let mut maximum = f64::NEG_INFINITY;
+    for i in range.clone() {
+        if i % 1024 == 0 {
+            crate::cancellation::check()?;
+        }
+        maximum = maximum.max(term(i));
+    }
+    if maximum == f64::NEG_INFINITY {
+        return Ok(0.0);
+    }
+    let mut sum = 0.0;
+    for i in range {
+        if i % 1024 == 0 {
+            crate::cancellation::check()?;
+        }
+        sum += (term(i) - maximum).exp();
+    }
+    Ok((maximum + sum.ln() + weight_scale).exp())
+}
+
 #[expect(
     clippy::cast_precision_loss,
     reason = "Bounded rollback indices fit exactly in f64."
@@ -557,9 +774,11 @@ fn rollback_gap(
     probability: f64,
     discount: super::StepDiscount,
     planner: &mut FftPlanner<f64>,
+    work: &mut usize,
 ) -> Result<()> {
     let gap = values.len() - count;
     if gap < 128 {
+        charge_gap_work(work, gap.saturating_mul(values.len() + count - 1) / 2)?;
         for end in (count..values.len()).rev() {
             crate::cancellation::check()?;
             rollback_level(&mut values[..=end], &mut [], 0.0, 0..end, |lower, upper| {
@@ -570,6 +789,7 @@ fn rollback_gap(
     }
     let log_discount = gap as f64 * discount.log_factor;
     if count <= 3 {
+        charge_gap_work(work, 3 * count * (gap + 1))?;
         let mut next = [0.0; 3];
         for (i, value) in next[..count].iter_mut().enumerate() {
             *value = european_levels(&values[i..=i + gap], probability, discount.log_factor, 0)?.0;
@@ -578,6 +798,7 @@ fn rollback_gap(
         return Ok(());
     }
     if probability <= 0.0 || probability >= 1.0 {
+        charge_gap_work(work, count)?;
         let offset = if probability >= 1.0 { gap } else { 0 };
         for i in 0..count {
             values[i] = scaled(values[i + offset], log_discount);
@@ -585,12 +806,13 @@ fn rollback_gap(
         return Ok(());
     }
 
-    let (weights, normalization) = super::binomial_log_weights(gap, probability)?;
     let scale = values.iter().copied().fold(0.0, f64::max);
     if scale == 0.0 {
         return Ok(());
     }
     let size = (values.len() + gap).next_power_of_two();
+    charge_gap_work(work, 3 * size * size.ilog2() as usize)?;
+    let (weights, normalization) = super::binomial_log_weights(gap, probability)?;
     let mut payoff = vec![Complex64::default(); size];
     let mut kernel = vec![Complex64::default(); size];
     for (slot, &value) in payoff.iter_mut().zip(values.iter()) {
@@ -634,18 +856,13 @@ fn rollback_gap(
         } else {
             let start = first.saturating_sub(i);
             let end = (last - i).min(gap);
-            let log_term = |j: usize| values[i + j].ln() + weights[j];
-            let maximum = (start..=end)
-                .map(log_term)
-                .fold(f64::NEG_INFINITY, f64::max);
-            if maximum.is_finite() {
-                let total = (start..=end)
-                    .map(|j| (log_term(j) - maximum).exp())
-                    .sum::<f64>();
-                (maximum + total.ln() + log_discount - log_normalization).exp()
-            } else {
-                0.0
-            }
+            direct_gap_sum(
+                &values[i..],
+                &weights,
+                start..end + 1,
+                log_discount - log_normalization,
+                work,
+            )?
         };
         if !values[i].is_finite() {
             return Err(unstable());
@@ -736,6 +953,67 @@ mod tests {
     use super::*;
 
     #[test]
+    fn terminal_gap_tails_match_full_rollback_for_narrow_and_one_sided_payoffs() -> Result<()> {
+        let steps = 512;
+        let level = 128;
+        let gap = steps - level;
+        let probability = 0.42;
+        let width = 0.025;
+        let spot = 100.0;
+        let strike = 101.0;
+        let rebate = 2.0;
+        let discount = super::super::StepDiscount {
+            factor: (-0.001_f64).exp(),
+            log_factor: -0.001,
+        };
+        let mut work = GAP_ROLLBACK_BUDGET;
+        let terminal = TerminalGap::new(gap, probability, width, &mut work)?;
+        for (sign, paying, rebate_nodes) in [
+            (1.0, 257..330, 330..513),
+            (-1.0, 160..257, 0..160),
+            (1.0, 257..258, 0..0),
+            (-1.0, 0..257, 0..0),
+        ] {
+            let mut values: Vec<_> = (0..=steps)
+                .map(|i| {
+                    if paying.contains(&i) {
+                        let spot =
+                            scaled(spot, f64::from(2 * i32::try_from(i).unwrap() - 512) * width);
+                        (sign * (spot - strike)).max(0.0)
+                    } else if rebate_nodes.contains(&i) {
+                        rebate
+                    } else {
+                        0.0
+                    }
+                })
+                .collect();
+            let mut reference = values.clone();
+            for end in (level + 1..=steps).rev() {
+                rollback_level(
+                    &mut reference[..=end],
+                    &mut [],
+                    0.0,
+                    0..end,
+                    |lower, upper| discount.rollback(lower, upper, probability),
+                )?;
+            }
+            terminal.rollback(
+                &mut values,
+                [paying, rebate_nodes],
+                [spot, strike, sign, rebate, discount.log_factor],
+                &mut work,
+            )?;
+            for (i, (&value, &want)) in values[..=level].iter().zip(&reference).enumerate() {
+                assert!(
+                    (value - want).abs() <= 1e-9 * want,
+                    "node {i}: {value} != {want}"
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
     fn scheduled_gap_convolution_matches_single_step_rollback_in_the_tails() -> Result<()> {
         let mut prices = vec![0.0; 513];
         prices[250..300].fill(2.0);
@@ -755,12 +1033,14 @@ mod tests {
                 |lower, upper| discount.rollback(lower, upper, probability),
             )?;
         }
+        let mut work = GAP_ROLLBACK_BUDGET;
         rollback_gap(
             &mut prices,
             257,
             probability,
             discount,
             &mut FftPlanner::new(),
+            &mut work,
         )?;
         for (i, (&value, &expected)) in prices[..257].iter().zip(&reference).enumerate() {
             assert!(
