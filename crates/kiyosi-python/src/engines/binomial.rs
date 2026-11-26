@@ -29,9 +29,19 @@ macro_rules! with_vanilla {
 }
 pub(crate) use with_vanilla;
 
-fn short_pricing(step_count: i32, context: &kiyosi::PricingContext) -> ShortPricing {
+fn short_pricing(
+    step_count: i32,
+    terminal: bool,
+    context: &kiyosi::PricingContext,
+) -> ShortPricing {
+    // Terminal payoffs use a linear-work fallback at 256 steps and above.
+    let bounded = if terminal {
+        step_count <= 64 || (256..=1024).contains(&step_count)
+    } else {
+        step_count <= 32
+    };
     let model = context.model_parameters();
-    if step_count <= 32
+    if bounded
         && model.risk_free_curve().nodes().is_empty()
         && model.dividend_curve().nodes().is_empty()
     {
@@ -43,11 +53,18 @@ fn short_pricing(step_count: i32, context: &kiyosi::PricingContext) -> ShortPric
 
 macro_rules! binomial_engine {
     // Barrier contracts can scan a monitoring schedule even on a short tree.
-    (@short CoxRossRubinsteinBarrierEngine, $engine:expr, $context:expr) => {
+    (@short CoxRossRubinsteinBarrierEngine, $engine:expr, $context:expr, $instrument:expr) => {
         ShortPricing::Never
     };
-    (@short $name:ident, $engine:expr, $context:expr) => {
-        short_pricing($engine.settings().step_count, $context)
+    (@short CoxRossRubinsteinVanillaEngine, $engine:expr, $context:expr, $instrument:expr) => {
+        short_pricing(
+            $engine.settings().step_count,
+            matches!($instrument, VanillaInstrument::European(_)),
+            $context,
+        )
+    };
+    (@short CoxRossRubinsteinDigitalEngine, $engine:expr, $context:expr, $instrument:expr) => {
+        short_pricing($engine.settings().step_count, true, $context)
     };
     ($(#[$doc:meta])* $name:ident, $instrument:ty, $with:path) => {
         binomial_engine!(
@@ -115,7 +132,7 @@ macro_rules! binomial_engine {
                 context: &crate::market::PricingContext,
                 request: impl PricingRequest<R>,
             ) -> PyResult<R> {
-                let short = binomial_engine!(@short $name, self.0, &context.0);
+                let short = binomial_engine!(@short $name, self.0, &context.0, &instrument);
                 $with!(&instrument, option, crate::engines::evaluate(
                     py, &self.0, option, context, request, short,
                 ))
@@ -356,13 +373,23 @@ mod tests {
         let start = kiyosi::Date::new(2025, 1, 1)?.start_of_day();
         let flat = kiyosi::BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?;
         let context = kiyosi::PricingContext::new(flat, 100.0, start)?;
-        assert!(short_pricing(32, &context).allows_inline(ScalarRequest::Price, &context));
-        assert!(!short_pricing(33, &context).allows_inline(ScalarRequest::Price, &context));
+        let inline = |steps, terminal| {
+            short_pricing(steps, terminal, &context).allows_inline(ScalarRequest::Price, &context)
+        };
+        for steps in [33, 64, 256, 1024] {
+            assert!(inline(steps, true), "{steps} terminal steps");
+        }
+        for steps in [65, 255, 1025] {
+            assert!(!inline(steps, true), "{steps} terminal steps");
+        }
+        assert!(inline(32, false));
+        assert!(!inline(33, false));
+        assert!(!inline(256, false));
 
         let curve = kiyosi::RateTermStructure::new(start, vec![start.add_days(365)?], vec![0.95])?;
         let model = kiyosi::BlackScholesMertonParameters::new(curve, 0.02, 0.2)?;
         let context = kiyosi::PricingContext::new(model, 100.0, start)?;
-        assert!(!short_pricing(3, &context).allows_inline(ScalarRequest::Price, &context));
+        assert!(!short_pricing(3, true, &context).allows_inline(ScalarRequest::Price, &context));
         Ok(())
     }
 }
