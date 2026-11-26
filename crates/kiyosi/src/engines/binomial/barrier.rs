@@ -209,8 +209,9 @@ impl CoxRossRubinsteinBarrierEngine {
                 distance <= 0.0
             }
         };
+        // Use the spot-Greek crossover so the center price is independent of the request.
         let reflection = continuous
-            && steps >= 1024
+            && steps >= 768
             && (1e-6..=1.0 - 1e-6).contains(&p)
             && (discount.log_factor * f64::from(self.settings.step_count)).abs() < 100.0
             && width * f64::from(self.settings.step_count) < 100.0

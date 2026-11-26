@@ -48,37 +48,43 @@ fn sparse_barrier_rolls_back_a_tree_above_the_full_rollback_limit() -> Result<()
 fn reflected_tree_matches_rollback_with_every_node_observed() -> Result<()> {
     const HOUR: i64 = 3_600_000_000;
     let start = Date::new(2025, 1, 1)?.start_of_day();
-    let end = start.add_micros(1024 * HOUR)?;
-    let dates = (0..=1024)
-        .map(|hour| start.add_micros(hour * HOUR))
-        .collect::<Result<Vec<_>>>()?;
-    let engine = CoxRossRubinsteinBarrierEngine::new(BinomialSettings { step_count: 1024 })?;
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
-    for kind in KINDS {
-        for timing in [RebateTiming::AtExpiry, RebateTiming::AtHit] {
-            if matches!(kind, BarrierType::UpAndIn | BarrierType::DownAndIn)
-                && timing == RebateTiming::AtHit
-            {
-                continue;
-            }
-            let input = BarrierOptionTerms {
-                expiry_time: end,
-                calendar: TradingCalendar::all_days(),
-                rebate: 7.0,
-                rebate_timing: timing,
-                ..terms(kind, 10)
-            };
-            let continuous = BarrierOption::new(input.clone())?;
-            let scheduled = BarrierOption::new(BarrierOptionTerms {
-                observation_times: Some(dates.clone()),
-                ..input
-            })?;
-            let context = market(start, 100.0, -0.02, 0.2);
-            let fast = engine.price_with_greeks(&continuous, &context, request)?;
-            let reference = engine.price_with_greeks(&scheduled, &context, request)?;
-            assert!((fast.price() - reference.price()).abs() < 1e-10);
-            for greek in [Greek::Delta, Greek::Gamma] {
-                assert!((fast.require(greek)? - reference.require(greek)?).abs() < 1e-9);
+    let context = market(start, 100.0, -0.02, 0.2);
+    for step_count in [767, 768, 1024] {
+        let end = start.add_micros(i64::from(step_count) * HOUR)?;
+        let dates = (0..=i64::from(step_count))
+            .map(|hour| start.add_micros(hour * HOUR))
+            .collect::<Result<Vec<_>>>()?;
+        let engine = CoxRossRubinsteinBarrierEngine::new(BinomialSettings { step_count })?;
+        for kind in KINDS {
+            for timing in [RebateTiming::AtExpiry, RebateTiming::AtHit] {
+                if matches!(kind, BarrierType::UpAndIn | BarrierType::DownAndIn)
+                    && timing == RebateTiming::AtHit
+                {
+                    continue;
+                }
+                let input = BarrierOptionTerms {
+                    expiry_time: end,
+                    calendar: TradingCalendar::all_days(),
+                    rebate: 7.0,
+                    rebate_timing: timing,
+                    ..terms(kind, 10)
+                };
+                let continuous = BarrierOption::new(input.clone())?;
+                let scheduled = BarrierOption::new(BarrierOptionTerms {
+                    observation_times: Some(dates.clone()),
+                    ..input
+                })?;
+                let fast = engine.price_with_greeks(&continuous, &context, request)?;
+                let reference = engine.price_with_greeks(&scheduled, &context, request)?;
+                assert_eq!(
+                    engine.price(&continuous, &context)?.to_bits(),
+                    fast.price().to_bits()
+                );
+                assert!((fast.price() - reference.price()).abs() < 1e-10);
+                for greek in [Greek::Delta, Greek::Gamma] {
+                    assert!((fast.require(greek)? - reference.require(greek)?).abs() < 1e-9);
+                }
             }
         }
     }

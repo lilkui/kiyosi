@@ -508,9 +508,10 @@ def test_continuous_prices_and_greeks_against_live_quantlib(subtests):
                             )
 
 
-def test_reflected_tree_matches_rollback_with_every_node_observed(subtests):
-    dates = [START + timedelta(hours=step) for step in range(1025)]
-    engine = pricing.CoxRossRubinsteinBarrierEngine(step_count=1024)
+@pytest.mark.parametrize("steps", (767, 768, 1024))
+def test_reflected_tree_matches_rollback_with_every_node_observed(subtests, steps):
+    dates = [START + timedelta(hours=step) for step in range(steps + 1)]
+    engine = pricing.CoxRossRubinsteinBarrierEngine(step_count=steps)
     ctx = market(rate=-0.02)
     for kind in KINDS:
         timings = ("at_expiry", "at_hit") if kind.endswith("out") else ("at_expiry",)
@@ -522,6 +523,7 @@ def test_reflected_tree_matches_rollback_with_every_node_observed(subtests):
                 scheduled = continuous.replace(observation_times=dates)
                 fast = engine.price_with_greeks(continuous, ctx, ["delta", "gamma"])
                 reference = engine.price_with_greeks(scheduled, ctx, ["delta", "gamma"])
+                assert engine.price(continuous, ctx) == fast.price
                 assert fast.price == pytest.approx(reference.price, rel=0, abs=1e-10)
                 assert fast.delta == pytest.approx(reference.delta, rel=0, abs=1e-9)
                 assert fast.gamma == pytest.approx(reference.gamma, rel=0, abs=1e-9)
