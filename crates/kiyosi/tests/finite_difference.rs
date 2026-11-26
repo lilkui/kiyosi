@@ -1382,6 +1382,33 @@ fn european_surface_caps_combined_expiry_rollbacks() -> Result<()> {
 }
 
 #[test]
+fn american_surface_caps_combined_expiry_rollbacks() -> Result<()> {
+    let (start, end) = dates();
+    let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let engine = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 2048,
+        time_step_count: 4096,
+        asset_upper_boundary: Some(400.0),
+        ..Default::default()
+    })?;
+    let expiries = (0..180)
+        .map(|days| end.add_days(-days))
+        .collect::<Result<Vec<_>>>()?;
+    assert!(matches!(
+        engine.price_american_surface(&option, &market(100.0, 0.05, 0.02, 0.2), &expiries, &[100.0]),
+        Err(Error::InvalidInput(message)) if message.contains("one billion grid updates")
+    ));
+    let context = market(100.0, 0.05, 0.02, 0.0);
+    assert_eq!(
+        engine
+            .price_american_surface(&option, &context, &expiries, &[100.0])?
+            .len(),
+        expiries.len()
+    );
+    Ok(())
+}
+
+#[test]
 fn american_bsm_surface_matches_independent_strips_and_preserves_order() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = start.add_days(365)?;

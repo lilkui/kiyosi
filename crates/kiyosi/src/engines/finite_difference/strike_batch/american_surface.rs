@@ -1,8 +1,21 @@
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use super::{
     AmericanOption, AmericanOptionChanges, FiniteDifferenceScheme, FiniteDifferenceVanillaEngine,
     Payoff, PricingContext, Result, SpatialGrid, american, diffusion, invalid_grid,
-    local_volatility, payoff, strike_group_len,
+    local_volatility, payoff, strike_group_len, surface::fallback_work, validate_work,
 };
+
+#[derive(Default)]
+pub(super) struct SurfaceWork(AtomicU64);
+
+impl SurfaceWork {
+    pub(super) fn charge(&self, work: u64) -> Result<()> {
+        validate_work(1, work)?;
+        let previous = self.0.fetch_add(work, Ordering::Relaxed);
+        validate_work(1, previous + work)
+    }
+}
 
 impl FiniteDifferenceVanillaEngine {
     /// Prices an American strike and expiry surface in input order.
@@ -33,8 +46,8 @@ impl FiniteDifferenceVanillaEngine {
     /// # Errors
     ///
     /// Returns [`crate::Error::InvalidInput`] for invalid strikes, expiries outside
-    /// contract life, or oversized output. Pricing and cancellation errors return
-    /// no partial output.
+    /// contract life, oversized output, or excessive combined rollback work.
+    /// Pricing and cancellation errors return no partial output.
     pub fn price_american_surface(
         &self,
         template: &AmericanOption,
@@ -86,7 +99,16 @@ impl FiniteDifferenceVanillaEngine {
                     .map_err(|_| super::super::unstable())
             })
             .collect::<Result<Vec<_>>>()?;
+        let budget = SurfaceWork::default();
+        let local = local_volatility::local_model(context);
         let scalar = |dates: &[crate::Timestamp], strikes: &[f64]| {
+            budget.charge(fallback_work(
+                context,
+                self.settings,
+                dates,
+                strikes,
+                local.map(|_| american::LOCAL_LANES as u64),
+            )?)?;
             dates
                 .iter()
                 .map(|&expiry| {
@@ -135,6 +157,7 @@ impl FiniteDifferenceVanillaEngine {
                 times: live.iter().map(|&expiry| expiry.years_until(end)).collect(),
                 queries,
                 rows: Vec::with_capacity(live.len()),
+                budget: &budget,
             };
             if surface.times.windows(2).any(|pair| pair[0] <= pair[1])
                 || surface.times[0] >= longest
@@ -191,8 +214,15 @@ impl FiniteDifferenceVanillaEngine {
                 remaining = tail;
             }
             rows
-        } else if let Some(local) = local_volatility::local_model(context) {
-            american::local_surface(self, template, context, local, &ordered, &unique, scalar)?
+        } else if let Some(local) = local {
+            american::local_surface(
+                self,
+                template,
+                context,
+                (local, &ordered, &unique),
+                scalar,
+                &budget,
+            )?
         } else {
             scalar(&ordered, &unique)?
         };
@@ -215,13 +245,25 @@ impl FiniteDifferenceVanillaEngine {
     }
 }
 
-pub(in crate::engines::finite_difference) struct AmericanSurface {
+pub(in crate::engines::finite_difference) struct AmericanSurface<'a> {
     times: Vec<f64>,
     queries: Vec<(f64, f64)>,
     rows: Vec<Vec<f64>>,
+    budget: &'a SurfaceWork,
 }
 
-impl AmericanSurface {
+impl AmericanSurface<'_> {
+    pub(in crate::engines::finite_difference) fn charge(
+        &self,
+        assets: u64,
+        steps: u64,
+    ) -> Result<()> {
+        self.budget
+            .charge(assets.saturating_mul(steps).saturating_add(
+                (assets + self.queries.len() as u64).saturating_mul(self.times.len() as u64),
+            ))
+    }
+
     pub(in crate::engines::finite_difference) fn times(&self) -> &[f64] {
         &self.times
     }

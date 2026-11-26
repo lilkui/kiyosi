@@ -102,7 +102,7 @@ impl FiniteDifferenceVanillaEngine {
         let settings = self.settings;
         let shared_work = Cell::new(0_u64);
         let fallback = |dates: &[Timestamp]| {
-            let work = fallback_work(context, settings, dates, strikes)?;
+            let work = fallback_work(context, settings, dates, strikes, None)?;
             validate_work(1, shared_work.get().saturating_add(work))?;
             scalar(dates)
         };
@@ -149,7 +149,7 @@ impl FiniteDifferenceVanillaEngine {
                 if compatible.len() < 2 {
                     return Ok(None);
                 }
-                let short_work = fallback_work(context, settings, short, strikes)?;
+                let short_work = fallback_work(context, settings, short, strikes, None)?;
                 let rows = strip_rows(
                     self,
                     context,
@@ -203,11 +203,12 @@ impl FiniteDifferenceVanillaEngine {
     }
 }
 
-fn fallback_work(
+pub(super) fn fallback_work(
     context: &PricingContext,
     settings: FiniteDifferenceSettings,
     expiries: &[Timestamp],
     strikes: &[f64],
+    local_lanes: Option<u64>,
 ) -> Result<u64> {
     if expiries.is_empty() || crate::engines::deterministic::enabled(context) {
         return Ok(0);
@@ -226,16 +227,17 @@ fn fallback_work(
             remaining,
             |&strike| strike,
         ));
-        rollbacks += 1;
+        let mut unique = 1;
         for (index, pair) in group.windows(2).enumerate() {
             if index % 1024 == 0 {
                 crate::cancellation::check()?;
             }
-            rollbacks += u64::from(pair[0].to_bits() != pair[1].to_bits());
+            unique += u64::from(pair[0].to_bits() != pair[1].to_bits());
         }
+        rollbacks += unique;
         // A failed shared strike grid can be followed by a solve for each strike.
         if can_share && group.len() >= 4 && first < group[group.len() - 1] {
-            rollbacks += 1;
+            rollbacks += local_lanes.map_or(1, |lanes| unique.next_multiple_of(lanes));
         }
         remaining = tail;
     }
@@ -257,7 +259,7 @@ fn fallback_work(
     let mut work = 0_u64;
     for &expiry in expiries {
         crate::cancellation::check()?;
-        if crate::engines::deterministic::enabled_until(context, expiry)? {
+        if expiry == valuation || crate::engines::deterministic::enabled_until(context, expiry)? {
             continue;
         }
         let knots = [model.risk_free_curve(), model.dividend_curve()]

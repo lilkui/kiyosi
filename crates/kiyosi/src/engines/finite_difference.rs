@@ -337,7 +337,7 @@ fn solve_model<D: Diffusion>(
     minimum_spot: f64,
     diffusion: D,
     mut slices: Option<&mut TimeSlices>,
-    mut surface: Option<&mut strike_batch::AmericanSurface>,
+    mut surface: Option<&mut strike_batch::AmericanSurface<'_>>,
 ) -> Result<VanillaGrid> {
     let time = context.valuation_time().years_until(expiry);
     let spot = context.spot_price();
@@ -434,6 +434,9 @@ fn solve_model<D: Diffusion>(
         )?;
     }
     validate_work(space.count as u64, rollback_steps)?;
+    if let Some(surface) = &surface {
+        surface.charge(space.count as u64, rollback_steps)?;
+    }
     let can_exercise = payoff.is_american()
         && (model.risk_free_curve().exact_flat_rate().is_none()
             || model.dividend_curve().exact_flat_rate().is_none()

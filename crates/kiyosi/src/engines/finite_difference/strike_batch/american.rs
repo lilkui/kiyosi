@@ -1,3 +1,4 @@
+use super::american_surface::SurfaceWork;
 use super::{
     AmericanOption, Diffusion, FiniteDifferenceScheme, FiniteDifferenceVanillaEngine, Payoff,
     PricingContext, Result, SpatialGrid, concentrate, diffusion, diffusion_log_width, invalid_grid,
@@ -7,7 +8,7 @@ use crate::engines::deterministic::ExerciseBoundaries;
 use crate::{LocalVolatilityParameters, Timestamp};
 use rayon::prelude::*;
 
-const LOCAL_LANES: usize = 8;
+pub(super) const LOCAL_LANES: usize = 8;
 
 pub(super) fn local_strikes(
     engine: &FiniteDifferenceVanillaEngine,
@@ -23,6 +24,7 @@ pub(super) fn local_strikes(
         &[option.expiry_time()],
         group,
         &mut [prices],
+        None,
     )
 }
 
@@ -41,6 +43,7 @@ fn local_expiries(
     expiries: &[Timestamp],
     group: &[(usize, f64)],
     prices: &mut [&mut [f64]],
+    budget: Option<&SurfaceWork>,
 ) -> Result<()> {
     let mut unique = Vec::new();
     unique
@@ -88,16 +91,19 @@ fn local_expiries(
             })
             .collect::<Result<Vec<_>>>()?;
         let nodes = u64::from(settings.asset_step_count.unsigned_abs()) + 1;
-        validate_work(
-            nodes * unique.len().next_multiple_of(LOCAL_LANES) as u64,
-            steps.saturating_mul(expiries.len() as u64),
-        )?;
+        let work = (nodes * unique.len().next_multiple_of(LOCAL_LANES) as u64)
+            .saturating_mul(steps)
+            .saturating_mul(expiries.len() as u64);
+        validate_work(1, work)?;
         validate_workspace(
             settings.scheme,
             nodes * (3 + 2 * expiries.len() as u64) * LOCAL_LANES as u64,
             grid.widths.len() as u64,
             risk.workspace_bytes() + dividend.workspace_bytes(),
         )?;
+        if let Some(budget) = budget {
+            budget.charge(work)?;
+        }
 
         for tile in unique.chunks(LOCAL_LANES) {
             crate::cancellation::check()?;
@@ -254,10 +260,9 @@ pub(super) fn local_surface(
     engine: &FiniteDifferenceVanillaEngine,
     option: &AmericanOption,
     context: &PricingContext,
-    model: &LocalVolatilityParameters,
-    expiries: &[Timestamp],
-    strikes: &[f64],
+    (model, expiries, strikes): (&LocalVolatilityParameters, &[Timestamp], &[f64]),
     scalar: impl Fn(&[Timestamp], &[f64]) -> Result<Vec<Vec<f64>>> + Sync,
+    budget: &SurfaceWork,
 ) -> Result<Vec<Vec<f64>>> {
     const EXPIRY_LANES: usize = 2;
     let settings = engine.settings;
@@ -283,7 +288,15 @@ pub(super) fn local_surface(
             let first = group[0].0;
             let mut outputs: Vec<_> = rows.iter_mut().map(Vec::as_mut_slice).collect();
             if len >= 4 {
-                match local_expiries(engine, option, context, dates, group, &mut outputs) {
+                match local_expiries(
+                    engine,
+                    option,
+                    context,
+                    dates,
+                    group,
+                    &mut outputs,
+                    Some(budget),
+                ) {
                     Ok(()) => {
                         remaining = tail;
                         continue;

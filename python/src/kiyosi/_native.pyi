@@ -3887,6 +3887,7 @@ class FiniteDifferenceVanillaEngine(
         rollback per strike group on a normalized log-spot grid. Compatible
         local-volatility tenors share step factors on an absolute spot grid.
         Other strips use price_strikes. Check convergence across the surface.
+        The request caps combined rollback work at one billion grid updates.
         Cancellation returns no partial result.
         """
 
