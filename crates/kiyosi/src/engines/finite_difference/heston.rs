@@ -2463,11 +2463,27 @@ fn solve_asset_tile<const INVERTED: bool>(
     factors: &[AssetFactor],
     edges: [f64; 2],
 ) -> Result<()> {
+    if tile.len() == ASSET_LANES * factors.len() {
+        solve_asset_rows::<INVERTED, true>(tile, factors, edges)
+    } else {
+        solve_asset_rows::<INVERTED, false>(tile, factors, edges)
+    }
+}
+
+fn solve_asset_rows<const INVERTED: bool, const FULL: bool>(
+    tile: &mut [f64],
+    factors: &[AssetFactor],
+    edges: [f64; 2],
+) -> Result<()> {
     let nx = factors.len();
     let mut rows = tile.chunks_exact_mut(nx);
     let mut rows: [&mut [f64]; ASSET_LANES] =
         std::array::from_fn(|_| rows.next().unwrap_or(&mut []));
-    let lanes = rows.iter().take_while(|row| !row.is_empty()).count();
+    let lanes = if FULL {
+        ASSET_LANES
+    } else {
+        rows.iter().take_while(|row| !row.is_empty()).count()
+    };
     let mut previous = [edges[0]; ASSET_LANES];
     for (i, [multipliers, _, _]) in factors.iter().enumerate().take(nx - 1).skip(1) {
         let mut rhs = [0.0; ASSET_LANES];
