@@ -746,3 +746,35 @@ fn dense_fixed_heston_batch_resolves_the_full_strike_range() -> kiyosi::Result<(
     }
     Ok(())
 }
+
+#[test]
+fn dense_european_surface_fits_the_indexed_payoff_work_budget() -> kiyosi::Result<()> {
+    let (start, _) = dates();
+    let end = start.add_days(1600)?;
+    let expiries = (90..=1600)
+        .map(|day| start.add_days(day))
+        .collect::<kiyosi::Result<Vec<_>>>()?;
+    let strikes = (0..700)
+        .map(|i| 95.0 + f64::from(i) / 70.0)
+        .collect::<Vec<_>>();
+    let template = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let market = context(0.3, -0.7);
+    let engine = FiniteDifferenceHestonVanillaEngine::new(HestonFiniteDifferenceSettings {
+        asset_step_count: 64,
+        variance_step_count: 16,
+        time_step_count: 1600,
+        asset_upper_boundary: Some(400.0),
+        ..Default::default()
+    })?;
+    let surface = engine.price_european_surface(&template, &market, &expiries, &strikes)?;
+    assert_eq!(surface.len(), expiries.len());
+    let selected =
+        engine.price_european_surface(&template, &market, &[expiries[0], end], &strikes)?;
+    for (index, expected) in [0, expiries.len() - 1].into_iter().zip(selected) {
+        assert_eq!(surface[index].len(), strikes.len());
+        for (&price, expected) in surface[index].iter().zip(expected) {
+            assert!((price - expected).abs() < 1e-9);
+        }
+    }
+    Ok(())
+}

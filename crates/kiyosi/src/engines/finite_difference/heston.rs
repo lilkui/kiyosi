@@ -17,6 +17,9 @@ use crate::{
     OptionContract, PricingContext, PricingEngine, PricingResult, Result, Timestamp,
 };
 
+mod edge_weights;
+use edge_weights::EdgeWeights;
+
 /// Configures fixed Heston grids; see [`FiniteDifferenceHestonVanillaEngine::new`].
 ///
 /// Counts specify intervals, not nodes. Curve knots are added to the time grid.
@@ -635,6 +638,17 @@ struct RollbackLane<'a> {
     boundaries: ExerciseBoundaries<'a>,
 }
 
+fn adjoint_work(assets: u64, rows: u64, steps: u64, expiries: u64, strikes: u64) -> u64 {
+    let edge_terms = 2 * steps;
+    let edge_levels = u64::from(edge_terms.max(1).ilog2() + 1);
+    let asset_levels = u64::from(assets.ilog2() + 1);
+    let quotes = expiries.saturating_mul(strikes);
+    (assets * rows)
+        .saturating_mul(steps + expiries)
+        .saturating_add((edge_terms + quotes).saturating_mul(edge_levels))
+        .saturating_add((expiries * assets + quotes).saturating_mul(asset_levels))
+}
+
 fn prepare_batch(
     option: &impl OptionContract,
     context: &PricingContext,
@@ -706,10 +720,11 @@ fn prepare_batch(
     } else {
         additional_strikes.len() as u64
     };
-    let strikes_count = (additional_strikes.len() as u64 + 1) * expiries.len().max(1) as u64;
+    let strikes_count = additional_strikes.len() as u64 + 1;
+    let expiry_count = expiries.len().max(1) as u64;
     let batch_bytes = if adjoint {
         // Terminal weights, hinge terms and their cumulative sums.
-        assets * 80 + strikes_count * 16 + assets * rows * size_of::<f64>() as u64
+        assets * 80 + expiry_count * strikes_count * 16 + assets * rows * size_of::<f64>() as u64
     } else {
         0
     };
@@ -719,8 +734,12 @@ fn prepare_batch(
         .saturating_add((assets + rows) * BYTES_PER_AXIS_NODE)
         .saturating_add(batch_bytes);
     let validate_grid = |time_steps, curve_bytes| {
-        // Adjoint batches retain edge weights and two boundary hinge terms per step.
-        let time_bytes = BYTES_PER_TIME_STEP + if adjoint { 160 } else { 0 };
+        let time_bytes = BYTES_PER_TIME_STEP
+            + if adjoint {
+                edge_weights::BYTES_PER_STEP
+            } else {
+                0
+            };
         if grid_bytes
             .saturating_add(time_steps * time_bytes)
             .saturating_add(curve_bytes)
@@ -731,9 +750,7 @@ fn prepare_batch(
             ));
         }
         if adjoint {
-            let work = (assets * rows)
-                .saturating_mul(time_steps)
-                .saturating_add(strikes_count.saturating_mul(assets + time_steps));
+            let work = adjoint_work(assets, rows, time_steps, expiry_count, strikes_count);
             validate_work(work, 1)
         } else {
             validate_work((assets * rows).saturating_mul(1 + extra_rhs), time_steps)
@@ -884,7 +901,12 @@ fn prepare_batch(
     let mut op = Operator::new(&asset, variance.as_deref(), model)?;
     if calendar_curve {
         const MAX_CACHE_BYTES: u64 = 64 << 20;
-        let time_bytes = BYTES_PER_TIME_STEP + if adjoint { 160 } else { 0 };
+        let time_bytes = BYTES_PER_TIME_STEP
+            + if adjoint {
+                edge_weights::BYTES_PER_STEP
+            } else {
+                0
+            };
         let used = grid_bytes + curve_bytes + times.widths.len() as u64 * time_bytes;
         let rows = rows as u64;
         let spare_bytes = ((2 * rows + padded) * assets + 2 * rows) * size_of::<[f64; 3]>() as u64;
@@ -1106,6 +1128,19 @@ fn european_strike_weights(
     };
     let mut prices = Vec::with_capacity(remaining.len() * strikes.len());
     let mut edge_weights = Vec::with_capacity(times.widths.len());
+    let mut edge_index = EdgeWeights::new(
+        &times.times[..times.widths.len()],
+        [risk, dividend],
+        bounds,
+        payoff.sign,
+    )?;
+    let mut quote_work = adjoint_work(
+        nx as u64,
+        op.rows as u64,
+        times.widths.len() as u64,
+        remaining.len() as u64,
+        strikes.len() as u64,
+    );
     let mut weights = vec![0.0; length];
     let mut previous = vec![0.0; length];
     let mut stage = vec![0.0; length];
@@ -1164,6 +1199,12 @@ fn european_strike_weights(
                 edges[i] += increment;
             }
             edge_weights.push(edges);
+            if edge_index
+                .as_mut()
+                .is_some_and(|index| index.add(step, edges).is_none())
+            {
+                edge_index = None;
+            }
             std::mem::swap(&mut previous, &mut weights);
             let next = times.times[step + 1];
             while remaining
@@ -1175,6 +1216,8 @@ fn european_strike_weights(
                     &weights,
                     &times.times[..=step],
                     &edge_weights,
+                    edge_index.as_ref(),
+                    &mut quote_work,
                     [risk, dividend],
                     bounds,
                     next,
@@ -1210,6 +1253,8 @@ fn european_weighted_prices(
     weights: &[f64],
     times: &[f64],
     edge_weights: &[[f64; 2]],
+    edge_index: Option<&EdgeWeights>,
+    quote_work: &mut u64,
     [risk, dividend]: [&super::Curve; 2],
     bounds: [f64; 2],
     end: f64,
@@ -1225,34 +1270,7 @@ fn european_weighted_prices(
             *weight += value;
         }
     }
-    let mut edge_terms = Vec::with_capacity(edge_weights.len() * 2);
-    let mut regular_edges = true;
-    for (&time, edges) in times.iter().zip(edge_weights) {
-        crate::cancellation::check()?;
-        let risk_factor = risk.log_factor(time, end).exp();
-        let dividend_factor = dividend.log_factor(time, end).exp();
-        for (spot, &weight) in bounds.into_iter().zip(edges) {
-            let asset_value = spot * dividend_factor;
-            let cutoff = asset_value / risk_factor;
-            let asset_weight = weight * asset_value;
-            let cash_weight = weight * risk_factor;
-            if !risk_factor.is_normal()
-                || !dividend_factor.is_normal()
-                || !asset_value.is_normal()
-                || !cutoff.is_normal()
-                || !asset_weight.is_finite()
-                || !cash_weight.is_finite()
-            {
-                regular_edges = false;
-                break;
-            }
-            edge_terms.push([cutoff, asset_weight, cash_weight]);
-        }
-        if !regular_edges {
-            break;
-        }
-    }
-    let edges = regular_edges.then(|| StrikeMoments::new(edge_terms, payoff.sign));
+    let discount = [risk, dividend].map(|curve| curve.log_factor(0.0, end).exp());
     let terminal_moments = StrikeMoments::new(
         asset
             .spots
@@ -1262,12 +1280,11 @@ fn european_weighted_prices(
             .collect(),
         payoff.sign,
     );
-    let price = |strike| {
+    let mut price = |strike| {
         crate::cancellation::check()?;
         let payoff = Payoff { strike, ..payoff };
-        if let Some(([boundary, boundary_scale], [mut value, terminal_scale])) = edges
-            .as_ref()
-            .and_then(|edges| edges.at(strike))
+        if let Some(([boundary, boundary_scale], [mut value, terminal_scale])) = edge_index
+            .and_then(|edges| edges.at(strike, discount))
             .zip(terminal_moments.at(strike))
         {
             // A strike splits at most one interior control volume.
@@ -1294,6 +1311,8 @@ fn european_weighted_prices(
             }
         }
         // Use the original compensated evaluation for extreme scales or cancellation.
+        *quote_work = quote_work.saturating_add((times.len() + nx) as u64);
+        validate_work(*quote_work, 1)?;
         let mut boundary =
             ExerciseBoundaries::new(payoff, bounds, end, [risk, dividend], times.len())?;
         let mut value = crate::numerics::Sum::default();

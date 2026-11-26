@@ -624,3 +624,25 @@ def test_heston_finite_difference_with_recurring_calendar_rates():
         asset_step_count=256, variance_step_count=96, time_step_count=52
     )
     assert engine.price(contract, market) == pytest.approx(expected, abs=0.001, rel=0)
+
+
+def test_dense_european_surface_fits_the_indexed_payoff_work_budget():
+    expiries = tuple(START + timedelta(days=day) for day in range(90, 1601))
+    strikes = tuple(95 + i / 70 for i in range(700))
+    template = option().replace(expiry_time=expiries[-1])
+    market = context(model())
+    engine = FiniteDifferenceHestonVanillaEngine(
+        asset_step_count=64,
+        variance_step_count=16,
+        time_step_count=1600,
+        asset_upper_boundary=400,
+    )
+    surface = engine.price_european_surface(
+        template, market, expiries=expiries, strikes=strikes
+    )
+    assert len(surface) == len(expiries)
+    selected = engine.price_european_surface(
+        template, market, expiries=(expiries[0], expiries[-1]), strikes=strikes
+    )
+    assert surface[0] == pytest.approx(selected[0], abs=1e-9, rel=0)
+    assert surface[-1] == pytest.approx(selected[-1], abs=1e-9, rel=0)
