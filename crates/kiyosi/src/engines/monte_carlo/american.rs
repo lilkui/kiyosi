@@ -618,19 +618,67 @@ impl MonteCarloVanillaEngine {
             });
         }
         let strike = option.strike();
+        let apply_exercise =
+            |cash: &mut [f64; N], spots: &[f64], coefficients: &[Option<[f64; 3]>; N]| {
+                for (index, (cash, coefficient)) in cash.iter_mut().zip(coefficients).enumerate() {
+                    let Some([constant, linear, quadratic]) = *coefficient else {
+                        continue;
+                    };
+                    let spot = spots[growth_index[index]] * scale[index];
+                    let intrinsic = payoff(spot);
+                    if intrinsic <= 0.0 {
+                        continue;
+                    }
+                    let x = spot / strike;
+                    let continuation = constant + x * (linear + x * quadratic);
+                    if !continuation.is_finite() {
+                        return Err(unstable());
+                    }
+                    if intrinsic / strike > continuation {
+                        *cash = intrinsic;
+                    }
+                }
+                Ok(())
+            };
+        let mut coefficients = [None; N];
         for step in (0..intervals - 1).rev() {
             if step < window_start {
                 window_start -= window;
                 runner.run(&mut blocks, |index, block| {
+                    if coefficients.iter().any(Option::is_some) {
+                        let width = block.cash.len() * growth_count;
+                        for (spots, cash) in block.spots[..width]
+                            .chunks_exact(growth_count)
+                            .zip(&mut block.cash)
+                        {
+                            apply_exercise(cash, spots, &coefficients)?;
+                        }
+                    }
                     exercise_paths.replay(index, block, window_start)
                 })?;
+                coefficients.fill(None);
             }
             let row = step - window_start;
+            let decide = coefficients.iter().any(Option::is_some);
+            // Apply the next date's exercise decision while its cash is in cache,
+            // then use that cash immediately in the current date's regression.
             runner.run(&mut blocks, |_, block| {
                 let mut matrices = [[[0.0; 4]; 3]; N];
                 let width = block.cash.len() * growth_count;
                 let spots = &block.spots[row * width..(row + 1) * width];
-                for (base, cash) in spots.chunks_exact(growth_count).zip(&mut block.cash) {
+                let next_spots = if decide {
+                    &block.spots[(row + 1) * width..(row + 2) * width]
+                } else {
+                    spots
+                };
+                for ((base, following), cash) in spots
+                    .chunks_exact(growth_count)
+                    .zip(next_spots.chunks_exact(growth_count))
+                    .zip(&mut block.cash)
+                {
+                    if decide {
+                        apply_exercise(cash, following, &coefficients)?;
+                    }
                     for (index, (cash, matrix)) in cash.iter_mut().zip(&mut matrices).enumerate() {
                         let spot = base[growth_index[index]] * scale[index];
                         *cash *= discount[index];
@@ -668,7 +716,7 @@ impl MonteCarloVanillaEngine {
                     *sum += partial;
                 }
             }
-            let mut coefficients = [None; N];
+            coefficients.fill(None);
             for (mut matrix, coefficient) in matrices.into_iter().zip(&mut coefficients) {
                 if matrix[0][0] == 0.0 {
                     continue;
@@ -681,41 +729,15 @@ impl MonteCarloVanillaEngine {
                 matrix[2][1] = matrix[1][2];
                 *coefficient = Some(solve_quadratic(matrix).ok_or_else(unstable)?);
             }
-            if coefficients.iter().all(Option::is_none) {
-                continue;
-            }
-            runner.run(&mut blocks, |_, block| {
-                let width = block.cash.len() * growth_count;
-                let spots = &block.spots[row * width..(row + 1) * width];
-                for (base, cash) in spots.chunks_exact(growth_count).zip(&mut block.cash) {
-                    for (index, (cash, coefficient)) in
-                        cash.iter_mut().zip(coefficients).enumerate()
-                    {
-                        let spot = base[growth_index[index]] * scale[index];
-                        let Some([constant, linear, quadratic]) = coefficient else {
-                            continue;
-                        };
-                        let intrinsic = payoff(spot);
-                        if intrinsic <= 0.0 {
-                            continue;
-                        }
-                        let x = spot / strike;
-                        let continuation = constant + x * (linear + x * quadratic);
-                        if !continuation.is_finite() {
-                            return Err(unstable());
-                        }
-                        if intrinsic / strike > continuation {
-                            *cash = intrinsic;
-                        }
-                    }
-                }
-                Ok(())
-            })?;
         }
         let mut means = [Moments::default(); N];
+        let decide = coefficients.iter().any(Option::is_some);
         for block in blocks {
             crate::cancellation::check()?;
-            for cash in block.cash {
+            for (spots, mut cash) in block.spots.chunks_exact(growth_count).zip(block.cash) {
+                if decide {
+                    apply_exercise(&mut cash, spots, &coefficients)?;
+                }
                 for (mean, value) in means.iter_mut().zip(cash) {
                     mean.add(value, false);
                 }
