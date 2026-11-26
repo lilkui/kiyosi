@@ -12,6 +12,7 @@ use std::{
 };
 
 const LOG_DENSITY: f64 = -0.918_938_533_204_672_7;
+const LOG_HALF_SUBNORMAL: f64 = -745.133_219_101_941_2;
 const WORKSPACE_BUDGET: usize = 256 << 20;
 const WORK_BUDGET: usize = 1_000_000_000;
 // Includes the hash entry and transient capacity growth during construction.
@@ -1057,7 +1058,7 @@ impl ConvolutionGrid {
     fn bytes(&self, deviation: f64) -> usize {
         // Spectra, plans, scratch, and sparse exact rows for cells split by breakpoints.
         let spectra = if self.use_fft(deviation) {
-            self.size.saturating_mul(16 * size_of::<Complex64>())
+            self.size.saturating_mul(22 * size_of::<Complex64>())
         } else {
             self.regular.len() * 2 * size_of::<IntervalMoments>()
         };
@@ -1102,6 +1103,18 @@ struct FftWorkspace {
     input: Vec<Complex64>,
     output: Vec<Complex64>,
     scratch: Vec<Complex64>,
+    tail_values: Vec<f64>,
+    tail: Option<TailFft>,
+}
+
+struct TailFft {
+    forward: Arc<dyn Fft<f64>>,
+    inverse: Arc<dyn Fft<f64>>,
+    input: Vec<Complex64>,
+    output: Vec<Complex64>,
+    kernel: Vec<Complex64>,
+    scratch: Vec<Complex64>,
+    weights: Vec<[f64; 4]>,
 }
 
 impl GaussianConvolution {
@@ -1165,6 +1178,12 @@ impl GaussianConvolution {
         })
     }
 
+    #[expect(
+        clippy::cast_precision_loss,
+        clippy::cast_sign_loss,
+        clippy::cast_possible_truncation,
+        reason = "Workspace bounds support indices and positive widths convert to clamped counts."
+    )]
     fn integrate(
         &mut self,
         nodes: &[f64],
@@ -1218,6 +1237,8 @@ impl GaussianConvolution {
             input,
             output,
             scratch,
+            tail_values,
+            tail,
         } = &mut *workspace;
         output.fill(Complex64::default());
         for (power, kernel) in fft.kernels.iter().enumerate() {
@@ -1240,6 +1261,98 @@ impl GaussianConvolution {
         }
         inverse.process_with_scratch(output, scratch);
         let roundoff = 128.0 * f64::EPSILON * scale;
+        let log_scale = (8.0 * scale).ln();
+        let relative_error = (4.0 * f64::EPSILON).ln();
+        let width = deviation / self.grid.spacing;
+        let drift_cells = drift / self.grid.spacing;
+        let floor = LOG_HALF_SUBNORMAL - discount.max(0.0);
+        tail_values[..=cells].fill(f64::NAN);
+        // Small direct bands cost less than a local transform. Scale the
+        // convolution only when the spatial grid makes a band wide enough.
+        if first < last && width >= 32.0 && width.is_finite() {
+            let coefficients = |cell: usize| {
+                let index = regular[cell];
+                if regular[cell + 1] == index + 1 {
+                    curve[index]
+                } else {
+                    [0.0; 4]
+                }
+            };
+            for (side, target, anchor) in [(1.0, 0..first, first), (-1.0, last..cells + 1, last)] {
+                let rows = ((4.0 * width).ceil() as usize).min(cells + 1);
+                let source_len = ((12.0 * width).ceil() as usize).min(cells);
+                let columns = if side > 0.0 {
+                    first..first.saturating_add(source_len).min(last)
+                } else {
+                    last.saturating_sub(source_len).max(first)..last
+                };
+                let omitted = if side > 0.0 {
+                    (columns.end < last).then_some(columns.end)
+                } else {
+                    (columns.start > first).then_some(columns.start)
+                };
+                let size = (columns.len() + rows).next_power_of_two();
+                // Large diffusion bands use the direct repair. Small local
+                // transforms share the outer transition's workspace budget.
+                if size > output.len() / 4 {
+                    continue;
+                }
+                let work = 5 * size * size.ilog2() as usize;
+                for start in (target.start..target.end).step_by(rows.max(1)) {
+                    let end = start.saturating_add(rows).min(target.end);
+                    let center = (start as f64).midpoint(end as f64);
+                    let tilt = (anchor as f64 - center - drift_cells) / width;
+                    if !(6.0..=38.0).contains(&(tilt * side)) {
+                        continue;
+                    }
+                    if !output[start..end]
+                        .iter()
+                        .any(|value| value.re.abs() <= roundoff)
+                    {
+                        continue;
+                    }
+                    if work > self.tail_work.get() {
+                        continue;
+                    }
+                    charge(work)?;
+                    if tail.as_ref().is_none_or(|fft| fft.input.len() != size) {
+                        *tail = Some(TailFft::new(size));
+                    }
+                    let Some(fft) = tail.as_mut() else {
+                        unreachable!("tail transform is initialized")
+                    };
+                    fft.convolve(
+                        &self.moments,
+                        cells,
+                        columns.clone(),
+                        start..end,
+                        coefficients,
+                        [anchor as f64, drift_cells, width, tilt],
+                    )?;
+                    for (i, value) in tail_values.iter_mut().enumerate().take(end).skip(start) {
+                        let sample = fft.output[i - start].re;
+                        // Accept only rows with enough signal on the tilted scale.
+                        if sample.abs() <= 1e-4 * scale {
+                            continue;
+                        }
+                        let undo = (0.5 * tilt
+                            + ((i as f64 - anchor as f64 + drift_cells) / width))
+                            * tilt
+                            + tilt.abs() / width;
+                        let log_value = sample.abs().ln() + undo;
+                        if omitted.is_some_and(|edge| {
+                            let distance = ((edge as f64 - i as f64 - drift_cells).abs() - 1.0)
+                                .max(0.0)
+                                / width;
+                            log_scale - 0.5 * distance.powi(2) > log_value + relative_error
+                        }) {
+                            continue;
+                        }
+                        *value = scaled_signed_cash(sample, undo);
+                    }
+                }
+            }
+        }
         let mut index = 0;
         for (node_index, (value, &node)) in values.iter_mut().zip(nodes).enumerate() {
             if node_index % 256 == 0 {
@@ -1256,9 +1369,15 @@ impl GaussianConvolution {
             }
             let sample = output[index].re;
             let estimate = sample + sum.total();
+            let repaired = tail_values[index];
+            let combined = repaired + sum.total();
             *value = if estimate.is_finite() && estimate.abs() > roundoff && sample.abs() > roundoff
             {
                 factor * estimate
+            } else if combined.is_finite()
+                && combined.abs() > repaired.abs().midpoint(sum.total().abs())
+            {
+                factor * combined
             } else {
                 // Direct summation recovers relative accuracy in small tails.
                 crate::cancellation::check()?;
@@ -1284,14 +1403,39 @@ impl GaussianConvolution {
                     Ok::<_, Error>(())
                 };
                 if start < end {
-                    let (left, right, bound) =
-                        self.tail_band(index, start..end, drift, deviation, scale);
-                    add(&mut sum, left..right)?;
-                    let value = sum.total().abs();
-                    if !value.is_normal() || bound > value.ln() + (4.0 * f64::EPSILON).ln() {
-                        // A small or cancelling result needs the full compensated sum.
-                        add(&mut sum, start..left)?;
-                        add(&mut sum, right..end)?;
+                    let support = start..end;
+                    let center = index as f64 + drift_cells;
+                    let distance = center.clamp(start as f64, end as f64) - center;
+                    // Reject unrepresentable Gaussian mass before reading the support.
+                    let nearest = (distance.abs() - 1.0).max(0.0) / width;
+                    if log_scale - 0.5 * nearest.powi(2) >= floor {
+                        let (mut left, mut right, mut bound) = Self::tail_band(
+                            center,
+                            support.clone(),
+                            width,
+                            distance,
+                            8.0,
+                            log_scale,
+                        );
+                        add(&mut sum, left..right)?;
+                        // Widen only as far as the compensated sum needs.
+                        for radius in [12.0, 20.0, 36.0, f64::INFINITY] {
+                            let threshold = (sum.total().abs().ln() + relative_error).max(floor);
+                            if bound <= threshold {
+                                break;
+                            }
+                            let (lo, hi, remaining) = Self::tail_band(
+                                center,
+                                support.clone(),
+                                width,
+                                distance,
+                                radius,
+                                log_scale,
+                            );
+                            add(&mut sum, lo..left)?;
+                            add(&mut sum, right..hi)?;
+                            (left, right, bound) = (lo, hi, remaining);
+                        }
                     }
                 }
                 sum.total() * factor
@@ -1359,26 +1503,21 @@ impl GaussianConvolution {
         reason = "Workspace bounds make grid indices exact and the candidate band is clamped to them."
     )]
     fn tail_band(
-        &self,
-        row: usize,
-        active: std::ops::Range<usize>,
-        drift: f64,
-        deviation: f64,
-        scale: f64,
+        center: f64,
+        active: Range<usize>,
+        width: f64,
+        distance: f64,
+        deviations: f64,
+        log_scale: f64,
     ) -> (usize, usize, f64) {
-        let spacing = self.grid.spacing;
-        let center = row as f64 + drift / spacing;
         let low = active.start as f64;
         let high = active.end as f64;
-        let distance = center.clamp(low, high) - center;
-        let radius = distance.hypot(10.0 * (deviation / spacing));
+        let radius = distance.hypot(deviations * width);
         let left = (center - radius).floor().clamp(low, high) as usize;
         let right = (center + radius).ceil().clamp(low, high) as usize;
         let edge = |cell: usize, side: f64| {
             // Leave one cell of slack for rounding of the regular-lattice moments.
-            (side * (((cell as f64 - row as f64) * spacing - drift) / deviation)
-                - spacing / deviation)
-                .max(0.0)
+            ((side * (cell as f64 - center) - 1.0) / width).max(0.0)
         };
         let left_z = if left > active.start {
             edge(left, -1.0)
@@ -1392,7 +1531,7 @@ impl GaussianConvolution {
         };
         // Each cubic is bounded by four coefficients on its unit cell. Each
         // omitted Gaussian tail has probability at most exp(-z²/2).
-        let bound = (8.0 * scale).ln() - 0.5 * left_z.min(right_z).powi(2);
+        let bound = log_scale - 0.5 * left_z.min(right_z).powi(2);
         (left, right, bound)
     }
 }
@@ -1415,7 +1554,116 @@ impl FftWorkspace {
             input: blank(),
             output: blank(),
             scratch,
+            tail_values: vec![f64::NAN; size],
+            tail: None,
         }
+    }
+}
+
+impl TailFft {
+    fn new(size: usize) -> Self {
+        let mut planner = FftPlanner::new();
+        let forward = planner.plan_fft_forward(size);
+        let inverse = planner.plan_fft_inverse(size);
+        let blank = || vec![Complex64::default(); size];
+        Self {
+            input: blank(),
+            output: blank(),
+            kernel: blank(),
+            scratch: vec![
+                Complex64::default();
+                forward
+                    .get_inplace_scratch_len()
+                    .max(inverse.get_inplace_scratch_len())
+            ],
+            weights: vec![[0.0; 4]; size],
+            forward,
+            inverse,
+        }
+    }
+
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "The workspace bounds all transform indices."
+    )]
+    fn convolve(
+        &mut self,
+        moments: &[IntervalMoments],
+        cells: usize,
+        columns: Range<usize>,
+        rows: Range<usize>,
+        coefficients: impl Fn(usize) -> Polynomial,
+        [anchor, drift, width, tilt]: [f64; 4],
+    ) -> Result<()> {
+        let size = self.input.len();
+        let log_ratio = tilt / width;
+        let normalize = (0.5 * tilt + drift / width) * tilt + log_ratio.abs();
+        let origin = cells + columns.start - rows.start;
+        self.weights.fill([0.0; 4]);
+        // Multiplying coefficients and the kernel by the same geometric
+        // progression scales convolution row i by that progression at i.
+        for offset in 0..columns.len() {
+            let moment = &moments[origin + offset];
+            let delta = (origin + offset) as f64 - cells as f64;
+            let mass = (moment.log_mass + log_ratio * delta - normalize).exp();
+            self.weights[(size - offset) % size] = [
+                mass,
+                mass * moment.conditional[0],
+                mass * moment.conditional[1],
+                mass * moment.conditional[2],
+            ];
+        }
+        for offset in 1..rows.len() {
+            let moment = &moments[origin - offset];
+            let delta = (origin - offset) as f64 - cells as f64;
+            let mass = (moment.log_mass + log_ratio * delta - normalize).exp();
+            self.weights[offset] = [
+                mass,
+                mass * moment.conditional[0],
+                mass * moment.conditional[1],
+                mass * moment.conditional[2],
+            ];
+        }
+        self.output.fill(Complex64::default());
+        for power in [0, 2] {
+            crate::cancellation::check()?;
+            self.input.fill(Complex64::default());
+            for (value, j) in self.input.iter_mut().zip(columns.clone()) {
+                let coefficient = coefficients(j);
+                let weight = (-log_ratio * (j as f64 - anchor)).exp();
+                *value = Complex64::new(coefficient[power], coefficient[power + 1]) * weight;
+            }
+            for (value, weights) in self.kernel.iter_mut().zip(&self.weights) {
+                *value = Complex64::new(weights[power], weights[power + 1]);
+            }
+            self.forward
+                .process_with_scratch(&mut self.input, &mut self.scratch);
+            self.forward
+                .process_with_scratch(&mut self.kernel, &mut self.scratch);
+            // Two real sequences share a forward transform. Recover their
+            // spectra using conjugate symmetry before multiplying them.
+            let split = |values: &[Complex64], i: usize, mirror: usize| {
+                let forward = values[i];
+                let reverse = values[mirror].conj();
+                let difference = forward - reverse;
+                [
+                    (forward + reverse) * 0.5,
+                    Complex64::new(difference.im, -difference.re) * 0.5,
+                ]
+            };
+            for (i, value) in self.output.iter_mut().enumerate() {
+                let mirror = (size - i) % size;
+                let [a, b] = split(&self.input, i, mirror);
+                let [c, d] = split(&self.kernel, i, mirror);
+                *value += a * c + b * d;
+            }
+        }
+        self.inverse
+            .process_with_scratch(&mut self.output, &mut self.scratch);
+        for value in &mut self.output[..rows.len()] {
+            *value /= size as f64;
+        }
+        Ok(())
     }
 }
 
@@ -1542,6 +1790,52 @@ mod tests {
             let spectrum = transition.convolutions[0].1.fft.as_ref().unwrap();
             Rc::ptr_eq(&workspace, &spectrum.workspace)
         }));
+        Ok(())
+    }
+
+    #[test]
+    fn tilted_tail_convolution_matches_direct_moments_on_both_sides() -> Result<()> {
+        let cells = 256;
+        let spacing = 0.01;
+        let drift = 0.013;
+        let deviation = 0.12;
+        let width = deviation / spacing;
+        let drift_cells = drift / spacing;
+        let moments: Vec<_> = (-256..256)
+            .map(|i| {
+                let left = f64::from(i) * spacing;
+                cell_moments(left, left + spacing, drift, deviation)
+            })
+            .collect();
+        let coefficients = |_| [0.6, 0.1, -0.3, 0.08];
+        let mut fft = TailFft::new(128);
+        for (rows, columns, anchor, tilt) in [
+            (30..55, 130..170, 130.0, 7.0),
+            (210..237, 110..150, 150.0, -6.0),
+        ] {
+            fft.convolve(
+                &moments,
+                cells,
+                columns.clone(),
+                rows.clone(),
+                coefficients,
+                [anchor, drift_cells, width, tilt],
+            )?;
+            for (i, row) in rows.enumerate() {
+                let row_coordinate = f64::from(u32::try_from(row).expect("256 cells"));
+                let undo = (0.5 * tilt + (row_coordinate - anchor + drift_cells) / width) * tilt
+                    + tilt.abs() / width;
+                let actual = scaled_signed_cash(fft.output[i].re, undo);
+                let expected: f64 = columns
+                    .clone()
+                    .map(|j| moments[cells + j - row].integrate(&coefficients(j)))
+                    .sum();
+                assert!(
+                    (actual - expected).abs() < 2e-11 * expected,
+                    "{actual} vs {expected}"
+                );
+            }
+        }
         Ok(())
     }
 
