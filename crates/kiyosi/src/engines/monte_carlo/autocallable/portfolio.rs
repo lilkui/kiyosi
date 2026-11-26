@@ -1226,13 +1226,15 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
                     .filter_map(|&index| states[index].monitoring)
                     .reduce(f64::min)
                 {
-                    for i in start..interval.end {
+                    for (offset, &[weight, diffusion]) in
+                        bridge.daily[start..interval.end].iter().enumerate()
+                    {
+                        let i = start + offset;
                         if minimum < floor {
                             normals.skip(interval.end - i);
                             break;
                         }
                         check_path_step(i)?;
-                        let [weight, diffusion] = bridge.daily[i];
                         log_return +=
                             weight.mul_add(target - log_return, diffusion * normals.normal());
                         minimum = minimum.min(log_return);
