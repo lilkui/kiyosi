@@ -628,16 +628,6 @@ fn prepare(
         .map(|(state, _)| state.expect("scalar preparation returns a saved state"))
 }
 
-struct RollbackLane<'a> {
-    payoff: Payoff,
-    values: Vec<f64>,
-    intrinsic: Vec<f64>,
-    multiplier: Vec<f64>,
-    predictor: Vec<f64>,
-    stage: Vec<f64>,
-    boundaries: ExerciseBoundaries<'a>,
-}
-
 fn adjoint_work(assets: u64, rows: u64, steps: u64, expiries: u64, strikes: u64) -> u64 {
     let edge_terms = 2 * steps;
     let edge_levels = u64::from(edge_terms.max(1).ilog2() + 1);
@@ -715,10 +705,10 @@ fn prepare_batch(
     let factor_rows = if deterministic { rows } else { rows - 1 };
     let padded = factor_rows.next_multiple_of(ASSET_LANES as u64) - factor_rows;
     let adjoint = !payoff.is_american() && (!additional_strikes.is_empty() || !expiries.is_empty());
-    let extra_rhs = if adjoint {
-        0
+    let rhs = if adjoint {
+        1
     } else {
-        additional_strikes.len() as u64
+        (additional_strikes.len() as u64 + 1).next_power_of_two()
     };
     let strikes_count = additional_strikes.len() as u64 + 1;
     let expiry_count = expiries.len().max(1) as u64;
@@ -729,9 +719,10 @@ fn prepare_batch(
         0
     };
     let grid_bytes = (assets * rows)
-        .saturating_mul(BYTES_PER_GRID_POINT + extra_rhs * 4 * size_of::<f64>() as u64)
+        .saturating_mul(BYTES_PER_GRID_POINT + (rhs - 1) * 4 * size_of::<f64>() as u64)
         .saturating_add(padded * assets * size_of::<[f64; 3]>() as u64)
         .saturating_add((assets + rows) * BYTES_PER_AXIS_NODE)
+        .saturating_add(assets * (rhs - 1) * size_of::<f64>() as u64)
         .saturating_add(batch_bytes);
     let validate_grid = |time_steps, curve_bytes| {
         let time_bytes = BYTES_PER_TIME_STEP
@@ -753,7 +744,7 @@ fn prepare_batch(
             let work = adjoint_work(assets, rows, time_steps, expiry_count, strikes_count);
             validate_work(work, 1)
         } else {
-            validate_work((assets * rows).saturating_mul(1 + extra_rhs), time_steps)
+            validate_work((assets * rows).saturating_mul(rhs), time_steps)
         }
     };
     let (risk, dividend) = prepare_rate_curves(context, end, |knots, bytes| {
@@ -891,10 +882,6 @@ fn prepare_batch(
     };
     let nx = asset.count + 1;
     let rows = variance.as_ref().map_or(1, Vec::len);
-    let length = nx
-        .checked_mul(rows)
-        .filter(|&n| n <= isize::MAX as usize / size_of::<[f64; 3]>())
-        .ok_or_else(unstable)?;
     let strikes = || {
         std::iter::once(payoff.strike).chain(additional_strikes.iter().map(|strike| strike / scale))
     };
@@ -939,134 +926,176 @@ fn prepare_batch(
         )
         .map(|prices| (None, prices));
     }
-    let mut lanes = Vec::with_capacity(additional_strikes.len() + 1);
-    for strike in strikes() {
+    let payoffs: Vec<_> = strikes()
+        .map(|strike| Payoff { strike, ..payoff })
+        .collect();
+    let run = match rhs {
+        1 => rollback_primal::<1>,
+        2 => rollback_primal::<2>,
+        4 => rollback_primal::<4>,
+        8 => rollback_primal::<8>,
+        _ => return Err(unstable()),
+    };
+    let (spline, prices) = run(
+        &asset,
+        &mut op,
+        &times,
+        [&risk, &dividend],
+        model,
+        &payoffs,
+        [lower, upper],
+        valuation_row,
+        scale,
+        context.spot_price(),
+    )?;
+    Ok((
+        Some(HestonState::Grid {
+            scale,
+            asset,
+            payoff: payoffs[0],
+            spline,
+        }),
+        prices,
+    ))
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "The rollback shares its payoff grid and market operator."
+)]
+fn rollback_primal<const N: usize>(
+    asset: &SpatialGrid,
+    op: &mut Operator,
+    times: &TimeGrid,
+    [risk, dividend]: [&super::Curve; 2],
+    model: &HestonParameters,
+    payoffs: &[Payoff],
+    bounds: [f64; 2],
+    valuation_row: usize,
+    scale: f64,
+    spot: f64,
+) -> Result<(Spline, Vec<f64>)> {
+    let nx = op.nx;
+    let length = nx * op.rows;
+    let time = *times.times.last().expect("the time grid includes expiry");
+    let american = payoffs[0].is_american();
+    // Contiguous payoff lanes share each spatial stencil and directional factor.
+    let terminal: Vec<[f64; N]> = (0..nx)
+        .map(|i| {
+            std::array::from_fn(|lane| {
+                payoffs.get(lane).map_or(0.0, |&payoff| {
+                    project_payoff(asset, &[payoff.strike], i, |s| payoff.value(s))
+                })
+            })
+        })
+        .collect();
+    let mut values = vec![[0.0; N]; length];
+    for row in values.chunks_exact_mut(nx) {
         crate::cancellation::check()?;
-        let payoff = Payoff { strike, ..payoff };
-        let terminal: Vec<_> = (0..nx)
-            .map(|i| project_payoff(&asset, &[strike], i, |s| payoff.value(s)))
-            .collect();
-        let values: Vec<_> = (0..length).map(|k| terminal[k % nx]).collect();
-        let intrinsic: Vec<_> = (0..nx).map(|i| payoff.value(asset.asset(i))).collect();
-        let multiplier = if payoff.is_american() {
-            vec![0.0; length]
-        } else {
-            Vec::new()
-        };
-        let boundaries = ExerciseBoundaries::new(
-            payoff,
-            [lower, upper],
-            time,
-            [&risk, &dividend],
-            times.widths.len(),
-        )?;
-        lanes.push(RollbackLane {
-            payoff,
-            values,
-            intrinsic,
-            multiplier,
-            predictor: vec![0.0; length],
-            stage: vec![0.0; length],
-            boundaries,
-        });
+        row.copy_from_slice(&terminal);
     }
+    drop(terminal);
+    let intrinsic: Vec<[f64; N]> = asset
+        .spots
+        .iter()
+        .map(|&s| {
+            std::array::from_fn(|lane| payoffs.get(lane).map_or(0.0, |payoff| payoff.value(s)))
+        })
+        .collect();
+    let mut multiplier = if american {
+        vec![[0.0; N]; length]
+    } else {
+        Vec::new()
+    };
+    let mut predictor = vec![[0.0; N]; length];
+    let mut stage = vec![[0.0; N]; length];
+    let mut boundaries = payoffs
+        .iter()
+        .map(|&payoff| {
+            crate::cancellation::check()?;
+            ExerciseBoundaries::new(payoff, bounds, time, [risk, dividend], times.widths.len())
+        })
+        .collect::<Result<Vec<_>>>()?;
+
     let rows = op.dynamic_rows();
     let cells = nx * rows;
     let work = cells.saturating_mul(times.widths.len());
-    let batched = lanes.len() > 1;
-    let pool = ((cells >= 24_000 && work >= 1_000_000 && rows >= 16)
-        || (batched && work.saturating_mul(lanes.len()) >= 1_000_000))
-        .then(heston_pool)
-        .flatten();
-    let lane_workers = batched && pool.is_some();
+    let parallel = if N > 1 {
+        cells >= 4096 && work.saturating_mul(N) >= 1_000_000
+    } else {
+        cells >= 24_000 && work >= 1_000_000 && rows >= 16
+    };
+    let pool = parallel.then(heston_pool).flatten();
     let tokens = crate::cancellation::current();
-    let operator_workers = pool
-        .filter(|_| cells >= 24_000 && work >= 1_000_000 && rows >= 16)
-        .map(|(_, count)| AssetWorkers {
-            count,
-            tokens: tokens.clone(),
-            rows_per_task: rows.div_ceil(count).max(ASSET_LANES),
-        });
+    let operator_workers = pool.map(|(_, count)| AssetWorkers {
+        count,
+        tokens: tokens.clone(),
+        rows_per_task: rows.div_ceil(count).max(ASSET_LANES),
+    });
     let workers = operator_workers
         .as_ref()
-        .filter(|_| !batched && cells >= 64_000 && work >= 8_000_000);
+        .filter(|_| N > 1 || (cells >= 64_000 && work >= 8_000_000));
     let mut rollback = || {
-        for step in (0..times.widths.len()).rev() {
+        for (step, &dt) in times.widths.iter().enumerate().rev() {
             crate::cancellation::check()?;
             let a = times.times[step];
-            let b = times.times[step + 1];
-            let dt = times.widths[step];
-            let middle = a.midpoint(b);
+            let middle = a.midpoint(times.times[step + 1]);
             let rate = risk.rate(middle);
             let q = dividend.rate(middle);
-            let var = if deterministic {
+            let var = if op.rows == 1 {
                 variance_at(model, middle)
             } else {
                 0.0
             };
-            op.prepare(&asset, [var, rate, q, dt / 3.0], operator_workers.as_ref())?;
-            let advance = |lane: &mut RollbackLane<'_>| -> Result<()> {
-                let RollbackLane {
-                    values,
-                    intrinsic,
-                    multiplier,
-                    predictor,
-                    stage,
-                    boundaries,
-                    ..
-                } = lane;
-                let edges = boundaries.at(a)?;
-                if edges.iter().any(|x| !x.is_finite()) {
+            op.prepare(asset, [var, rate, q, dt / 3.0], operator_workers.as_ref())?;
+            let mut edges = [[0.0; N]; 2];
+            for (lane, boundary) in boundaries.iter_mut().enumerate() {
+                let [left, right] = boundary.at(a)?;
+                if !left.is_finite() || !right.is_finite() {
                     return Err(unstable());
                 }
-                // Both ADI stages solve for increments with the same directional factors.
-                let increment_edges = [edges[0] - values[0], edges[1] - values[nx - 1]];
-                op.predict(values, multiplier, [predictor, stage], dt, workers)?;
-                op.solve(stage, increment_edges, workers)?;
-                op.correct(stage, predictor, dt, workers)?;
-                op.solve(predictor, increment_edges, workers)?;
-                if payoff.is_american() {
-                    for ((row, old), correction) in predictor
-                        .chunks_exact_mut(nx)
-                        .zip(values.chunks_exact(nx))
-                        .zip(multiplier.chunks_exact_mut(nx))
-                    {
-                        for (((value, &old), multiplier), &intrinsic) in row
-                            .iter_mut()
-                            .zip(old)
-                            .zip(correction)
-                            .zip(intrinsic.iter())
-                        {
-                            let raw = old + *value;
-                            *value = (raw - dt * *multiplier).max(intrinsic);
-                            *multiplier = (*multiplier + (intrinsic - raw) / dt).max(0.0);
-                        }
-                    }
-                } else {
-                    for (value, old) in predictor.iter_mut().zip(values.iter()) {
-                        *value += old;
-                    }
-                }
-                op.boundaries(predictor, edges);
-                if predictor
-                    .iter()
-                    .chain(multiplier.iter())
-                    .any(|x| !x.is_finite())
-                {
-                    return Err(unstable());
-                }
-                std::mem::swap(values, predictor);
-                Ok(())
-            };
-            if lane_workers {
-                lanes.par_iter_mut().try_for_each(|lane| {
-                    crate::cancellation::with_tokens(tokens.clone(), || advance(lane))
-                })?;
+                edges[0][lane] = left;
+                edges[1][lane] = right;
+            }
+            // Both ADI stages solve for increments with the same directional factors.
+            let increment_edges = std::array::from_fn(|side| {
+                let old = values[if side == 0 { 0 } else { nx - 1 }];
+                std::array::from_fn(|lane| edges[side][lane] - old[lane])
+            });
+            op.predict(
+                &values,
+                &multiplier,
+                [&mut predictor, &mut stage],
+                dt,
+                workers,
+            )?;
+            op.solve(&mut stage, increment_edges, workers)?;
+            op.correct(&stage, &mut predictor, dt, workers)?;
+            op.solve(&mut predictor, increment_edges, workers)?;
+            if american {
+                op.exercise(
+                    &values,
+                    &intrinsic,
+                    &mut predictor,
+                    &mut multiplier,
+                    edges,
+                    dt,
+                    workers,
+                )?;
             } else {
-                for lane in &mut lanes {
-                    advance(lane)?;
+                for (value, old) in predictor
+                    .as_flattened_mut()
+                    .iter_mut()
+                    .zip(values.as_flattened())
+                {
+                    *value += old;
+                }
+                op.boundaries(&mut predictor, edges);
+                if predictor.as_flattened().iter().any(|x| !x.is_finite()) {
+                    return Err(unstable());
                 }
             }
+            std::mem::swap(&mut values, &mut predictor);
         }
         Ok(())
     };
@@ -1075,29 +1104,17 @@ fn prepare_batch(
     } else {
         rollback()?;
     }
-    let mut results = lanes
-        .into_iter()
-        .map(|RollbackLane { payoff, values, .. }| {
-            let spline = asset.spline(if variance.is_some() {
-                values[valuation_row * nx..][..nx].to_vec()
-            } else {
-                values
-            });
-            (payoff, spline)
-        });
-    let (payoff, spline) = results.next().expect("the template has a payoff");
-    let prices = results
-        .map(|(payoff, spline)| grid_price(&asset, &spline, payoff, scale, context.spot_price()))
-        .collect::<Result<Vec<_>>>()?;
-    Ok((
-        Some(HestonState::Grid {
-            scale,
-            asset,
-            payoff,
-            spline,
-        }),
-        prices,
-    ))
+
+    let row = &values[valuation_row * nx..][..nx];
+    let spline = |lane: usize| asset.spline(row.iter().map(|value| value[lane]).collect());
+    let first = spline(0);
+    let prices = payoffs
+        .iter()
+        .enumerate()
+        .skip(1)
+        .map(|(lane, &payoff)| grid_price(asset, &spline(lane), payoff, scale, spot))
+        .collect::<Result<_>>()?;
+    Ok((first, prices))
 }
 
 #[expect(
@@ -1781,7 +1798,7 @@ impl Operator {
         Ok(())
     }
 
-    fn boundaries(&self, values: &mut [f64], edges: [f64; 2]) {
+    fn boundaries<const N: usize>(&self, values: &mut [[f64; N]], edges: [[f64; N]; 2]) {
         for row in values.chunks_exact_mut(self.nx) {
             row[0] = edges[0];
             row[self.nx - 1] = edges[1];
@@ -1789,7 +1806,7 @@ impl Operator {
         self.variance_boundary(values);
     }
 
-    fn variance_boundary(&self, values: &mut [f64]) {
+    fn variance_boundary<T: Copy>(&self, values: &mut [T]) {
         if self.rows > 1 {
             let top = (self.rows - 1) * self.nx;
             let (below, last) = values.split_at_mut(top);
@@ -1798,7 +1815,12 @@ impl Operator {
     }
 
     #[inline]
-    fn for_each_component(&self, values: &[f64], j: usize, mut write: impl FnMut(usize, [f64; 3])) {
+    fn for_each_component<const N: usize>(
+        &self,
+        values: &[[f64; N]],
+        j: usize,
+        mut write: impl FnMut(usize, [[f64; N]; 3]),
+    ) {
         let nx = self.nx;
         let start = j * nx;
         let current = &values[start..start + nx];
@@ -1808,30 +1830,42 @@ impl Operator {
         let [left_weight, _, right_weight] = self.dv.get(j).copied().unwrap_or([0.0; 3]);
         let has_mixed = j > 0 && self.rows > 1;
         // Reuse the two neighboring variance differences as the asset stencil moves.
-        let difference = |i: usize| {
+        let difference = |i: usize| -> [f64; N] {
             if has_mixed {
-                left_weight * (previous[i] - current[i]) + right_weight * (next[i] - current[i])
+                std::array::from_fn(|lane| {
+                    left_weight * (previous[i][lane] - current[i][lane])
+                        + right_weight * (next[i][lane] - current[i][lane])
+                })
             } else {
-                0.0
+                [0.0; N]
             }
         };
         let mut left = difference(0);
         let mut center = difference(1);
         for i in 1..nx - 1 {
             let [a, b, c] = self.matrices.asset[start + i];
-            let asset = a * current[i - 1] + b * current[i] + c * current[i + 1];
-            let mut variance = diagonal * current[i];
-            if j > 0 {
-                variance += lower * previous[i];
-            }
-            if self.rows > 1 {
-                variance += upper * next[i];
-            }
+            let asset = std::array::from_fn(|lane| {
+                a * current[i - 1][lane] + b * current[i][lane] + c * current[i + 1][lane]
+            });
+            let variance = std::array::from_fn(|lane| {
+                let mut value = diagonal * current[i][lane];
+                if j > 0 {
+                    value += lower * previous[i][lane];
+                }
+                if self.rows > 1 {
+                    value += upper * next[i][lane];
+                }
+                value
+            });
             let right = difference(i + 1);
             let mixed = if has_mixed {
-                self.mixed[j] * (self.dx[i][0] * (left - center) + self.dx[i][2] * (right - center))
+                std::array::from_fn(|lane| {
+                    self.mixed[j]
+                        * (self.dx[i][0] * (left[lane] - center[lane])
+                            + self.dx[i][2] * (right[lane] - center[lane]))
+                })
             } else {
-                0.0
+                [0.0; N]
             };
             write(i, [mixed, asset, variance]);
             left = center;
@@ -1839,16 +1873,16 @@ impl Operator {
         }
     }
 
-    fn predict(
+    fn predict<const N: usize>(
         &self,
-        values: &[f64],
-        multiplier: &[f64],
-        [predictor, stage]: [&mut [f64]; 2],
+        values: &[[f64; N]],
+        multiplier: &[[f64; N]],
+        [predictor, stage]: [&mut [[f64; N]]; 2],
         dt: f64,
         workers: Option<&AssetWorkers>,
     ) -> Result<()> {
         let nx = self.nx;
-        let calculate = |start: usize, predictor: &mut [f64], stage: &mut [f64]| {
+        let calculate = |start: usize, predictor: &mut [[f64; N]], stage: &mut [[f64; N]]| {
             for (row, (predictor, stage)) in predictor
                 .chunks_exact_mut(nx)
                 .zip(stage.chunks_exact_mut(nx))
@@ -1858,9 +1892,11 @@ impl Operator {
                 let j = start + row;
                 self.for_each_component(values, j, |i, [mixed, along_asset, along_variance]| {
                     let k = j * nx + i;
-                    let explicit = mixed + along_asset + along_variance;
-                    let correction = multiplier.get(k).copied().unwrap_or(0.0);
-                    let value = dt * (explicit + correction);
+                    let correction = multiplier.get(k).copied().unwrap_or([0.0; N]);
+                    let value = std::array::from_fn(|lane| {
+                        let explicit = mixed[lane] + along_asset[lane] + along_variance[lane];
+                        dt * (explicit + correction[lane])
+                    });
                     predictor[i] = value;
                     stage[i] = value;
                 });
@@ -1884,20 +1920,24 @@ impl Operator {
         }
     }
 
-    fn correct(
+    fn correct<const N: usize>(
         &self,
-        stage: &[f64],
-        predictor: &mut [f64],
+        stage: &[[f64; N]],
+        predictor: &mut [[f64; N]],
         dt: f64,
         workers: Option<&AssetWorkers>,
     ) -> Result<()> {
         let nx = self.nx;
-        let calculate = |start: usize, predictor: &mut [f64]| {
+        let calculate = |start: usize, predictor: &mut [[f64; N]]| {
             for (row, predictor) in predictor.chunks_exact_mut(nx).enumerate() {
                 crate::cancellation::check()?;
                 let j = start + row;
                 self.for_each_component(stage, j, |i, [cross, along_asset, along_variance]| {
-                    predictor[i] += dt * (0.5 * cross + (along_asset + along_variance) / 6.0);
+                    for lane in 0..N {
+                        predictor[i][lane] += dt
+                            * (0.5 * cross[lane]
+                                + (along_asset[lane] + along_variance[lane]) / 6.0);
+                    }
                 });
             }
             Ok(())
@@ -1912,6 +1952,72 @@ impl Operator {
         } else {
             calculate(0, &mut predictor[..active])
         }
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Exercise uses the two ADI stages and per-strike data."
+    )]
+    fn exercise<const N: usize>(
+        &self,
+        values: &[[f64; N]],
+        intrinsic: &[[f64; N]],
+        predictor: &mut [[f64; N]],
+        multiplier: &mut [[f64; N]],
+        [left, right]: [[f64; N]; 2],
+        dt: f64,
+        workers: Option<&AssetWorkers>,
+    ) -> Result<()> {
+        let nx = self.nx;
+        let dynamic_rows = self.dynamic_rows();
+        let apply = |start: usize,
+                     values: &[[f64; N]],
+                     predictor: &mut [[f64; N]],
+                     multiplier: &mut [[f64; N]]| {
+            for (j, ((old, row), correction)) in values
+                .chunks_exact(nx)
+                .zip(predictor.chunks_exact_mut(nx))
+                .zip(multiplier.chunks_exact_mut(nx))
+                .enumerate()
+            {
+                crate::cancellation::check()?;
+                for (((value, old), multiplier), intrinsic) in
+                    row.iter_mut().zip(old).zip(&mut *correction).zip(intrinsic)
+                {
+                    for lane in 0..N {
+                        let raw = old[lane] + value[lane];
+                        value[lane] = (raw - dt * multiplier[lane]).max(intrinsic[lane]);
+                        multiplier[lane] =
+                            (multiplier[lane] + (intrinsic[lane] - raw) / dt).max(0.0);
+                    }
+                }
+                row[0] = left;
+                row[nx - 1] = right;
+                if ((start + j < dynamic_rows) && row.as_flattened().iter().any(|x| !x.is_finite()))
+                    || correction.as_flattened().iter().any(|x| !x.is_finite())
+                {
+                    return Err(unstable());
+                }
+            }
+            Ok(())
+        };
+        if let Some(workers) = workers {
+            let chunk = workers.rows_per_task * nx;
+            workers.apply(
+                values
+                    .par_chunks(chunk)
+                    .zip(predictor.par_chunks_mut(chunk))
+                    .zip(multiplier.par_chunks_mut(chunk))
+                    .enumerate(),
+                |(i, ((values, predictor), multiplier))| {
+                    apply(i * workers.rows_per_task, values, predictor, multiplier)
+                },
+            )?;
+        } else {
+            apply(0, values, predictor, multiplier)?;
+        }
+        self.variance_boundary(predictor);
+        Ok(())
     }
 
     fn take_boundary_weights(&self, values: &mut [f64]) -> [f64; 2] {
@@ -2090,10 +2196,10 @@ impl Operator {
         }
     }
 
-    fn solve(
+    fn solve<const N: usize>(
         &self,
-        values: &mut [f64],
-        edges: [f64; 2],
+        values: &mut [[f64; N]],
+        edges: [[f64; N]; 2],
         workers: Option<&AssetWorkers>,
     ) -> Result<()> {
         let nx = self.nx;
@@ -2102,10 +2208,14 @@ impl Operator {
         let tile_width = ASSET_LANES * nx;
         let factor_count = rows.div_ceil(ASSET_LANES) * nx;
         let factor_rows = &self.matrices.asset_factors[..factor_count];
-        let solve_rows = |values: &mut [f64], factors: &[AssetFactor]| {
+        let solve_rows = |values: &mut [[f64; N]], factors: &[AssetFactor]| {
             for (tile, factors) in values.chunks_mut(tile_width).zip(factors.chunks_exact(nx)) {
                 crate::cancellation::check()?;
-                solve_asset_tile(tile, factors, edges)?;
+                if N == 1 {
+                    solve_asset_tile(tile.as_flattened_mut(), factors, [edges[0][0], edges[1][0]])?;
+                } else {
+                    solve_packed_asset_tile(tile, factors, edges)?;
+                }
             }
             Ok(())
         };
@@ -2128,11 +2238,11 @@ impl Operator {
         Ok(())
     }
 
-    fn variance_strips(
+    fn variance_strips<T: Send>(
         &self,
-        values: &mut [f64],
+        values: &mut [T],
         workers: Option<&AssetWorkers>,
-        solve: impl Fn(&mut [&mut [f64]]) -> Result<()> + Sync,
+        solve: impl Fn(&mut [&mut [T]]) -> Result<()> + Sync,
     ) -> Result<()> {
         let nx = self.nx;
         // Each strip owns a cache-sized group of complete variance lines.
@@ -2195,17 +2305,13 @@ fn transpose_asset_tile(tile: &mut [f64], factors: &[AssetFactor]) -> [f64; 2] {
 }
 
 fn transpose_variance_strip(strip: &mut [&mut [f64]], factors: &[[f64; 3]]) -> Result<()> {
-    for value in &mut *strip[0] {
-        *value /= factors[0][1];
-    }
+    solve_variance_row(strip[0], None, factors[0][1], 0.0);
     for j in 1..strip.len() {
         crate::cancellation::check()?;
         let (before, after) = strip.split_at_mut(j);
         let upper = factors[j - 1][2];
         let diagonal = factors[j][1];
-        for (value, previous) in after[0].iter_mut().zip(before[j - 1].iter()) {
-            *value = (*value - upper * previous) / diagonal;
-        }
+        solve_variance_row(after[0], Some(before[j - 1]), diagonal, upper);
     }
     for j in (1..strip.len()).rev() {
         let (before, after) = strip.split_at_mut(j);
@@ -2259,16 +2365,52 @@ fn solve_asset_tile(tile: &mut [f64], factors: &[AssetFactor], edges: [f64; 2]) 
     Ok(())
 }
 
-fn solve_variance_strip(
-    strip: &mut [&mut [f64]],
+fn solve_packed_asset_tile<const N: usize>(
+    tile: &mut [[f64; N]],
+    factors: &[AssetFactor],
+    [left, right]: [[f64; N]; 2],
+) -> Result<()> {
+    let nx = factors.len();
+    for (variance, row) in tile.chunks_exact_mut(nx).enumerate() {
+        row[0] = left;
+        row[nx - 1] = right;
+        let mut previous = left;
+        let interior = &mut row[1..nx - 1];
+        let factors = &factors[1..nx - 1];
+        for (cell, [lower, _, _]) in interior.iter_mut().zip(factors) {
+            for (value, prev) in cell.iter_mut().zip(previous) {
+                *value -= lower[variance] * prev;
+            }
+            previous = *cell;
+        }
+        let mut next = right;
+        for (cell, [_, diagonal, upper]) in interior.iter_mut().zip(factors).rev() {
+            for (value, next) in cell.iter_mut().zip(next) {
+                *value = (*value - upper[variance] * next) / diagonal[variance];
+            }
+            next = *cell;
+        }
+        if interior
+            .as_flattened()
+            .iter()
+            .any(|value| !value.is_finite())
+        {
+            return Err(unstable());
+        }
+    }
+    Ok(())
+}
+
+fn solve_variance_strip<const N: usize>(
+    strip: &mut [&mut [[f64; N]]],
     factors: &[[f64; 3]],
     dynamic_rows: usize,
 ) -> Result<()> {
     for (j, &[multiplier, _, _]) in factors.iter().enumerate().skip(1) {
         crate::cancellation::check()?;
         let (previous, current) = strip.split_at_mut(j);
-        let prior = &previous[j - 1];
-        let row = &mut current[0];
+        let prior = previous[j - 1].as_flattened();
+        let row = current[0].as_flattened_mut();
         if j < dynamic_rows {
             for (value, prior) in row.iter_mut().zip(prior.iter()) {
                 *value -= multiplier * prior;
@@ -2281,21 +2423,39 @@ fn solve_variance_strip(
     }
     for (j, &[_, diagonal, upper]) in factors.iter().enumerate().rev() {
         let (current, next) = strip.split_at_mut(j + 1);
-        let row = &mut current[j];
-        if let Some(next) = next.first() {
-            for (value, next) in row.iter_mut().zip(next.iter()) {
-                *value = (*value - upper * next) / diagonal;
-            }
-        } else {
-            for value in row.iter_mut() {
-                *value /= diagonal;
-            }
-        }
+        let row = current[j].as_flattened_mut();
+        solve_variance_row(
+            row,
+            next.first().map(|row| row.as_flattened()),
+            diagonal,
+            upper,
+        );
         if row.iter().any(|value| !value.is_finite()) {
             return Err(unstable());
         }
     }
     Ok(())
+}
+
+fn solve_variance_row(row: &mut [f64], other: Option<&[f64]>, diagonal: f64, neighbor: f64) {
+    fn apply(row: &mut [f64], other: Option<&[f64]>, neighbor: f64, divide: impl Fn(f64) -> f64) {
+        if let Some(other) = other {
+            for (value, other) in row.iter_mut().zip(other) {
+                *value = divide(*value - neighbor * other);
+            }
+        } else {
+            for value in row {
+                *value = divide(*value);
+            }
+        }
+    }
+    // Every asset column and payoff in this variance row shares the same pivot.
+    let inverse = diagonal.recip();
+    if inverse.is_normal() {
+        apply(row, other, neighbor, |value| value * inverse);
+    } else {
+        apply(row, other, neighbor, |value| value / diagonal);
+    }
 }
 
 fn implicit_row([lower, diagonal, upper]: [f64; 3], weight: f64) -> [f64; 3] {
@@ -2320,6 +2480,14 @@ fn factor(rows: &mut [[f64; 3]]) -> Result<()> {
 #[cfg(test)]
 mod adjoint_tests {
     use super::*;
+
+    #[test]
+    fn variance_solve_uses_division_when_the_reciprocal_overflows() {
+        let diagonal = f64::from_bits(1);
+        let mut row = [diagonal, -2.0 * diagonal];
+        solve_variance_row(&mut row, None, diagonal, 0.0);
+        assert_eq!(row, [1.0, -2.0]);
+    }
 
     #[test]
     fn heston_operator_tiles_match_serial_across_rate_and_step_changes() -> Result<()> {
@@ -2408,9 +2576,10 @@ mod adjoint_tests {
             .collect();
         let dot = |a: &[f64], b: &[f64]| a.iter().zip(b).map(|(a, b)| a * b).sum::<f64>();
         let edges = [0.8, -0.25];
-        let mut values = input.clone();
-        op.solve(&mut values, edges, None)?;
-        let solve_expected = dot(&values, &weights);
+        let packed_input: Vec<_> = input.iter().map(|&x| [x]).collect();
+        let mut values = packed_input.clone();
+        op.solve(&mut values, edges.map(|x| [x]), None)?;
+        let solve_expected = dot(values.as_flattened(), &weights);
 
         let mut values = vec![0.0; input.len()];
         for (j, row) in values
@@ -2418,9 +2587,13 @@ mod adjoint_tests {
             .take(op.dynamic_rows())
             .enumerate()
         {
-            op.for_each_component(&input, j, |i, [mixed, along_asset, along_variance]| {
-                row[i] = 0.5 * mixed + (along_asset + along_variance) / 6.0;
-            });
+            op.for_each_component(
+                &packed_input,
+                j,
+                |i, [[mixed], [along_asset], [along_variance]]| {
+                    row[i] = 0.5 * mixed + (along_asset + along_variance) / 6.0;
+                },
+            );
         }
         let explicit_expected = dot(&values, &weights);
         let transpose = |workers| {
@@ -2452,6 +2625,17 @@ mod adjoint_tests {
             .build()
             .map_err(std::io::Error::other)?;
         assert_eq!(serial, pool.install(|| transpose(Some(&workers)))?);
+        let packed_input: Vec<_> = input.iter().map(|&x| [x, -x, 2.0 * x, 0.0]).collect();
+        let packed_edges = edges.map(|x| [x, 2.0 * x, -x, 0.0]);
+        let mut packed = packed_input.clone();
+        pool.install(|| op.solve(&mut packed, packed_edges, Some(&workers)))?;
+        for lane in 0..4 {
+            let mut expected: Vec<_> = packed_input.iter().map(|x| [x[lane]]).collect();
+            op.solve(&mut expected, packed_edges.map(|x| [x[lane]]), None)?;
+            for (actual, expected) in packed.iter().zip(expected) {
+                assert_eq!(actual[lane].to_bits(), expected[0].to_bits());
+            }
+        }
         Ok(())
     }
 }

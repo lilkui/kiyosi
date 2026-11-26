@@ -646,3 +646,19 @@ def test_dense_european_surface_fits_the_indexed_payoff_work_budget():
     )
     assert surface[0] == pytest.approx(selected[0], abs=1e-9, rel=0)
     assert surface[-1] == pytest.approx(selected[-1], abs=1e-9, rel=0)
+
+
+def test_fixed_american_batch_with_partial_strike_tile_matches_scalar_prices():
+    engine = FiniteDifferenceHestonVanillaEngine(asset_upper_boundary=400)
+    market = context(model())
+    template = AmericanOption(
+        option_type="put", strike=100, effective_time=START, expiry_time=END
+    )
+    strikes = (105, 95, 100, 103, 107, 97, 109, 95)
+    values = engine.price_strikes(template, market, strikes=strikes)
+    assert values[1] == values[-1]
+    assert values == pytest.approx(
+        [engine.price(template.replace(strike=strike), market) for strike in strikes],
+        abs=0.002,
+        rel=0,
+    )
