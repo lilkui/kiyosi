@@ -4,7 +4,7 @@ use crate::{Error, EuropeanOption, PricingContext, Result};
 ///
 /// Uses price `V`, spot `S`, decimal volatility `σ`, decimal continuously
 /// compounded rates `r` and `q`, and forward valuation time `t` in years
-/// (Actual/365 Fixed). Other inputs, including expiry, remain fixed.
+/// (Actual/365 Fixed). Derivatives hold all other inputs fixed, including expiry.
 /// Rho and dividend rho differentiate parallel shifts of their respective curves
 /// in each curve's annual quote units. See [`crate::RateTermStructure::shifted`].
 /// Theta, charm and color advance valuation with the market curves held fixed;
@@ -237,8 +237,8 @@ impl PricingResult {
     }
     /// Marks absent, requested, supported measures as lacking a numerical stencil.
     ///
-    /// Does not change finite values, the request or engine support. Adding a value
-    /// with [`Self::with_greek`] clears its stencil status.
+    /// This method sets stencil status only. [`Self::with_greek`] clears the
+    /// status when it supplies a value.
     ///
     /// # Examples
     ///
@@ -392,7 +392,7 @@ pub struct NumericalShiftSettings {
     /// Sets a positive absolute volatility bump, or `None` (default) for automatic selection.
     ///
     /// Automatic bumps use the smaller of 0.0001 decimal units and half the current volatility.
-    /// See [`crate::numerical_greeks`] for usage; zero-volatility derivatives remain undefined.
+    /// See [`crate::numerical_greeks`] for usage; zero-volatility derivatives are undefined.
     pub volatility_shift: Option<f64>,
     /// Sets the positive risk-free and dividend rate bump (default 0.0001 decimal units).
     pub rate_shift: f64,
@@ -440,8 +440,7 @@ impl NumericalShiftSettings {
     ///
     /// Returns [`Error::InvalidInput`] for nonpositive or non-finite explicit spot,
     /// volatility or rate bumps, or a zero or sub-microsecond time bump.
-    /// Leaves the settings unchanged. Automatic bumps are resolved at pricing;
-    /// representability of numerical stencils is checked during pricing.
+    /// Pricing resolves automatic bumps and checks the representability of numerical stencils.
     ///
     /// # Examples
     ///
@@ -547,8 +546,8 @@ pub type CouponPricer<'a, I> = Box<dyn Fn(&I, f64) -> Result<Option<f64>> + 'a>;
 
 /// Provides scalar pricing for numerical analysis and solvers, independent of exercise style.
 ///
-/// Implementations must return domain failures through [`Result<T>`](crate::Result),
-/// without mutating inputs.
+/// Implementations must treat pricing inputs as read-only and return domain
+/// failures through [`Result<T>`](crate::Result).
 /// The instrument parameter selects supported combinations; it defaults to
 /// [`EuropeanOption`]. See [`crate::AnalyticDigitalEngine::price`] for digital usage.
 /// Custom estimators implement [`Self::price_with_greeks_with_settings`]. Generic
@@ -558,7 +557,6 @@ pub trait PricingEngine<I = EuropeanOption> {
     ///
     /// Delegates to [`Self::price_with_greeks_with_settings`] with [`NumericalShiftSettings::default`],
     /// retaining native estimators through generic engines and trait objects.
-    /// Inputs remain unchanged.
     ///
     /// # Errors
     ///
@@ -601,7 +599,7 @@ pub trait PricingEngine<I = EuropeanOption> {
     /// fallbacks, event checks and terminal stencils. Purely analytic measures ignore
     /// the validated controls. Custom estimators override this hook; [`Self::price_with_greeks`]
     /// supplies shared defaults through a generic engine or trait object.
-    /// The default uses scalar differences. Inputs remain unchanged.
+    /// The default uses scalar differences.
     ///
     /// # Errors
     ///
@@ -721,7 +719,7 @@ pub trait PricingEngine<I = EuropeanOption> {
     /// See [`crate::MonteCarloVanillaEngine::price`].
     /// Prepared handles support sequential use within the calling thread; they
     /// need not implement [`Send`] or [`Sync`]. Independent requests prepare their
-    /// own handles, leaving the original engine's concurrency contract unchanged.
+    /// own handles under the engine's concurrency contract.
     ///
     /// # Errors
     ///

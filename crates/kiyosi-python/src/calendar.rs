@@ -215,7 +215,7 @@ pub(crate) fn sse_calendar() -> TradingCalendar {
     TradingCalendar(kiyosi::TradingCalendar::sse())
 }
 
-/// Create open and closed overrides without changing the base calendar.
+/// Derive a calendar from a base calendar and open and closed date overrides.
 ///
 /// Parameters
 /// ----------

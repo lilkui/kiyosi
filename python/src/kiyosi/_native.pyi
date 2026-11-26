@@ -62,8 +62,9 @@ def configure_monte_carlo_pool(*, max_workers: SupportsIndex) -> None:
     Notes
     -----
     Creates no threads. The default pool size is available CPU parallelism.
-    Configure each process before submitting parallel pricing work. Repeating
-    the configured cap is valid; failed configuration leaves it unchanged.
+    Configure each process before submitting parallel pricing work. Successful
+    calls set the cap before initialization. An initialized pool accepts only
+    the configured cap.
     Engine max_active_workers caps active work per request within this pool.
     Use multiprocessing's spawn start method if the parent has already run
     parallel Monte Carlo. Serial engines support pricing in a forked child.
@@ -146,7 +147,7 @@ def implied_snowball_coupon(
     call with_resolved_seed() first; tolerances constrain the sampled price
     curve, not its sampling error. Snowballs shift all observation coupons
     relative to the first one, including past observations. The maturity
-    convention controls the final coupon; the ternary minimum remains fixed.
+    convention controls the final coupon. The ternary minimum is a fixed lower bound.
     The quoted rate, bounds and parameter tolerance use annual decimal units.
     Trials use affine interpolation, then bisection.
     Model support follows the engine, including local volatility with finite differences.
@@ -265,14 +266,12 @@ class EuropeanOption:
     ) -> EuropeanOption:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         option_type, strike, effective_time, expiry_time : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -342,14 +341,12 @@ class AmericanOption:
     ) -> AmericanOption:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         option_type, strike, effective_time, expiry_time : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -423,14 +420,12 @@ class CashOrNothingOption:
     ) -> CashOrNothingOption:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         option_type, strike, payout, effective_time, expiry_time : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -504,14 +499,12 @@ class AssetOrNothingOption:
     ) -> AssetOrNothingOption:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         option_type, strike, effective_time, expiry_time : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -643,8 +636,7 @@ class RateTermStructure:
     def exact_flat_rate(self) -> float | None:
         """Return the scalar rate when all implied forwards are exactly constant.
 
-        Nonconstant curves return None. Node-based coverage is preserved. This
-        query does not change the curve or its coverage bounds.
+        This read-only query returns None for nonconstant curves.
         """
 
     @property
@@ -754,7 +746,7 @@ class RateTermStructure:
         """
 
     def shifted(self, shift: _Real) -> RateTermStructure:
-        """Create a parallel rate shift without changing this curve.
+        """Return a parallel-shifted copy of this curve.
 
         Parameters
         ----------
@@ -764,7 +756,7 @@ class RateTermStructure:
         Returns
         -------
         RateTermStructure
-            Independent curve with unchanged coverage.
+            Independent curve with the source curve's coverage bounds.
 
         Raises
         ------
@@ -824,19 +816,20 @@ class BlackScholesMertonParameters:
         | EllipsisType = ...,
         calendar: TradingCalendar | None | EllipsisType = ...,
     ) -> BlackScholesMertonParameters:
-        """Return a validated owned replacement; omitted fields are retained.
+        """Return a validated copy with the supplied fields applied.
 
         Parameters
         ----------
         **fields : object
-            Constructor fields to replace. Ellipsis retains a value; None
-            clears the calendar. Volatility values are not converted when
-            changing the clock. See the class parameters for units.
+            Constructor fields to replace. Omitted fields and fields set to
+            Ellipsis default to the instance's values. None clears the calendar.
+            A replacement clock uses the supplied or defaulted volatility value
+            directly. See the class parameters for units.
 
         Returns
         -------
         object
-            Validated instance of the same class; the original is unchanged.
+            Validated copy of the same class.
 
         Raises
         ------
@@ -940,8 +933,7 @@ class HestonParameters:
     options; FiniteDifferenceHestonVanillaEngine prices European and American
     options. Requested Greeks have status "unsupported"; implied-parameter solvers
     raise UnsupportedOperationError. Numeric conversion rejects booleans.
-    Replacement validates in Rust before returning a new owned model; the original
-    is unchanged on failure.
+    Replacement uses Rust validation and returns a separate owned model.
     """
 
     def __init__(
@@ -971,19 +963,20 @@ class HestonParameters:
         | EllipsisType = ...,
         calendar: TradingCalendar | None | EllipsisType = ...,
     ) -> HestonParameters:
-        """Return a validated owned replacement; omitted fields are retained.
+        """Return a validated copy with the supplied fields applied.
 
         Parameters
         ----------
         **fields : object
-            Constructor fields to replace. Ellipsis retains a value; None
-            clears the calendar. Volatility values are not converted when
-            changing the clock. See the class parameters for units.
+            Constructor fields to replace. Omitted fields and fields set to
+            Ellipsis default to the instance's values. None clears the calendar.
+            A replacement clock uses the supplied or defaulted volatility value
+            directly. See the class parameters for units.
 
         Returns
         -------
         object
-            Validated instance of the same class; the original is unchanged.
+            Validated copy of the same class.
 
         Raises
         ------
@@ -1184,19 +1177,20 @@ class LocalVolatilityParameters:
         | EllipsisType = ...,
         calendar: TradingCalendar | None | EllipsisType = ...,
     ) -> LocalVolatilityParameters:
-        """Return a validated owned replacement; omitted fields are retained.
+        """Return a validated copy with the supplied fields applied.
 
         Parameters
         ----------
         **fields : object
-            Constructor fields to replace. Ellipsis retains a value; None
-            clears the calendar. Volatility values are not converted when
-            changing the clock. See the class parameters for units.
+            Constructor fields to replace. Omitted fields and fields set to
+            Ellipsis default to the instance's values. None clears the calendar.
+            A replacement clock uses the supplied or defaulted volatility value
+            directly. See the class parameters for units.
 
         Returns
         -------
         object
-            Validated instance of the same class; the original is unchanged.
+            Validated copy of the same class.
 
         Raises
         ------
@@ -1388,7 +1382,7 @@ def custom_calendar(
     open_dates: Iterable[date] = (),
     trading_days_per_year: SupportsIndex | None = None,
 ) -> TradingCalendar:
-    """Create open and closed overrides without changing the base calendar.
+    """Derive a calendar from a base calendar and open and closed date overrides.
 
     Parameters
     ----------
@@ -1604,14 +1598,12 @@ class PricingContext:
     ) -> PricingContext:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         model_parameters, spot_price, valuation_time : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -1937,14 +1929,12 @@ class AnalyticHestonEuropeanEngine(_PricingMethods[EuropeanOption]):
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         absolute_tolerance, relative_tolerance, max_evaluations : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -2184,14 +2174,12 @@ class CoxRossRubinsteinBarrierEngine(_PricingMethods[BarrierOption]):
     def replace(self, *, step_count: SupportsIndex | EllipsisType = ...) -> Self:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         step_count : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -2315,14 +2303,12 @@ class QuadratureBarrierEngine(_PricingMethods[BarrierOption]):
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         asset_step_count, integration_standard_deviations : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -2399,14 +2385,12 @@ class QuadratureDigitalEngine(
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         asset_step_count, integration_standard_deviations : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -2492,14 +2476,12 @@ class QuadratureVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         asset_step_count, time_step_count, integration_standard_deviations : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -2649,7 +2631,7 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
         Returns
         -------
         PricingResult
-            The price and requested sensitivities. Grid and rounding errors still apply.
+            The price and requested sensitivities. Grid and rounding errors apply.
         """
 
     def price_with_rollback_tolerance(
@@ -2669,7 +2651,7 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
             Market data with flat rates.
         absolute_tolerance : float
             Positive truncation tolerance in price units. Grid discretization
-            and floating-point errors still apply.
+            and floating-point errors apply.
 
         Returns
         -------
@@ -2692,14 +2674,12 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         step_count, rollback_tolerance : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -2816,14 +2796,12 @@ class CoxRossRubinsteinDigitalEngine(
     def replace(self, *, step_count: SupportsIndex | EllipsisType = ...) -> Self:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         step_count : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -2967,14 +2945,12 @@ class _FiniteDifferenceMethods[Instrument](_PricingMethods[Instrument]):
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         asset_step_count, time_step_count, scheme, asset_upper_boundary : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -3629,14 +3605,12 @@ class FiniteDifferenceHestonVanillaEngine(
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         asset_step_count, variance_step_count, time_step_count, asset_upper_boundary, variance_upper_boundary : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -4003,8 +3977,8 @@ class _MonteCarloMethods[Instrument, StatisticsInstrument](_PricingMethods[Instr
     def with_resolved_seed(self) -> Self:
         """Return an engine with a concrete seed, preserving all other controls.
 
-        An existing seed is retained. Reuse the returned engine to replay its
-        draws within the same build. The original is unchanged.
+        The returned engine uses the source seed if present. Reuse it to replay
+        the draws within the same build.
 
         Returns
         -------
@@ -4058,7 +4032,7 @@ class _MonteCarloMethods[Instrument, StatisticsInstrument](_PricingMethods[Instr
         tuple[float, int or None]
             Price and actual sampling seed; None when no sampling is needed.
             Reprice with replace(seed=seed) and the same inputs and controls to
-            replay the result within the same build. The engine is unchanged.
+            replay the result within the same build.
 
         Raises
         ------
@@ -4278,14 +4252,12 @@ class MonteCarloVanillaEngine(
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         path_count, step_count, seed, max_active_workers, sampling, antithetic : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -4536,14 +4508,12 @@ class MonteCarloDigitalEngine(
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         path_count, seed, max_active_workers, sampling, antithetic : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -4696,14 +4666,12 @@ class MonteCarloBarrierEngine(
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         path_count, seed, max_active_workers, sampling, antithetic : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -4835,14 +4803,12 @@ class MonteCarloAutocallableEngine(
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         path_count, seed, max_active_workers, sampling, antithetic : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -4926,14 +4892,12 @@ class MonteCarloAccumulatorEngine(_MonteCarloMethods[Accumulator, Accumulator]):
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         path_count, seed, max_active_workers, sampling, antithetic : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -5069,14 +5033,12 @@ class MonteCarloAsianEngine(
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         path_count, step_count, seed, max_active_workers, sampling, antithetic : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -5182,7 +5144,7 @@ class PricingResult:
     Unavailable or unrequested Greeks are None. All derivatives are unscaled:
     spot uses spot units, volatility and rates use decimal values, and forward
     valuation time uses years (Actual/365 Fixed). Other inputs, including
-    expiry, remain fixed. With price V, spot S, volatility σ and valuation time
+    expiry, are held fixed. With price V, spot S, volatility σ and valuation time
     t: delta = ∂V/∂S, gamma = ∂²V/∂S², speed = ∂³V/∂S³, theta = ∂V/∂t, charm =
     ∂²V/(∂S∂t), color = ∂³V/(∂S²∂t), vega = ∂V/∂σ, volga = ∂²V/∂σ², vanna =
     ∂²V/(∂S∂σ), and zomma = ∂³V/(∂S²∂σ). Rho shifts the risk-free curve in
@@ -5815,14 +5777,12 @@ class GeometricAveragePriceOption:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         option_type, strike, effective_time, averaging_start_time, expiry_time, realized_average : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -5924,14 +5884,12 @@ class ArithmeticAveragePriceOption:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         option_type, strike, effective_time, averaging_start_time, expiry_time, realized_average : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -6024,8 +5982,8 @@ class BarrierOption:
         hit.
     calendar : TradingCalendar, optional
         Explicit override. Omission or Ellipsis inherits a supplied
-        ObservationSchedule calendar; otherwise construction uses weekdays
-        and replacement retains the current calendar.
+        ObservationSchedule calendar. Otherwise, construction defaults to
+        weekdays and replacement defaults to the instance's calendar.
 
     Raises
     ------
@@ -6057,7 +6015,7 @@ class BarrierOption:
     ) -> Self:
         """Return a validated replacement.
 
-        Omission or Ellipsis retains a field. The original value is unchanged.
+        Omitted fields and fields set to Ellipsis default to the instance's values.
 
         Parameters
         ----------
@@ -6076,20 +6034,19 @@ class BarrierOption:
         rebate_timing : {'at_hit', 'at_expiry'}, optional
             Rebate payment timing; at-hit rebates require knock-out.
         observation_times : iterable of datetime.datetime or None, optional
-            Omission retains monitoring; None selects continuous monitoring.
+            The instance's monitoring is the default. None selects continuous monitoring.
             A nonempty iterable selects scheduled monitoring.
         touch_state : {'untouched', 'touched'} or None, optional
             Strictly prior touch history; None clears it to unknown.
         calendar : TradingCalendar, optional
             Explicit override. Omission or Ellipsis inherits a supplied
-            ObservationSchedule calendar; otherwise construction uses weekdays
-            and replacement retains the current calendar.
+            ObservationSchedule calendar. Otherwise, construction defaults to
+            weekdays and replacement defaults to the instance's calendar.
 
         Returns
         -------
         BarrierOption
-            Independent contract of the same class, preserving omitted history and
-            terms.
+            Validated copy of the same class.
 
         Raises
         ------
@@ -6213,8 +6170,8 @@ class DoubleBarrierOption:
         hit.
     calendar : TradingCalendar, optional
         Explicit override. Omission or Ellipsis inherits a supplied
-        ObservationSchedule calendar; otherwise construction uses weekdays
-        and replacement retains the current calendar.
+        ObservationSchedule calendar. Otherwise, construction defaults to
+        weekdays and replacement defaults to the instance's calendar.
 
     Raises
     ------
@@ -6246,7 +6203,7 @@ class DoubleBarrierOption:
     ) -> Self:
         """Return a validated replacement.
 
-        Omission or Ellipsis retains a field. The original value is unchanged.
+        Omitted fields and fields set to Ellipsis default to the instance's values.
 
         Parameters
         ----------
@@ -6265,20 +6222,19 @@ class DoubleBarrierOption:
         rebate_timing : {'at_hit', 'at_expiry'}, optional
             Rebate payment timing; at-hit rebates require knock-out.
         observation_times : iterable of datetime.datetime or None, optional
-            Omission retains monitoring; None selects continuous monitoring.
+            The instance's monitoring is the default. None selects continuous monitoring.
             A nonempty iterable selects scheduled monitoring.
         touch_state : {'untouched', 'touched'} or None, optional
             Strictly prior touch history; None clears it to unknown.
         calendar : TradingCalendar, optional
             Explicit override. Omission or Ellipsis inherits a supplied
-            ObservationSchedule calendar; otherwise construction uses weekdays
-            and replacement retains the current calendar.
+            ObservationSchedule calendar. Otherwise, construction defaults to
+            weekdays and replacement defaults to the instance's calendar.
 
         Returns
         -------
         DoubleBarrierOption
-            Independent contract of the same class, preserving omitted history and
-            terms.
+            Validated copy of the same class.
 
         Raises
         ------
@@ -6429,14 +6385,12 @@ class RangeAccrualOption:
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         notional, annual_coupon_rate, lower_bound, upper_bound, effective_time, expiry_time, observation_clock_time, realized_hit_count, calendar : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -6571,8 +6525,8 @@ class BinaryBarrierOption:
         Strictly prior touch history; defaults to unknown.
     calendar : TradingCalendar, optional
         Explicit override. Omission or Ellipsis inherits a supplied
-        ObservationSchedule calendar; otherwise construction uses weekdays
-        and replacement retains the current calendar.
+        ObservationSchedule calendar. Otherwise, construction defaults to
+        weekdays and replacement defaults to the instance's calendar.
 
     Raises
     ------
@@ -6638,7 +6592,7 @@ class BinaryBarrierOption:
     ) -> Self:
         """Return a validated replacement.
 
-        Omission or Ellipsis retains a field. The original value is unchanged.
+        Omitted fields and fields set to Ellipsis default to the instance's values.
 
         Parameters
         ----------
@@ -6653,25 +6607,23 @@ class BinaryBarrierOption:
         barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}, optional
             Barrier direction and knock-in or knock-out behavior.
         observation_times : iterable of datetime.datetime or None, optional
-            Omission retains monitoring; None selects continuous monitoring.
+            The instance's monitoring is the default. None selects continuous monitoring.
             A nonempty iterable selects scheduled monitoring.
         touch_state : {'untouched', 'touched'} or None, optional
             Strictly prior touch history; None clears it to unknown.
         payoff_type : {'cash', 'asset'}, optional
-            Explicit settlement choice; omission preserves the current kind.
+            Settlement kind, defaulting to the instance's kind.
         payout : float or None, optional
-            Cash amount; None is invalid for cash and never changes the payoff
-            kind.
+            A cash payoff requires a cash amount. Select the settlement kind with payoff_type.
         calendar : TradingCalendar, optional
             Explicit override. Omission or Ellipsis inherits a supplied
-            ObservationSchedule calendar; otherwise construction uses weekdays
-            and replacement retains the current calendar.
+            ObservationSchedule calendar. Otherwise, construction defaults to
+            weekdays and replacement defaults to the instance's calendar.
 
         Returns
         -------
         BinaryBarrierOption
-            Independent contract of the same class, preserving omitted history and
-            terms.
+            Validated copy of the same class.
 
         Raises
         ------
@@ -6759,8 +6711,8 @@ class TouchOption:
         Strictly prior touch history; defaults to unknown.
     calendar : TradingCalendar, optional
         Explicit override. Omission or Ellipsis inherits a supplied
-        ObservationSchedule calendar; otherwise construction uses weekdays
-        and replacement retains the current calendar.
+        ObservationSchedule calendar. Otherwise, construction defaults to
+        weekdays and replacement defaults to the instance's calendar.
 
     Raises
     ------
@@ -6825,7 +6777,7 @@ class TouchOption:
     ) -> Self:
         """Return a validated replacement.
 
-        Omission or Ellipsis retains a field. The original value is unchanged.
+        Omitted fields and fields set to Ellipsis default to the instance's values.
 
         Parameters
         ----------
@@ -6838,25 +6790,23 @@ class TouchOption:
         settlement_timing : {'at_hit', 'at_expiry'}, optional
             Payment timing; at-hit settlement requires a one-touch contract.
         observation_times : iterable of datetime.datetime or None, optional
-            Omission retains monitoring; None selects continuous monitoring.
+            The instance's monitoring is the default. None selects continuous monitoring.
             A nonempty iterable selects scheduled monitoring.
         touch_state : {'untouched', 'touched'} or None, optional
             Strictly prior touch history; None clears it to unknown.
         payoff_type : {'cash', 'asset'}, optional
-            Explicit settlement choice; omission preserves the current kind.
+            Settlement kind, defaulting to the instance's kind.
         payout : float or None, optional
-            Cash amount; None is invalid for cash and never changes the payoff
-            kind.
+            A cash payoff requires a cash amount. Select the settlement kind with payoff_type.
         calendar : TradingCalendar, optional
             Explicit override. Omission or Ellipsis inherits a supplied
-            ObservationSchedule calendar; otherwise construction uses weekdays
-            and replacement retains the current calendar.
+            ObservationSchedule calendar. Otherwise, construction defaults to
+            weekdays and replacement defaults to the instance's calendar.
 
         Returns
         -------
         TouchOption
-            Independent contract of the same class, preserving omitted history and
-            terms.
+            Validated copy of the same class.
 
         Raises
         ------
@@ -6957,8 +6907,8 @@ class DoubleTouchOption:
         Strictly prior touch history; defaults to unknown.
     calendar : TradingCalendar, optional
         Explicit override. Omission or Ellipsis inherits a supplied
-        ObservationSchedule calendar; otherwise construction uses weekdays
-        and replacement retains the current calendar.
+        ObservationSchedule calendar. Otherwise, construction defaults to
+        weekdays and replacement defaults to the instance's calendar.
 
     Raises
     ------
@@ -7007,7 +6957,7 @@ class DoubleTouchOption:
     ) -> Self:
         """Return a validated replacement.
 
-        Omission or Ellipsis retains a field. The original value is unchanged.
+        Omitted fields and fields set to Ellipsis default to the instance's values.
 
         Parameters
         ----------
@@ -7020,7 +6970,7 @@ class DoubleTouchOption:
         settlement_timing : {'at_hit', 'at_expiry'}, optional
             Payment timing; at-hit settlement requires a one-touch contract.
         observation_times : iterable of datetime.datetime or None, optional
-            Omission retains monitoring; None selects continuous monitoring.
+            The instance's monitoring is the default. None selects continuous monitoring.
             A nonempty iterable selects scheduled monitoring.
         touch_state : {'untouched', 'touched'} or None, optional
             Strictly prior touch history; None clears it to unknown.
@@ -7028,14 +6978,13 @@ class DoubleTouchOption:
             Positive finite cash payment.
         calendar : TradingCalendar, optional
             Explicit override. Omission or Ellipsis inherits a supplied
-            ObservationSchedule calendar; otherwise construction uses weekdays
-            and replacement retains the current calendar.
+            ObservationSchedule calendar. Otherwise, construction defaults to
+            weekdays and replacement defaults to the instance's calendar.
 
         Returns
         -------
         DoubleTouchOption
-            Independent contract of the same class, preserving omitted history and
-            terms.
+            Validated copy of the same class.
 
         Raises
         ------
@@ -7148,14 +7097,12 @@ class QuadratureAutocallableEngine(
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         asset_step_count, integration_standard_deviations : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -7246,7 +7193,7 @@ class AutocallableObservation:
     ) -> Self:
         """Return a validated observation with the supplied fields replaced.
 
-        Omission or Ellipsis retains a field.
+        Omitted fields and fields set to Ellipsis default to the instance's values.
 
         Parameters
         ----------
@@ -7411,7 +7358,7 @@ class SnowballOption:
         effective time to actual knock-out or expiry using Actual/365 Fixed,
         including intraday time and nontrading days. Both rebates are additive
         to coupons and principal gains or losses and pay once at termination.
-        A previously knocked-out note is settled with no remaining value.
+        A note knocked out before valuation is settled and has zero value.
     calendar : TradingCalendar
         Required owned observation calendar. Records carry no calendar; pass
         schedule.calendar when constructing from a schedule. Controls contractual
@@ -7457,7 +7404,7 @@ class SnowballOption:
     ) -> Self:
         """Return a validated replacement.
 
-        Omission or Ellipsis retains a field. The original value is unchanged.
+        Omitted fields and fields set to Ellipsis default to the instance's values.
 
         Parameters
         ----------
@@ -7473,26 +7420,25 @@ class SnowballOption:
             Finite nonnegative principal redemption per unit of original notional.
         rebate_rate : float, optional
             Finite nonnegative flat rebate per unit of original notional.
-            Omission or Ellipsis retains its current value.
+            Defaults to the instance's value.
         annual_rebate_rate : float, optional
-            Finite nonnegative annualized rebate rate; omission or Ellipsis
-            retains its current value. Accrues from
-            effective time to actual knock-out or expiry using Actual/365 Fixed,
+            Finite nonnegative annualized rebate rate. Defaults to the instance's
+            value. Accrues from effective time to actual knock-out or expiry using
+            Actual/365 Fixed,
             including intraday time and nontrading days. Both rebates are additive
             to coupons and principal gains or losses and pay once at termination.
-            A previously knocked-out note is settled with no remaining value.
+            A note knocked out before valuation is settled and has zero value.
         effective_time, expiry_time : datetime.datetime, optional
             Inclusive contract start and expiry timestamps.
         autocall_observations : iterable of AutocallableObservation, optional
             Product-specific knock-out and coupon observations, in time order.
         calendar : TradingCalendar, optional
-            Owned contractual observation calendar; omission retains it.
+            Owned contractual observation calendar, defaulting to the instance's calendar.
 
         Returns
         -------
         SnowballOption
-            Independent contract of the same class, preserving omitted history and
-            terms.
+            Validated copy of the same class.
 
         Raises
         ------
@@ -7655,14 +7601,16 @@ class KnockOutObservation:
         time: datetime | EllipsisType = ...,
         knock_out_level: _Real | EllipsisType = ...,
     ) -> Self:
-        """Return a validated replacement, leaving the original unchanged.
+        """Return a validated copy with the supplied fields applied.
+
+        Omitted fields and fields set to Ellipsis default to the instance's values.
 
         Parameters
         ----------
         time : datetime.datetime, optional
-            Replacement observation timestamp; omission or Ellipsis retains it.
+            Observation timestamp, defaulting to the instance's timestamp.
         knock_out_level : float, optional
-            Replacement threshold; omission or Ellipsis retains it.
+            Threshold, defaulting to the instance's threshold.
 
         Returns
         -------
@@ -7711,14 +7659,16 @@ class CouponObservation:
         time: datetime | EllipsisType = ...,
         coupon_barrier_level: _Real | EllipsisType = ...,
     ) -> Self:
-        """Return a validated replacement, leaving the original unchanged.
+        """Return a validated copy with the supplied fields applied.
+
+        Omitted fields and fields set to Ellipsis default to the instance's values.
 
         Parameters
         ----------
         time : datetime.datetime, optional
-            Replacement observation timestamp; omission or Ellipsis retains it.
+            Observation timestamp, defaulting to the instance's timestamp.
         coupon_barrier_level : float, optional
-            Replacement threshold; omission or Ellipsis retains it.
+            Threshold, defaulting to the instance's threshold.
 
         Returns
         -------
@@ -7773,7 +7723,7 @@ class PhoenixOption:
         effective time to actual knock-out or expiry using Actual/365 Fixed,
         including intraday time and nontrading days. Both rebates are additive
         to coupons and principal gains or losses and pay once at termination.
-        A previously knocked-out note is settled with no remaining value.
+        A note knocked out before valuation is settled and has zero value.
     calendar : TradingCalendar
         Required owned observation calendar. Records carry no calendar; pass
         schedule.calendar when constructing from a schedule. Controls contractual
@@ -7852,12 +7802,12 @@ class PhoenixOption:
     ) -> Self:
         """Return a validated replacement.
 
-        Omission or Ellipsis retains a field. The original value is unchanged.
+        Omitted fields and fields set to Ellipsis default to the instance's values.
 
         Parameters
         ----------
         coupon_per_period : float, optional
-            Finite signed periodic coupon rate; omission or Ellipsis retains it.
+            Finite signed periodic coupon rate.
         initial_spot, knock_in_level, upper_strike, lower_strike : float, optional
             Reference spot, strict downside barrier, and loss interval strikes.
         knock_in_observation : KnockInObservation, optional
@@ -7868,14 +7818,14 @@ class PhoenixOption:
             Finite nonnegative principal redemption per unit of original notional.
         rebate_rate : float, optional
             Finite nonnegative flat rebate per unit of original notional.
-            Omission or Ellipsis retains its current value.
+            Defaults to the instance's value.
         annual_rebate_rate : float, optional
-            Finite nonnegative annualized rebate rate; omission or Ellipsis
-            retains its current value. Accrues from
-            effective time to actual knock-out or expiry using Actual/365 Fixed,
+            Finite nonnegative annualized rebate rate. Defaults to the instance's
+            value. Accrues from effective time to actual knock-out or expiry using
+            Actual/365 Fixed,
             including intraday time and nontrading days. Both rebates are additive
             to coupons and principal gains or losses and pay once at termination.
-            A previously knocked-out note is settled with no remaining value.
+            A note knocked out before valuation is settled and has zero value.
         effective_time, expiry_time : datetime.datetime, optional
             Inclusive contract start and expiry timestamps.
         knock_out_observations : iterable of KnockOutObservation, optional
@@ -7883,13 +7833,12 @@ class PhoenixOption:
         coupon_observations : iterable of CouponObservation, optional
             Independent coupon observations in time order.
         calendar : TradingCalendar, optional
-            Owned contractual observation calendar; omission retains it.
+            Owned contractual observation calendar, defaulting to the instance's calendar.
 
         Returns
         -------
         PhoenixOption
-            Independent contract of the same class, preserving omitted history and
-            terms.
+            Validated copy of the same class.
 
         Raises
         ------
@@ -8021,7 +7970,7 @@ class BinarySnowballOption:
         effective time to actual knock-out or expiry using Actual/365 Fixed,
         including intraday time and nontrading days. Both rebates are additive
         to coupons and principal gains or losses and pay once at termination.
-        A previously knocked-out note is settled with no remaining value.
+        A note knocked out before valuation is settled and has zero value.
     calendar : TradingCalendar
         Required owned observation calendar. Records carry no calendar; pass
         schedule.calendar when constructing from a schedule. Controls contractual
@@ -8061,7 +8010,7 @@ class BinarySnowballOption:
     ) -> Self:
         """Return a validated replacement.
 
-        Omission or Ellipsis retains a field. The original value is unchanged.
+        Omitted fields and fields set to Ellipsis default to the instance's values.
 
         Parameters
         ----------
@@ -8073,26 +8022,25 @@ class BinarySnowballOption:
             Finite nonnegative principal redemption per unit of original notional.
         rebate_rate : float, optional
             Finite nonnegative flat rebate per unit of original notional.
-            Omission or Ellipsis retains its current value.
+            Defaults to the instance's value.
         annual_rebate_rate : float, optional
-            Finite nonnegative annualized rebate rate; omission or Ellipsis
-            retains its current value. Accrues from
-            effective time to actual knock-out or expiry using Actual/365 Fixed,
+            Finite nonnegative annualized rebate rate. Defaults to the instance's
+            value. Accrues from effective time to actual knock-out or expiry using
+            Actual/365 Fixed,
             including intraday time and nontrading days. Both rebates are additive
             to coupons and principal gains or losses and pay once at termination.
-            A previously knocked-out note is settled with no remaining value.
+            A note knocked out before valuation is settled and has zero value.
         effective_time, expiry_time : datetime.datetime, optional
             Inclusive contract start and expiry timestamps.
         autocall_observations : iterable of AutocallableObservation, optional
             Product-specific knock-out and coupon observations, in time order.
         calendar : TradingCalendar, optional
-            Owned contractual observation calendar; omission retains it.
+            Owned contractual observation calendar, defaulting to the instance's calendar.
 
         Returns
         -------
         BinarySnowballOption
-            Independent contract of the same class, preserving omitted history and
-            terms.
+            Validated copy of the same class.
 
         Raises
         ------
@@ -8229,7 +8177,7 @@ class TernarySnowballOption:
         effective time to actual knock-out or expiry using Actual/365 Fixed,
         including intraday time and nontrading days. Both rebates are additive
         to coupons and principal gains or losses and pay once at termination.
-        A previously knocked-out note is settled with no remaining value.
+        A note knocked out before valuation is settled and has zero value.
     calendar : TradingCalendar
         Required owned observation calendar. Records carry no calendar; pass
         schedule.calendar when constructing from a schedule. Controls contractual
@@ -8272,7 +8220,7 @@ class TernarySnowballOption:
     ) -> Self:
         """Return a validated replacement.
 
-        Omission or Ellipsis retains a field. The original value is unchanged.
+        Omitted fields and fields set to Ellipsis default to the instance's values.
 
         Parameters
         ----------
@@ -8286,26 +8234,25 @@ class TernarySnowballOption:
             Finite nonnegative principal redemption per unit of original notional.
         rebate_rate : float, optional
             Finite nonnegative flat rebate per unit of original notional.
-            Omission or Ellipsis retains its current value.
+            Defaults to the instance's value.
         annual_rebate_rate : float, optional
-            Finite nonnegative annualized rebate rate; omission or Ellipsis
-            retains its current value. Accrues from
-            effective time to actual knock-out or expiry using Actual/365 Fixed,
+            Finite nonnegative annualized rebate rate. Defaults to the instance's
+            value. Accrues from effective time to actual knock-out or expiry using
+            Actual/365 Fixed,
             including intraday time and nontrading days. Both rebates are additive
             to coupons and principal gains or losses and pay once at termination.
-            A previously knocked-out note is settled with no remaining value.
+            A note knocked out before valuation is settled and has zero value.
         effective_time, expiry_time : datetime.datetime, optional
             Inclusive contract start and expiry timestamps.
         autocall_observations : iterable of AutocallableObservation, optional
             Product-specific knock-out and coupon observations, in time order.
         calendar : TradingCalendar, optional
-            Owned contractual observation calendar; omission retains it.
+            Owned contractual observation calendar, defaulting to the instance's calendar.
 
         Returns
         -------
         TernarySnowballOption
-            Independent contract of the same class, preserving omitted history and
-            terms.
+            Validated copy of the same class.
 
         Raises
         ------
@@ -8474,7 +8421,7 @@ def standard_snowball(
         effective time to actual knock-out or expiry using Actual/365 Fixed,
         including intraday time and nontrading days. Both rebates are additive
         to coupons and principal gains or losses and pay once at termination.
-        A previously knocked-out note is settled with no remaining value.
+        A note knocked out before valuation is settled and has zero value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -8556,7 +8503,7 @@ def european_snowball(
         effective time to actual knock-out or expiry using Actual/365 Fixed,
         including intraday time and nontrading days. Both rebates are additive
         to coupons and principal gains or losses and pay once at termination.
-        A previously knocked-out note is settled with no remaining value.
+        A note knocked out before valuation is settled and has zero value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -8644,7 +8591,7 @@ def step_down_snowball(
         effective time to actual knock-out or expiry using Actual/365 Fixed,
         including intraday time and nontrading days. Both rebates are additive
         to coupons and principal gains or losses and pay once at termination.
-        A previously knocked-out note is settled with no remaining value.
+        A note knocked out before valuation is settled and has zero value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -8662,8 +8609,8 @@ def step_down_snowball(
     Notes
     -----
     Knock-in is observed on every trading day. Decrements apply after each observation; the first uses the initial
-    value. Signed coupons and decrements are accepted if all expanded terms
-    remain valid.
+    value. Signed coupons and decrements are accepted if all expanded terms are
+    valid.
 
     The returned SnowballOption stores observation and maturity coupons separately.
     To edit its first annual observation coupon while preserving coupon spreads,
@@ -8737,7 +8684,7 @@ def both_down_snowball(
         effective time to actual knock-out or expiry using Actual/365 Fixed,
         including intraday time and nontrading days. Both rebates are additive
         to coupons and principal gains or losses and pay once at termination.
-        A previously knocked-out note is settled with no remaining value.
+        A note knocked out before valuation is settled and has zero value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -8755,8 +8702,8 @@ def both_down_snowball(
     Notes
     -----
     Knock-in is observed on every trading day. Decrements apply after each observation; the first uses the initial
-    value. Signed coupons and decrements are accepted if all expanded terms
-    remain valid. Maturity uses the final observation coupon.
+    value. Signed coupons and decrements are accepted if all expanded terms are
+    valid. Maturity uses the final observation coupon.
 
     The returned SnowballOption stores observation and maturity coupons separately.
     To edit its first annual observation coupon while preserving coupon spreads,
@@ -8827,7 +8774,7 @@ def dual_coupon_snowball(
         effective time to actual knock-out or expiry using Actual/365 Fixed,
         including intraday time and nontrading days. Both rebates are additive
         to coupons and principal gains or losses and pay once at termination.
-        A previously knocked-out note is settled with no remaining value.
+        A note knocked out before valuation is settled and has zero value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -8915,7 +8862,7 @@ def parachute_snowball(
         effective time to actual knock-out or expiry using Actual/365 Fixed,
         including intraday time and nontrading days. Both rebates are additive
         to coupons and principal gains or losses and pay once at termination.
-        A previously knocked-out note is settled with no remaining value.
+        A note knocked out before valuation is settled and has zero value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -9003,7 +8950,7 @@ def otm_snowball(
         effective time to actual knock-out or expiry using Actual/365 Fixed,
         including intraday time and nontrading days. Both rebates are additive
         to coupons and principal gains or losses and pay once at termination.
-        A previously knocked-out note is settled with no remaining value.
+        A note knocked out before valuation is settled and has zero value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -9091,7 +9038,7 @@ def loss_capped_snowball(
         effective time to actual knock-out or expiry using Actual/365 Fixed,
         including intraday time and nontrading days. Both rebates are additive
         to coupons and principal gains or losses and pay once at termination.
-        A previously knocked-out note is settled with no remaining value.
+        A note knocked out before valuation is settled and has zero value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -9164,8 +9111,8 @@ class Accumulator:
         quantity is ignored and remaining value is zero.
     calendar : TradingCalendar, optional
         Explicit override. Omission or Ellipsis inherits a supplied
-        ObservationSchedule calendar; otherwise construction uses weekdays
-        and replacement retains the current calendar.
+        ObservationSchedule calendar. Otherwise, construction defaults to
+        weekdays and replacement defaults to the instance's calendar.
 
     Raises
     ------
@@ -9227,7 +9174,7 @@ class Accumulator:
     ) -> Self:
         """Return a validated replacement.
 
-        Omission or Ellipsis retains a field. The original value is unchanged.
+        Omitted fields and fields set to Ellipsis default to the instance's values.
 
         Parameters
         ----------
@@ -9239,7 +9186,6 @@ class Accumulator:
             Nonnegative quantity multiplier below strike for calls or above strike for puts.
         accumulated_quantity : float or None, optional
             Quantity strictly before valuation; None clears to unknown.
-            Omission or Ellipsis retains the current field.
         effective_time, expiry_time : datetime.datetime, optional
             Inclusive contract start and expiry timestamps.
         observation_clock_time : datetime.time, optional
@@ -9248,17 +9194,16 @@ class Accumulator:
             Knock-out schedule; None observes at each daily accumulation time.
         knock_out_settled : bool or None, optional
             Records a settled knock-out strictly before valuation; None clears to
-            unknown. Omission or Ellipsis retains the current state.
+            unknown.
         calendar : TradingCalendar, optional
             Explicit override. Omission or Ellipsis inherits a supplied
-            ObservationSchedule calendar; otherwise construction uses weekdays
-            and replacement retains the current calendar.
+            ObservationSchedule calendar. Otherwise, construction defaults to
+            weekdays and replacement defaults to the instance's calendar.
 
         Returns
         -------
         Accumulator
-            Independent contract of the same class, preserving omitted history and
-            terms.
+            Validated copy of the same class.
 
         Raises
         ------
@@ -9372,14 +9317,12 @@ class QuadratureAccumulatorEngine(_PricingMethods[Accumulator]):
     ) -> Self:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         asset_step_count, integration_standard_deviations : object, optional
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------
@@ -9445,7 +9388,8 @@ def standard_phoenix(
         Inclusive expiry time.
     lockout_periods : int, optional
         Initial observations excluded from knock-out; defaults to zero and must
-        leave at least one eligible observation. Coupons and knock-in remain active.
+        leave at least one eligible observation. Coupon and knock-in observations
+        apply during the lockout.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         State strictly before valuation. None is unknown; no_event means no prior
         knock-in or knock-out, knocked_in means outstanding after knock-in, and
@@ -9460,7 +9404,7 @@ def standard_phoenix(
         effective time to actual knock-out or expiry using Actual/365 Fixed,
         including intraday time and nontrading days. Both rebates are additive
         to coupons and principal gains or losses and pay once at termination.
-        A previously knocked-out note is settled with no remaining value.
+        A note knocked out before valuation is settled and has zero value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -9535,7 +9479,8 @@ def step_down_phoenix(
         Inclusive expiry time.
     lockout_periods : int, optional
         Initial observations excluded from knock-out; defaults to zero and must
-        leave at least one eligible observation. Coupons and knock-in remain active.
+        leave at least one eligible observation. Coupon and knock-in observations
+        apply during the lockout.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         State strictly before valuation. None is unknown; no_event means no prior
         knock-in or knock-out, knocked_in means outstanding after knock-in, and
@@ -9550,7 +9495,7 @@ def step_down_phoenix(
         effective time to actual knock-out or expiry using Actual/365 Fixed,
         including intraday time and nontrading days. Both rebates are additive
         to coupons and principal gains or losses and pay once at termination.
-        A previously knocked-out note is settled with no remaining value.
+        A note knocked out before valuation is settled and has zero value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -9616,7 +9561,8 @@ def fixed_coupon_note(
         Inclusive expiry time.
     lockout_periods : int, optional
         Initial observations excluded from knock-out; defaults to zero and must
-        leave at least one eligible observation. Coupons and knock-in remain active.
+        leave at least one eligible observation. Coupon and knock-in observations
+        apply during the lockout.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         State strictly before valuation. None is unknown; no_event means no prior
         knock-in or knock-out, knocked_in means outstanding after knock-in, and
@@ -9631,7 +9577,7 @@ def fixed_coupon_note(
         effective time to actual knock-out or expiry using Actual/365 Fixed,
         including intraday time and nontrading days. Both rebates are additive
         to coupons and principal gains or losses and pay once at termination.
-        A previously knocked-out note is settled with no remaining value.
+        A note knocked out before valuation is settled and has zero value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -9700,7 +9646,8 @@ def digital_coupon_note(
         Inclusive expiry time.
     lockout_periods : int, optional
         Initial observations excluded from knock-out; defaults to zero and must
-        leave at least one eligible observation. Coupons and knock-in remain active.
+        leave at least one eligible observation. Coupon and knock-in observations
+        apply during the lockout.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         State strictly before valuation. None is unknown; no_event means no prior
         knock-in or knock-out, knocked_in means outstanding after knock-in, and
@@ -9715,7 +9662,7 @@ def digital_coupon_note(
         effective time to actual knock-out or expiry using Actual/365 Fixed,
         including intraday time and nontrading days. Both rebates are additive
         to coupons and principal gains or losses and pay once at termination.
-        A previously knocked-out note is settled with no remaining value.
+        A note knocked out before valuation is settled and has zero value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -9800,7 +9747,7 @@ def early_profit_snowball(
         effective time to actual knock-out or expiry using Actual/365 Fixed,
         including intraday time and nontrading days. Both rebates are additive
         to coupons and principal gains or losses and pay once at termination.
-        A previously knocked-out note is settled with no remaining value.
+        A note knocked out before valuation is settled and has zero value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.
@@ -9899,7 +9846,7 @@ def butterfly_snowball(
         effective time to actual knock-out or expiry using Actual/365 Fixed,
         including intraday time and nontrading days. Both rebates are additive
         to coupons and principal gains or losses and pay once at termination.
-        A previously knocked-out note is settled with no remaining value.
+        A note knocked out before valuation is settled and has zero value.
     calendar : TradingCalendar, optional
         Explicit calendar override; omission or Ellipsis inherits an
         ObservationSchedule calendar, otherwise weekdays.

@@ -1,7 +1,7 @@
 use crate::VarianceTimeConvention;
 use crate::{Error, Rate, RateTermStructure, Result};
 
-/// Selects Heston replacements; absent fields retain their values.
+/// Selects Heston replacements. Absent fields default to the source values.
 ///
 /// See [`HestonParameters::replace`] for an example.
 #[derive(Clone, Debug, Default)]
@@ -151,7 +151,7 @@ impl HestonParameters {
         })
     }
 
-    /// Returns a validated replacement, leaving this model unchanged on success or failure.
+    /// Returns a validated copy with the supplied model parameters.
     ///
     /// # Errors
     ///

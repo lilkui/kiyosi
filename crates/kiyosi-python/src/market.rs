@@ -10,19 +10,20 @@ macro_rules! rate_properties {
      {$($field:ident: $value:expr),+ $(,)?}, [$(#[$extra_error:meta])*], $($extra:item),* $(,)?) => {
         value_methods!(@documented $name, $changes, [$($parameter),+, variance_time_convention, calendar], |self|
             {$($field: $value),+, variance_time_convention: Some($crate::market::updated_variance_time_convention(self.0.variance_time_convention(), variance_time_convention, calendar)?)}, [
-                /// Return a validated owned replacement; omitted fields are retained.
+                /// Return a validated copy with the supplied fields applied.
                 ///
                 /// Parameters
                 /// ----------
                 /// **fields : object
-                ///     Constructor fields to replace. Ellipsis retains a value; None
-                ///     clears the calendar. Volatility values are not converted when
-                ///     changing the clock. See the class parameters for units.
+                ///     Constructor fields to replace. Omitted fields and fields set to
+                ///     Ellipsis default to the instance's values. None clears the calendar.
+                ///     A replacement clock uses the supplied or defaulted volatility value
+                ///     directly. See the class parameters for units.
                 ///
                 /// Returns
                 /// -------
                 /// object
-                ///     Validated instance of the same class; the original is unchanged.
+                ///     Validated copy of the same class.
                 ///
                 /// Raises
                 /// ------
@@ -270,8 +271,7 @@ impl RateTermStructure {
     }
     /// Return the scalar rate when all implied forwards are exactly constant.
     ///
-    /// Nonconstant curves return None. Node-based coverage is preserved. This
-    /// query does not change the curve or its coverage bounds.
+    /// This read-only query returns None for nonconstant curves.
     ///
     #[getter]
     fn exact_flat_rate(&self) -> Option<f64> {
@@ -410,7 +410,7 @@ impl RateTermStructure {
     fn forward_rate(&self, time: &Bound<'_, PyAny>) -> PyResult<f64> {
         domain(self.0.forward_rate(timestamp(time)?))
     }
-    /// Create a parallel rate shift without changing this curve.
+    /// Return a parallel-shifted copy of this curve.
     ///
     /// Parameters
     /// ----------
@@ -420,7 +420,7 @@ impl RateTermStructure {
     /// Returns
     /// -------
     /// RateTermStructure
-    ///     Independent curve with unchanged coverage.
+    ///     Independent curve with the source curve's coverage bounds.
     ///
     /// Raises
     /// ------

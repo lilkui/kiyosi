@@ -28,7 +28,7 @@ NATIVE_TIMEOUT_SECONDS = 120
 
 
 def write_report(path, report):
-    """Replace the report only after the new JSON has been written successfully."""
+    """Write the complete JSON report to a temporary file and publish it atomically."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
     try:
@@ -218,7 +218,7 @@ def prebuilt_rust_executable(
 
 
 def build(args):
-    """Build optimized companions without changing the installed QuantLib."""
+    """Build optimized companion executables against the installed QuantLib."""
     source = source_state()
     config = shlex.split(args.quantlib_config)
     version = command([*config, "--version"])

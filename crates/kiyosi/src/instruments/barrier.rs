@@ -116,7 +116,7 @@ impl BarrierOptionTerms {
 
 /// Owns validated single-barrier vanilla terms and strictly prior history.
 ///
-/// Shared reads and pricing are safe; replacement never mutates the original.
+/// Supports concurrent reads and pricing. Replacement returns a separate contract.
 /// See [`Self::new`] and [`Self::replace`] for examples.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BarrierOption {
@@ -226,13 +226,13 @@ impl BarrierOption {
     }
     /// Borrows the scheduled observations, or returns `None` for continuous monitoring.
     ///
-    /// Storage remains valid for the borrow; see [`Self::new`] for construction.
+    /// See [`Self::new`] for construction.
     pub fn observation_schedule(&self) -> Option<&ObservationSchedule> {
         (!self.monitoring.continuous()).then(|| self.monitoring.observation_schedule())
     }
     /// Borrows scheduled times, or returns `None` for continuous monitoring.
     ///
-    /// Storage remains valid for this borrow. See [`Self::observation_schedule`] for
+    /// See [`Self::observation_schedule`] for
     /// calendar-preserving schedule access and [`Self::replace`] for replacement.
     pub fn observation_times(&self) -> Option<&[Timestamp]> {
         (!self.monitoring.continuous()).then(|| self.monitoring.observation_times())
@@ -311,7 +311,7 @@ impl OptionContract for BarrierOption {
     }
 }
 
-/// Selects replacements for [`BarrierOption::replace`]; absent fields retain their values.
+/// Selects replacements for [`BarrierOption::replace`]. Absent fields default to the source values.
 ///
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
@@ -341,7 +341,7 @@ pub struct BarrierOptionChanges {
 }
 
 impl BarrierOption {
-    /// Returns a validated replacement, preserving omitted terms and the original.
+    /// Returns a validated copy with the supplied terms applied.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
     /// Set `observation_times` to `Some(None)` for continuous monitoring; omitted times are retained.
@@ -349,8 +349,7 @@ impl BarrierOption {
     ///
     /// # Errors
     ///
-    /// Reuses constructor validation for the resulting contract. Failure leaves
-    /// this value unchanged.
+    /// Reuses constructor validation for the resulting contract.
     ///
     /// # Examples
     ///

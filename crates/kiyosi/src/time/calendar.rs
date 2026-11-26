@@ -174,7 +174,7 @@ impl TradingCalendar {
     ///
     /// # Examples
     ///
-    /// Captures a fixed holiday and amends a clone without changing the original calendar:
+    /// Creates a predicate calendar for a fixed holiday and derives a calendar with an override.
     ///
     /// ```rust
     /// use kiyosi::{Date, TradingCalendar};
@@ -280,8 +280,7 @@ impl TradingCalendar {
 
     /// Borrows the underlying base calendar and merged date overrides, if present.
     ///
-    /// Built-in and predicate calendars return `None`. References remain valid
-    /// for the borrow's lifetime; see [`Self::custom`] for construction.
+    /// Built-in and predicate calendars return `None`. See [`Self::custom`] for construction.
     pub fn overrides(&self) -> Option<(&Self, &[Date], &[Date])> {
         match &self.kind {
             CalendarKind::Overrides(overrides) => {

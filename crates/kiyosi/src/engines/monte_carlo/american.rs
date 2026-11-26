@@ -1122,7 +1122,7 @@ impl MonteCarloVanillaEngine {
         let cutoff: [f64; N] = std::array::from_fn(|i| {
             let log = crate::numerics::log_ratio(strikes[i], initial[i]);
             // Leave a roundoff margin around the exercise boundary so the
-            // original spot-space calculation decides the near-strike cases.
+            // direct spot-space calculation decides the near-strike cases.
             sign * log - 32.0 * f64::EPSILON * (1.0 + log.abs())
         });
         // A rejected shared spot must be out of the money for every strike.

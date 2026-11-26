@@ -18,7 +18,7 @@ impl FiniteDifferenceBarrierEngine {
     /// Resolves current observations against actual spot before building a grid.
     /// Prior at-hit rebates are already paid; resolved vanilla payoffs use the selected model.
     /// Local volatility supports price, delta and gamma, holding the surface fixed.
-    /// Continuous barriers are exact domain edges; scheduled dates are inserted unchanged.
+    /// Continuous barriers define exact domain edges, and time grids include exact scheduled dates.
     /// The configured upper bound is used only when pricing needs a full upper domain.
     /// Continuous single-barrier payoffs and local-volatility knock-in continuations
     /// use cell averaging at the strike.
@@ -53,7 +53,6 @@ impl FiniteDifferenceBarrierEngine {
     ///
     /// Validates shifts before pricing. Propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors; feasible bumped failures fail the operation.
-    /// Inputs and engine settings remain unchanged on success and failure.
     ///
     /// ## Examples
     ///

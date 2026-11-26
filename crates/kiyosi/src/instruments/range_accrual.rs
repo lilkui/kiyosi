@@ -180,7 +180,7 @@ impl RangeAccrualOption {
     ///
     /// Excludes the effective instant, includes observations through expiry and
     /// applies the contractual clock and calendar. Payment adds no observation.
-    /// Storage remains valid for this contract's lifetime, independently of its history.
+    /// The schedule depends only on contractual terms.
     /// Clone the schedule to retain an owned value after dropping the contract.
     ///
     /// # Examples
@@ -255,7 +255,7 @@ impl OptionContract for RangeAccrualOption {
     }
 }
 
-/// Selects replacements for [`RangeAccrualOption::replace`]; absent fields retain their values.
+/// Selects replacements for [`RangeAccrualOption::replace`]. Absent fields default to the source values.
 ///
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
@@ -281,15 +281,14 @@ pub struct RangeAccrualOptionChanges {
 }
 
 impl RangeAccrualOption {
-    /// Returns a validated replacement, preserving omitted terms and the original.
+    /// Returns a validated copy with the supplied terms applied.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
     /// See [`RangeAccrualOption::new`] for construction examples.
     ///
     /// # Errors
     ///
-    /// Reuses constructor validation for the resulting contract. Failure leaves
-    /// this value unchanged.
+    /// Reuses constructor validation for the resulting contract.
     ///
     /// # Examples
     ///

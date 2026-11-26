@@ -32,7 +32,6 @@ impl BinomialSettings {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] outside 1 through 1,000,000 steps.
-    /// Leaves the settings unchanged.
     ///
     /// # Examples
     ///
@@ -192,7 +191,7 @@ impl CoxRossRubinsteinVanillaEngine {
     /// using their exit probability and a discounted payoff bound. Calls use
     /// share-weighted probabilities to bound payouts that grow with spot.
     /// The bound concerns lattice truncation. The usual discretization and
-    /// floating-point errors still apply. A wide band falls back to full rollback.
+    /// floating-point errors apply. A wide band falls back to full rollback.
     ///
     /// # Errors
     ///
@@ -241,7 +240,7 @@ impl CoxRossRubinsteinVanillaEngine {
     ///
     /// The tolerance caps discarded tail value in each price calculation. The
     /// engine tightens it for sensitivities whose differences amplify price errors.
-    /// Grid discretization and rounding errors still apply. See
+    /// Grid discretization and rounding errors apply. See
     /// [`Self::price_with_rollback_tolerance`] for the rollback contract.
     ///
     /// # Errors

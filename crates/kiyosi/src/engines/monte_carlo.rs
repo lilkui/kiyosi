@@ -221,7 +221,7 @@ impl MonteCarloSettings {
     ///
     /// Returns [`Error::InvalidInput`] for paths outside 1 through 10,000,000,
     /// a negative worker cap, or a non-power-of-two Sobol path count.
-    /// Leaves the settings unchanged; engine-specific step counts are validated separately.
+    /// Each engine validates its own step count.
     ///
     /// # Examples
     ///
@@ -945,9 +945,9 @@ impl MonteCarloEstimate {
 impl MonteCarloVanillaEngine {
     /// Returns a replayable engine, drawing a seed only when none is configured.
     ///
-    /// All other controls, including any integration or exercise grid, are preserved.
-    /// The original engine remains unchanged. Save this engine before pricing to
-    /// replay the calculation within the same build; see
+    /// The returned engine copies all other controls, including any integration or
+    /// exercise grid. Save it before pricing to replay the calculation within the
+    /// same build. See
     /// [`crate::MonteCarloVanillaEngine::with_resolved_seed`] for an example.
     ///
     /// # Errors
@@ -2051,9 +2051,9 @@ fn check_pool_process(owner: u32, current: u32) -> Result<()> {
 /// Creates no threads. The pool uses at most `max_workers` and available CPU
 /// parallelism; the default uses available CPU parallelism. Per-request
 /// [`MonteCarloSettings::max_active_workers`] limits active work within this pool.
-/// Configuration is synchronized with initialization. Before initialization the
-/// cap can be replaced; afterward only repeating the configured cap succeeds.
-/// Failed configuration leaves both the cap and pool unchanged.
+/// Configuration and initialization are synchronized. Successful calls set the
+/// cap before initialization. An initialized pool accepts only its configured
+/// cap and reuses its worker threads across requests.
 ///
 /// # Errors
 ///

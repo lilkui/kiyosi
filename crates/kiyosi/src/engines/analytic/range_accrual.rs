@@ -50,8 +50,9 @@ impl AnalyticRangeAccrualEngine {
     ///
     /// Computes requested numerical Greeks from exact prices with core bump defaults.
     ///
-    /// Expiry Greeks follow terminal payoffs; time Greeks are absent. Spot stencils reaching current bounds and time
-    /// stencils touching any observation are unavailable; vega/rho remain valid at bounds.
+    /// Expiry Greeks follow terminal payoffs. Time Greeks are absent at expiry.
+    /// Spot stencils reaching current bounds and time stencils touching any
+    /// observation are unavailable. Vega and rho are defined at the bounds.
     /// See [`Self::price`] for contract construction and pricing.
     ///
     /// ## Errors

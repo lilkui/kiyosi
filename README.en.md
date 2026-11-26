@@ -97,7 +97,7 @@ View the results in the [Kiyosi vs. QuantLib benchmark report](https://lilkui.gi
 
 ## Disclaimer
 
-This project is for research and educational purposes only; validate results independently before production use. This library does not commit to freezing its public API and may undergo major refactoring for a better design.
+This project is for research and educational purposes only. Validate results independently before production use. The public API carries no stability guarantee.
 
 ## License
 

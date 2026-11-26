@@ -169,15 +169,14 @@ macro_rules! average_option {
         #[derive(Clone, Debug, PartialEq)]
         pub struct $name(pub(crate) AverageTerms);
         impl $name {
-            /// Returns a validated replacement, preserving omitted fields and the original.
+            /// Returns a validated copy with the supplied fields applied.
             ///
             /// The supplied average applies to the elapsed averaging interval at valuation.
             /// Valuation-relative checks occur during pricing; changing terms retains history.
             ///
             /// # Errors
             ///
-            /// Reuses [`Self::new`] validation for the resulting contract. Failure leaves
-            /// this value unchanged. See [`Self::new`] for construction examples.
+            /// See [`Self::new`] for validation rules and construction examples.
             ///
             /// # Examples
             ///
@@ -340,7 +339,7 @@ average_option!(
 
 /// Selects replacements for continuous average-price Asian options.
 ///
-/// Absent fields retain their values; `Some(None)` clears realized history to
+/// Absent fields default to the source values. `Some(None)` clears realized history to
 /// unknown. See [`GeometricAveragePriceOption::replace`] for an example.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AveragePriceOptionChanges {

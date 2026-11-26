@@ -106,7 +106,7 @@ impl Date {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] if the result is outside the supported
-    /// years -32767 through 32767. The original date is unchanged.
+    /// years -32767 through 32767.
     ///
     /// # Examples
     ///
@@ -186,7 +186,7 @@ impl Timestamp {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] if the resulting date is outside the
-    /// supported years -32767 through 32767. The original timestamp is unchanged.
+    /// supported years -32767 through 32767.
     ///
     /// # Examples
     ///
@@ -268,7 +268,7 @@ impl Timestamp {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] if arithmetic overflows or the result is
-    /// outside the supported years -32767 through 32767. The original is unchanged.
+    /// outside the supported years -32767 through 32767.
     ///
     /// # Examples
     ///

@@ -17,7 +17,7 @@ pub trait FiniteDifferenceEngine<I = EuropeanOption>: PricingEngine<I> {
     /// observations use each queried spot. The interval need not contain the
     /// context's spot. Multiple financial states may require multiple rollbacks.
     /// Range endpoints are in spot-price units. The solver uses log spot internally.
-    /// Inputs remain unchanged; failure or cancellation returns no partial solution.
+    /// Failure or cancellation returns no partial solution.
     ///
     /// # Errors
     ///

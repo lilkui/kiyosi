@@ -64,8 +64,8 @@ fn replace_payoff(
 ///     Strictly prior touch history; defaults to unknown.
 /// calendar : TradingCalendar, optional
 ///     Explicit override. Omission or Ellipsis inherits a supplied
-///     ObservationSchedule calendar; otherwise construction uses weekdays
-///     and replacement retains the current calendar.
+///     ObservationSchedule calendar. Otherwise, construction defaults to
+///     weekdays and replacement defaults to the instance's calendar.
 ///
 /// Raises
 /// ------
@@ -103,8 +103,8 @@ pub(crate) struct BinaryBarrierOption(pub kiyosi::BinaryBarrierOption);
 ///     Strictly prior touch history; defaults to unknown.
 /// calendar : TradingCalendar, optional
 ///     Explicit override. Omission or Ellipsis inherits a supplied
-///     ObservationSchedule calendar; otherwise construction uses weekdays
-///     and replacement retains the current calendar.
+///     ObservationSchedule calendar. Otherwise, construction defaults to
+///     weekdays and replacement defaults to the instance's calendar.
 ///
 /// Raises
 /// ------
@@ -166,7 +166,7 @@ binary_properties!(
     [
     /// Return a validated replacement.
     ///
-    /// Omission or Ellipsis retains a field. The original value is unchanged.
+    /// Omitted fields and fields set to Ellipsis default to the instance's values.
     ///
     /// Parameters
     /// ----------
@@ -181,25 +181,23 @@ binary_properties!(
     /// barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}, optional
     ///     Barrier direction and knock-in or knock-out behavior.
     /// observation_times : iterable of datetime.datetime or None, optional
-    ///     Omission retains monitoring; None selects continuous monitoring.
+    ///     The instance's monitoring is the default. None selects continuous monitoring.
     ///     A nonempty iterable selects scheduled monitoring.
     /// touch_state : {'untouched', 'touched'} or None, optional
     ///     Strictly prior touch history; None clears it to unknown.
     /// payoff_type : {'cash', 'asset'}, optional
-    ///     Explicit settlement choice; omission preserves the current kind.
+    ///     Settlement kind, defaulting to the instance's kind.
     /// payout : float or None, optional
-    ///     Cash amount; None is invalid for cash and never changes the payoff
-    ///     kind.
+    ///     A cash payoff requires a cash amount. Select the settlement kind with payoff_type.
     /// calendar : TradingCalendar, optional
     ///     Explicit override. Omission or Ellipsis inherits a supplied
-    ///     ObservationSchedule calendar; otherwise construction uses weekdays
-    ///     and replacement retains the current calendar.
+    ///     ObservationSchedule calendar. Otherwise, construction defaults to
+    ///     weekdays and replacement defaults to the instance's calendar.
     ///
     /// Returns
     /// -------
     /// BinaryBarrierOption
-    ///     Independent contract of the same class, preserving omitted history and
-    ///     terms.
+    ///     Validated copy of the same class.
     ///
     /// Raises
     /// ------
@@ -275,7 +273,7 @@ binary_properties!(
     [
     /// Return a validated replacement.
     ///
-    /// Omission or Ellipsis retains a field. The original value is unchanged.
+    /// Omitted fields and fields set to Ellipsis default to the instance's values.
     ///
     /// Parameters
     /// ----------
@@ -288,25 +286,23 @@ binary_properties!(
     /// settlement_timing : {'at_hit', 'at_expiry'}, optional
     ///     Payment timing; at-hit settlement requires a one-touch contract.
     /// observation_times : iterable of datetime.datetime or None, optional
-    ///     Omission retains monitoring; None selects continuous monitoring.
+    ///     The instance's monitoring is the default. None selects continuous monitoring.
     ///     A nonempty iterable selects scheduled monitoring.
     /// touch_state : {'untouched', 'touched'} or None, optional
     ///     Strictly prior touch history; None clears it to unknown.
     /// payoff_type : {'cash', 'asset'}, optional
-    ///     Explicit settlement choice; omission preserves the current kind.
+    ///     Settlement kind, defaulting to the instance's kind.
     /// payout : float or None, optional
-    ///     Cash amount; None is invalid for cash and never changes the payoff
-    ///     kind.
+    ///     A cash payoff requires a cash amount. Select the settlement kind with payoff_type.
     /// calendar : TradingCalendar, optional
     ///     Explicit override. Omission or Ellipsis inherits a supplied
-    ///     ObservationSchedule calendar; otherwise construction uses weekdays
-    ///     and replacement retains the current calendar.
+    ///     ObservationSchedule calendar. Otherwise, construction defaults to
+    ///     weekdays and replacement defaults to the instance's calendar.
     ///
     /// Returns
     /// -------
     /// TouchOption
-    ///     Independent contract of the same class, preserving omitted history and
-    ///     terms.
+    ///     Validated copy of the same class.
     ///
     /// Raises
     /// ------

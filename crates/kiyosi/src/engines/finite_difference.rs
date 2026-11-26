@@ -1413,7 +1413,6 @@ engine_settings!(
     ///
     /// Validates shifts before pricing; reuses [`Self::price`] and
     /// [`crate::numerical_greeks`] errors. Feasible bumped failures propagate.
-    /// Inputs and engine settings remain unchanged on success and failure.
     ///
     /// ## Examples
     ///
@@ -1530,7 +1529,7 @@ engine_settings!(
     /// Fits continuous boundaries exactly and projects scheduled events simultaneously.
     /// Prior at-hit payments have zero remaining value; resolved cash uses exact discounts.
     /// Accepts BSM or local volatility with flat or nonconstant rate curves. Surface coverage
-    /// follows the remaining stochastic horizon, not a previously settled payment.
+    /// follows the stochastic horizon after valuation.
     /// See [`crate::DoubleTouchOption::cash`] for construction and pricing.
     ///
     /// ## Errors

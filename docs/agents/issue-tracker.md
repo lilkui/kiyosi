@@ -18,7 +18,7 @@ When a skill says to fetch a ticket, read the referenced file. The user will nor
 
 ## Wayfinding operations
 
-- Map: `.scratch/<effort>/map.md`, containing notes, decisions so far and fog.
+- The map at `.scratch/<effort>/map.md` contains notes, decisions and open questions.
 - Child tickets: `.scratch/<effort>/issues/NN-<slug>.md`, numbered from `01`, with the question in the body. Use a `Type:` line for `research`, `prototype`, `grilling` or `task`, and a `Status:` line for `claimed` or `resolved`.
 - Blocking: list dependencies near the top as `Blocked by: NN, NN`. A ticket is unblocked when all listed tickets are resolved.
 - Frontier: scan for open, unblocked and unclaimed tickets; the first by number wins.

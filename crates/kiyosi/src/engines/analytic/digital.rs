@@ -25,7 +25,6 @@ impl AnalyticDigitalEngine {
     ///
     /// Validates model applicability, the request and every shift before pricing.
     /// Propagates [`crate::NumericalShiftSettings::validate`] and [`Self::price`] errors.
-    /// The inputs remain unchanged on success and failure.
     ///
     /// # Examples
     ///

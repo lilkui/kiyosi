@@ -104,8 +104,7 @@ impl VarianceTimeConvention {
 
     /// Borrows the business calendar, or returns `None` for A/365F.
     ///
-    /// The calendar remains valid for this convention's lifetime; see the type
-    /// example for construction.
+    /// See the type example for construction.
     pub fn calendar(&self) -> Option<&TradingCalendar> {
         match self {
             Self::Actual365Fixed => None,

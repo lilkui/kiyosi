@@ -18,14 +18,12 @@ macro_rules! value_methods {
             {$($field: $value),+}, [
             /// Return a validated copy with replacement fields.
             ///
-            /// The original value is unchanged on success and failure.
-            ///
             /// Parameters
             /// ----------
             #[doc = concat!(stringify!($first_parameter) $(, ", ", stringify!($parameter))*, " : object, optional")]
             ///     Constructor fields to replace; see the class documentation for field
-            ///     descriptions. Omission or Ellipsis retains a field; None clears
-            ///     nullable fields.
+            ///     descriptions. Omitted fields and fields set to Ellipsis default to
+            ///     the instance's values. None clears nullable fields.
             ///
             /// Returns
             /// -------

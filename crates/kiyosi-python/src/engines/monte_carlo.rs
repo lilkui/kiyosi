@@ -54,8 +54,9 @@ macro_rules! with_barrier {
 /// Notes
 /// -----
 /// Creates no threads. The default pool size is available CPU parallelism.
-/// Configure each process before submitting parallel pricing work. Repeating
-/// the configured cap is valid; failed configuration leaves it unchanged.
+/// Configure each process before submitting parallel pricing work. Successful
+/// calls set the cap before initialization. An initialized pool accepts only
+/// the configured cap.
 /// Engine max_active_workers caps active work per request within this pool.
 /// Use multiprocessing's spawn start method if the parent has already run
 /// parallel Monte Carlo. Serial engines support pricing in a forked child.
@@ -194,7 +195,7 @@ macro_rules! sampling_settings {
             /// tuple[float, int or None]
             ///     Price and actual sampling seed; None when no sampling is needed.
             ///     Reprice with replace(seed=seed) and the same inputs and controls to
-            ///     replay the result within the same build. The engine is unchanged.
+            ///     replay the result within the same build.
             ///
             /// Raises
             /// ------
@@ -284,8 +285,8 @@ macro_rules! sampling_settings {
 
             /// Return an engine with a concrete seed, preserving all other controls.
             ///
-            /// An existing seed is retained. Reuse the returned engine to replay its
-            /// draws within the same build. The original is unchanged.
+            /// The returned engine uses the source seed if present. Reuse it to replay
+            /// the draws within the same build.
             ///
             /// Returns
             /// -------

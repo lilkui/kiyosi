@@ -37,7 +37,7 @@ pub(crate) fn greeks_request(greeks: &Bound<'_, PyAny>) -> PyResult<kiyosi::Gree
 /// Unavailable or unrequested Greeks are None. All derivatives are unscaled:
 /// spot uses spot units, volatility and rates use decimal values, and forward
 /// valuation time uses years (Actual/365 Fixed). Other inputs, including
-/// expiry, remain fixed. With price V, spot S, volatility σ and valuation time
+/// expiry, are held fixed. With price V, spot S, volatility σ and valuation time
 /// t: delta = ∂V/∂S, gamma = ∂²V/∂S², speed = ∂³V/∂S³, theta = ∂V/∂t, charm =
 /// ∂²V/(∂S∂t), color = ∂³V/(∂S²∂t), vega = ∂V/∂σ, volga = ∂²V/∂σ², vanna =
 /// ∂²V/(∂S∂σ), and zomma = ∂³V/(∂S²∂σ). Rho shifts the risk-free curve in

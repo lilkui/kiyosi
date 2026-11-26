@@ -27,7 +27,7 @@ for name in ("delta", "gamma", "vega", "theta"):
 print(f"波动率上升 1 个百分点的近似价格变化：{result.require('vega') * 0.01:.6f}")
 print(f"未请求的 rho：{result.rho}，状态：{result.status('rho')}")
 
-# replace 返回独立对象；情景计算不修改原始市场快照或合约。
+# replace 返回用于情景定价的独立市场快照或合约。
 for spot in (90, 100, 110):
     scenario = context.replace(spot_price=spot)
     print(f"现货 {spot}：{engine.price(option, scenario):.6f}")

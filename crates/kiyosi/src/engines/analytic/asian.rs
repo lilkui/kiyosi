@@ -56,7 +56,7 @@ impl AnalyticGeometricAveragePriceEngine {
     ///
     /// Returns [`Error::ComputationFailure`] for non-finite derivatives,
     /// and propagates pricing and feasible bumped-pricing errors.
-    /// Inputs remain unchanged; unavailable stencils leave measures absent.
+    /// Measures that require unavailable stencils are absent.
     pub fn price(
         &self,
         option: &GeometricAveragePriceOption,
@@ -226,7 +226,7 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
     ///
     /// Returns [`Error::ComputationFailure`] for non-finite derivatives,
     /// and propagates pricing and feasible bumped-pricing errors.
-    /// Inputs remain unchanged; unavailable stencils leave measures absent.
+    /// Measures that require unavailable stencils are absent.
     pub fn price(
         &self,
         option: &ArithmeticAveragePriceOption,

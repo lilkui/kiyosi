@@ -21,7 +21,7 @@ fn has_unordered_pair<T: PartialOrd>(nodes: &[T]) -> Result<bool> {
 /// bilinearly using Actual/365 Fixed year fractions. Extrapolation in the spot
 /// dimension holds the nearest endpoint volatility constant; time extrapolation
 /// is rejected. The first time is the reference. Clones share immutable table storage;
-/// borrowed accessors remain valid for this surface's lifetime. See [`Self::new`].
+/// accessors borrow from the surface. See [`Self::new`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct LocalVolatilitySurface {
     times: Arc<[Timestamp]>,
@@ -360,7 +360,7 @@ pub struct LocalVolatilityParameters {
     surface: LocalVolatilitySurface,
 }
 
-/// Selects local-volatility replacements; absent fields retain their values.
+/// Selects local-volatility replacements. Absent fields default to the source values.
 ///
 /// See [`LocalVolatilityParameters::replace`].
 #[derive(Clone, Debug, Default)]
@@ -383,14 +383,13 @@ impl LocalVolatilityParameters {
         &self.variance_time_convention
     }
 
-    /// Returns a validated replacement.
+    /// Returns a validated copy with the supplied model parameters.
     ///
     /// See [`Self::new`] for construction and units.
     ///
     /// # Errors
     ///
-    /// Reuses [`Self::new`] validation for replacement rates. The original
-    /// retains its rates, surface and coverage on failure.
+    /// Reuses [`Self::new`] validation for replacement rates.
     pub fn replace(&self, changes: LocalVolatilityParameterChanges) -> Result<Self> {
         Self::new_with_variance_time_convention(
             changes

@@ -114,8 +114,7 @@ impl Accumulator {
     ///
     /// Returns [`Error::InvalidInput`] for invalid strike, invalid level or
     /// quantities, reversed life times, or unordered/out-of-life knock-out times,
-    /// checked in that order. Inputs are unchanged. Valuation-relative history
-    /// consistency is checked during pricing.
+    /// checked in that order. Pricing checks valuation-relative history consistency.
     ///
     /// # Examples
     ///
@@ -187,8 +186,7 @@ impl Accumulator {
     }
     /// Borrows explicit knock-out times, or returns `None` for daily observation.
     ///
-    /// The slice remains valid for the borrow's lifetime; owning
-    /// replacements do not mutate this contract. See [`Self::new`] for an example.
+    /// See [`Self::new`] for a construction example.
     pub fn knock_out_observation_times(&self) -> Option<&[Timestamp]> {
         self.terms.knock_out_observation_times.as_deref()
     }
@@ -233,7 +231,7 @@ impl Accumulator {
     ///
     /// Includes the effective instant when it matches the contractual clock and
     /// calendar. Expiry adds no observation. A coincident knock-out can prevent
-    /// accumulation; history and spot do not change this contractual schedule.
+    /// accumulation. The schedule depends only on contractual terms.
     ///
     /// # Errors
     ///
@@ -648,7 +646,7 @@ impl OptionContract for Accumulator {
     }
 }
 
-/// Selects replacements for [`Accumulator::replace`]; absent fields retain their values.
+/// Selects replacements for [`Accumulator::replace`]. Absent fields default to the source values.
 ///
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
@@ -680,16 +678,15 @@ pub struct AccumulatorChanges {
 }
 
 impl Accumulator {
-    /// Returns a validated replacement, preserving omitted terms and the original.
+    /// Returns a validated copy with the supplied terms applied.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
-    /// Set `knock_out_settled: Some(Some(true))` to record a settled knock-out without changing
-    /// the stored accrued quantity. See [`Accumulator::new`] for construction examples.
+    /// Set `knock_out_settled: Some(Some(true))` to record a settled knock-out. The accrued
+    /// quantity defaults to the source contract's quantity. See [`Accumulator::new`].
     ///
     /// # Errors
     ///
-    /// Reuses constructor validation for the resulting contract. Failure leaves
-    /// this value unchanged.
+    /// Reuses constructor validation for the resulting contract.
     pub fn replace(&self, changes: AccumulatorChanges) -> Result<Self> {
         Self::new(AccumulatorTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),

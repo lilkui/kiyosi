@@ -49,8 +49,8 @@ fn settlement(value: &Bound<'_, PyAny>) -> PyResult<Option<bool>> {
 ///     quantity is ignored and remaining value is zero.
 /// calendar : TradingCalendar, optional
 ///     Explicit override. Omission or Ellipsis inherits a supplied
-///     ObservationSchedule calendar; otherwise construction uses weekdays
-///     and replacement retains the current calendar.
+///     ObservationSchedule calendar. Otherwise, construction defaults to
+///     weekdays and replacement defaults to the instance's calendar.
 ///
 /// Raises
 /// ------
@@ -95,7 +95,7 @@ value_methods!(@documented Accumulator, AccumulatorChanges,
     }, [
     /// Return a validated replacement.
     ///
-    /// Omission or Ellipsis retains a field. The original value is unchanged.
+    /// Omitted fields and fields set to Ellipsis default to the instance's values.
     ///
     /// Parameters
     /// ----------
@@ -107,7 +107,6 @@ value_methods!(@documented Accumulator, AccumulatorChanges,
     ///     Nonnegative quantity multiplier below strike for calls or above strike for puts.
     /// accumulated_quantity : float or None, optional
     ///     Quantity strictly before valuation; None clears to unknown.
-    ///     Omission or Ellipsis retains the current field.
     /// effective_time, expiry_time : datetime.datetime, optional
     ///     Inclusive contract start and expiry timestamps.
     /// observation_clock_time : datetime.time, optional
@@ -116,17 +115,16 @@ value_methods!(@documented Accumulator, AccumulatorChanges,
     ///     Knock-out schedule; None observes at each daily accumulation time.
     /// knock_out_settled : bool or None, optional
     ///     Records a settled knock-out strictly before valuation; None clears to
-    ///     unknown. Omission or Ellipsis retains the current state.
+    ///     unknown.
     /// calendar : TradingCalendar, optional
     ///     Explicit override. Omission or Ellipsis inherits a supplied
-    ///     ObservationSchedule calendar; otherwise construction uses weekdays
-    ///     and replacement retains the current calendar.
+    ///     ObservationSchedule calendar. Otherwise, construction defaults to
+    ///     weekdays and replacement defaults to the instance's calendar.
     ///
     /// Returns
     /// -------
     /// Accumulator
-    ///     Independent contract of the same class, preserving omitted history and
-    ///     terms.
+    ///     Validated copy of the same class.
     ///
     /// Raises
     /// ------

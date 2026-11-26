@@ -67,7 +67,7 @@ where
 // PyO3 displays nonliteral defaults as Ellipsis, which supplied treats as omission.
 pub(crate) const OMITTED: Option<&Bound<'_, PyAny>> = None;
 
-// Ellipsis marks omission; None remains an explicitly supplied value.
+// Ellipsis marks omission. None is an explicitly supplied value.
 #[expect(
     clippy::unnecessary_wraps,
     reason = "PyO3 from_py_with callbacks return PyResult"

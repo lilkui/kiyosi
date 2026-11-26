@@ -70,14 +70,12 @@ def _replacement(factory: Any) -> Any:
     def replace(self: Any, **changes: Any) -> Any:
         """Return a validated copy with replacement fields.
 
-        The original value is unchanged on success and failure.
-
         Parameters
         ----------
         **changes
             Constructor fields to replace; see the class documentation for field
-            descriptions. Omission or Ellipsis retains a field; None clears
-            nullable fields.
+            descriptions. Omitted fields and fields set to Ellipsis default to
+            the instance's values. None clears nullable fields.
 
         Returns
         -------

@@ -60,9 +60,10 @@ impl Default for ImpliedCouponSettings {
 ///
 /// Shifts the whole coupon schedule, with maturity linkage selected explicitly.
 /// Intersects the supplied bracket with the ternary minimum-coupon domain when
-/// maturity shifts. The minimum coupon itself remains fixed.
+/// maturity shifts. The minimum coupon is a fixed lower bound.
 /// Tries affine interpolation, verifies its residual, then bisects if needed.
-/// Inputs remain unchanged; custom engines retain their own concurrency contract.
+/// The solver borrows its inputs as read-only. Custom engines define their own
+/// concurrency contract.
 /// Model support follows the engine, including local volatility with finite differences.
 /// The returned [`SnowballCouponQuote`] retains the supplied maturity convention.
 ///

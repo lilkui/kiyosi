@@ -26,7 +26,7 @@ pub struct EuropeanOption {
     expiry_time: Timestamp,
 }
 
-/// Selects European contract replacements; absent fields retain their values.
+/// Selects European contract replacements. Absent fields default to the source values.
 ///
 /// See [`EuropeanOption::replace`] for an example.
 #[derive(Clone, Copy, Debug, Default)]
@@ -77,7 +77,7 @@ impl EuropeanOption {
         })
     }
 
-    /// Returns a validated replacement, leaving this contract unchanged.
+    /// Returns a validated copy with the supplied contract terms.
     ///
     /// # Errors
     ///
@@ -218,7 +218,7 @@ pub struct DigitalOption {
     payout: Option<f64>,
 }
 
-/// Selects digital contract replacements; absent fields retain their values.
+/// Selects digital contract replacements. Absent fields default to the source values.
 ///
 /// See [`DigitalOption::replace`] for an example.
 #[derive(Clone, Copy, Debug, Default)]
@@ -300,12 +300,12 @@ impl DigitalOption {
         })
     }
 
-    /// Returns an owning replacement, preserving the settlement kind and the original.
+    /// Returns an owned replacement of the same settlement kind.
     ///
     /// # Errors
     ///
     /// Reuses constructor validation. Setting cash payout on an asset contract returns
-    /// [`Error::UnsupportedOperation`]. Failure leaves the original unchanged.
+    /// [`Error::UnsupportedOperation`].
     ///
     /// # Examples
     ///
@@ -388,7 +388,7 @@ pub struct AmericanOption {
     terms: EuropeanOption,
 }
 
-/// Selects American contract replacements; absent fields retain their values.
+/// Selects American contract replacements. Absent fields default to the source values.
 ///
 /// See [`AmericanOption::replace`] for an example.
 #[derive(Clone, Copy, Debug, Default)]
@@ -439,11 +439,11 @@ impl AmericanOption {
         })
     }
 
-    /// Returns a validated owning replacement, leaving the original unchanged.
+    /// Returns a validated owned replacement.
     ///
     /// # Errors
     ///
-    /// Reuses [`Self::new`] validation. Failure leaves the original unchanged.
+    /// Reuses [`Self::new`] validation.
     ///
     /// # Examples
     ///

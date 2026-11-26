@@ -31,9 +31,9 @@
 //! European vanilla and digital options permit pre-effective valuation; other
 //! contracts require valuation within their life.
 //!
-//! Values own their data; accessors may borrow it. Replacement returns a validated
-//! value and preserves the original on success and failure. See each contract's
-//! `replace` method for history preservation rules.
+//! Values own their data, and accessors may borrow it. Replacement reads an
+//! existing value and returns a separate validated value. See each contract's
+//! `replace` method for its history rules.
 //!
 //! # Caller-supplied history
 //!
@@ -48,16 +48,16 @@
 //! are known history where supported. [`AutocallableBarrierState::KnockedIn`]
 //! means prior knock-in on an outstanding note without prior knock-out;
 //! [`AutocallableBarrierState::NoEvent`] means neither occurred.
-//! [`AutocallableBarrierState::KnockedOut`] retains the contract's settled-state meaning.
+//! [`AutocallableBarrierState::KnockedOut`] denotes a settled contract.
 //! Missing required history returns [`Error::MissingHistory`]; intrinsically invalid
 //! inputs and impossible states return [`Error::InvalidInput`]. Constructors and
 //! replacement validate constraints known from their inputs; pricing validates
 //! constraints relative to valuation, including whether prior events are possible.
 //!
-//! `replace` validates terms and history together, preserving omitted fields and
-//! the original contract. Retained history is neither cleared nor reconstructed
-//! when terms change. Numerical time sensitivities hold supplied history fixed;
-//! observation boundaries determine whether a time stencil is available.
+//! `replace` validates terms and history together. Omitted fields, including
+//! history, default to their values on the source contract. Numerical time
+//! sensitivities hold supplied history fixed. Observation boundaries determine
+//! whether a time stencil is available.
 //!
 //! ```rust
 //! use kiyosi::*;
@@ -90,7 +90,7 @@
 //! requires exclusive Rust access. Parallel Monte Carlo calls share a library-owned
 //! Rayon pool with per-call buffers and worker caps; serial calls use the calling
 //! thread. [`configure_monte_carlo_pool`] caps created workers before initialization.
-//! The pool leaves the application's global Rayon pool unchanged.
+//! Kiyosi's Monte Carlo pool is independent of the application's global Rayon pool.
 //! [`FiniteDifferenceSolution`] owns immutable query state; clones and shared
 //! instances permit concurrent spot queries after the source inputs are dropped.
 //! Its queries do not perform rollback or mutate the saved numerical solution.

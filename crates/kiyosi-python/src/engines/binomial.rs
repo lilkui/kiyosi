@@ -250,7 +250,7 @@ binomial_engine!(
         ///     Market data with flat rates.
         /// absolute_tolerance : float
         ///     Positive truncation tolerance in price units. Grid discretization
-        ///     and floating-point errors still apply.
+        ///     and floating-point errors apply.
         ///
         /// Returns
         /// -------
@@ -299,7 +299,7 @@ binomial_engine!(
         /// Returns
         /// -------
         /// PricingResult
-        ///     The price and requested sensitivities. Grid and rounding errors still apply.
+        ///     The price and requested sensitivities. Grid and rounding errors apply.
         #[pyo3(signature = (instrument, context, greeks, *, absolute_tolerance,
             spot_shift=crate::conversions::OMITTED, volatility_shift=crate::conversions::OMITTED,
             rate_shift=crate::conversions::OMITTED, time_shift=crate::conversions::OMITTED))]

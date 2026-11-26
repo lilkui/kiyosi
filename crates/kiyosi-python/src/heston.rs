@@ -48,8 +48,7 @@ use pyo3::prelude::*;
 /// options; FiniteDifferenceHestonVanillaEngine prices European and American
 /// options. Requested Greeks have status "unsupported"; implied-parameter solvers
 /// raise UnsupportedOperationError. Numeric conversion rejects booleans.
-/// Replacement validates in Rust before returning a new owned model; the original
-/// is unchanged on failure.
+/// Replacement uses Rust validation and returns a separate owned model.
 ///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]

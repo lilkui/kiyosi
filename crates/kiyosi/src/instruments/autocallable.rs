@@ -47,7 +47,7 @@ pub enum AutocallableBarrierState {
     NoEvent,
     /// Records a settled knock-out; no remaining cash flows are valued.
     KnockedOut,
-    /// Records a prior downside breach while the note remains outstanding.
+    /// Records a prior downside breach on an outstanding note.
     KnockedIn,
 }
 
@@ -69,7 +69,7 @@ pub struct AutocallableObservation {
     coupon_rate: f64,
 }
 
-/// Selects observation replacements; absent fields retain their values.
+/// Selects observation replacements. Absent fields default to the source values.
 ///
 /// See [`AutocallableObservation::replace`] for an example.
 #[derive(Clone, Copy, Debug, Default)]
@@ -112,7 +112,7 @@ impl AutocallableObservation {
         Ok(record)
     }
 
-    /// Returns a validated replacement, preserving omitted fields and the original.
+    /// Returns a validated copy with the supplied fields applied.
     ///
     /// # Errors
     ///
@@ -247,7 +247,7 @@ impl KnockOutObservation {
     pub fn knock_out_level(&self) -> f64 {
         self.knock_out_level
     }
-    /// Returns a validated replacement, preserving omitted fields and the original.
+    /// Returns a validated copy with the supplied fields applied.
     ///
     /// # Errors
     ///
@@ -304,7 +304,7 @@ impl CouponObservation {
     pub fn coupon_barrier_level(&self) -> f64 {
         self.coupon_barrier_level
     }
-    /// Returns a validated replacement, preserving omitted fields and the original.
+    /// Returns a validated copy with the supplied fields applied.
     ///
     /// # Errors
     ///
@@ -687,7 +687,7 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
     /// # Errors
     ///
     /// Propagates term validation errors, including a shifted maturity coupon below
-    /// the ternary minimum. This note remains unchanged on success and failure.
+    /// the ternary minimum.
     pub fn with_coupon(
         &self,
         first_observation_coupon: f64,
@@ -860,7 +860,7 @@ impl sealed::Terms for TernarySnowballTerms {
 /// settlement event, including intraday time and nontrading days. The rebate
 /// is independent of knock-in, coupon eligibility and principal losses. It pays
 /// once at termination, including zero-lifetime settlement, and never as a
-/// periodic coupon. A previously knocked-out note is settled with no remaining value.
+/// periodic coupon. A note knocked out before valuation is settled and has zero value.
 ///
 /// `principal_redemption_ratio` sets the principal payment per original unit of
 /// notional independently of coupons and downside losses. Position sizing multiplies
@@ -1710,7 +1710,7 @@ impl sealed::View<'_> {
     }
 }
 
-/// Selects replacements for [`SnowballOption::replace`]; absent fields retain their values.
+/// Selects replacements for [`SnowballOption::replace`]. Absent fields default to the source values.
 ///
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
@@ -1746,15 +1746,14 @@ pub struct SnowballOptionChanges {
 }
 
 impl SnowballOption {
-    /// Returns a validated replacement, preserving omitted terms and the original.
+    /// Returns a validated copy with the supplied terms applied.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
     /// See [`SnowballOption::new`] for construction examples.
     ///
     /// # Errors
     ///
-    /// Reuses constructor validation for the resulting contract. Failure leaves
-    /// this value unchanged.
+    /// Reuses constructor validation for the resulting contract.
     pub fn replace(&self, changes: SnowballOptionChanges) -> Result<Self> {
         Self::new(SnowballTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
@@ -1785,7 +1784,7 @@ impl SnowballOption {
     }
 }
 
-/// Selects replacements for [`PhoenixOption::replace`]; absent fields retain their values.
+/// Selects replacements for [`PhoenixOption::replace`]. Absent fields default to the source values.
 ///
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
@@ -1839,8 +1838,7 @@ impl PhoenixOption {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] for a non-finite coupon. The original
-    /// note remains unchanged on success and failure.
+    /// Returns [`Error::InvalidInput`] for a non-finite coupon.
     ///
     /// # Examples
     ///
@@ -1852,7 +1850,7 @@ impl PhoenixOption {
         })
     }
 
-    /// Returns a validated replacement, preserving omitted terms and the original.
+    /// Returns a validated copy with the supplied terms applied.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
     /// See [`PhoenixOption::new`] for construction examples.
@@ -1860,8 +1858,7 @@ impl PhoenixOption {
     ///
     /// # Errors
     ///
-    /// Reuses constructor validation for the resulting contract. Failure leaves
-    /// this value unchanged.
+    /// Reuses constructor validation for the resulting contract.
     pub fn replace(&self, changes: PhoenixOptionChanges) -> Result<Self> {
         Self::new(PhoenixTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
@@ -1895,7 +1892,7 @@ impl PhoenixOption {
     }
 }
 
-/// Selects replacements for [`BinarySnowballOption::replace`]; absent fields retain their values.
+/// Selects replacements for [`BinarySnowballOption::replace`]. Absent fields default to the source values.
 ///
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
@@ -1921,15 +1918,14 @@ pub struct BinarySnowballOptionChanges {
 }
 
 impl BinarySnowballOption {
-    /// Returns a validated replacement, preserving omitted terms and the original.
+    /// Returns a validated copy with the supplied terms applied.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
     /// See [`BinarySnowballOption::new`] for construction examples.
     ///
     /// # Errors
     ///
-    /// Reuses constructor validation for the resulting contract. Failure leaves
-    /// this value unchanged.
+    /// Reuses constructor validation for the resulting contract.
     pub fn replace(&self, changes: BinarySnowballOptionChanges) -> Result<Self> {
         Self::new(BinarySnowballTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
@@ -1953,7 +1949,7 @@ impl BinarySnowballOption {
     }
 }
 
-/// Selects replacements for [`TernarySnowballOption::replace`]; absent fields retain their values.
+/// Selects replacements for [`TernarySnowballOption::replace`]. Absent fields default to the source values.
 ///
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
@@ -1985,15 +1981,14 @@ pub struct TernarySnowballOptionChanges {
 }
 
 impl TernarySnowballOption {
-    /// Returns a validated replacement, preserving omitted terms and the original.
+    /// Returns a validated copy with the supplied terms applied.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
     /// See [`TernarySnowballOption::new`] for construction examples.
     ///
     /// # Errors
     ///
-    /// Reuses constructor validation for the resulting contract. Failure leaves
-    /// this value unchanged.
+    /// Reuses constructor validation for the resulting contract.
     pub fn replace(&self, changes: TernarySnowballOptionChanges) -> Result<Self> {
         Self::new(TernarySnowballTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),

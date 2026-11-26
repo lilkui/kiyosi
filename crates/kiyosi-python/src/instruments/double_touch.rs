@@ -23,8 +23,8 @@ use pyo3::prelude::*;
 ///     Strictly prior touch history; defaults to unknown.
 /// calendar : TradingCalendar, optional
 ///     Explicit override. Omission or Ellipsis inherits a supplied
-///     ObservationSchedule calendar; otherwise construction uses weekdays
-///     and replacement retains the current calendar.
+///     ObservationSchedule calendar. Otherwise, construction defaults to
+///     weekdays and replacement defaults to the instance's calendar.
 ///
 /// Raises
 /// ------
@@ -59,7 +59,7 @@ monitoring_properties!(
     [
     /// Return a validated replacement.
     ///
-    /// Omission or Ellipsis retains a field. The original value is unchanged.
+    /// Omitted fields and fields set to Ellipsis default to the instance's values.
     ///
     /// Parameters
     /// ----------
@@ -72,7 +72,7 @@ monitoring_properties!(
     /// settlement_timing : {'at_hit', 'at_expiry'}, optional
     ///     Payment timing; at-hit settlement requires a one-touch contract.
     /// observation_times : iterable of datetime.datetime or None, optional
-    ///     Omission retains monitoring; None selects continuous monitoring.
+    ///     The instance's monitoring is the default. None selects continuous monitoring.
     ///     A nonempty iterable selects scheduled monitoring.
     /// touch_state : {'untouched', 'touched'} or None, optional
     ///     Strictly prior touch history; None clears it to unknown.
@@ -80,14 +80,13 @@ monitoring_properties!(
     ///     Positive finite cash payment.
     /// calendar : TradingCalendar, optional
     ///     Explicit override. Omission or Ellipsis inherits a supplied
-    ///     ObservationSchedule calendar; otherwise construction uses weekdays
-    ///     and replacement retains the current calendar.
+    ///     ObservationSchedule calendar. Otherwise, construction defaults to
+    ///     weekdays and replacement defaults to the instance's calendar.
     ///
     /// Returns
     /// -------
     /// DoubleTouchOption
-    ///     Independent contract of the same class, preserving omitted history and
-    ///     terms.
+    ///     Validated copy of the same class.
     ///
     /// Raises
     /// ------

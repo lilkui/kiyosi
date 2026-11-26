@@ -276,9 +276,9 @@ impl RateTermStructure {
 
     /// Returns an exactly constant rate, or `None` when any implied forwards differ.
     ///
-    /// Node curves qualify only when every implied forward is exactly equal;
-    /// their coverage and representation remain unchanged. Rounded factors from a
-    /// flat rate may not qualify. Calendar quotes qualify if zero or if their
+    /// For node curves, this read-only query returns a rate only when all implied
+    /// forwards are exactly equal. Rounded factors from a flat rate may fail
+    /// this test. Calendar quotes qualify if zero or if their
     /// coverage contains no change in the effective forward rate. See
     /// [`Self::bounded_flat`] and [`Self::bounded_flat_with_calendar`].
     pub fn exact_flat_rate(&self) -> Option<f64> {
@@ -321,8 +321,8 @@ impl RateTermStructure {
     }
     /// Borrows factor nodes or calendar transition times, excluding the reference.
     ///
-    /// Storage remains valid while the curve is borrowed; [`Self::shifted`] creates
-    /// a separate curve without invalidating the borrow. See [`Self::new`].
+    /// See [`Self::new`] for construction and [`Self::shifted`] for creating a
+    /// parallel-shifted copy.
     pub fn nodes(&self) -> &[Timestamp] {
         &self.nodes
     }
@@ -330,7 +330,7 @@ impl RateTermStructure {
     ///
     /// Together with [`Self::parallel_shift`], these preserve the exact construction
     /// representation of a factor-node curve. Quote-based curves have no supplied
-    /// node factors. Storage remains valid for this borrow.
+    /// node factors.
     pub fn base_factors(&self) -> &[f64] {
         &self.factors
     }
@@ -533,7 +533,7 @@ impl RateTermStructure {
             .unwrap_or(self.spread)
     }
 
-    /// Returns an owned parallel shift with unchanged coverage.
+    /// Returns a parallel-shifted curve with the source curve's coverage bounds.
     ///
     /// The shift uses the calendar's annualization basis for calendar quotes
     /// and Actual/365 Fixed units for other curves.

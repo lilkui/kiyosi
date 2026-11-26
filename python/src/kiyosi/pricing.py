@@ -7,7 +7,7 @@ convergence separately; Monte Carlo sampling uncertainty excludes discretization
 bias. Solver tolerances constrain the engine's price curve, not pricing accuracy.
 
 Engines with configurable constructor fields support ``replace(**changes)`` to
-create a validated engine while preserving omitted controls.
+create a validated engine. Omitted controls default to the source engine's values.
 
 ``price_with_greeks`` requires a Greek name, an iterable of names, or ``"all"``.
 An empty iterable requests price only. Unsupported measures are absent with

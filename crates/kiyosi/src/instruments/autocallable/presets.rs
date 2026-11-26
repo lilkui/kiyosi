@@ -405,7 +405,8 @@ impl PhoenixPresetTerms {
     /// Standard and step-down presets observe strict daily knock-in at the supplied
     /// clock and use initial spot as the upper loss strike. FCN/DCN observe only at
     /// expiry and use the knock-in level as upper strike. All use zero lower strike.
-    /// The lockout disables only knock-out; coupons and knock-in remain active.
+    /// The lockout restricts knock-out eligibility. Coupon and knock-in
+    /// observations apply during the lockout.
     /// Step-down starts at the supplied level on the first eligible observation,
     /// then subtracts the nonnegative absolute decrement per eligible observation.
     /// Coupons are fixed per observation,

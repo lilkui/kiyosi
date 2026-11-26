@@ -76,7 +76,6 @@ impl DoubleTouchOption {
     /// Returns [`Error::InvalidInput`] for invalid positive finite payout,
     /// then for at-hit no-touch settlement. Shared monitoring validation then
     /// rejects invalid boundaries, reversed life or invalid schedules.
-    /// Failure preserves inputs; no-touch can settle only at expiry.
     ///
     /// # Examples
     ///
@@ -173,13 +172,13 @@ impl DoubleTouchOption {
     }
     /// Borrows the scheduled observations, or returns `None` for continuous monitoring.
     ///
-    /// Storage remains valid for the borrow; see [`Self::cash`] for construction.
+    /// See [`Self::cash`] for construction.
     pub fn observation_schedule(&self) -> Option<&ObservationSchedule> {
         (!self.monitoring.continuous()).then(|| self.monitoring.observation_schedule())
     }
     /// Borrows scheduled times, or returns `None` for continuous monitoring.
     ///
-    /// Storage remains valid for this borrow; see [`Self::observation_schedule`].
+    /// See [`Self::observation_schedule`] for access to the schedule with its calendar.
     pub fn observation_times(&self) -> Option<&[Timestamp]> {
         (!self.monitoring.continuous()).then(|| self.monitoring.observation_times())
     }
@@ -228,7 +227,7 @@ impl OptionContract for DoubleTouchOption {
     }
 }
 
-/// Selects replacements for [`DoubleTouchOption::replace`]; absent fields retain their values.
+/// Selects replacements for [`DoubleTouchOption::replace`]. Absent fields default to the source values.
 ///
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
@@ -256,7 +255,7 @@ pub struct DoubleTouchOptionChanges {
 }
 
 impl DoubleTouchOption {
-    /// Returns a validated replacement, preserving omitted terms and the original.
+    /// Returns a validated copy with the supplied terms applied.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
     /// Set `observation_times` to `Some(None)` for continuous monitoring; omitted times are retained.
@@ -264,8 +263,7 @@ impl DoubleTouchOption {
     ///
     /// # Errors
     ///
-    /// Reuses constructor validation for the resulting contract. Failure leaves
-    /// this value unchanged.
+    /// Reuses constructor validation for the resulting contract.
     pub fn replace(&self, changes: DoubleTouchOptionChanges) -> Result<Self> {
         let updated = Self::cash(
             DoubleTouchOptionTerms {

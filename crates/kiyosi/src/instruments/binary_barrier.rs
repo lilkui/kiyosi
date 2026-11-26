@@ -357,13 +357,13 @@ macro_rules! monitoring_accessors {
             }
             /// Borrows scheduled observations, or returns `None` for continuous monitoring.
             ///
-            /// Storage remains valid for the borrow; see [`Self::cash`] for construction.
+            /// See [`Self::cash`] for construction.
             pub fn observation_schedule(&self) -> Option<&ObservationSchedule> {
                 (!self.monitoring.continuous()).then(|| self.monitoring.observation_schedule())
             }
             /// Borrows scheduled times, or returns `None` for continuous monitoring.
             ///
-            /// Storage remains valid for this borrow; see [`Self::observation_schedule`].
+            /// See [`Self::observation_schedule`] for access to the schedule with its calendar.
             pub fn observation_times(&self) -> Option<&[Timestamp]> {
                 (!self.monitoring.continuous()).then(|| self.monitoring.observation_times())
             }
@@ -510,7 +510,7 @@ impl TouchOption {
     }
 }
 
-/// Selects replacements for [`BinaryBarrierOption::replace`]; absent fields retain their values.
+/// Selects replacements for [`BinaryBarrierOption::replace`]. Absent fields default to the source values.
 ///
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
@@ -539,7 +539,7 @@ pub struct BinaryBarrierOptionChanges {
 }
 
 impl BinaryBarrierOption {
-    /// Returns a validated replacement, preserving omitted terms and the original.
+    /// Returns a validated copy with the supplied terms applied.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
     /// Set `observation_times` to `Some(None)` for continuous monitoring; omitted times are retained.
@@ -547,8 +547,7 @@ impl BinaryBarrierOption {
     ///
     /// # Errors
     ///
-    /// Reuses constructor validation for the resulting contract. Failure leaves
-    /// this value unchanged. [`BinaryPayoff`] selects settlement explicitly.
+    /// Reuses constructor validation for the resulting contract. [`BinaryPayoff`] selects settlement explicitly.
     /// See [`Self::cash`] for a construction example.
     pub fn replace(&self, changes: BinaryBarrierOptionChanges) -> Result<Self> {
         let terms = BinaryBarrierTerms {
@@ -574,7 +573,7 @@ impl BinaryBarrierOption {
     }
 }
 
-/// Selects replacements for [`TouchOption::replace`]; absent fields retain their values.
+/// Selects replacements for [`TouchOption::replace`]. Absent fields default to the source values.
 ///
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
@@ -601,7 +600,7 @@ pub struct TouchOptionChanges {
 }
 
 impl TouchOption {
-    /// Returns a validated replacement, preserving omitted terms and the original.
+    /// Returns a validated copy with the supplied terms applied.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
     /// Set `observation_times` to `Some(None)` for continuous monitoring; omitted times are retained.
@@ -609,8 +608,7 @@ impl TouchOption {
     ///
     /// # Errors
     ///
-    /// Reuses constructor validation for the resulting contract. Failure leaves
-    /// this value unchanged. [`BinaryPayoff`] selects settlement explicitly.
+    /// Reuses constructor validation for the resulting contract. [`BinaryPayoff`] selects settlement explicitly.
     /// See [`Self::cash`] for a construction example.
     pub fn replace(&self, changes: TouchOptionChanges) -> Result<Self> {
         let terms = TouchOptionTerms {

@@ -55,7 +55,7 @@ impl FiniteDifferenceAutocallableEngine {
     /// ## Errors
     ///
     /// Validates shifts, then propagates [`Self::price`] and
-    /// [`crate::numerical_greeks`] errors without changing inputs or settings.
+    /// [`crate::numerical_greeks`] errors.
     /// Unsupported local-volatility Greeks are absent.
     ///
     /// ## Examples
@@ -812,7 +812,7 @@ fn solve_layers<T: AutocallableTerms, D: Diffusion, const N: usize>(
                     notes.into_iter().zip(&values).zip(&mut next)
                 {
                     let record = event(note, time, context).filter(|_| time > 0.0);
-                    // Project only the jump correction, leaving smooth daily continuation unchanged.
+                    // Apply the projection to the jump correction.
                     for i in 0..size {
                         let correction = project_grid_node(&space, &breaks, i, |asset, node| {
                             let value = |layer: &[f64]| {

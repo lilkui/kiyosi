@@ -37,7 +37,7 @@ impl Rate {
     }
 }
 
-/// Selects model replacements; absent fields retain their values.
+/// Selects model replacements. Absent fields default to the source values.
 ///
 /// See [`BlackScholesMertonParameters::replace`].
 #[derive(Clone, Debug, Default)]
@@ -149,7 +149,7 @@ impl BlackScholesMertonParameters {
             volatility,
         })
     }
-    /// Returns a validated replacement, leaving this model unchanged.
+    /// Returns a validated copy with the supplied model parameters.
     ///
     /// # Errors
     ///
@@ -191,13 +191,13 @@ impl BlackScholesMertonParameters {
     pub fn flat_dividend_yield(&self) -> Result<f64> {
         self.dividend_curve.require_flat_rate("dividend")
     }
-    /// Borrows the risk-free curve; storage remains valid for this model's lifetime.
+    /// Borrows the model's risk-free curve.
     ///
     /// See [`Self::new`] for a curve-based model example.
     pub fn risk_free_curve(&self) -> &RateTermStructure {
         &self.risk_free_curve
     }
-    /// Borrows the dividend curve; storage remains valid for this model's lifetime.
+    /// Borrows the model's dividend curve.
     ///
     /// Scalar yields become undated flat curves; see [`Self::new`].
     pub fn dividend_curve(&self) -> &RateTermStructure {
@@ -294,7 +294,7 @@ impl ModelParameters {
     }
 }
 
-/// Selects context replacements; absent fields retain their values.
+/// Selects context replacements. Absent fields default to the source values.
 ///
 /// See [`PricingContext::replace`].
 #[derive(Clone, Debug, Default)]
@@ -358,7 +358,7 @@ impl PricingContext {
         })
     }
 
-    /// Returns a validated replacement, leaving this context unchanged.
+    /// Returns a validated copy with the supplied context fields.
     ///
     /// Contract-life and expiry coverage are checked at pricing time.
     ///

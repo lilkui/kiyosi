@@ -62,8 +62,8 @@ per unit of original notional; scale the complete price and Greeks for position 
 The four Phoenix preset factories accept one ``autocall_times`` sequence and a
 ``lockout_periods`` count, defaulting to zero. They expand the entire sequence
 into coupon observations and omit the initial count from knock-out observations.
-At least one knock-out observation remains. The resulting contract owns its two
-lists; replacements edit either list directly. ``standard_phoenix`` uses a
+The knock-out list must contain at least one observation. The contract owns both
+lists, and replacements edit either list directly. ``standard_phoenix`` uses a
 constant knock-out barrier; ``step_down_phoenix`` starts its absolute barrier
 ladder at the first generated knock-out observation. Both use daily knock-in
 and initial spot as the upper loss strike.

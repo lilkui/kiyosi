@@ -132,7 +132,6 @@ impl HestonFiniteDifferenceSettings {
 /// exercise-boundary work estimated above 25 million curve-knot visits, and
 /// [`crate::Error::ComputationFailure`] for unrepresentable grids, intermediates or
 /// invalid prices. Fixed grids do not report error-target nonconvergence.
-/// Inputs and settings remain unchanged on success and failure.
 ///
 /// # Greeks
 ///
@@ -153,7 +152,7 @@ impl FiniteDifferenceHestonVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Propagates [`HestonFiniteDifferenceSettings::validate`] errors; inputs remain unchanged.
+    /// Propagates [`HestonFiniteDifferenceSettings::validate`] errors.
     ///
     /// # Examples
     ///
@@ -1471,7 +1470,7 @@ fn european_weighted_prices(
                 return checked_with_scale(scale * price, scale);
             }
         }
-        // Use the original compensated evaluation for extreme scales or cancellation.
+        // Use compensated summation for extreme scales or cancellation.
         *quote_work = quote_work.saturating_add((times.len() + nx) as u64);
         validate_work(*quote_work, 1)?;
         let mut boundary =

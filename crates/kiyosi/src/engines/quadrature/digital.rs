@@ -28,7 +28,7 @@ use crate::{DigitalOption, Error, OptionType, PricingContext, PricingEngine, Res
 /// Returns [`Error::UnsupportedOperation`] for other models or nonconstant rate curves,
 /// before valuation validation. Returns [`Error::InvalidInput`] after expiry
 /// or outside curve coverage and [`Error::ComputationFailure`] for unrepresentable transitions,
-/// weights or prices. Inputs and settings remain unchanged.
+/// weights or prices.
 ///
 /// # Greeks
 ///
@@ -41,7 +41,6 @@ use crate::{DigitalOption, Error, OptionType, PricingContext, PricingEngine, Res
 ///
 /// Checks flat-rate BSM applicability before shift validation,
 /// then propagates [`crate::numerical_greeks`] and [`Self::price`] errors.
-/// Inputs and settings remain unchanged.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct QuadratureDigitalEngine {
     settings: QuadratureSettings,

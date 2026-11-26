@@ -91,7 +91,7 @@ macro_rules! with_coupon_engine {
 /// call with_resolved_seed() first; tolerances constrain the sampled price
 /// curve, not its sampling error. Snowballs shift all observation coupons
 /// relative to the first one, including past observations. The maturity
-/// convention controls the final coupon; the ternary minimum remains fixed.
+/// convention controls the final coupon. The ternary minimum is a fixed lower bound.
 /// The quoted rate, bounds and parameter tolerance use annual decimal units.
 /// Trials use affine interpolation, then bisection.
 /// Model support follows the engine, including local volatility with finite differences.

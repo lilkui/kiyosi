@@ -37,7 +37,7 @@ impl QuadratureSettings {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] below four steps or for a non-finite
-    /// or nonpositive extent. Does not change the settings.
+    /// or nonpositive extent.
     pub fn validate(&self) -> Result<()> {
         if self.asset_step_count < 4 {
             return Err(Error::InvalidInput(

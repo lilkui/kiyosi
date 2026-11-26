@@ -99,7 +99,7 @@ impl HestonIntegrationSettings {
 /// Returns the price with requested Greeks marked unsupported; see [`Self::new`].
 ///
 /// Use [`PricingResult::require`] to reject an unavailable Greek.
-/// Inputs remain unchanged; valid numerical shifts are unused.
+/// The analytic estimator ignores valid numerical shifts.
 ///
 /// ## Errors
 ///
@@ -160,8 +160,7 @@ impl AnalyticHestonEuropeanEngine {
     /// [`Error::NonConvergence`] when the request-wide budget or floating-point
     /// resolution cannot meet the estimated error target, and
     /// [`Error::ComputationFailure`] for unrepresentable intermediates or invalid
-    /// results. Only rounding-sized negative prices may be clipped. Inputs and
-    /// engine settings remain unchanged on success and failure.
+    /// results. Only rounding-sized negative prices may be clipped.
     pub fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
         let model = validate_market(option, context)?;
         self.price_one(

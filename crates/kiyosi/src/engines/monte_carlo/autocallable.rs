@@ -41,9 +41,9 @@ pub struct MonteCarloAutocallableEngine {
 impl MonteCarloAutocallableEngine {
     /// Returns a replayable engine, drawing a seed only when none is configured.
     ///
-    /// All other controls, including any integration or exercise grid, are preserved.
-    /// The original engine remains unchanged. Save this engine before pricing to
-    /// replay the calculation within the same build; see
+    /// The returned engine copies all other controls, including any integration or
+    /// exercise grid. Save it before pricing to replay the calculation within the
+    /// same build. See
     /// [`crate::MonteCarloVanillaEngine::with_resolved_seed`] for an example.
     ///
     /// # Errors

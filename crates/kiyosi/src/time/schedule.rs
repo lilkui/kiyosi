@@ -243,7 +243,7 @@ impl ObservationSchedule {
 
     /// Borrows the calendar used to validate and generate these observations.
     ///
-    /// The calendar remains valid for this schedule's lifetime. Pass it with
+    /// Pass this calendar with
     /// [`Self::times`] when constructing a contract; see [`Self::fixed_interval`].
     pub fn calendar(&self) -> &TradingCalendar {
         &self.calendar

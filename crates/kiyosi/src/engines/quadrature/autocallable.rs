@@ -28,8 +28,9 @@ use crate::{
 ///
 /// Computes requested scalar sensitivities using shared core bump defaults.
 ///
-/// Expiry Greeks follow terminal payoffs; time Greeks are absent. Spot and time stencils crossing active events
-/// are unavailable; vega and rho remain defined at current thresholds.
+/// Expiry Greeks follow terminal payoffs. Time Greeks are absent at expiry.
+/// Spot and time stencils crossing active events are unavailable. Vega and rho
+/// are defined at current thresholds.
 /// See [`Self::new`] for an example.
 ///
 /// ## Errors

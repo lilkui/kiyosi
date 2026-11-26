@@ -299,7 +299,7 @@ value_methods!(@documented AutocallableObservation, AutocallableObservationChang
     [
         /// Return a validated observation with the supplied fields replaced.
         ///
-        /// Omission or Ellipsis retains a field.
+        /// Omitted fields and fields set to Ellipsis default to the instance's values.
         ///
         /// Parameters
         /// ----------
@@ -410,14 +410,16 @@ macro_rules! phoenix_observation {
             /// Return the validated observation threshold.
             #[getter]
             fn $level(&self) -> f64 { self.0.$level() }
-            /// Return a validated replacement, leaving the original unchanged.
+            /// Return a validated copy with the supplied fields applied.
+            ///
+            /// Omitted fields and fields set to Ellipsis default to the instance's values.
             ///
             /// Parameters
             /// ----------
             /// time : datetime.datetime, optional
-            ///     Replacement observation timestamp; omission or Ellipsis retains it.
+            ///     Observation timestamp, defaulting to the instance's timestamp.
             #[doc = concat!(stringify!($level), " : float, optional")]
-            ///     Replacement threshold; omission or Ellipsis retains it.
+            ///     Threshold, defaulting to the instance's threshold.
             ///
             /// Returns
             /// -------
@@ -583,7 +585,7 @@ macro_rules! snowball_preset {
         ///     effective time to actual knock-out or expiry using Actual/365 Fixed,
         ///     including intraday time and nontrading days. Both rebates are additive
         ///     to coupons and principal gains or losses and pay once at termination.
-        ///     A previously knocked-out note is settled with no remaining value.
+        ///     A note knocked out before valuation is settled and has zero value.
         /// calendar : TradingCalendar, optional
         ///     Explicit calendar override; omission or Ellipsis inherits an
         ///     ObservationSchedule calendar, otherwise weekdays.
@@ -693,8 +695,8 @@ snowball_preset!(
     "Create a snowball with decreasing knock-out levels.",
     "on every trading day",
     r" Decrements apply after each observation; the first uses the initial
-value. Signed coupons and decrements are accepted if all expanded terms
-remain valid."
+value. Signed coupons and decrements are accepted if all expanded terms are
+valid."
 );
 snowball_preset!(
     both_down_snowball,
@@ -712,8 +714,8 @@ snowball_preset!(
     "Create a snowball with decreasing coupons and knock-out levels.",
     "on every trading day",
     r" Decrements apply after each observation; the first uses the initial
-value. Signed coupons and decrements are accepted if all expanded terms
-remain valid. Maturity uses the final observation coupon."
+value. Signed coupons and decrements are accepted if all expanded terms are
+valid. Maturity uses the final observation coupon."
 );
 snowball_preset!(
     dual_coupon_snowball,
@@ -837,7 +839,7 @@ times, stages may have no autocall_observations, and rates need not decrease."
 ///     effective time to actual knock-out or expiry using Actual/365 Fixed,
 ///     including intraday time and nontrading days. Both rebates are additive
 ///     to coupons and principal gains or losses and pay once at termination.
-///     A previously knocked-out note is settled with no remaining value.
+///     A note knocked out before valuation is settled and has zero value.
 /// calendar : TradingCalendar
 ///     Required owned observation calendar. Records carry no calendar; pass
 ///     schedule.calendar when constructing from a schedule. Controls contractual
@@ -875,7 +877,7 @@ snowball_properties! {
     [
     /// Return a validated replacement.
     ///
-    /// Omission or Ellipsis retains a field. The original value is unchanged.
+    /// Omitted fields and fields set to Ellipsis default to the instance's values.
     ///
     /// Parameters
     /// ----------
@@ -891,26 +893,25 @@ snowball_properties! {
     ///     Finite nonnegative principal redemption per unit of original notional.
     /// rebate_rate : float, optional
     ///     Finite nonnegative flat rebate per unit of original notional.
-    ///     Omission or Ellipsis retains its current value.
+    ///     Defaults to the instance's value.
     /// annual_rebate_rate : float, optional
-    ///     Finite nonnegative annualized rebate rate; omission or Ellipsis
-    ///     retains its current value. Accrues from
-    ///     effective time to actual knock-out or expiry using Actual/365 Fixed,
+    ///     Finite nonnegative annualized rebate rate. Defaults to the instance's
+    ///     value. Accrues from effective time to actual knock-out or expiry using
+    ///     Actual/365 Fixed,
     ///     including intraday time and nontrading days. Both rebates are additive
     ///     to coupons and principal gains or losses and pay once at termination.
-    ///     A previously knocked-out note is settled with no remaining value.
+    ///     A note knocked out before valuation is settled and has zero value.
     /// effective_time, expiry_time : datetime.datetime, optional
     ///     Inclusive contract start and expiry timestamps.
     /// autocall_observations : iterable of AutocallableObservation, optional
     ///     Product-specific knock-out and coupon observations, in time order.
     /// calendar : TradingCalendar, optional
-    ///     Owned contractual observation calendar; omission retains it.
+    ///     Owned contractual observation calendar, defaulting to the instance's calendar.
     ///
     /// Returns
     /// -------
     /// SnowballOption
-    ///     Independent contract of the same class, preserving omitted history and
-    ///     terms.
+    ///     Validated copy of the same class.
     ///
     /// Raises
     /// ------
@@ -1017,7 +1018,7 @@ snowball_properties! {
 ///     effective time to actual knock-out or expiry using Actual/365 Fixed,
 ///     including intraday time and nontrading days. Both rebates are additive
 ///     to coupons and principal gains or losses and pay once at termination.
-///     A previously knocked-out note is settled with no remaining value.
+///     A note knocked out before valuation is settled and has zero value.
 /// calendar : TradingCalendar
 ///     Required owned observation calendar. Records carry no calendar; pass
 ///     schedule.calendar when constructing from a schedule. Controls contractual
@@ -1049,7 +1050,7 @@ snowball_properties! {
     [
     /// Return a validated replacement.
     ///
-    /// Omission or Ellipsis retains a field. The original value is unchanged.
+    /// Omitted fields and fields set to Ellipsis default to the instance's values.
     ///
     /// Parameters
     /// ----------
@@ -1061,26 +1062,25 @@ snowball_properties! {
     ///     Finite nonnegative principal redemption per unit of original notional.
     /// rebate_rate : float, optional
     ///     Finite nonnegative flat rebate per unit of original notional.
-    ///     Omission or Ellipsis retains its current value.
+    ///     Defaults to the instance's value.
     /// annual_rebate_rate : float, optional
-    ///     Finite nonnegative annualized rebate rate; omission or Ellipsis
-    ///     retains its current value. Accrues from
-    ///     effective time to actual knock-out or expiry using Actual/365 Fixed,
+    ///     Finite nonnegative annualized rebate rate. Defaults to the instance's
+    ///     value. Accrues from effective time to actual knock-out or expiry using
+    ///     Actual/365 Fixed,
     ///     including intraday time and nontrading days. Both rebates are additive
     ///     to coupons and principal gains or losses and pay once at termination.
-    ///     A previously knocked-out note is settled with no remaining value.
+    ///     A note knocked out before valuation is settled and has zero value.
     /// effective_time, expiry_time : datetime.datetime, optional
     ///     Inclusive contract start and expiry timestamps.
     /// autocall_observations : iterable of AutocallableObservation, optional
     ///     Product-specific knock-out and coupon observations, in time order.
     /// calendar : TradingCalendar, optional
-    ///     Owned contractual observation calendar; omission retains it.
+    ///     Owned contractual observation calendar, defaulting to the instance's calendar.
     ///
     /// Returns
     /// -------
     /// BinarySnowballOption
-    ///     Independent contract of the same class, preserving omitted history and
-    ///     terms.
+    ///     Validated copy of the same class.
     ///
     /// Raises
     /// ------
@@ -1158,7 +1158,7 @@ snowball_properties! {
 ///     effective time to actual knock-out or expiry using Actual/365 Fixed,
 ///     including intraday time and nontrading days. Both rebates are additive
 ///     to coupons and principal gains or losses and pay once at termination.
-///     A previously knocked-out note is settled with no remaining value.
+///     A note knocked out before valuation is settled and has zero value.
 /// calendar : TradingCalendar
 ///     Required owned observation calendar. Records carry no calendar; pass
 ///     schedule.calendar when constructing from a schedule. Controls contractual
@@ -1193,7 +1193,7 @@ snowball_properties! {
     [
     /// Return a validated replacement.
     ///
-    /// Omission or Ellipsis retains a field. The original value is unchanged.
+    /// Omitted fields and fields set to Ellipsis default to the instance's values.
     ///
     /// Parameters
     /// ----------
@@ -1207,26 +1207,25 @@ snowball_properties! {
     ///     Finite nonnegative principal redemption per unit of original notional.
     /// rebate_rate : float, optional
     ///     Finite nonnegative flat rebate per unit of original notional.
-    ///     Omission or Ellipsis retains its current value.
+    ///     Defaults to the instance's value.
     /// annual_rebate_rate : float, optional
-    ///     Finite nonnegative annualized rebate rate; omission or Ellipsis
-    ///     retains its current value. Accrues from
-    ///     effective time to actual knock-out or expiry using Actual/365 Fixed,
+    ///     Finite nonnegative annualized rebate rate. Defaults to the instance's
+    ///     value. Accrues from effective time to actual knock-out or expiry using
+    ///     Actual/365 Fixed,
     ///     including intraday time and nontrading days. Both rebates are additive
     ///     to coupons and principal gains or losses and pay once at termination.
-    ///     A previously knocked-out note is settled with no remaining value.
+    ///     A note knocked out before valuation is settled and has zero value.
     /// effective_time, expiry_time : datetime.datetime, optional
     ///     Inclusive contract start and expiry timestamps.
     /// autocall_observations : iterable of AutocallableObservation, optional
     ///     Product-specific knock-out and coupon observations, in time order.
     /// calendar : TradingCalendar, optional
-    ///     Owned contractual observation calendar; omission retains it.
+    ///     Owned contractual observation calendar, defaulting to the instance's calendar.
     ///
     /// Returns
     /// -------
     /// TernarySnowballOption
-    ///     Independent contract of the same class, preserving omitted history and
-    ///     terms.
+    ///     Validated copy of the same class.
     ///
     /// Raises
     /// ------
@@ -1332,7 +1331,7 @@ snowball_properties! {
 ///     effective time to actual knock-out or expiry using Actual/365 Fixed,
 ///     including intraday time and nontrading days. Both rebates are additive
 ///     to coupons and principal gains or losses and pay once at termination.
-///     A previously knocked-out note is settled with no remaining value.
+///     A note knocked out before valuation is settled and has zero value.
 /// calendar : TradingCalendar
 ///     Required owned observation calendar. Records carry no calendar; pass
 ///     schedule.calendar when constructing from a schedule. Controls contractual
@@ -1381,12 +1380,12 @@ autocallable_properties! {
     [
     /// Return a validated replacement.
     ///
-    /// Omission or Ellipsis retains a field. The original value is unchanged.
+    /// Omitted fields and fields set to Ellipsis default to the instance's values.
     ///
     /// Parameters
     /// ----------
     /// coupon_per_period : float, optional
-    ///     Finite signed periodic coupon rate; omission or Ellipsis retains it.
+    ///     Finite signed periodic coupon rate.
     /// initial_spot, knock_in_level, upper_strike, lower_strike : float, optional
     ///     Reference spot, strict downside barrier, and loss interval strikes.
     /// knock_in_observation : KnockInObservation, optional
@@ -1397,14 +1396,14 @@ autocallable_properties! {
     ///     Finite nonnegative principal redemption per unit of original notional.
     /// rebate_rate : float, optional
     ///     Finite nonnegative flat rebate per unit of original notional.
-    ///     Omission or Ellipsis retains its current value.
+    ///     Defaults to the instance's value.
     /// annual_rebate_rate : float, optional
-    ///     Finite nonnegative annualized rebate rate; omission or Ellipsis
-    ///     retains its current value. Accrues from
-    ///     effective time to actual knock-out or expiry using Actual/365 Fixed,
+    ///     Finite nonnegative annualized rebate rate. Defaults to the instance's
+    ///     value. Accrues from effective time to actual knock-out or expiry using
+    ///     Actual/365 Fixed,
     ///     including intraday time and nontrading days. Both rebates are additive
     ///     to coupons and principal gains or losses and pay once at termination.
-    ///     A previously knocked-out note is settled with no remaining value.
+    ///     A note knocked out before valuation is settled and has zero value.
     /// effective_time, expiry_time : datetime.datetime, optional
     ///     Inclusive contract start and expiry timestamps.
     /// knock_out_observations : iterable of KnockOutObservation, optional
@@ -1412,13 +1411,12 @@ autocallable_properties! {
     /// coupon_observations : iterable of CouponObservation, optional
     ///     Independent coupon observations in time order.
     /// calendar : TradingCalendar, optional
-    ///     Owned contractual observation calendar; omission retains it.
+    ///     Owned contractual observation calendar, defaulting to the instance's calendar.
     ///
     /// Returns
     /// -------
     /// PhoenixOption
-    ///     Independent contract of the same class, preserving omitted history and
-    ///     terms.
+    ///     Validated copy of the same class.
     ///
     /// Raises
     /// ------
@@ -1605,7 +1603,8 @@ macro_rules! phoenix_preset {
         ///     Inclusive expiry time.
         /// lockout_periods : int, optional
         ///     Initial observations excluded from knock-out; defaults to zero and must
-        ///     leave at least one eligible observation. Coupons and knock-in remain active.
+        ///     leave at least one eligible observation. Coupon and knock-in observations
+        ///     apply during the lockout.
         /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         ///     State strictly before valuation. None is unknown; no_event means no prior
         ///     knock-in or knock-out, knocked_in means outstanding after knock-in, and
@@ -1620,7 +1619,7 @@ macro_rules! phoenix_preset {
         ///     effective time to actual knock-out or expiry using Actual/365 Fixed,
         ///     including intraday time and nontrading days. Both rebates are additive
         ///     to coupons and principal gains or losses and pay once at termination.
-        ///     A previously knocked-out note is settled with no remaining value.
+        ///     A note knocked out before valuation is settled and has zero value.
         /// calendar : TradingCalendar, optional
         ///     Explicit calendar override; omission or Ellipsis inherits an
         ///     ObservationSchedule calendar, otherwise weekdays.

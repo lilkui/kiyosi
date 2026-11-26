@@ -178,13 +178,13 @@ impl DoubleBarrierOption {
     }
     /// Borrows the scheduled observations, or returns `None` for continuous monitoring.
     ///
-    /// Storage remains valid for the borrow; see [`Self::new`] for construction.
+    /// See [`Self::new`] for construction.
     pub fn observation_schedule(&self) -> Option<&ObservationSchedule> {
         self.lower.observation_schedule()
     }
     /// Borrows scheduled times, or returns `None` for continuous monitoring.
     ///
-    /// Storage remains valid for this borrow; see [`Self::observation_schedule`].
+    /// See [`Self::observation_schedule`] for access to the schedule with its calendar.
     pub fn observation_times(&self) -> Option<&[Timestamp]> {
         self.lower.observation_times()
     }
@@ -261,7 +261,7 @@ impl OptionContract for DoubleBarrierOption {
     }
 }
 
-/// Selects replacements for [`DoubleBarrierOption::replace`]; absent fields retain their values.
+/// Selects replacements for [`DoubleBarrierOption::replace`]. Absent fields default to the source values.
 ///
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
@@ -293,7 +293,7 @@ pub struct DoubleBarrierOptionChanges {
 }
 
 impl DoubleBarrierOption {
-    /// Returns a validated replacement, preserving omitted terms and the original.
+    /// Returns a validated copy with the supplied terms applied.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
     /// Set `observation_times` to `Some(None)` for continuous monitoring; omitted times are retained.
@@ -301,8 +301,7 @@ impl DoubleBarrierOption {
     ///
     /// # Errors
     ///
-    /// Reuses constructor validation for the resulting contract. Failure leaves
-    /// this value unchanged.
+    /// Reuses constructor validation for the resulting contract.
     pub fn replace(&self, changes: DoubleBarrierOptionChanges) -> Result<Self> {
         let updated = Self::new(DoubleBarrierOptionTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
