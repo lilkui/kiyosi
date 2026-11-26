@@ -432,6 +432,35 @@ fn shared_sample_greeks_and_implied_volatility_preserve_inputs() {
 }
 
 #[test]
+fn checkpointed_spot_greeks_match_scalar_price_stencils() -> Result<()> {
+    let put = option(OptionType::Put, 100.0);
+    let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+        sampling: MonteCarloSettings {
+            path_count: 336_000,
+            seed: Some(42),
+            max_active_workers: 4,
+            ..Default::default()
+        },
+        step_count: 50,
+    })?;
+    let price = |spot| engine.price(&put, &market(0.05, 0.02, 0.2, spot));
+    let result = engine.price_with_greeks(
+        &put,
+        &market(0.05, 0.02, 0.2, 100.0),
+        GreeksRequest::new([Greek::Delta, Greek::Gamma]),
+    )?;
+    let (center, up, down) = (price(100.0)?, price(108.0)?, price(92.0)?);
+    assert_eq!(result.seed(), Some(42));
+    assert_eq!(result.price(), center);
+    assert_eq!(result.require(Greek::Delta)?, (up - down) / 16.0);
+    assert_eq!(
+        result.require(Greek::Gamma)?,
+        ((up - center) - (center - down)) / 64.0
+    );
+    Ok(())
+}
+
+#[test]
 #[expect(
     clippy::float_cmp,
     reason = "Stencil distances must be exactly representably symmetric."

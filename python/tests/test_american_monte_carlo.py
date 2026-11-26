@@ -379,6 +379,22 @@ def test_default_spot_greeks_converge_across_seeds_and_price_scales(scale, seed)
     assert result.gamma * scale == pytest.approx(reference.gamma, rel=0, abs=0.004)
 
 
+def test_checkpointed_spot_greeks_match_scalar_price_stencils():
+    option = contract()
+    context = market(rate=0.05, dividend=0.02, sigma=0.2)
+    engine = MonteCarloVanillaEngine(
+        path_count=336_000, step_count=50, seed=42, max_active_workers=4
+    )
+    result = engine.price_with_greeks(option, context, ["delta", "gamma"])
+    center, up, down = (
+        engine.price(option, context.replace(spot_price=spot)) for spot in (100, 108, 92)
+    )
+    assert result.seed == 42
+    assert result.price == center
+    assert result.delta == (up - down) / 16
+    assert result.gamma == ((up - center) - (center - down)) / 64
+
+
 def test_price_sampling_error_and_exercise_grid_convergence():
     option, context = contract(), market()
     reference = CoxRossRubinsteinVanillaEngine(step_count=3200).price(option, context)

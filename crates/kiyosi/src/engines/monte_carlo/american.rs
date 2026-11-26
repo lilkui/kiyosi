@@ -6,7 +6,11 @@ use super::{
     Pcg32, PricingContext, PricingEngine, PricingResult, Result, check_path_step, scaled_value,
     sobol, unstable,
 };
-use crate::{AmericanOption, BlackScholesMertonParameterChanges, Greek, PricingContextChanges};
+use crate::risk::numerical::symmetric_shift;
+use crate::{
+    AmericanOption, BlackScholesMertonParameterChanges, Greek, OptionContract,
+    PricingContextChanges,
+};
 
 const MAX_PATH_VALUES: usize = 1024 * 1024 * 1024 / size_of::<f64>();
 const MAX_CACHED_PATH_VALUES: usize = 128 * 1024 * 1024 / size_of::<f64>();
@@ -656,8 +660,39 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
             ..settings
         };
         let engine = self.with_resolved_seed()?;
-        let native = |context: &PricingContext, requested: GreeksRequest| {
-            let (price, seed) = engine.american_price(option, context, true)?;
+        let spot = context.spot_price();
+        let shift = symmetric_shift(spot, settings.spot_shift_at(spot));
+        let speed_shift = 2.0 * shift;
+        let speed = request.has(Greek::Speed)
+            && speed_shift.is_finite()
+            && spot > speed_shift
+            && symmetric_shift(spot, speed_shift).to_bits() == speed_shift.to_bits()
+            && !option.at_spot_discontinuity(context, speed_shift);
+        let batch = if (request.has(Greek::Delta) || request.has(Greek::Gamma) || speed)
+            && shift > 0.0
+            && spot > shift
+            && !option.all_greeks_unavailable(context)
+            && !option.at_spot_discontinuity(context, shift)
+        {
+            let shifted = |spot| {
+                context.replace(PricingContextChanges {
+                    spot_price: Some(spot),
+                    ..Default::default()
+                })
+            };
+            let up = shifted(spot + shift)?;
+            let down = shifted(spot - shift)?;
+            let (prices, seed) = engine.american_spots(option, [context, &up, &down], true)?;
+            Some((up, down, prices, seed))
+        } else {
+            None
+        };
+        let native = |scenario: &PricingContext, requested: GreeksRequest| {
+            let (price, seed) = match batch.as_ref().filter(|_| std::ptr::eq(scenario, context)) {
+                Some((_, _, [base, _, _], seed)) => (*base, *seed),
+                None => engine.american_price(option, scenario, true)?,
+            };
+            let context = scenario;
             let mut result = PricingResult::new(price)?.with_seed(seed);
             if option.option_type() != OptionType::Call
                 || super::super::deterministic::enabled(context)
@@ -725,6 +760,15 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
             native(context, request)?,
             native,
             |high, low, _| {
+                if let Some((_, _, [_, up, down], seed)) = batch
+                    .as_ref()
+                    .filter(|(up, down, _, _)| up == high && down == low)
+                {
+                    return Ok(Some((
+                        PricingResult::new(*up)?.with_seed(*seed),
+                        PricingResult::new(*down)?.with_seed(*seed),
+                    )));
+                }
                 let ([up, down], seed) = engine.american_spots(option, [high, low], true)?;
                 Ok(Some((
                     PricingResult::new(up)?.with_seed(seed),
