@@ -5,6 +5,8 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from functools import partial
+from itertools import repeat
+from struct import calcsize
 
 import pytest
 from kiyosi import (
@@ -41,6 +43,19 @@ def test_american_strike_batch_caps_combined_exercise_work():
     assert len(
         engine.price_american_strikes(put, market(sigma=0), strikes=strikes)
     ) == len(strikes)
+
+
+def test_american_strike_batch_stops_reading_at_workspace_limit():
+    limit = (1 << 30) // (calcsize("P") + 2 * calcsize("d"))
+
+    def strikes():
+        yield from repeat(100.0, limit + 1)
+        pytest.fail("read past the first strike exceeding the workspace limit")
+
+    with pytest.raises(InvalidInputError, match="strike batch workspace"):
+        MonteCarloVanillaEngine().price_american_strikes(
+            contract(), market(), strikes=strikes()
+        )
 
 
 @pytest.mark.parametrize("sampling", ("pseudo_random", "sobol"))

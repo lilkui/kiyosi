@@ -76,6 +76,12 @@ fn sampling(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::MonteCarloSampling> {
     }
 }
 
+fn strike_batch(value: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
+    crate::conversions::collect_values_checked(value, crate::conversions::real, |count| {
+        domain(kiyosi::validate_monte_carlo_strike_batch_size(count))
+    })
+}
+
 pub(crate) fn sampling_name(value: kiyosi::MonteCarloSampling) -> &'static str {
     match value {
         kiyosi::MonteCarloSampling::PseudoRandom => "pseudo_random",
@@ -387,6 +393,7 @@ sampling_settings!(
         /// The request uses one seed and fits a separate exercise rule for each
         /// distinct strike. Call with_resolved_seed() first to replay an unseeded engine.
         /// Combined sampling and exercise work is capped at one billion updates.
+        /// The strike batch has a separate 1 GiB workspace limit.
         ///
         /// Raises
         /// ------
@@ -401,8 +408,9 @@ sampling_settings!(
             py: Python<'py>,
             #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, crate::instruments::american::AmericanOption>,
             context: &PricingContext,
-            #[pyo3(from_py_with = crate::conversions::reals)] strikes: Vec<f64>,
+            strikes: &Bound<'_, PyAny>,
         ) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+            let strikes = strike_batch(strikes)?;
             let instrument = &instrument.0;
             let prices = domain(crate::cancellation::run(py, || {
                 self.0.price_american_strikes(instrument, &context.0, &strikes)
@@ -599,11 +607,7 @@ sampling_settings!(
             context: &PricingContext,
             strikes: &Bound<'_, PyAny>,
         ) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
-            let strikes = crate::conversions::collect_values_checked(
-                strikes,
-                crate::conversions::real,
-                |count| domain(kiyosi::MonteCarloAsianEngine::validate_arithmetic_strike_count(count)),
-            )?;
+            let strikes = strike_batch(strikes)?;
             let instrument = &instrument.0;
             let prices = domain(crate::cancellation::run(py, || {
                 self.0.price_arithmetic_strikes(instrument, &context.0, &strikes)

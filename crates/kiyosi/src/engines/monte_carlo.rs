@@ -50,6 +50,25 @@ pub use autocallable::MonteCarloAutocallableEngine;
 pub use barrier::MonteCarloBarrierEngine;
 pub use digital::MonteCarloDigitalEngine;
 
+/// Checks the workspace limit shared by the American and arithmetic Asian strike batches.
+///
+/// See [`MonteCarloVanillaEngine::price_american_strikes`] and
+/// [`MonteCarloAsianEngine::price_arithmetic_strikes`] for pricing examples.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidInput`] if the strike count exceeds the workspace limit.
+#[doc(hidden)]
+pub fn validate_monte_carlo_strike_batch_size(count: usize) -> Result<()> {
+    let bytes_per_strike = size_of::<usize>() + 2 * size_of::<f64>();
+    if count > SCHEDULED_WORKSPACE_BUDGET / bytes_per_strike {
+        return Err(Error::InvalidInput(
+            "Monte Carlo strike batch workspace exceeds 1 GiB".into(),
+        ));
+    }
+    Ok(())
+}
+
 fn quote_distinct_strikes(
     strikes: &[f64],
     quote: impl FnOnce(&[f64]) -> Result<Vec<f64>>,

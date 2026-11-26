@@ -690,8 +690,8 @@ impl MonteCarloVanillaEngine {
     /// # Errors
     ///
     /// Propagates input, market, sampling and cancellation errors. Returns
-    /// [`Error::InvalidInput`] when combined sampling and exercise work exceeds
-    /// one billion updates.
+    /// [`Error::InvalidInput`] for excessive batch workspace or combined
+    /// sampling and exercise work.
     /// A failed request returns no partial prices.
     ///
     /// # Panics
@@ -706,6 +706,7 @@ impl MonteCarloVanillaEngine {
         crate::engines::flat_rates(context)?;
         crate::instruments::monitoring::validate_life(option, context)?;
         context.validate_curve_horizon(option.expiry_time())?;
+        super::validate_monte_carlo_strike_batch_size(strikes.len())?;
         for &strike in strikes {
             crate::cancellation::check()?;
             crate::error::finite(strike, true, "strike")?;

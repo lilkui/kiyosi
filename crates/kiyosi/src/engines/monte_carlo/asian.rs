@@ -250,7 +250,7 @@ impl MonteCarloAsianEngine {
             option.coverage(context)?;
         }
         crate::cancellation::check()?;
-        Self::validate_arithmetic_strike_count(strikes.len())?;
+        super::validate_monte_carlo_strike_batch_size(strikes.len())?;
         for &strike in strikes {
             crate::cancellation::check()?;
             crate::error::finite(strike, true, "strike")?;
@@ -259,24 +259,6 @@ impl MonteCarloAsianEngine {
         super::quote_distinct_strikes(strikes, |unique| {
             self.price_distinct_arithmetic_strikes(template, context, unique, stochastic)
         })
-    }
-
-    /// Checks the batch workspace limit before collecting strike inputs.
-    ///
-    /// See [`Self::price_arithmetic_strikes`] for batch pricing.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::InvalidInput`] if the strike count exceeds the workspace limit.
-    #[doc(hidden)]
-    pub fn validate_arithmetic_strike_count(count: usize) -> Result<()> {
-        let bytes_per_strike = size_of::<usize>() + 2 * size_of::<f64>();
-        if count > super::SCHEDULED_WORKSPACE_BUDGET / bytes_per_strike {
-            return Err(Error::InvalidInput(
-                "Asian strike batch workspace exceeds 1 GiB".into(),
-            ));
-        }
-        Ok(())
     }
 
     fn price_distinct_arithmetic_strikes(

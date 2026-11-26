@@ -170,7 +170,7 @@ pub use engines::monte_carlo::{
     MonteCarloAccumulatorEngine, MonteCarloAsianEngine, MonteCarloAutocallableEngine,
     MonteCarloBarrierEngine, MonteCarloDigitalEngine, MonteCarloEstimate, MonteCarloGridSettings,
     MonteCarloSampling, MonteCarloSettings, MonteCarloUncertaintyStatus, MonteCarloVanillaEngine,
-    configure_monte_carlo_pool,
+    configure_monte_carlo_pool, validate_monte_carlo_strike_batch_size,
 };
 pub use engines::quadrature::{
     QuadratureAccumulatorEngine, QuadratureAutocallableEngine, QuadratureBarrierEngine,
