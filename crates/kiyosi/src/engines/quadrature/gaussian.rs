@@ -975,8 +975,11 @@ impl GaussianConvolution {
         let scale = curve
             .iter()
             .flatten()
-            .fold(0.0_f64, |scale, value| scale.max(value.abs()));
-        if scale == 0.0 && curve.iter().flatten().all(|&value| value == 0.0) {
+            .try_fold(0.0_f64, |scale, value| {
+                value.is_finite().then_some(scale.max(value.abs()))
+            })
+            .unwrap_or(f64::INFINITY);
+        if scale == 0.0 {
             values.fill(0.0);
             return Ok(());
         }
@@ -999,6 +1002,10 @@ impl GaussianConvolution {
         }
         let regular = &self.grid.regular;
         let cells = regular.len() - 1;
+        let nonzero = |&cell: &usize| curve[cell].iter().any(|&coefficient| coefficient != 0.0);
+        let support = &regular[..cells];
+        let first = support.iter().position(nonzero).unwrap_or(cells);
+        let last = support.iter().rposition(nonzero).map_or(cells, |i| i + 1);
         self.output.fill(Complex64::default());
         for (power, kernel) in self.kernels.iter().enumerate() {
             crate::cancellation::check()?;
@@ -1055,11 +1062,27 @@ impl GaussianConvolution {
                         regular.partition_point(|&i| i < active.end).min(cells),
                     )
                 };
-                charge(end.saturating_sub(start))?;
+                let end = end.min(last);
+                let start = start.max(first).min(end);
                 let offset = cells - index;
-                for cell in start..end {
-                    if regular[cell] + 1 == regular[cell + 1] {
-                        sum.add(self.moments[offset + cell].integrate(&curve[regular[cell]]));
+                let add = |sum: &mut Sum, range: std::ops::Range<usize>| {
+                    charge(range.len())?;
+                    for cell in range {
+                        if regular[cell] + 1 == regular[cell + 1] {
+                            sum.add(self.moments[offset + cell].integrate(&curve[regular[cell]]));
+                        }
+                    }
+                    Ok::<_, Error>(())
+                };
+                if start < end {
+                    let (left, right, bound) =
+                        self.tail_band(index, start..end, drift, deviation, scale);
+                    add(&mut sum, left..right)?;
+                    let value = sum.total().abs();
+                    if !value.is_normal() || bound > value.ln() + (4.0 * f64::EPSILON).ln() {
+                        // A small or cancelling result needs the full compensated sum.
+                        add(&mut sum, start..left)?;
+                        add(&mut sum, right..end)?;
                     }
                 }
                 sum.total() * factor
@@ -1067,6 +1090,50 @@ impl GaussianConvolution {
             index += 1;
         }
         Ok(())
+    }
+
+    #[expect(
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "Workspace bounds make grid indices exact and the candidate band is clamped to them."
+    )]
+    fn tail_band(
+        &self,
+        row: usize,
+        active: std::ops::Range<usize>,
+        drift: f64,
+        deviation: f64,
+        scale: f64,
+    ) -> (usize, usize, f64) {
+        let spacing = self.grid.spacing;
+        let center = row as f64 + drift / spacing;
+        let low = active.start as f64;
+        let high = active.end as f64;
+        let distance = center.clamp(low, high) - center;
+        let radius = distance.hypot(10.0 * (deviation / spacing));
+        let left = (center - radius).floor().clamp(low, high) as usize;
+        let right = (center + radius).ceil().clamp(low, high) as usize;
+        let edge = |cell: usize, side: f64| {
+            // Leave one cell of slack for rounding of the regular-lattice moments.
+            (side * (((cell as f64 - row as f64) * spacing - drift) / deviation)
+                - spacing / deviation)
+                .max(0.0)
+        };
+        let left_z = if left > active.start {
+            edge(left, -1.0)
+        } else {
+            f64::INFINITY
+        };
+        let right_z = if right < active.end {
+            edge(right, 1.0)
+        } else {
+            f64::INFINITY
+        };
+        // Each cubic is bounded by four coefficients on its unit cell. Each
+        // omitted Gaussian tail has probability at most exp(-z²/2).
+        let bound = (8.0 * scale).ln() - 0.5 * left_z.min(right_z).powi(2);
+        (left, right, bound)
     }
 }
 

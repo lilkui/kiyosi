@@ -23,6 +23,19 @@ from support.assertions import assert_rejection
 from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, option
 
 
+def test_fine_scheduled_barrier_grid_prices_within_the_rollback_budget():
+    contract = option(
+        "down_and_out",
+        expiry_time=START + timedelta(days=365),
+        barrier_level=85,
+        observation_times=[START + timedelta(days=28 * i) for i in range(1, 13)],
+    )
+    engine = pricing.QuadratureBarrierEngine(asset_step_count=16_384)
+    assert engine.price(contract, market(rate=0.05, dividend=0.02)) == pytest.approx(
+        9.019429745076414, rel=0, abs=2e-8
+    )
+
+
 def test_scheduled_quadrature_rejects_excessive_rollback_work():
     end = START + timedelta(days=365)
     contract = option(

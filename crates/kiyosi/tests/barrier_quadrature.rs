@@ -33,6 +33,33 @@ const KINDS: [BarrierType; 4] = [
 ];
 
 #[test]
+fn fine_scheduled_barrier_grid_prices_within_the_rollback_budget() -> Result<()> {
+    let start = day(1, 1);
+    let mut terms = terms(BarrierType::DownAndOut, OptionType::Call);
+    terms.barrier_level = 85.0;
+    terms.calendar = TradingCalendar::all_days();
+    terms.observation_times = Some(
+        (1..=12)
+            .map(|i| start.add_days(28 * i))
+            .collect::<Result<_>>()?,
+    );
+    let option = BarrierOption::new(terms)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?,
+        100.0,
+        start,
+    )?;
+    let engine = QuadratureBarrierEngine::new(QuadratureSettings {
+        asset_step_count: 16_384,
+        ..Default::default()
+    })?;
+    let price = engine.price(&option, &context)?;
+    // The original 4,096- and 8,192-step prices agree within 3e-10.
+    assert!((price - 9.019_429_745_076_414).abs() < 2e-8, "{price}");
+    Ok(())
+}
+
+#[test]
 fn scheduled_quadrature_rejects_excessive_rollback_work() -> Result<()> {
     let start = day(1, 1);
     let end = start.add_days(365)?;
