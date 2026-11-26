@@ -414,7 +414,7 @@ fn solve_model<D: Diffusion>(
             || payoff.sign < 0.0
             || dividend.rate(0.0) > 0.0
             || risk.rate(0.0) < 0.0);
-    let exercise_boundaries = if can_exercise {
+    let mut exercise_boundaries = if can_exercise {
         Some(crate::engines::deterministic::ExerciseBoundaries::new(
             payoff,
             [lower, upper],
@@ -478,7 +478,7 @@ fn solve_model<D: Diffusion>(
                     tau,
                 )
             });
-            if let Some(boundaries) = &exercise_boundaries {
+            if let Some(boundaries) = &mut exercise_boundaries {
                 for (edge, floor) in edges.iter_mut().zip(boundaries.at(current)?) {
                     *edge = edge.max(floor);
                 }

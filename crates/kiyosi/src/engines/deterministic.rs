@@ -348,6 +348,7 @@ pub(super) struct ExerciseBoundaries<'a> {
     curves: [&'a Curve; 2],
     knots: Vec<f64>,
     rules: [BoundaryRule; 2],
+    envelope: Option<KnotEnvelope>,
 }
 
 #[derive(Clone, Copy)]
@@ -369,6 +370,7 @@ impl<'a> ExerciseBoundaries<'a> {
         let curves = [risk, dividend];
         let mut knots = Vec::new();
         let mut rules = [BoundaryRule::Expiry; 2];
+        let mut envelope = None;
         if payoff.is_american() {
             let mut carry = [0.0_f64; 2];
             for t in risk.ends().chain(dividend.ends()) {
@@ -411,15 +413,26 @@ impl<'a> ExerciseBoundaries<'a> {
                 .count();
             if scans != 0 {
                 let count = risk.ends().len() + dividend.ends().len() - 2;
-                if count.saturating_mul(steps).saturating_mul(scans) > 25_000_000 {
-                    return Err(crate::Error::InvalidInput(
-                        "American exercise boundary exceeds 25 million curve-knot visits; reduce time steps or curve nodes".into(),
-                    ));
-                }
                 knots.extend(risk.ends_between(0.0, end));
                 knots.extend(dividend.ends_between(0.0, end));
                 knots.sort_unstable_by(f64::total_cmp);
                 knots.dedup();
+                let mut domain = [f64::INFINITY, f64::NEG_INFINITY];
+                for (spot, rule) in assets.into_iter().zip(rules) {
+                    if matches!(rule, BoundaryRule::Scan) {
+                        let moneyness = log_ratio(spot, payoff.strike);
+                        domain[0] = domain[0].min(moneyness - carry[1]);
+                        domain[1] = domain[1].max(moneyness - carry[0]);
+                    }
+                }
+                envelope = KnotEnvelope::new(payoff, domain, &knots, end, curves)?;
+                if envelope.is_none()
+                    && count.saturating_mul(steps).saturating_mul(scans) > 25_000_000
+                {
+                    return Err(crate::Error::InvalidInput(
+                        "American exercise boundary exceeds 25 million curve-knot visits; reduce time steps or curve nodes".into(),
+                    ));
+                }
             }
         }
         Ok(Self {
@@ -429,11 +442,23 @@ impl<'a> ExerciseBoundaries<'a> {
             curves,
             knots,
             rules,
+            envelope,
         })
     }
 
-    pub fn at(&self, start: f64) -> Result<[f64; 2]> {
+    pub fn at(&mut self, start: f64) -> Result<[f64; 2]> {
         let [risk, dividend] = self.curves;
+        let prefix = self
+            .envelope
+            .as_mut()
+            .map(|envelope| {
+                envelope.advance(start)?;
+                Ok::<_, crate::Error>([
+                    risk.log_factor(0.0, start),
+                    dividend.log_factor(0.0, start),
+                ])
+            })
+            .transpose()?;
         let mut values = [0.0; 2];
         for ((value, spot), rule) in values.iter_mut().zip(self.assets).zip(self.rules) {
             *value = match rule {
@@ -451,6 +476,18 @@ impl<'a> ExerciseBoundaries<'a> {
                     )?
                 }
                 BoundaryRule::Scan => {
+                    if let Some((envelope, [r, q])) = self.envelope.as_ref().zip(prefix) {
+                        let initial = log_ratio(spot, self.payoff.strike);
+                        *value = self.payoff.value(spot);
+                        if let Some([risk, dividend]) = envelope.best(initial + (r - q)) {
+                            let r = risk - r;
+                            let q = dividend - q;
+                            let future =
+                                discounted_intrinsic(self.payoff, spot, q, r, initial + (q - r))?;
+                            *value = value.max(future);
+                        }
+                        continue;
+                    }
                     let first = self.knots.partition_point(|&knot| knot <= start);
                     exercise_value_on_knots(
                         self.payoff,
@@ -469,6 +506,159 @@ impl<'a> ExerciseBoundaries<'a> {
             };
         }
         Ok(values)
+    }
+}
+
+struct KnotEnvelope {
+    knots: Vec<ExerciseKnot>,
+    remaining: usize,
+    domain: [f64; 2],
+    nodes: Vec<EnvelopeNode>,
+}
+
+struct ExerciseKnot {
+    time: f64,
+    logs: [f64; 2],
+    line: [f64; 2],
+}
+
+struct EnvelopeNode {
+    knot: usize,
+    children: [Option<usize>; 2],
+}
+
+impl KnotEnvelope {
+    fn new(
+        payoff: Payoff,
+        [low, high]: [f64; 2],
+        interior: &[f64],
+        end: f64,
+        [risk, dividend]: [&Curve; 2],
+    ) -> Result<Option<Self>> {
+        // Bound both workspace and the loss of precision from changing discount origin.
+        if !(16..=100_000).contains(&interior.len())
+            || !low.is_finite()
+            || !high.is_finite()
+            || low < -16.0
+            || high > 16.0
+            || low > high
+            || [risk, dividend]
+                .into_iter()
+                .flat_map(Curve::rate_bounds)
+                .any(|rate| rate.abs() * end > 1.0)
+        {
+            return Ok(None);
+        }
+        let mut previous = 0.0_f64;
+        let mut knots = Vec::with_capacity(interior.len() + 1);
+        for time in interior.iter().copied().chain([end]) {
+            crate::cancellation::check()?;
+            let middle = previous.midpoint(time);
+            // With no interior maximum, every future optimum is at a knot or at start.
+            if stationary_exercise_maximum(payoff, risk.rate(middle), dividend.rate(middle)) {
+                return Ok(None);
+            }
+            let logs = [risk.log_factor(0.0, time), dividend.log_factor(0.0, time)];
+            knots.push(ExerciseKnot {
+                time,
+                logs,
+                line: [payoff.sign * logs[1].exp(), -payoff.sign * logs[0].exp()],
+            });
+            previous = time;
+        }
+        let margin = 64.0 * f64::EPSILON * (1.0 + low.abs() + high.abs());
+        Ok(Some(Self {
+            remaining: knots.len(),
+            knots,
+            domain: [low - margin, high + margin],
+            nodes: Vec::new(),
+        }))
+    }
+
+    fn value(&self, knot: usize, spot_ratio: f64) -> f64 {
+        let [slope, intercept] = self.knots[knot].line;
+        spot_ratio.mul_add(slope, intercept)
+    }
+
+    fn advance(&mut self, start: f64) -> Result<()> {
+        while self.remaining > 0 && self.knots[self.remaining - 1].time > start {
+            crate::cancellation::check()?;
+            self.remaining -= 1;
+            self.insert(self.remaining);
+        }
+        Ok(())
+    }
+
+    // Two payoff lines cross at most once. Keep the middle winner at the
+    // current node and descend only into the half where the other can win.
+    fn insert(&mut self, mut knot: usize) {
+        if self.nodes.is_empty() {
+            self.nodes.push(EnvelopeNode {
+                knot,
+                children: [None; 2],
+            });
+            return;
+        }
+        let mut node = 0;
+        let [mut low, mut high] = self.domain;
+        for _ in 0..64 {
+            let middle = low.midpoint(high);
+            let incumbent = self.nodes[node].knot;
+            let [left_ratio, middle_ratio, right_ratio] = [low, middle, high].map(f64::exp);
+            let wins_left = self.value(knot, left_ratio) > self.value(incumbent, left_ratio);
+            let wins_middle = self.value(knot, middle_ratio) > self.value(incumbent, middle_ratio);
+            let wins_right = self.value(knot, right_ratio) > self.value(incumbent, right_ratio);
+            if wins_middle {
+                std::mem::swap(&mut knot, &mut self.nodes[node].knot);
+            }
+            let side = if wins_left != wins_middle {
+                high = middle;
+                0
+            } else if wins_right != wins_middle {
+                low = middle;
+                1
+            } else {
+                return;
+            };
+            if let Some(child) = self.nodes[node].children[side] {
+                node = child;
+            } else {
+                self.nodes[node].children[side] = Some(self.nodes.len());
+                self.nodes.push(EnvelopeNode {
+                    knot,
+                    children: [None; 2],
+                });
+                return;
+            }
+        }
+    }
+
+    fn best(&self, moneyness: f64) -> Option<[f64; 2]> {
+        let mut node = self.nodes.first()?;
+        let [mut low, mut high] = self.domain;
+        let mut best = node.knot;
+        let spot_ratio = moneyness.exp();
+        let mut value = self.value(best, spot_ratio);
+        loop {
+            let middle = low.midpoint(high);
+            let side = if moneyness < middle {
+                high = middle;
+                0
+            } else {
+                low = middle;
+                1
+            };
+            let Some(child) = node.children[side] else {
+                break;
+            };
+            node = &self.nodes[child];
+            let candidate = self.value(node.knot, spot_ratio);
+            if candidate > value {
+                best = node.knot;
+                value = candidate;
+            }
+        }
+        Some(self.knots[best].logs)
     }
 }
 
@@ -1097,4 +1287,45 @@ pub(super) fn average(
         (terms.sign() * (average - terms.terms.strike())).max(0.0),
         discount(context, terms.terms.expiry_time())?,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Date, OptionType, RateTermStructure};
+
+    #[test]
+    fn indexed_exercise_edges_match_the_full_future_knot_scan() -> Result<()> {
+        let start = Date::new(2025, 1, 1)?.start_of_day();
+        let end = start.add_days(320)?;
+        let dates = (1..=32)
+            .map(|i| start.add_days(i * 10))
+            .collect::<Result<Vec<_>>>()?;
+        let factors = (1..=32)
+            .map(|i| (-0.001 * f64::from(i) - 0.002 * f64::from(i % 2)).exp())
+            .collect();
+        let risk = Curve::new(&RateTermStructure::new(start, dates, factors)?, start, end)?;
+        let dividend = Curve::new(&RateTermStructure::flat(0.02, None)?, start, end)?;
+        let end = start.years_until(end);
+        let payoff = Payoff::vanilla(OptionType::Put, 100.0, true);
+        let mut indexed =
+            ExerciseBoundaries::new(payoff, [95.0, 105.0], end, [&risk, &dividend], 100)?;
+        let mut scan =
+            ExerciseBoundaries::new(payoff, [95.0, 105.0], end, [&risk, &dividend], 100)?;
+        assert!(
+            indexed.envelope.is_some(),
+            "the rate segments have no interior maxima"
+        );
+        scan.envelope = None;
+        for i in (0..=100).rev() {
+            let t = end * f64::from(i) / 100.0;
+            for (actual, expected) in indexed.at(t)?.into_iter().zip(scan.at(t)?) {
+                assert!(
+                    (actual - expected).abs() < 5e-13,
+                    "{t}: {actual} != {expected}"
+                );
+            }
+        }
+        Ok(())
+    }
 }

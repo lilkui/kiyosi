@@ -568,7 +568,7 @@ fn prepare(
     let mut second = vec![0.0; length];
     let mut predictor = vec![0.0; length];
     let mut stage = vec![0.0; length];
-    let boundaries = ExerciseBoundaries::new(
+    let mut boundaries = ExerciseBoundaries::new(
         payoff,
         [lower, upper],
         time,

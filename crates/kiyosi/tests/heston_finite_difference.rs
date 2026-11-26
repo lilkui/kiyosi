@@ -573,7 +573,7 @@ fn american_heston_dense_curves_preserve_price_and_bound_boundary_work() -> kiyo
         ..Default::default()
     })?;
     let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
-    let market = |count: i32, perturbation: f64| -> kiyosi::Result<PricingContext> {
+    let market = |count: i32, perturbation: f64, dividend: f64| -> kiyosi::Result<PricingContext> {
         let times = (1..=count)
             .map(|j| start.add_micros(31_536_000_000_000 * i64::from(j) / i64::from(count)))
             .collect::<kiyosi::Result<_>>()?;
@@ -586,7 +586,7 @@ fn american_heston_dense_curves_preserve_price_and_bound_boundary_work() -> kiyo
         PricingContext::new(
             HestonParameters::new(kiyosi::HestonParameterInputs {
                 risk_free_rate: curve.into(),
-                dividend_yield: 0.02.into(),
+                dividend_yield: dividend.into(),
                 initial_variance: 0.04,
                 long_run_variance: 0.04,
                 mean_reversion_speed: 1.5,
@@ -597,16 +597,18 @@ fn american_heston_dense_curves_preserve_price_and_bound_boundary_work() -> kiyo
             start,
         )
     };
-    let flat = engine.price(&option, &market(2000, 0.0)?)?;
-    let perturbed = engine.price(&option, &market(2000, 0.000_005)?)?;
+    let flat = engine.price(&option, &market(2000, 0.0, 0.02)?)?;
+    let perturbed = engine.price(&option, &market(2000, 0.000_005, 0.02)?)?;
     assert!(
         flat > 0.0 && (perturbed - flat).abs() < 0.002,
         "{perturbed} != {flat}"
     );
-    let dense = engine.price(&option, &market(6000, 0.000_005)?)?;
+    let dense = engine.price(&option, &market(6000, 0.000_005, 0.02)?)?;
     assert!((dense - flat).abs() < 0.002, "{dense} != {flat}");
+    let indexed = engine.price(&option, &market(6000, 0.000_02, 0.02)?)?;
+    assert!((indexed - flat).abs() < 0.01, "{indexed} != {flat}");
     assert!(matches!(
-        engine.price(&option, &market(6000, 0.000_02)?),
+        engine.price(&option, &market(6000, 0.000_02, 0.2)?),
         Err(Error::InvalidInput(message)) if message.contains("exercise boundary")
     ));
     Ok(())
