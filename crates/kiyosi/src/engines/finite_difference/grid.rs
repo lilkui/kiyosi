@@ -140,6 +140,58 @@ impl LogStencil {
     }
 }
 
+// Coefficients for the moment-matching branch, with the fixed mesh
+// divisions performed once for the Heston variance rows.
+pub(super) struct PreparedLogStencil {
+    variance_weight: f64,
+    carry_weight: f64,
+    down: f64,
+    inverse_down: f64,
+    inverse_up: f64,
+}
+
+impl PreparedLogStencil {
+    // With bounded stencil weights and inputs, the unrolled expressions have
+    // enough exponent headroom to avoid per-node overflow checks.
+    const LIMIT: f64 = 1e80;
+
+    fn new(stencil: LogStencil) -> Option<Self> {
+        let up_slope = stencil.up / stencil.right;
+        let difference = up_slope - stencil.down / stencil.left;
+        if difference <= 8.0 * f64::EPSILON || !stencil.up.is_finite() {
+            return None;
+        }
+        let scale = (difference * stencil.left).recip();
+        let result = Self {
+            variance_weight: 0.5 * up_slope * scale,
+            carry_weight: (1.0 - up_slope) * scale,
+            down: stencil.down,
+            inverse_down: stencil.down.recip(),
+            inverse_up: stencil.up.recip(),
+        };
+        (scale.is_normal()
+            && Self::bounded([
+                result.variance_weight,
+                result.carry_weight,
+                result.inverse_down,
+                result.inverse_up,
+            ]))
+        .then_some(result)
+    }
+
+    pub fn bounded<const N: usize>(values: [f64; N]) -> bool {
+        values.into_iter().all(|value| value.abs() <= Self::LIMIT)
+    }
+
+    #[inline]
+    pub fn coefficients(&self, rate: f64, carry: f64, variance: f64) -> [f64; 3] {
+        let first = self.variance_weight * variance + self.carry_weight * carry;
+        let a = first.max(-carry * self.inverse_down).max(0.0);
+        let c = ((a * self.down + carry) * self.inverse_up).max(0.0);
+        [a, -a - c - rate, c]
+    }
+}
+
 #[derive(PartialEq)]
 pub(super) struct Spline {
     values: Vec<f64>,
@@ -368,6 +420,21 @@ impl SpatialGrid {
     pub fn coefficients(&self, index: usize, rate: f64, dividend: f64, sigma: f64) -> [f64; 3] {
         self.stencils[if self.is_uniform() { 0 } else { index - 1 }]
             .coefficients(rate, dividend, sigma)
+    }
+
+    pub fn prepared_stencils(&self) -> Result<Option<Vec<PreparedLogStencil>>> {
+        let mut prepared = Vec::with_capacity(self.count - 1);
+        for index in 1..self.count {
+            if index % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
+            let stencil = self.stencils[if self.is_uniform() { 0 } else { index - 1 }];
+            let Some(stencil) = PreparedLogStencil::new(stencil) else {
+                return Ok(None);
+            };
+            prepared.push(stencil);
+        }
+        Ok(Some(prepared))
     }
 
     pub fn is_uniform(&self) -> bool {
@@ -986,6 +1053,28 @@ impl StrikeMoments {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn prepared_log_stencil_matches_spot_moment_coefficients() {
+        assert!(PreparedLogStencil::new(LogStencil::new(1e-17, 1e-17)).is_none());
+        for [left, right] in [[0.01, 0.01], [0.1, 0.005], [0.002, 0.12]] {
+            let stencil = LogStencil::new(left, right);
+            let prepared = PreparedLogStencil::new(stencil).unwrap();
+            for [rate, dividend, volatility] in [
+                [0.04, 0.01, 0.2_f64],
+                [0.01, 0.04, 0.0],
+                [-0.05, 0.01, 0.25],
+            ] {
+                let reference = stencil.coefficients(rate, dividend, volatility);
+                let actual = prepared.coefficients(rate, rate - dividend, volatility.powi(2));
+                for (value, expected) in actual.into_iter().zip(reference) {
+                    assert!(
+                        (value - expected).abs() <= 32.0 * f64::EPSILON * expected.abs().max(1.0)
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn projection_integrates_split_polynomials_and_payoffs_but_samples_smooth_cells() {

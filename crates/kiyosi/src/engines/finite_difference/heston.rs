@@ -509,8 +509,8 @@ fn prepare_batch(
 ) -> Result<(Option<HestonState>, Vec<f64>)> {
     // Live values, multiplier, ADI stage buffers, operator coefficients and factors.
     const BYTES_PER_GRID_POINT: u64 = 112;
-    // Axis coordinates, derivative coefficients, and terminal and intrinsic payoffs.
-    const BYTES_PER_AXIS_NODE: u64 = 96;
+    // Axis geometry, model coefficients, and terminal and intrinsic payoffs.
+    const BYTES_PER_AXIS_NODE: u64 = 184;
     const BYTES_PER_TIME_STEP: u64 = 24;
     let model = context.model_parameters().as_heston()?;
     validate_life(option, context)?;
@@ -704,7 +704,7 @@ fn prepare_batch(
     let strikes = || {
         std::iter::once(payoff.strike).chain(additional_strikes.iter().map(|strike| strike / scale))
     };
-    let mut op = Operator::new(&asset, variance.as_deref());
+    let mut op = Operator::new(&asset, variance.as_deref(), model)?;
     if adjoint {
         let spot = context.spot_price() / scale;
         let node = asset
@@ -767,13 +767,16 @@ fn prepare_batch(
         .flatten();
     let lane_workers = batched && pool.is_some();
     let tokens = crate::cancellation::current();
-    let workers = pool
-        .filter(|_| !batched && cells >= 64_000 && work >= 8_000_000)
-        .map(|(_, workers)| AssetWorkers {
-            count: workers,
+    let operator_workers = pool
+        .filter(|_| cells >= 24_000 && work >= 1_000_000 && rows >= 16)
+        .map(|(_, count)| AssetWorkers {
+            count,
             tokens: tokens.clone(),
-            rows_per_task: rows.div_ceil(workers).max(4),
+            rows_per_task: rows.div_ceil(count).max(ASSET_LANES),
         });
+    let workers = operator_workers
+        .as_ref()
+        .filter(|_| !batched && cells >= 64_000 && work >= 8_000_000);
     let mut rollback = || {
         for step in (0..times.widths.len()).rev() {
             crate::cancellation::check()?;
@@ -788,7 +791,7 @@ fn prepare_batch(
             } else {
                 0.0
             };
-            op.prepare(&asset, variance.as_deref(), model, [var, rate, q, dt / 3.0])?;
+            op.prepare(&asset, [var, rate, q, dt / 3.0], operator_workers.as_ref())?;
             let advance = |lane: &mut RollbackLane<'_>| -> Result<()> {
                 let RollbackLane {
                     values,
@@ -805,10 +808,10 @@ fn prepare_batch(
                 }
                 // Both ADI stages solve for increments with the same directional factors.
                 let increment_edges = [edges[0] - values[0], edges[1] - values[nx - 1]];
-                op.predict(values, multiplier, [predictor, stage], dt, workers.as_ref())?;
-                op.solve(stage, increment_edges, workers.as_ref())?;
-                op.correct(stage, predictor, dt, workers.as_ref())?;
-                op.solve(predictor, increment_edges, workers.as_ref())?;
+                op.predict(values, multiplier, [predictor, stage], dt, workers)?;
+                op.solve(stage, increment_edges, workers)?;
+                op.correct(stage, predictor, dt, workers)?;
+                op.solve(predictor, increment_edges, workers)?;
                 if payoff.is_american() {
                     for ((row, old), correction) in predictor
                         .chunks_exact_mut(nx)
@@ -912,15 +915,19 @@ fn european_strike_weights(
     let mut mixed = vec![0.0; length];
     let mut contributions = vec![[0.0; 2]; op.dynamic_rows().div_ceil(ASSET_LANES)];
     let active = op.dynamic_rows() * nx;
-    let pool = (active >= 64_000 && active.saturating_mul(times.widths.len()) >= 8_000_000)
+    let work = active.saturating_mul(times.widths.len());
+    let pool = (active >= 24_000 && work >= 1_000_000 && op.dynamic_rows() >= 16)
         .then(heston_pool)
         .flatten();
     let tokens = crate::cancellation::current();
-    let workers = pool.map(|(_, count)| AssetWorkers {
+    let operator_workers = pool.map(|(_, count)| AssetWorkers {
         count,
         tokens: tokens.clone(),
         rows_per_task: op.dynamic_rows().div_ceil(count).max(ASSET_LANES),
     });
+    let workers = operator_workers
+        .as_ref()
+        .filter(|_| active >= 64_000 && work >= 8_000_000);
     // Reverse each linear rollback stage, carrying weights from valuation to expiry.
     let mut propagate = || {
         for (step, &dt) in times.widths.iter().enumerate() {
@@ -934,13 +941,11 @@ fn european_strike_weights(
             };
             op.prepare(
                 asset,
-                variance,
-                model,
                 [var, risk.rate(middle), dividend.rate(middle), dt / 3.0],
+                operator_workers.as_ref(),
             )?;
             let mut edges = op.take_boundary_weights(&mut weights);
             previous.copy_from_slice(&weights);
-            let workers = workers.as_ref();
             let inc1 = op.transpose_solve(&mut weights, &mut contributions, workers)?;
             stage.fill(0.0);
             op.transpose_explicit(
@@ -1257,6 +1262,9 @@ struct Operator {
     rows: usize,
     asset: Vec<[f64; 3]>,
     variance: Vec<[f64; 3]>,
+    variance_base: Vec<[f64; 3]>,
+    volatilities: Vec<f64>,
+    asset_stencils: Option<Vec<super::grid::PreparedLogStencil>>,
     mixed: Vec<f64>,
     dx: Vec<[f64; 3]>,
     dv: Vec<[f64; 3]>,
@@ -1267,7 +1275,11 @@ struct Operator {
 }
 
 impl Operator {
-    fn new(asset: &SpatialGrid, variance: Option<&[f64]>) -> Self {
+    fn new(
+        asset: &SpatialGrid,
+        variance: Option<&[f64]>,
+        model: &HestonParameters,
+    ) -> Result<Self> {
         let nx = asset.nodes.len();
         let rows = variance.map_or(1, <[f64]>::len);
         let dynamic_rows = variance.map_or(1, |nodes| nodes.len() - 1);
@@ -1283,19 +1295,45 @@ impl Operator {
             }
             coefficients
         };
-        Self {
+        let mut variance_base = vec![[0.0; 3]; dynamic_rows];
+        let mut volatilities = Vec::new();
+        let mut mixed = vec![0.0; rows];
+        if let Some(nodes) = variance {
+            volatilities.reserve_exact(dynamic_rows);
+            for (j, &value) in nodes.iter().take(dynamic_rows).enumerate() {
+                if j % 1024 == 0 {
+                    crate::cancellation::check()?;
+                }
+                variance_base[j] = directional(
+                    nodes,
+                    j,
+                    0.5 * model.vol_of_vol().powi(2) * value,
+                    model.mean_reversion_speed() * (model.long_run_variance() - value),
+                    0.0,
+                );
+                mixed[j] = model.correlation() * model.vol_of_vol() * value;
+                if variance_base[j].iter().any(|x| !x.is_finite()) || !mixed[j].is_finite() {
+                    return Err(unstable());
+                }
+                volatilities.push(value.sqrt());
+            }
+        }
+        Ok(Self {
             nx,
             rows,
             asset: vec![[0.0; 3]; nx * rows],
             variance: vec![[0.0; 3]; rows],
-            mixed: vec![0.0; rows],
+            variance_base,
+            volatilities,
+            asset_stencils: asset.prepared_stencils()?,
+            mixed,
             dx: derivatives(&asset.nodes),
             dv: variance.map_or_else(Vec::new, derivatives),
             asset_factors: vec![[[0.0; ASSET_LANES]; 3]; nx * dynamic_rows.div_ceil(ASSET_LANES)],
             variance_factors: vec![[0.0; 3]; rows],
             coefficients_key: None,
             weight: f64::NAN,
-        }
+        })
     }
 
     fn dynamic_rows(&self) -> usize {
@@ -1305,56 +1343,75 @@ impl Operator {
     fn prepare(
         &mut self,
         asset_grid: &SpatialGrid,
-        variance_grid: Option<&[f64]>,
-        model: &HestonParameters,
         [deterministic, rate, dividend, weight]: [f64; 4],
+        workers: Option<&AssetWorkers>,
     ) -> Result<()> {
         let key = [deterministic, rate, dividend].map(f64::to_bits);
         let rebuild = self.coefficients_key != Some(key);
+        if !rebuild && self.weight.to_bits() == weight.to_bits() {
+            return Ok(());
+        }
+        let nx = self.nx;
         let rows = self.dynamic_rows();
         if rebuild {
-            for j in 0..rows {
+            for (index, (row, &base)) in self.variance[..rows]
+                .iter_mut()
+                .zip(&self.variance_base)
+                .enumerate()
+            {
+                if index % 1024 == 0 {
+                    crate::cancellation::check()?;
+                }
+                *row = base;
+                row[1] -= rate / 2.0;
+                if !row[1].is_finite() {
+                    return Err(unstable());
+                }
+            }
+        }
+        let fallback_volatility = deterministic.sqrt();
+        let volatilities = &self.volatilities;
+        let asset_stencils = &self.asset_stencils;
+        let carry = rate - dividend;
+        let tile_width = nx * ASSET_LANES;
+        let coefficients_for = |first_row, assets: &mut [[f64; 3]]| {
+            for (lane, coefficients) in assets.chunks_exact_mut(nx).enumerate() {
                 crate::cancellation::check()?;
-                let variance = variance_grid.map_or(deterministic, |nodes| nodes[j]);
-                self.variance[j] = variance_grid.map_or([0.0, -rate / 2.0, 0.0], |nodes| {
-                    directional(
-                        nodes,
-                        j,
-                        0.5 * model.vol_of_vol().powi(2) * variance,
-                        model.mean_reversion_speed() * (model.long_run_variance() - variance),
-                        rate / 2.0,
-                    )
-                });
-                self.mixed[j] = model.correlation() * model.vol_of_vol() * variance;
-                let volatility = variance.sqrt();
-                for i in 1..self.nx - 1 {
-                    let mut row = asset_grid.coefficients(i, rate, dividend, volatility);
+                let volatility = volatilities
+                    .get(first_row + lane)
+                    .copied()
+                    .unwrap_or(fallback_volatility);
+                let interior = &mut coefficients[1..nx - 1];
+                let variance = volatility * volatility;
+                if let Some(stencils) = asset_stencils
+                    .as_ref()
+                    .filter(|_| super::grid::PreparedLogStencil::bounded([variance, rate, carry]))
+                {
+                    for (row, stencil) in interior.iter_mut().zip(stencils) {
+                        *row = stencil.coefficients(rate, carry, variance);
+                        row[1] += rate / 2.0;
+                    }
+                    continue;
+                }
+                for (i, row) in interior.iter_mut().enumerate() {
+                    *row = asset_grid.coefficients(i + 1, rate, dividend, volatility);
                     row[1] += rate / 2.0;
                     if row.iter().any(|x| !x.is_finite()) {
                         return Err(unstable());
                     }
-                    self.asset[j * self.nx + i] = row;
-                }
-                if self.variance[j].iter().any(|x| !x.is_finite()) || !self.mixed[j].is_finite() {
-                    return Err(unstable());
                 }
             }
-            self.coefficients_key = Some(key);
-        }
-        if rebuild || self.weight.to_bits() != weight.to_bits() {
-            for (factors, coefficients) in self
-                .asset_factors
-                .chunks_exact_mut(self.nx)
-                .zip(self.asset[..rows * self.nx].chunks(ASSET_LANES * self.nx))
-            {
+            Ok(())
+        };
+        let factor_assets = |assets: &[[f64; 3]], factors: &mut [AssetFactor]| {
+            for (assets, factors) in assets.chunks(tile_width).zip(factors.chunks_exact_mut(nx)) {
                 crate::cancellation::check()?;
-                let coefficients = coefficients.chunks_exact(self.nx);
+                let coefficients = assets.chunks_exact(nx);
                 let mut previous = [[0.0; ASSET_LANES]; 3];
                 for (i, slot) in factors.iter_mut().enumerate() {
                     let mut current = [[0.0; ASSET_LANES], [1.0; ASSET_LANES], [0.0; ASSET_LANES]];
-                    for (lane, coefficients) in coefficients.clone().enumerate() {
-                        let [mut multiplier, mut diagonal, upper] =
-                            implicit_row(coefficients[i], weight);
+                    for (lane, row) in coefficients.clone().enumerate() {
+                        let [mut multiplier, mut diagonal, upper] = implicit_row(row[i], weight);
                         if i > 0 {
                             multiplier /= previous[1][lane];
                             diagonal -= multiplier * previous[2][lane];
@@ -1370,20 +1427,52 @@ impl Operator {
                     previous = current;
                 }
             }
-            for (factor, &row) in self
-                .variance_factors
-                .iter_mut()
-                .zip(&self.variance)
-                .take(rows)
-            {
-                *factor = implicit_row(row, weight);
+            Ok(())
+        };
+        let assets = &mut self.asset[..rows * nx];
+        // Weight-only updates reuse the explicit operator and have less work per row.
+        if let Some(workers) = workers.filter(|_| rebuild || rows * nx >= 128_000) {
+            let tiles = workers.rows_per_task.div_ceil(ASSET_LANES);
+            workers.apply(
+                assets
+                    .par_chunks_mut(tiles * tile_width)
+                    .zip(self.asset_factors.par_chunks_mut(tiles * nx))
+                    .enumerate(),
+                |(chunk, (assets, factors))| {
+                    for (tile, (assets, factors)) in assets
+                        .chunks_mut(tile_width)
+                        .zip(factors.chunks_exact_mut(nx))
+                        .enumerate()
+                    {
+                        if rebuild {
+                            coefficients_for((chunk * tiles + tile) * ASSET_LANES, assets)?;
+                        }
+                        // Factor the independent rows while the tile is in cache.
+                        factor_assets(assets, factors)?;
+                    }
+                    Ok(())
+                },
+            )?;
+        } else {
+            if rebuild {
+                coefficients_for(0, assets)?;
             }
-            if self.rows > 1 {
-                self.variance_factors[rows] = [-1.0, 1.0, 0.0];
-            }
-            factor(&mut self.variance_factors)?;
-            self.weight = weight;
+            factor_assets(assets, &mut self.asset_factors)?;
         }
+        for (factor, &row) in self
+            .variance_factors
+            .iter_mut()
+            .zip(&self.variance)
+            .take(rows)
+        {
+            *factor = implicit_row(row, weight);
+        }
+        if self.rows > 1 {
+            self.variance_factors[rows] = [-1.0, 1.0, 0.0];
+        }
+        factor(&mut self.variance_factors)?;
+        self.coefficients_key = Some(key);
+        self.weight = weight;
         Ok(())
     }
 
@@ -1920,6 +2009,47 @@ mod adjoint_tests {
     use super::*;
 
     #[test]
+    fn heston_operator_tiles_match_serial_across_rate_and_step_changes() -> Result<()> {
+        let mut asset = SpatialGrid::new(33, [0.25, 4.0], 1.0)?;
+        concentrate(&mut asset, vec![1.0], 0.06)?;
+        let variance = [0.0, 0.01, 0.02, 0.035, 0.06, 0.1, 0.15, 0.22, 0.3, 0.4];
+        let model = HestonParameters::new(crate::HestonParameterInputs {
+            risk_free_rate: 0.04.into(),
+            dividend_yield: 0.01.into(),
+            initial_variance: 0.04,
+            long_run_variance: 0.04,
+            mean_reversion_speed: 1.2,
+            vol_of_vol: 0.3,
+            correlation: -0.7,
+        })?;
+        let mut serial = Operator::new(&asset, Some(&variance), &model)?;
+        let mut parallel = Operator::new(&asset, Some(&variance), &model)?;
+        let workers = AssetWorkers {
+            count: 2,
+            tokens: Vec::new(),
+            rows_per_task: 5,
+        };
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(2)
+            .build()
+            .map_err(std::io::Error::other)?;
+        for key in [
+            [0.0, 0.04, 0.01, 0.02],
+            [0.0, 0.04, 0.01, 0.01],
+            [0.0, -0.02, 0.03, 0.01],
+            [0.0, -0.02, 0.03, 0.01],
+        ] {
+            serial.prepare(&asset, key, None)?;
+            pool.install(|| parallel.prepare(&asset, key, Some(&workers)))?;
+            assert_eq!(serial.asset, parallel.asset);
+            assert_eq!(serial.variance, parallel.variance);
+            assert_eq!(serial.asset_factors, parallel.asset_factors);
+            assert_eq!(serial.variance_factors, parallel.variance_factors);
+        }
+        Ok(())
+    }
+
+    #[test]
     fn heston_transpose_matches_primal_directional_solve_and_boundaries() -> Result<()> {
         let asset = SpatialGrid::new(33, [0.25, 4.0], 1.0)?;
         let variance = [0.0, 0.01, 0.02, 0.035, 0.06, 0.1, 0.15, 0.22, 0.3, 0.4];
@@ -1932,8 +2062,8 @@ mod adjoint_tests {
             vol_of_vol: 0.3,
             correlation: -0.7,
         })?;
-        let mut op = Operator::new(&asset, Some(&variance));
-        op.prepare(&asset, Some(&variance), &model, [0.0, 0.04, 0.01, 0.02])?;
+        let mut op = Operator::new(&asset, Some(&variance), &model)?;
+        op.prepare(&asset, [0.0, 0.04, 0.01, 0.02], None)?;
         let nx = asset.nodes.len();
         let length = nx * variance.len();
         let input: Vec<_> = [-2.0, -1.0, 0.0, 1.0, 2.0]
