@@ -728,6 +728,7 @@ fn shared_daily_grid_prices_staggered_cash_flows() -> Result<()> {
         });
     let first = SnowballOption::new(terms.clone())?;
     let second = SnowballOption::new(SnowballTerms {
+        knock_in_level: 95.0,
         autocall_observations: autocallable_observations(
             &[date(2, 4), date(3, 4), date(4, 1)],
             &[106.0, 103.0, 99.0],

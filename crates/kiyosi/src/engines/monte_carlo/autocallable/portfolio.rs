@@ -15,6 +15,8 @@ const BATCH_BYTES: usize = 256 * 1024 * 1024;
 const PLAN_RESERVATION: usize = 16;
 const DAILY_GRID_SLOTS: usize = 4;
 const DAILY_GRID_BYTES: usize = 2 * 1024 * 1024;
+const SHARED_STEP_BYTES: usize =
+    2 * size_of::<SharedInterval>() + size_of::<[f64; 2]>() + 4 * size_of::<usize>();
 
 type IndexedPlan<'a, T> = (usize, PathPlan<'a, T>);
 
@@ -198,7 +200,7 @@ pub(super) fn price_many<T: AutocallableTerms>(
             .shared_events
             .as_ref()
             .map(|_| Arc::as_ptr(&plan.steps));
-        let grid_bytes = plan.steps.len() * (size_of::<PathStep>() + 4 * size_of::<usize>());
+        let grid_bytes = plan.steps.len() * (size_of::<PathStep>() + SHARED_STEP_BYTES);
         let mut charge = plan_bytes
             + grid
                 .filter(|grid| !charged_grids.contains(grid))
@@ -289,7 +291,7 @@ fn key_and_workspace<T: AutocallableTerms>(
             // Buckets and packed events coexist while assembling the schedule.
             6 * events * size_of::<(usize, Event)>()
                 + if plan.shared_events.is_none() {
-                    plan.steps.len() * 4 * size_of::<usize>()
+                    plan.steps.len() * SHARED_STEP_BYTES
                 } else {
                     0
                 }
@@ -343,7 +345,15 @@ struct Portfolio<'a, 'b, T: AutocallableTerms> {
 
 struct SharedEvents {
     events: Vec<(usize, Event)>,
-    ends: Vec<usize>,
+    intervals: Vec<SharedInterval>,
+    daily: Vec<[f64; 2]>,
+}
+
+struct SharedInterval {
+    step: usize,
+    end: usize,
+    drift: f64,
+    diffusion: f64,
 }
 
 impl<T: AutocallableTerms> PathPlan<'_, T> {
@@ -373,7 +383,8 @@ impl<T: AutocallableTerms> PathPlan<'_, T> {
 
 impl SharedEvents {
     fn new<T: AutocallableTerms>(notes: &[IndexedPlan<'_, T>]) -> Result<Self> {
-        let steps = &notes[0].1.steps;
+        let base = &notes[0].1;
+        let steps = &base.steps;
         let mut ends = Vec::with_capacity(steps.len());
         let mut events = Vec::new();
         let mut buckets = Vec::with_capacity(steps.len());
@@ -399,7 +410,72 @@ impl SharedEvents {
             events.append(&mut bucket);
             ends.push(events.len());
         }
-        Ok(Self { events, ends })
+        let mut excursion = 0.0;
+        for (index, step) in steps.iter().enumerate() {
+            check_path_step(index)?;
+            excursion += step.transition[0].abs() + 20.0 * step.transition[1];
+        }
+        let bridge =
+            base.safe_returns.contains(&excursion) && base.safe_returns.contains(&-excursion);
+        let mut intervals = Vec::new();
+        let mut daily = Vec::new();
+        let mut first = 0;
+        let mut previous = 0;
+        for (step, end) in ends.into_iter().enumerate() {
+            check_path_step(step)?;
+            if end == previous && step + 1 < steps.len() {
+                continue;
+            }
+            if bridge && step - first >= 8 {
+                if daily.is_empty() {
+                    daily.resize(steps.len(), [0.0; 2]);
+                }
+                let [mut drift, width, _] = steps[step].transition;
+                let mut variance = width * width;
+                for index in (first..step).rev() {
+                    check_path_step(index)?;
+                    let [mean, width, _] = steps[index].transition;
+                    let next = width.mul_add(width, variance);
+                    daily[index] = [(width * width) / next, width * (variance / next).sqrt()];
+                    drift += mean;
+                    variance = next;
+                }
+                let diffusion = variance.sqrt();
+                if diffusion.is_normal()
+                    && drift.is_finite()
+                    && daily[first..step]
+                        .iter()
+                        .all(|&[weight, width]| weight > 0.0 && width > 0.0)
+                {
+                    intervals.push(SharedInterval {
+                        step,
+                        end,
+                        drift,
+                        diffusion,
+                    });
+                    first = step + 1;
+                    previous = end;
+                    continue;
+                }
+            }
+            for (index, transition) in steps.iter().enumerate().take(step + 1).skip(first) {
+                check_path_step(index)?;
+                let [drift, diffusion, _] = transition.transition;
+                intervals.push(SharedInterval {
+                    step: index,
+                    end: if index == step { end } else { previous },
+                    drift,
+                    diffusion,
+                });
+            }
+            first = step + 1;
+            previous = end;
+        }
+        Ok(Self {
+            events,
+            intervals,
+            daily,
+        })
     }
 }
 
@@ -555,13 +631,43 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
         let mut log_return = 0.0;
         let mut minimum = f64::INFINITY;
         let mut first = 0;
+        let mut first_step = 0;
         let mut remaining = states.len();
-        for (index, (step, &end)) in base.steps.iter().zip(&schedule.ends).enumerate() {
-            check_path_step(index)?;
-            let [drift, diffusion, _] = step.transition;
-            log_return += diffusion.mul_add(normals.normal(), drift);
+        for &SharedInterval {
+            step,
+            end,
+            drift,
+            diffusion,
+        } in &schedule.intervals
+        {
+            check_path_step(step)?;
+            let target = log_return + diffusion.mul_add(normals.normal(), drift);
+            if first_step < step {
+                let mut floor = f64::INFINITY;
+                for (index, lane) in states.iter().enumerate() {
+                    check_path_step(index)?;
+                    if !lane.terminated {
+                        if let Some(level) = lane.monitoring {
+                            floor = floor.min(level);
+                        }
+                    }
+                }
+                for i in first_step..step {
+                    if minimum < floor || floor == f64::INFINITY {
+                        normals.skip(step - i);
+                        break;
+                    }
+                    check_path_step(i)?;
+                    let [weight, diffusion] = schedule.daily[i];
+                    log_return += weight.mul_add(target - log_return, diffusion * normals.normal());
+                    if base.steps[i].observe_knock_in {
+                        minimum = minimum.min(log_return);
+                    }
+                }
+            }
+            log_return = target;
             base.validate_return(log_return)?;
-            if step.observe_knock_in {
+            if base.steps[step].observe_knock_in {
                 minimum = minimum.min(log_return);
             }
             for (event_index, (lane, event)) in schedule.events[first..end].iter().enumerate() {
@@ -576,6 +682,7 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
                 return Ok(());
             }
             first = end;
+            first_step = step + 1;
         }
         for (i, (lane, (_, plan))) in states.iter_mut().zip(self.notes).enumerate() {
             check_path_step(i)?;

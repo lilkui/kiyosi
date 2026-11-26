@@ -469,6 +469,7 @@ def test_shared_daily_grid_prices_staggered_cash_flows():
         ),
     )
     second = first.replace(
+        knock_in_level=95,
         autocall_observations=autocallable_observations(
             [datetime(2025, 2, 4), datetime(2025, 3, 4), END],
             [106, 103, 99],
