@@ -4,7 +4,7 @@ use std::{
     f64::consts::PI,
 };
 
-use num_complex::Complex64;
+use rustfft::num_complex::Complex64;
 
 use super::european::lognormal_price;
 use crate::instruments::monitoring::validate_life;

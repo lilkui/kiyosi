@@ -79,7 +79,6 @@ dependencies = [
  "chrono",
  "getrandom",
  "libm",
- "num-complex",
  "rayon",
  "rustfft",
 ]
