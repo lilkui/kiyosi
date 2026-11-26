@@ -290,6 +290,7 @@ fn native(
             context.spot_price(),
             diffusion,
             None,
+            None,
         )?;
         let result = saved.evaluate(context, request, shifts)?;
         let result = saved.european_market_greeks(context, expiry, request, shifts, result)?;
@@ -319,6 +320,7 @@ fn solve_model<D: Diffusion>(
     minimum_spot: f64,
     diffusion: D,
     mut slices: Option<&mut TimeSlices>,
+    mut surface: Option<&mut strike_batch::AmericanSurface>,
 ) -> Result<VanillaGrid> {
     let time = context.valuation_time().years_until(expiry);
     let spot = context.spot_price();
@@ -398,6 +400,9 @@ fn solve_model<D: Diffusion>(
         // Shorten the damped steps so implicit advection adds less numerical variance.
         let dt = time / f64::from(settings.time_step_count);
         startup.extend([time - 0.25 * dt, time - 0.125 * dt]);
+    }
+    if let Some(surface) = &surface {
+        startup.extend_from_slice(surface.times());
     }
     let time_grid = diffusion::time_grid(context, expiry, settings, &risk, &dividend, &startup)?;
     let rollback_steps = time_grid.rollback_steps(settings.scheme, &[])?;
@@ -556,6 +561,9 @@ fn solve_model<D: Diffusion>(
             }
             advance(&old, &mut next, current, dt, weight)?;
             std::mem::swap(&mut old, &mut next);
+            if let Some(surface) = &mut surface {
+                surface.capture(current, &space, &old, payoff)?;
+            }
         }
     }
     if let Some(slices) = slices.filter(|slices| slices.before < 0.0) {
@@ -709,6 +717,7 @@ fn prepare_vanilla_state(
                     concentrate,
                     minimum_spot,
                     diffusion,
+                    None,
                     None,
                 )
             }
@@ -1085,6 +1094,7 @@ fn vanilla_time_analysis(
         context.spot_price(),
         model.volatility(),
         Some(&mut slices),
+        None,
     ) {
         Ok(grid) => grid,
         Err(error @ Error::Io(_)) => return Err(error),

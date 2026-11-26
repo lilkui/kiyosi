@@ -1354,3 +1354,44 @@ fn bsm_european_surface_matches_analytic_across_dated_rates() -> Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn american_bsm_surface_matches_independent_strips_and_preserves_order() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_days(365)?;
+    let template = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.25)?,
+        100.0,
+        start,
+    )?;
+    let engine = FiniteDifferenceVanillaEngine::default();
+    let short = start.add_days(1)?;
+    let expiries = [
+        end,
+        start,
+        start.add_days(145)?,
+        short,
+        start.add_days(260)?,
+        end,
+    ];
+    let strikes = [110.0, 90.0, 100.0, 95.0, 90.0];
+    let rows = engine.price_american_surface(&template, &context, &expiries, &strikes)?;
+    assert_eq!(rows[0], rows[5]);
+    assert_eq!(rows[1], [10.0, 0.0, 0.0, 0.0, 0.0]);
+    for (expiry, row) in expiries.into_iter().zip(rows) {
+        assert_eq!(row[1].to_bits(), row[4].to_bits());
+        let option = template.replace(AmericanOptionChanges {
+            expiry_time: Some(expiry),
+            ..Default::default()
+        })?;
+        let expected = engine.price_american_strikes(&option, &context, &strikes)?;
+        if expiry == short {
+            assert_eq!(row, expected);
+        }
+        for (actual, expected) in row.into_iter().zip(expected) {
+            assert!((actual - expected).abs() < 0.002, "{actual} vs {expected}");
+        }
+    }
+    Ok(())
+}

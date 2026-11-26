@@ -872,3 +872,27 @@ def test_bsm_european_surface_matches_analytic_across_dated_rates():
             for k in strikes
         )
         assert row == pytest.approx(reference, abs=0.001, rel=0)
+
+
+def test_american_bsm_surface_matches_independent_strips_and_preserves_order():
+    template = AmericanOption(
+        option_type="put", strike=100, effective_time=START, expiry_time=END
+    )
+    snapshot = market(spot=100, rate=0.05, dividend=0.02, sigma=0.25)
+    short = START + timedelta(days=1)
+    expiries = (END, START, START + timedelta(days=145), short, END)
+    strikes = (110, 90, 100, 95, 90)
+    engine = FiniteDifferenceVanillaEngine()
+    rows = engine.price_american_surface(
+        template, snapshot, expiries=iter(expiries), strikes=iter(strikes)
+    )
+    assert rows[0] == rows[-1]
+    assert rows[1] == (10, 0, 0, 0, 0)
+    for expiry, row in zip(expiries, rows, strict=True):
+        assert row[1] == row[-1]
+        expected = engine.price_strikes(
+            template.replace(expiry_time=expiry), snapshot, strikes=strikes
+        )
+        if expiry == short:
+            assert row == expected
+        assert row == pytest.approx(expected, abs=0.002, rel=0)

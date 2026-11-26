@@ -319,6 +319,55 @@ fd_engine!(
                 crate::conversions::python_tuple(py, row, Ok)
             })
         }
+        /// Price an American strike and expiry surface.
+        ///
+        /// Parameters
+        /// ----------
+        /// instrument : AmericanOption
+        ///     Template supplying direction and effective time.
+        /// context : PricingContext
+        ///     Fixed model inputs and valuation time.
+        /// expiries : iterable of datetime
+        ///     Expiries at or after valuation and the effective time.
+        /// strikes : iterable of float
+        ///     Finite positive strikes.
+        ///
+        /// Returns
+        /// -------
+        /// tuple of tuple of float
+        ///     Prices in expiry and strike order, preserving duplicates.
+        ///
+        /// Raises
+        /// ------
+        /// KiyosiError
+        ///     If applicability, input, workspace or numerical checks fail.
+        /// TypeError, ValueError, OverflowError
+        ///     If a Python input representation is invalid.
+        ///
+        /// Notes
+        /// -----
+        /// Compatible flat-rate calendar-time BSM tenors share one rollback on a
+        /// normalized log-spot grid. Short tenors and other markets use
+        /// price_strikes. Check convergence across the surface.
+        /// Cancellation returns no partial result.
+        #[pyo3(signature = (instrument, context, *, expiries, strikes))]
+        #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns the extracted inputs before core pricing.")]
+        fn price_american_surface<'py>(
+            &self,
+            py: Python<'py>,
+            #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, crate::instruments::american::AmericanOption>,
+            context: &crate::market::PricingContext,
+            #[pyo3(from_py_with = crate::conversions::timestamps)] expiries: Vec<kiyosi::Timestamp>,
+            #[pyo3(from_py_with = crate::conversions::reals)] strikes: Vec<f64>,
+        ) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+            let instrument = &instrument.0;
+            let rows = crate::cancellation::run(py, || {
+                self.0.price_american_surface(instrument, &context.0, &expiries, &strikes)
+            })?;
+            crate::conversions::python_tuple(py, domain(rows)?, |row| {
+                crate::conversions::python_tuple(py, row, Ok)
+            })
+        }
     }
 );
 fd_engine!(

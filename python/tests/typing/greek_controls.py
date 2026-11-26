@@ -108,6 +108,15 @@ def heston_american_surface(option: AmericanOption, context: PricingContext) -> 
     )
 
 
+def bsm_american_surface(option: AmericanOption, context: PricingContext) -> None:
+    assert_type(
+        FiniteDifferenceVanillaEngine().price_american_surface(
+            option, context, expiries=[option.expiry_time], strikes=[90, 100, 110]
+        ),
+        tuple[tuple[float, ...], ...],
+    )
+
+
 def common_controls(option: EuropeanOption, context: PricingContext) -> None:
     for engine in (
         AnalyticEuropeanEngine(),

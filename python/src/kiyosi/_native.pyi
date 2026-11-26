@@ -3817,6 +3817,47 @@ class FiniteDifferenceVanillaEngine(
         Cancellation returns no partial result.
         """
 
+    def price_american_surface(
+        self,
+        instrument: AmericanOption,
+        context: PricingContext,
+        *,
+        expiries: Iterable[datetime],
+        strikes: Iterable[_Real],
+    ) -> tuple[tuple[float, ...], ...]:
+        """Price an American strike and expiry surface.
+
+        Parameters
+        ----------
+        instrument : AmericanOption
+            Template supplying direction and effective time.
+        context : PricingContext
+            Fixed model inputs and valuation time.
+        expiries : iterable of datetime
+            Expiries at or after valuation and the effective time.
+        strikes : iterable of float
+            Finite positive strikes.
+
+        Returns
+        -------
+        tuple of tuple of float
+            Prices in expiry and strike order, preserving duplicates.
+
+        Raises
+        ------
+        KiyosiError
+            If applicability, input, workspace or numerical checks fail.
+        TypeError, ValueError, OverflowError
+            If a Python input representation is invalid.
+
+        Notes
+        -----
+        Compatible flat-rate calendar-time BSM tenors share one rollback on a
+        normalized log-spot grid. Short tenors and other markets use
+        price_strikes. Check convergence across the surface.
+        Cancellation returns no partial result.
+        """
+
     def price_european_surface(
         self,
         instrument: EuropeanOption,

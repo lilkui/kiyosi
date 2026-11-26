@@ -1,5 +1,8 @@
 mod american;
+mod american_surface;
 mod surface;
+
+pub(super) use american_surface::AmericanSurface;
 
 use std::ops::RangeInclusive;
 
