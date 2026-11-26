@@ -1095,3 +1095,23 @@ fn european_strike_strip_matches_refined_local_volatility_prices() -> Result<()>
     }
     Ok(())
 }
+
+#[test]
+fn american_local_volatility_strips_match_refined_scalar_pricing() -> Result<()> {
+    let (start, end) = dates();
+    let market = context(surface(vec![vec![0.30, 0.15], vec![0.35, 0.20]]));
+    let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let strikes = [110.0, 88.0, 100.0, 96.0, 105.0, 100.0, 90.0, 101.0, 113.0];
+    let batch = engine(800, 400, 400.0);
+    let reference = engine(1600, 800, 400.0);
+    let prices = batch.price_american_strikes(&option, &market, &strikes)?;
+    assert_eq!(prices[2].to_bits(), prices[5].to_bits());
+    for (strike, price) in strikes.into_iter().zip(prices) {
+        let contract = option.replace(AmericanOptionChanges {
+            strike: Some(strike),
+            ..Default::default()
+        })?;
+        close(price, reference.price(&contract, &market)?, 0.002);
+    }
+    Ok(())
+}

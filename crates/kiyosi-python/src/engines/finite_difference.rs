@@ -245,7 +245,7 @@ fd_engine!(
         /// -----
         /// Compatible BSM strikes share a rescaled solution with automatic
         /// boundaries. European calendar-time BSM strikes with fixed boundaries
-        /// and compatible European local-volatility strikes share an absolute-spot grid. Outliers can
+        /// and compatible local-volatility strikes share an absolute-spot grid. Outliers can
         /// use individual solves. Check grid convergence across the strike range.
         /// Cancellation returns no partial result.
         #[pyo3(signature = (instrument, context, *, strikes))]

@@ -640,3 +640,19 @@ def test_european_strike_strip_matches_refined_local_volatility_prices(business_
             template, snapshot, strikes=strikes[:5]
         )
         assert actual[1] == actual[4]
+
+
+def test_american_local_volatility_strips_match_refined_scalar_pricing():
+    market = context(surface(((0.30, 0.15), (0.35, 0.20))))
+    put = AmericanOption(
+        option_type="put", strike=100, effective_time=START, expiry_time=END
+    )
+    strikes = (110, 88, 100, 96, 105, 100, 90, 101, 113)
+    batch = pricing.FiniteDifferenceVanillaEngine(
+        asset_step_count=800, time_step_count=400, asset_upper_boundary=400
+    )
+    refined = batch.replace(asset_step_count=1600, time_step_count=800)
+    actual = batch.price_strikes(put, market, strikes=iter(strikes))
+    assert actual[2] == actual[5]
+    expected = [refined.price(put.replace(strike=strike), market) for strike in strikes]
+    assert actual == pytest.approx(expected, abs=0.002, rel=0)

@@ -1,3 +1,4 @@
+mod american;
 mod surface;
 
 use std::ops::RangeInclusive;
@@ -128,8 +129,9 @@ impl FiniteDifferenceVanillaEngine {
     /// Prices American vanilla options across strikes in input order.
     ///
     /// Uses the template's direction and dates. Compatible Black–Scholes–Merton
-    /// strikes with automatic asset boundaries share a rescaled solution. Other
-    /// strikes use individual solves. Check convergence across the strike range.
+    /// strikes with automatic asset boundaries share a rescaled solution. Nearby
+    /// local-volatility strikes share an absolute-spot grid and step factors.
+    /// Other strikes use individual solves. Check convergence across the strike range.
     ///
     /// # Examples
     ///
@@ -178,8 +180,17 @@ impl FiniteDifferenceVanillaEngine {
         if strikes.len() < 4
             || self.settings.asset_step_count < 128
             || self.settings.scheme != FiniteDifferenceScheme::Rannacher
-            || self.settings.asset_upper_boundary.is_some()
+            || context.valuation_time() == option.expiry_time()
         {
+            return strikes.iter().copied().map(scalar).collect();
+        }
+        let spot = context.spot_price();
+        if local_volatility::local_model(context).is_some() {
+            return batch_strikes(spot, strikes, scalar, |group, prices| {
+                american::local_strikes(self, option, context, group, prices)
+            });
+        }
+        if self.settings.asset_upper_boundary.is_some() {
             return strikes.iter().copied().map(scalar).collect();
         }
         let crate::ModelParameters::BlackScholesMerton(model) = context.model_parameters() else {
@@ -191,7 +202,6 @@ impl FiniteDifferenceVanillaEngine {
         if model.volatility() * time.sqrt() < 0.04 {
             return strikes.iter().copied().map(scalar).collect();
         }
-        let spot = context.spot_price();
         batch_strikes(spot, strikes, scalar, |group, prices| {
             normalized_strikes(spot, group, prices, |range| {
                 self.solve(&at_strike(spot)?, context, range)

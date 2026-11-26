@@ -253,6 +253,83 @@ impl Stepper {
         Ok(())
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Shared operator and packed payoff inputs."
+    )]
+    pub fn advance_packed<const N: usize>(
+        &mut self,
+        old: &[[f64; N]],
+        next: &mut [[f64; N]],
+        space: &SpatialGrid,
+        diffusion: impl Diffusion,
+        middle: f64,
+        key: [f64; 4],
+        [left, right]: [[f64; N]; 2],
+    ) -> Result<()> {
+        let [dt, theta, _, _] = key;
+        let scale = diffusion.variance_rate(middle).sqrt();
+        let active = if let Some((surface, offset)) = diffusion.surface() {
+            self.prepare_local(space, surface, [offset + middle, scale], key)?;
+            0
+        } else {
+            self.prepare_constant(space, diffusion.sigma(middle, 0.0) * scale, key)?
+        };
+        let factors = &self.factors[active];
+        let count = space.count;
+        let size = count - 1;
+        next[0] = left;
+        next[count] = right;
+        let explicit = (1.0 - theta) * dt;
+        let implicit = theta * dt;
+        let mut previous = [0.0; N];
+        for (i, &[a, b, c]) in factors.coefficients.iter().enumerate() {
+            if i % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
+            let multiplier = factors.multipliers[i];
+            let rhs = std::array::from_fn(|lane| {
+                let mut value = old[i + 1][lane];
+                if theta < 1.0 {
+                    value += explicit * (a * old[i][lane] + b * value + c * old[i + 2][lane]);
+                }
+                if i == 0 {
+                    value += implicit * a * left[lane];
+                }
+                if i + 1 == size {
+                    value += implicit * c * right[lane];
+                }
+                value - multiplier * previous[lane]
+            });
+            next[i + 1] = rhs;
+            previous = rhs;
+        }
+        let mut following = [0.0; N];
+        for i in (0..size).rev() {
+            if i % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
+            let upper = factors.upper[i];
+            let inverse = factors.inverse[i];
+            let diagonal = factors.diagonal[i];
+            let solve = |rhs| {
+                if inverse.is_finite() {
+                    rhs * inverse
+                } else {
+                    rhs / diagonal
+                }
+            };
+            let rhs = next[i + 1];
+            let values = std::array::from_fn(|lane| solve(rhs[lane] - upper * following[lane]));
+            next[i + 1] = values;
+            following = values;
+        }
+        if next.as_flattened().iter().any(|v| !v.is_finite()) {
+            return Err(unstable());
+        }
+        Ok(())
+    }
+
     fn prepare_local(
         &mut self,
         space: &SpatialGrid,
