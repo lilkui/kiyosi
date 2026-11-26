@@ -163,9 +163,6 @@ impl CoxRossRubinsteinBarrierEngine {
             && future.iter().all(|&at| at == option.expiry_time());
         let continuous = option.observation_mode() == crate::ObservationMode::Continuous;
         let sparse = !continuous && future.len() <= steps / 128;
-        if !terminal_only && !continuous && !sparse {
-            self.settings.validate_rollback()?;
-        }
         let duration = time.micros_until(option.expiry_time());
         let direct = terminal_only && steps >= 256;
         let mut observed = if direct {
@@ -222,7 +219,10 @@ impl CoxRossRubinsteinBarrierEngine {
             && option.rebate() <= 1e100;
         let scheduled_gaps =
             sparse && (discount.log_factor * f64::from(self.settings.step_count)).abs() < 100.0;
-        if !terminal_only && !reflection && !scheduled_gaps {
+        let band = (!continuous && !terminal_only && !scheduled_gaps && steps >= 2048)
+            .then(|| ScheduledBand::new(steps, width, p, discount.log_factor))
+            .flatten();
+        if !terminal_only && !reflection && !scheduled_gaps && band.is_none() {
             self.settings.validate_rollback()?;
         }
         let mut values = vec![0.0; steps + 1];
@@ -241,7 +241,8 @@ impl CoxRossRubinsteinBarrierEngine {
         } else {
             observed[steps]
         };
-        for node in 0..=steps {
+        let mut later = band.map_or(0..steps + 1, |band| band.nodes(steps));
+        for node in later.clone() {
             if node % 256 == 0 {
                 crate::cancellation::check()?;
             }
@@ -434,27 +435,42 @@ impl CoxRossRubinsteinBarrierEngine {
                     } else {
                         0.0
                     };
-                    let nodes = &mut values[..level + 2];
-                    let live = if observed[level] {
-                        let boundary =
-                            barrier_boundary(level + 1, |node| breached(level, node) != upper);
-                        if upper {
-                            0..boundary
-                        } else {
-                            boundary..level + 1
+                    let current = band.map_or(0..level + 1, |band| band.nodes(level));
+                    let clear = |values: &mut [f64]| {
+                        if current.start < later.start {
+                            values[current.start] = 0.0;
                         }
+                        if current.end == later.end {
+                            values[current.end] = 0.0;
+                        }
+                    };
+                    clear(&mut values);
+                    let nodes = &mut values[current.start..=current.end];
+                    let continuation = if vanilla.is_empty() {
+                        &mut [] as &mut [f64]
                     } else {
-                        0..level + 1
+                        clear(&mut vanilla);
+                        &mut vanilla[current.start..=current.end]
+                    };
+                    let count = current.len();
+                    let live = if observed[level] {
+                        let boundary = barrier_boundary(count, |node| {
+                            breached(level, node + current.start) != upper
+                        });
+                        if upper { 0..boundary } else { boundary..count }
+                    } else {
+                        0..count
                     };
                     if discount.factor.is_normal() {
-                        rollback_level(nodes, &mut vanilla, rebate, live, |lower, upper| {
+                        rollback_level(nodes, continuation, rebate, live, |lower, upper| {
                             discount.rollback_normal(lower, upper, p)
                         })?;
                     } else {
-                        rollback_level(nodes, &mut vanilla, rebate, live, |lower, upper| {
+                        rollback_level(nodes, continuation, rebate, live, |lower, upper| {
                             discount.rollback_scaled(lower, upper, p)
                         })?;
                     }
+                    later = current;
                 }
                 if level == 1 {
                     first.copy_from_slice(&values[..2]);
@@ -488,6 +504,42 @@ impl CoxRossRubinsteinBarrierEngine {
             }
         }
         Ok(result)
+    }
+}
+
+#[derive(Clone, Copy)]
+struct ScheduledBand {
+    probabilities: [f64; 2],
+    radius: usize,
+}
+
+#[expect(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "The one million step limit bounds all lattice coordinates."
+)]
+impl ScheduledBand {
+    fn new(steps: usize, width: f64, p: f64, log_discount: f64) -> Option<Self> {
+        let horizon = steps as f64;
+        if width * horizon >= 100.0 || (log_discount * horizon).abs() >= 100.0 {
+            return None;
+        }
+        // The cash and asset measures bound rebates and both vanilla payoffs.
+        // The maximal Hoeffding bound applies to exiting either side at any
+        // step. Extra nodes cover the level-one and level-two Greek seeds.
+        let tilted = p * (2.0 * width).exp() / (1.0 + p * (2.0 * width).exp_m1());
+        let radius = (0.5 * horizon * (2.0 / f64::EPSILON).ln()).sqrt().ceil() as usize + 3;
+        let band = 2 * radius + ((tilted - p).abs() * horizon).ceil() as usize + 2;
+        (band < steps / 2 && band.saturating_mul(steps) <= GAP_ROLLBACK_BUDGET).then_some(Self {
+            probabilities: [p.min(tilted), p.max(tilted).min(1.0)],
+            radius,
+        })
+    }
+
+    fn nodes(self, level: usize) -> Range<usize> {
+        let [low, high] = self.probabilities.map(|p| (p * level as f64) as usize);
+        low.saturating_sub(self.radius)..(high + self.radius + 1).min(level + 1)
     }
 }
 

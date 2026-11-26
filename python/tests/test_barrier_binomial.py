@@ -525,3 +525,16 @@ def test_reflected_tree_matches_rollback_with_every_node_observed(subtests):
                 assert fast.price == pytest.approx(reference.price, rel=0, abs=1e-10)
                 assert fast.delta == pytest.approx(reference.delta, rel=0, abs=1e-9)
                 assert fast.gamma == pytest.approx(reference.gamma, rel=0, abs=1e-9)
+
+
+def test_dense_scheduled_barriers_roll_back_above_the_full_tree_limit():
+    dates = [START + timedelta(days=i) for i in range(1, 361)]
+    tree = pricing.CoxRossRubinsteinBarrierEngine(step_count=18_000)
+    quadrature = pricing.QuadratureBarrierEngine()
+    for kind in ("down_and_out", "down_and_in"):
+        contract = option(kind, observation_times=dates, rebate=2)
+        context = market()
+        expected = quadrature.price(contract, context)
+        assert tree.price(contract, context) == pytest.approx(
+            expected, rel=0, abs=0.025
+        )

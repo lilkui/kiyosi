@@ -730,3 +730,29 @@ fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
         0.2
     );
 }
+
+#[test]
+fn dense_scheduled_barriers_roll_back_above_the_full_tree_limit() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_days(360)?;
+    let observations = (1..=360)
+        .map(|day| start.add_days(day))
+        .collect::<Result<Vec<_>>>()?;
+    let context = market(start, 100.0, 0.03, 0.2);
+    let tree = CoxRossRubinsteinBarrierEngine::new(BinomialSettings { step_count: 18_000 })?;
+    for kind in [BarrierType::DownAndOut, BarrierType::DownAndIn] {
+        let option = BarrierOption::new(BarrierOptionTerms {
+            calendar: TradingCalendar::all_days(),
+            observation_times: Some(observations.clone()),
+            rebate: 2.0,
+            ..BarrierOptionTerms::new(OptionType::Call, 100.0, start, end, 80.0, kind)
+        })?;
+        let reference = QuadratureBarrierEngine::default().price(&option, &context)?;
+        let price = tree.price(&option, &context)?;
+        assert!(
+            (price - reference).abs() < 0.025,
+            "{kind:?}: {price} vs {reference}"
+        );
+    }
+    Ok(())
+}
