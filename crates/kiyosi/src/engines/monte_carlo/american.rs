@@ -100,8 +100,45 @@ struct ExerciseState<const N: usize> {
 struct ExerciseBlock<const N: usize> {
     coordinates: Arc<Vec<f64>>,
     checkpoints: Vec<f64>,
+    reverse_draws: Option<NormalDraws<'static>>,
     states: Vec<ExerciseState<N>>,
     regression: [[[f64; 4]; 3]; N],
+}
+
+fn reverse_workspace<const N: usize>(
+    settings: MonteCarloSettings,
+    reserved_paths: usize,
+    samples: usize,
+    intervals: usize,
+    extra_bytes: usize,
+) -> Result<(usize, usize)> {
+    let blocks = samples.div_ceil(BLOCK_SIZE);
+    let sampler = if settings.sampling == MonteCarloSampling::Sobol {
+        sobol::validate_dimensions(intervals)?;
+        intervals * sobol::SEQUENCE_BYTES_PER_DIMENSION
+    } else {
+        0
+    };
+    let bytes = samples * size_of::<f64>()
+        + reserved_paths * size_of::<ExerciseState<N>>()
+        + blocks * (size_of::<ExerciseBlock<N>>() + PATH_BLOCK_OVERHEAD)
+        + sampler
+        + extra_bytes;
+    if bytes > WORKSPACE_BUDGET {
+        return Err(Error::InvalidInput(
+            "American Monte Carlo workspace exceeds 1 GiB; reduce path_count or step_count".into(),
+        ));
+    }
+    if samples
+        .saturating_mul(intervals)
+        .saturating_add(reserved_paths.saturating_mul(N * (intervals - 1)))
+        > WORK_BUDGET
+    {
+        return Err(Error::InvalidInput(
+            "American Monte Carlo exceeds one billion simulated path steps and exercise updates; reduce path_count or step_count".into(),
+        ));
+    }
+    Ok((1, bytes))
 }
 
 fn exercise_window<const N: usize>(
@@ -204,6 +241,7 @@ impl<const N: usize> Default for ExerciseBlock<N> {
         Self {
             coordinates: Arc::default(),
             checkpoints: Vec::new(),
+            reverse_draws: None,
             states: Vec::new(),
             regression: [[[0.0; 4]; 3]; N],
         }
@@ -223,6 +261,46 @@ struct ExercisePaths<'a> {
 }
 
 impl ExercisePaths<'_> {
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "Exercise steps are bounded by 10,000."
+    )]
+    fn reverse_row<const N: usize>(
+        &self,
+        block_index: usize,
+        block: &mut ExerciseBlock<N>,
+        step: usize,
+    ) {
+        let elapsed = step + 1;
+        let dimension = self.intervals - elapsed;
+        // In units of one time step, W_m | W_(m+1) has mean m/(m+1)
+        // times W_(m+1) and variance m/(m+1).
+        let [weight, deviation] = if dimension == 0 {
+            [0.0, (elapsed as f64).sqrt()]
+        } else {
+            let fraction = elapsed as f64 / (elapsed + 1) as f64;
+            [fraction, fraction.sqrt()]
+        };
+        let coordinates =
+            Arc::get_mut(&mut block.coordinates).expect("reverse paths are request-owned");
+        let begin = block_index * BLOCK_SIZE;
+        if let Some(sequence) = self.sobol {
+            let normals = sequence.dimension_normals(dimension, begin, coordinates.len());
+            for (coordinate, normal) in coordinates.iter_mut().zip(normals) {
+                *coordinate = weight.mul_add(*coordinate, deviation * normal);
+            }
+        } else {
+            let draws = block.reverse_draws.get_or_insert_with(|| NormalDraws {
+                generator: Pcg32::new(self.seed, block_index as u64),
+                spare: None,
+                cursor: None,
+            });
+            for coordinate in coordinates {
+                *coordinate = weight.mul_add(*coordinate, deviation * draws.normal());
+            }
+        }
+    }
+
     fn first_in_last_window(&self) -> usize {
         (self.intervals - 1) / self.window * self.window
     }
@@ -737,17 +815,23 @@ impl MonteCarloVanillaEngine {
             0
         };
         let stored_paths = if normalized { samples } else { reserved_paths };
-        let (window, workspace_bytes) = match exercise_window::<N>(
-            settings,
-            reserved_paths,
-            stored_paths,
-            intervals,
-            policy_bytes,
-        ) {
+        let path_values = stored_paths.saturating_mul(intervals);
+        let reverse = normalized && path_values > PREFERRED_PATH_WORKSPACE / size_of::<f64>();
+        let workspace = if reverse {
+            reverse_workspace::<N>(settings, reserved_paths, samples, intervals, policy_bytes)
+        } else {
+            exercise_window::<N>(
+                settings,
+                reserved_paths,
+                stored_paths,
+                intervals,
+                policy_bytes,
+            )
+        };
+        let (window, workspace_bytes) = match workspace {
             Err(Error::InvalidInput(_)) if !same_growth => return scalar(),
             result => result?,
         };
-        let path_values = stored_paths * intervals;
         let seed = settings.resolved_seed()?;
         let key = PathKey {
             seed,
@@ -796,7 +880,11 @@ impl MonteCarloVanillaEngine {
             growth: growth[0],
             sobol: sobol.as_deref(),
         };
-        let mut window_start = exercise_paths.first_in_last_window();
+        let mut window_start = if reverse {
+            0
+        } else {
+            exercise_paths.first_in_last_window()
+        };
         let block_count = samples.div_ceil(BLOCK_SIZE);
         let mut blocks = american_workspace(block_count)?;
         blocks.resize_with(block_count, ExerciseBlock::default);
@@ -807,7 +895,11 @@ impl MonteCarloVanillaEngine {
             let end = ((block_index + 1) * BLOCK_SIZE).min(samples);
             let path_count = exercise_paths.block_path_count(begin, end);
             let coordinate_count = exercise_paths.block_coordinate_count(begin, end);
-            let coordinates = if let Some(cached) = &cached_paths {
+            block.coordinates = if reverse {
+                let mut values = american_workspace(coordinate_count)?;
+                values.resize(coordinate_count, 0.0);
+                Arc::new(values)
+            } else if let Some(cached) = &cached_paths {
                 Arc::clone(&cached[block_index])
             } else {
                 let (values, checkpoints) =
@@ -815,10 +907,13 @@ impl MonteCarloVanillaEngine {
                 block.checkpoints = checkpoints;
                 Arc::new(values)
             };
+            if reverse {
+                exercise_paths.reverse_row(block_index, block, intervals - 1);
+            }
             let mut states = american_workspace(path_count)?;
             exercise_paths.visit_row(
                 block_index,
-                &coordinates[coordinates.len() - coordinate_count..],
+                &block.coordinates[block.coordinates.len() - coordinate_count..],
                 |coordinate| {
                     let spots = terminal(coordinate);
                     states.push(ExerciseState {
@@ -828,7 +923,6 @@ impl MonteCarloVanillaEngine {
                     Ok(())
                 },
             )?;
-            block.coordinates = coordinates;
             block.states = states;
             Ok(())
         })?;
@@ -888,12 +982,15 @@ impl MonteCarloVanillaEngine {
                         exercise_paths.replay(index, block, window_start)
                     })?;
                 }
-                let row = step - window_start;
+                let row = if reverse { 0 } else { step - window_start };
                 let spots_at_step = spots_at(step);
                 let decide = coefficients.iter().any(Option::is_some);
                 // Keep the previous date's reconstructed spots beside its cash so
                 // each volatility scenario needs one exponential per path and date.
                 regression.run(&mut blocks, |index, block| {
+                    if reverse {
+                        exercise_paths.reverse_row(index, block, step);
+                    }
                     let mut matrices = [[[0.0; 4]; 3]; N];
                     let begin = index * BLOCK_SIZE;
                     let width = exercise_paths

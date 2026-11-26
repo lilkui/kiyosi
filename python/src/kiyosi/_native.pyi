@@ -4040,8 +4040,9 @@ class MonteCarloVanillaEngine(
     pricing uses least-squares Monte Carlo (Longstaff-Schwartz) with step_count
     exercise intervals and requires at least two before expiry.
     Greek scenarios with a common grid share Brownian coordinates.
-    Large grids use checkpoints and regenerate path windows. The exercise
-    workspace is capped at 1 GiB per request. Each rollback allows one
+    Large normalized exercise grids sample Brownian coordinates backward and
+    retain one date at a time. Extreme spot ranges use checkpointed windows.
+    Exercise workspace is capped at 1 GiB per request. Each rollback allows one
     billion simulated path steps and exercise updates combined, counting
     replayed steps and the exercise updates of each sensitivity scenario.
     Concurrent requests own separate workspaces. A failed workspace

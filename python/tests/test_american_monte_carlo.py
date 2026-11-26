@@ -64,7 +64,7 @@ def test_work_limit_rejects_large_grids_before_sampling(antithetic):
     assert engine.seed == 42
 
 
-def test_checkpoint_workspace_accepts_paths_beyond_the_full_matrix_limit():
+def test_reverse_training_accepts_paths_beyond_the_full_matrix_limit():
     option = contract()
     context = market(rate=0.05, dividend=0.02, sigma=0.2)
     engine = MonteCarloVanillaEngine(
@@ -389,7 +389,7 @@ def test_default_spot_greeks_converge_across_seeds_and_price_scales(scale, seed)
     assert result.gamma * scale == pytest.approx(reference.gamma, rel=0, abs=0.004)
 
 
-def test_checkpointed_spot_greeks_match_scalar_price_stencils():
+def test_reverse_training_spot_greeks_match_scalar_price_stencils():
     option = contract()
     context = market(rate=0.05, dividend=0.02, sigma=0.2)
     engine = MonteCarloVanillaEngine(

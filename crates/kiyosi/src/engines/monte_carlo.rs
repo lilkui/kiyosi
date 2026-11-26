@@ -972,8 +972,10 @@ impl MonteCarloVanillaEngine {
     /// Near-strike payoffs retain small movements even when terminal spot rounds to strike.
     /// Cancellation follows [`crate::CancellationToken`].
     /// American Greek scenarios with a common grid share Brownian coordinates.
-    /// Large exercise grids use checkpoints and regenerate path windows. The exercise workspace is capped at 1 GiB per
-    /// request. Each rollback allows one billion simulated path steps and
+    /// Large normalized exercise grids sample Brownian coordinates backward and
+    /// retain one date at a time. Extreme spot ranges use checkpointed windows.
+    /// Exercise workspace is capped at 1 GiB per request. Each rollback allows one
+    /// billion simulated path steps and
     /// exercise updates combined, counting replayed steps and the exercise
     /// updates of each sensitivity scenario. Concurrent requests own separate
     /// workspaces.

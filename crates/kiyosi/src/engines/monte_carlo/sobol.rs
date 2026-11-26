@@ -151,6 +151,27 @@ impl SobolSequence {
             group_points: Vec::new(),
         }
     }
+
+    pub(super) fn dimension_normals(
+        &self,
+        dimension: usize,
+        first: usize,
+        count: usize,
+    ) -> impl Iterator<Item = f64> + '_ {
+        let direction =
+            move |column: u32| self.directions[column as usize * self.shifts.len() + dimension];
+        let mut bits = self.shifts[dimension];
+        let mut gray = first ^ (first >> 1);
+        while gray != 0 {
+            bits ^= direction(gray.trailing_zeros());
+            gray &= gray - 1;
+        }
+        (first..first + count).map(move |index| {
+            let normal = normal_from_bits(bits);
+            bits ^= direction((index + 1).trailing_zeros());
+            normal
+        })
+    }
 }
 
 pub(super) struct SobolCursor<'a> {
@@ -162,10 +183,6 @@ pub(super) struct SobolCursor<'a> {
 }
 
 impl SobolCursor<'_> {
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "Sobol values contain at most 52 bits and convert exactly to f64."
-    )]
     pub(super) fn normal(&mut self) -> f64 {
         if !self.group_points.is_empty() {
             let group = self.dimension / LAZY_GROUP;
@@ -188,10 +205,9 @@ impl SobolCursor<'_> {
                 }
             }
         }
-        // Midpoints keep every point, including index zero, strictly inside (0, 1).
-        let probability = (self.values[self.dimension] as f64 + 0.5) / 4_503_599_627_370_496.0;
+        let normal = normal_from_bits(self.values[self.dimension]);
         self.dimension += 1;
-        inverse_normal_cdf(probability)
+        normal
     }
 
     pub(super) fn next_path(&mut self) {
@@ -224,6 +240,15 @@ impl SobolCursor<'_> {
     pub(super) fn seek(&mut self, dimension: usize) {
         self.dimension = dimension;
     }
+}
+
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "Sobol values contain at most 52 bits."
+)]
+fn normal_from_bits(bits: u64) -> f64 {
+    // Midpoints keep every point, including index zero, strictly inside (0, 1).
+    inverse_normal_cdf((bits as f64 + 0.5) / 4_503_599_627_370_496.0)
 }
 
 fn polynomial(value: f64, coefficients: &[f64], leading: f64) -> f64 {
@@ -323,6 +348,20 @@ fn inverse_normal_cdf(probability: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dimension_major_draws_match_consecutive_sobol_points() -> Result<()> {
+        let sequence = SobolSequence::new(73, 42)?;
+        for dimension in [0, 15, 72] {
+            let mut cursor = sequence.cursor(251);
+            for value in sequence.dimension_normals(dimension, 251, 259) {
+                cursor.seek(dimension);
+                assert_eq!(value.to_bits(), cursor.normal().to_bits());
+                cursor.next_path();
+            }
+        }
+        Ok(())
+    }
 
     #[test]
     fn deferred_groups_replay_eager_points_after_early_exit() -> Result<()> {

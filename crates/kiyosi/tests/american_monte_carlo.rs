@@ -80,7 +80,7 @@ fn american_work_limit_rejects_large_grids_before_sampling() {
 }
 
 #[test]
-fn checkpoint_workspace_accepts_paths_beyond_the_full_matrix_limit() -> Result<()> {
+fn reverse_training_accepts_paths_beyond_the_full_matrix_limit() -> Result<()> {
     let put = option(OptionType::Put, 100.0);
     let context = market(0.05, 0.02, 0.2, 100.0);
     let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
@@ -452,7 +452,7 @@ fn shared_sample_greeks_and_implied_volatility_preserve_inputs() {
 }
 
 #[test]
-fn checkpointed_spot_greeks_match_scalar_price_stencils() -> Result<()> {
+fn reverse_training_spot_greeks_match_scalar_price_stencils() -> Result<()> {
     let put = option(OptionType::Put, 100.0);
     let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
         sampling: MonteCarloSettings {
