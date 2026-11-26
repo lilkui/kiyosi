@@ -924,6 +924,14 @@ def test_european_surface_caps_combined_expiry_rollbacks():
     assert len(rows) == len(expiries)
 
 
+def test_american_fd_strike_batch_caps_combined_rollbacks():
+    engine = FiniteDifferenceVanillaEngine(
+        asset_step_count=2048, time_step_count=4096, asset_upper_boundary=400
+    )
+    with pytest.raises(InvalidInputError, match="one billion grid updates"):
+        engine.price_strikes(contract(AmericanOption), market(), strikes=range(50, 180))
+
+
 def test_american_surface_caps_combined_expiry_rollbacks():
     engine = FiniteDifferenceVanillaEngine(
         asset_step_count=2048, time_step_count=4096, asset_upper_boundary=400

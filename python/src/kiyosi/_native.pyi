@@ -3847,6 +3847,7 @@ class FiniteDifferenceVanillaEngine(
         boundaries. European calendar-time BSM strikes with fixed boundaries
         and compatible local-volatility strikes share an absolute-spot grid. Outliers can
         use individual solves. Check grid convergence across the strike range.
+        The request caps combined rollback work at one billion grid updates.
         Cancellation returns no partial result.
         """
 

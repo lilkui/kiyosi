@@ -16,6 +16,7 @@ pub(super) fn local_strikes(
     context: &PricingContext,
     group: &[(usize, f64)],
     prices: &mut [f64],
+    budget: &RollbackWork,
 ) -> Result<()> {
     local_expiries(
         engine,
@@ -24,7 +25,7 @@ pub(super) fn local_strikes(
         &[option.expiry_time()],
         group,
         &mut [prices],
-        None,
+        budget,
     )
 }
 
@@ -43,7 +44,7 @@ fn local_expiries(
     expiries: &[Timestamp],
     group: &[(usize, f64)],
     prices: &mut [&mut [f64]],
-    budget: Option<&RollbackWork>,
+    budget: &RollbackWork,
 ) -> Result<()> {
     let mut unique = Vec::new();
     unique
@@ -101,9 +102,7 @@ fn local_expiries(
             grid.widths.len() as u64,
             risk.workspace_bytes() + dividend.workspace_bytes(),
         )?;
-        if let Some(budget) = budget {
-            budget.charge(work)?;
-        }
+        budget.charge(work)?;
 
         for tile in unique.chunks(LOCAL_LANES) {
             crate::cancellation::check()?;
@@ -288,15 +287,7 @@ pub(super) fn local_surface(
             let first = group[0].0;
             let mut outputs: Vec<_> = rows.iter_mut().map(Vec::as_mut_slice).collect();
             if len >= 4 {
-                match local_expiries(
-                    engine,
-                    option,
-                    context,
-                    dates,
-                    group,
-                    &mut outputs,
-                    Some(budget),
-                ) {
+                match local_expiries(engine, option, context, dates, group, &mut outputs, budget) {
                     Ok(()) => {
                         remaining = tail;
                         continue;

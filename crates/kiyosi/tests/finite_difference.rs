@@ -1382,6 +1382,24 @@ fn european_surface_caps_combined_expiry_rollbacks() -> Result<()> {
 }
 
 #[test]
+fn american_fd_strike_batch_caps_combined_rollbacks() -> Result<()> {
+    let (start, end) = dates();
+    let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let engine = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 2048,
+        time_step_count: 4096,
+        asset_upper_boundary: Some(400.0),
+        ..Default::default()
+    })?;
+    let strikes: Vec<_> = (50..180).map(f64::from).collect();
+    assert!(matches!(
+        engine.price_american_strikes(&option, &market(100.0, 0.05, 0.02, 0.2), &strikes),
+        Err(Error::InvalidInput(message)) if message.contains("one billion grid updates")
+    ));
+    Ok(())
+}
+
+#[test]
 fn american_surface_caps_combined_expiry_rollbacks() -> Result<()> {
     let (start, end) = dates();
     let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;

@@ -4,7 +4,7 @@ mod surface;
 
 pub(super) use american_surface::AmericanSurface;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::RangeInclusive;
 
 use crate::{AmericanOption, AmericanOptionChanges, FiniteDifferenceSolution};
@@ -13,7 +13,7 @@ use super::diffusion::{BusinessDiffusion, Diffusion};
 use super::grid::{StrikeMoments, concentrate, project_payoff, spot_floor};
 use super::{
     EuropeanOption, FiniteDifferenceEngine, FiniteDifferenceScheme, FiniteDifferenceVanillaEngine,
-    Payoff, PricingContext, PricingEngine, Result, SpatialGrid, Stepper, diffusion,
+    Payoff, PricingContext, PricingEngine, Result, RollbackWork, SpatialGrid, Stepper, diffusion,
     diffusion_log_width, invalid_grid, local_volatility, payoff, validate_life, validate_work,
     validate_workspace,
 };
@@ -30,7 +30,8 @@ impl FiniteDifferenceVanillaEngine {
     /// # Errors
     ///
     /// Returns invalid input for nonpositive or non-finite strikes and propagates pricing
-    /// and cancellation errors without returning partial results.
+    /// and cancellation errors without returning partial results. Excessive
+    /// combined rollback work returns [`crate::Error::InvalidInput`].
     pub fn price_strikes(
         &self,
         option: &EuropeanOption,
@@ -43,8 +44,14 @@ impl FiniteDifferenceVanillaEngine {
             crate::cancellation::check()?;
             crate::error::finite(strike, true, "strike")?;
         }
+        if strikes.is_empty() {
+            return Ok(Vec::new());
+        }
+        let budget = RollbackWork::default();
+        let work = surface::strike_rollback_work(context, self.settings, option.expiry_time())?;
         let scalar = |strike| {
             crate::cancellation::check()?;
+            budget.charge(work)?;
             let contract = option.replace(crate::EuropeanOptionChanges {
                 strike: Some(strike),
                 ..Default::default()
@@ -56,7 +63,7 @@ impl FiniteDifferenceVanillaEngine {
             || self.settings.scheme != FiniteDifferenceScheme::Rannacher
             || context.valuation_time() == option.expiry_time()
         {
-            return scalar_strikes(strikes, scalar);
+            return scalar_strikes(strikes, work, scalar);
         }
         let spot = context.spot_price();
         let expiry = option.expiry_time();
@@ -105,13 +112,13 @@ impl FiniteDifferenceVanillaEngine {
             }
         }
         if !normalized && strip.is_none() {
-            return scalar_strikes(strikes, scalar);
+            return scalar_strikes(strikes, work, scalar);
         }
 
         batch_strikes(spot, strikes, scalar, |group, prices| {
             if let Some((model, width)) = strip {
                 let range = [group[0].1, group[group.len() - 1].1];
-                let batch = MarketStrip::new(self, option, context, model, range, width)?;
+                let batch = MarketStrip::new(self, option, context, model, range, width, &budget)?;
                 for &(i, strike) in group {
                     crate::cancellation::check()?;
                     let payoff = Payoff::vanilla(option.option_type(), strike, false);
@@ -120,6 +127,7 @@ impl FiniteDifferenceVanillaEngine {
                 Ok(())
             } else {
                 normalized_strikes(spot, group, prices, |range| {
+                    budget.charge(work)?;
                     let option = option.replace(crate::EuropeanOptionChanges {
                         strike: Some(spot),
                         ..Default::default()
@@ -157,8 +165,8 @@ impl FiniteDifferenceVanillaEngine {
     /// # Errors
     ///
     /// Returns [`crate::Error::InvalidInput`] for nonpositive or non-finite strikes
-    /// or valuation outside contract life. Propagates pricing and cancellation
-    /// errors without returning partial results.
+    /// or valuation outside contract life, or excessive combined rollback
+    /// work. Pricing and cancellation errors return no partial results.
     pub fn price_american_strikes(
         &self,
         option: &AmericanOption,
@@ -171,6 +179,11 @@ impl FiniteDifferenceVanillaEngine {
             crate::cancellation::check()?;
             crate::error::finite(strike, true, "strike")?;
         }
+        if strikes.is_empty() {
+            return Ok(Vec::new());
+        }
+        let budget = RollbackWork::default();
+        let work = surface::strike_rollback_work(context, self.settings, option.expiry_time())?;
         let at_strike = |strike| {
             option.replace(AmericanOptionChanges {
                 strike: Some(strike),
@@ -179,6 +192,7 @@ impl FiniteDifferenceVanillaEngine {
         };
         let scalar = |strike| {
             crate::cancellation::check()?;
+            budget.charge(work)?;
             self.price(&at_strike(strike)?, context)
         };
         if strikes.len() < 4
@@ -186,35 +200,49 @@ impl FiniteDifferenceVanillaEngine {
             || self.settings.scheme != FiniteDifferenceScheme::Rannacher
             || context.valuation_time() == option.expiry_time()
         {
-            return scalar_strikes(strikes, scalar);
+            return scalar_strikes(strikes, work, scalar);
         }
         let spot = context.spot_price();
         if local_volatility::local_model(context).is_some() {
             return batch_strikes(spot, strikes, scalar, |group, prices| {
-                american::local_strikes(self, option, context, group, prices)
+                american::local_strikes(self, option, context, group, prices, &budget)
             });
         }
         if self.settings.asset_upper_boundary.is_some() {
-            return scalar_strikes(strikes, scalar);
+            return scalar_strikes(strikes, work, scalar);
         }
         let crate::ModelParameters::BlackScholesMerton(model) = context.model_parameters() else {
-            return scalar_strikes(strikes, scalar);
+            return scalar_strikes(strikes, work, scalar);
         };
         let time = model
             .variance_time_convention()
             .year_fraction(context.valuation_time(), option.expiry_time())?;
         if model.volatility() * time.sqrt() < 0.04 {
-            return scalar_strikes(strikes, scalar);
+            return scalar_strikes(strikes, work, scalar);
         }
         batch_strikes(spot, strikes, scalar, |group, prices| {
             normalized_strikes(spot, group, prices, |range| {
+                budget.charge(work)?;
                 self.solve(&at_strike(spot)?, context, range)
             })
         })
     }
 }
 
-fn scalar_strikes(strikes: &[f64], scalar: impl Fn(f64) -> Result<f64>) -> Result<Vec<f64>> {
+fn scalar_strikes(
+    strikes: &[f64],
+    work: u64,
+    scalar: impl Fn(f64) -> Result<f64>,
+) -> Result<Vec<f64>> {
+    if validate_work(work, strikes.len() as u64).is_err() {
+        let mut distinct = HashSet::new();
+        for &strike in strikes {
+            crate::cancellation::check()?;
+            if distinct.insert(strike.to_bits()) {
+                validate_work(work, distinct.len() as u64)?;
+            }
+        }
+    }
     let mut quoted = HashMap::new();
     strikes
         .iter()
@@ -385,6 +413,7 @@ impl MarketStrip {
         model: StripModel<'_>,
         strikes: [f64; 2],
         width: f64,
+        budget: &RollbackWork,
     ) -> Result<Self> {
         let expiry = option.expiry_time();
         let valuation = context.valuation_time();
@@ -416,6 +445,7 @@ impl MarketStrip {
             steps,
             risk.workspace_bytes() + dividend.workspace_bytes() + bytes_per_step * steps,
         )?;
+        budget.charge((space.count as u64).saturating_mul(steps))?;
         let mut weights = vec![0.0; space.count + 1];
         let mut previous = weights.clone();
         weights[node] = 1.0;

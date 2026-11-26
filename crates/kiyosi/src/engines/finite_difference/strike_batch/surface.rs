@@ -242,7 +242,26 @@ pub(super) fn fallback_work(
         remaining = tail;
     }
 
+    let mut work = 0_u64;
+    for &expiry in expiries {
+        crate::cancellation::check()?;
+        work = work.saturating_add(
+            strike_rollback_work(context, settings, expiry)?.saturating_mul(rollbacks),
+        );
+        validate_work(1, work)?;
+    }
+    Ok(work)
+}
+
+pub(super) fn strike_rollback_work(
+    context: &PricingContext,
+    settings: FiniteDifferenceSettings,
+    expiry: Timestamp,
+) -> Result<u64> {
     let valuation = context.valuation_time();
+    if expiry == valuation || crate::engines::deterministic::enabled_until(context, expiry)? {
+        return Ok(0);
+    }
     let model = context.model_parameters();
     let clock = model.variance_time_convention();
     let local_times =
@@ -256,23 +275,14 @@ pub(super) fn fallback_work(
         } else {
             0
         };
-    let mut work = 0_u64;
-    for &expiry in expiries {
-        crate::cancellation::check()?;
-        if expiry == valuation || crate::engines::deterministic::enabled_until(context, expiry)? {
-            continue;
-        }
-        let knots = [model.risk_free_curve(), model.dividend_curve()]
-            .map(|curve| Curve::interval_count(curve, valuation, expiry) - 1);
-        let variance_knots = calendar.map_or(0, |_| {
-            valuation.date().days_until(expiry.date()).unsigned_abs()
-        });
-        let local_knots = local_times[local_start..].partition_point(|&time| time < expiry) as u64;
-        let steps = base_steps + knots[0] + knots[1] + local_knots + variance_knots;
-        work = work.saturating_add(assets.saturating_mul(rollbacks).saturating_mul(steps));
-        validate_work(1, work)?;
-    }
-    Ok(work)
+    let knots = [model.risk_free_curve(), model.dividend_curve()]
+        .map(|curve| Curve::interval_count(curve, valuation, expiry) - 1);
+    let variance_knots = calendar.map_or(0, |_| {
+        valuation.date().days_until(expiry.date()).unsigned_abs()
+    });
+    let local_knots = local_times[local_start..].partition_point(|&time| time < expiry) as u64;
+    let steps = base_steps + knots[0] + knots[1] + local_knots + variance_knots;
+    Ok(assets.saturating_mul(steps))
 }
 
 fn strip_rows(
