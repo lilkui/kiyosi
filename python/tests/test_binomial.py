@@ -74,6 +74,21 @@ def test_banded_american_put_preserves_price_within_the_truncation_budget():
     fine = engine.replace(step_count=20_000)
     with pytest.raises(InvalidInputError):
         fine.price(put, snapshot)
+    configured = fine.replace(rollback_tolerance=1e-6)
+    assert configured == CoxRossRubinsteinVanillaEngine(
+        step_count=20_000, rollback_tolerance=1e-6
+    )
+    assert configured.replace(rollback_tolerance=None) == fine
+    quote = fine.price_with_rollback_tolerance(put, snapshot, absolute_tolerance=1e-6)
+    assert configured.price(put, snapshot) == quote
+    assert implied_volatility(
+        configured, put, snapshot, quote, lower_bound=0.15, upper_bound=0.25
+    ) == pytest.approx(0.2, rel=0, abs=1e-8)
+    assert configured.price_with_greeks(put, snapshot, "delta").delta == (
+        fine.price_with_greeks_with_rollback_tolerance(
+            put, snapshot, "delta", absolute_tolerance=1e-6
+        ).delta
+    )
     assert fine.price_with_rollback_tolerance(
         put, snapshot, absolute_tolerance=1e-6
     ) == pytest.approx(engine.replace(step_count=10_000).price(put, snapshot), abs=1e-4)

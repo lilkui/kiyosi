@@ -35,7 +35,9 @@ def phoenix_quote(note: PhoenixOption, context: PricingContext) -> None:
 
 def numeric_protocol_inputs() -> None:
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
-    assert_type(CoxRossRubinsteinVanillaEngine(step_count=Index()).step_count, int)
+    tree = CoxRossRubinsteinVanillaEngine(step_count=Index(), rollback_tolerance=0.01)
+    assert_type(tree.step_count, int)
+    assert_type(tree.replace(rollback_tolerance=None).rollback_tolerance, float | None)
     assert_type(MonteCarloVanillaEngine(seed=Index()).seed, int | None)
     schedule = fixed_interval_schedule(
         observation_clock_time=clock_time(),

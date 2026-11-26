@@ -6,7 +6,6 @@ from decimal import Decimal as _Decimal
 from numbers import Real as _RealNumber
 from types import EllipsisType
 from typing import Literal, Never, Self, SupportsIndex, overload
-
 from . import pricing as _pricing
 
 type _Real = float | _RealNumber | _Decimal
@@ -2542,10 +2541,15 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
     Notes
     -----
     Accepts EuropeanOption and AmericanOption.
+    Set rollback_tolerance to a positive absolute tolerance in price units
+    to bound discarded lattice tails in ordinary American put pricing,
+    Greeks, and implied volatility. The default, None, uses full rollback.
     """
 
     def __eq__(self, other: object) -> bool: ...
-    def __init__(self, *, step_count: SupportsIndex = ...) -> None: ...
+    def __init__(
+        self, *, step_count: SupportsIndex = ..., rollback_tolerance: _Real | None = ...
+    ) -> None: ...
     def price_with_greeks_with_rollback_tolerance(
         self,
         instrument: AmericanOption,
@@ -2612,14 +2616,19 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
             If the American option is a call or the rate curves are nonconstant.
         """
 
-    def replace(self, *, step_count: SupportsIndex | EllipsisType = ...) -> Self:
+    def replace(
+        self,
+        *,
+        step_count: SupportsIndex | EllipsisType = ...,
+        rollback_tolerance: _Real | None | EllipsisType = ...,
+    ) -> Self:
         """Return a validated copy with replacement fields.
 
         The original value is unchanged on success and failure.
 
         Parameters
         ----------
-        step_count : object, optional
+        step_count, rollback_tolerance : object, optional
             Constructor fields to replace; see the class documentation for field
             descriptions. Omission or Ellipsis retains a field; None clears
             nullable fields.
@@ -2636,6 +2645,10 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
         TypeError
             If a field name or representation is invalid.
         """
+
+    @property
+    def rollback_tolerance(self) -> float | None:
+        """Return the American put lattice truncation tolerance in price units."""
 
     @property
     def step_count(self) -> int:

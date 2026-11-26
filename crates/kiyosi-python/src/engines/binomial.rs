@@ -41,11 +41,23 @@ macro_rules! binomial_engine {
                 /// spot Greeks use terminal-payoff stencils with the request's shifts.
                 /// Use numerical_greeks for scalar differences throughout.
                 ///
-            ]
+            ],
+            {
+                #[classattr]
+                const _STATE_FIELDS: &'static [&'static str] = &["step_count"];
+
+                #[new]
+                #[pyo3(signature = (*, step_count=kiyosi::BinomialSettings::default().step_count))]
+                fn new(
+                    #[pyo3(from_py_with = integer)] step_count: i32,
+                ) -> PyResult<Self> {
+                    Ok(Self(domain(kiyosi::$name::new(kiyosi::BinomialSettings { step_count }))?))
+                }
+            }
         );
     };
     ($(#[$doc:meta])* $name:ident, $instrument:ty, $with:path,
-     [$(#[$greeks_doc:meta])*] $(, {$($extra:tt)*})?) => {
+     [$(#[$greeks_doc:meta])*], {$($extra:tt)*}) => {
         /// Flat-rate Cox-Ross-Rubinstein tree pricing.
         ///
         /// Parameters
@@ -67,23 +79,12 @@ macro_rules! binomial_engine {
             [$(#[$greeks_doc])*],
             [],
             {
-                #[classattr]
-                const _STATE_FIELDS: &'static [&'static str] = &["step_count"];
-
-                #[new]
-                #[pyo3(signature = (*, step_count=kiyosi::BinomialSettings::default().step_count))]
-                fn new(
-                    #[pyo3(from_py_with = integer)] step_count: i32,
-                ) -> PyResult<Self> {
-                    Ok(Self(domain(kiyosi::$name::new(kiyosi::BinomialSettings { step_count }))?))
-                }
-
                 /// Return the configured number of binomial time steps.
                 #[getter]
                 fn step_count(&self) -> i32 {
                     self.0.settings().step_count
                 }
-                $($($extra)*)?
+                $($extra)*
             }
         );
         engine_methods!(@evaluate $name, $instrument, $with);
@@ -95,6 +96,9 @@ binomial_engine!(
     /// Notes
     /// -----
     /// Accepts EuropeanOption and AmericanOption.
+    /// Set rollback_tolerance to a positive absolute tolerance in price units
+    /// to bound discarded lattice tails in ordinary American put pricing,
+    /// Greeks, and implied volatility. The default, None, uses full rollback.
     ///
     CoxRossRubinsteinVanillaEngine,
     VanillaInstrument<'_>,
@@ -111,6 +115,27 @@ binomial_engine!(
         ///
     ],
     {
+        #[classattr]
+        const _STATE_FIELDS: &'static [&'static str] = &["step_count", "rollback_tolerance"];
+
+        #[new]
+        #[pyo3(signature = (*, step_count=kiyosi::BinomialSettings::default().step_count,
+            rollback_tolerance=None))]
+        fn new(
+            #[pyo3(from_py_with = integer)] step_count: i32,
+            #[pyo3(from_py_with = crate::conversions::optional_real)] rollback_tolerance: Option<f64>,
+        ) -> PyResult<Self> {
+            Ok(Self(domain(kiyosi::CoxRossRubinsteinVanillaEngine::new(
+                kiyosi::BinomialSettings { step_count }
+            ).and_then(|engine| engine.with_rollback_tolerance(rollback_tolerance)))?))
+        }
+
+        /// Return the American put lattice truncation tolerance in price units.
+        #[getter]
+        fn rollback_tolerance(&self) -> Option<f64> {
+            self.0.rollback_tolerance()
+        }
+
         /// Price an American put with a bound on the discarded lattice tails.
         ///
         /// Parameters

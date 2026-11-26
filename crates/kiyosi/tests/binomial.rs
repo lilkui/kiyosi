@@ -21,11 +21,35 @@ fn banded_american_put_preserves_price_within_the_truncation_budget() -> Result<
         Err(Error::InvalidInput(_))
     ));
     let actual = fine.price_with_rollback_tolerance(&option, &snapshot, 1e-6)?;
+    let configured = fine.with_rollback_tolerance(Some(1e-6))?;
+    assert!((configured.price(&option, &snapshot)? - actual).abs() < 1e-12);
+    let volatility = implied_volatility(
+        &configured,
+        &option,
+        &snapshot,
+        actual,
+        ImpliedVolatilitySettings::new(0.15, 0.25),
+    )?;
+    assert!((volatility - 0.2).abs() < 1e-8);
+    let request = GreeksRequest::new([Greek::Delta]);
+    let greeks = configured.price_with_greeks(&option, &snapshot, request)?;
+    let bounded = fine.price_with_greeks_with_rollback_tolerance(
+        &option,
+        &snapshot,
+        request,
+        NumericalShiftSettings::default(),
+        1e-6,
+    )?;
+    assert!((greeks.require(Greek::Delta)? - bounded.require(Greek::Delta)?).abs() < 1e-12);
     let reference = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 10_000 })?
         .price(&option, &snapshot)?;
     assert!((actual - reference).abs() < 1e-4);
     assert!(matches!(
         fine.price_with_rollback_tolerance(&option, &snapshot, 0.0),
+        Err(Error::InvalidInput(_))
+    ));
+    assert!(matches!(
+        fine.with_rollback_tolerance(Some(0.0)),
         Err(Error::InvalidInput(_))
     ));
     Ok(())

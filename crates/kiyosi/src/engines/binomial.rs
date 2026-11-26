@@ -66,9 +66,10 @@ impl BinomialSettings {
 /// Returns node delta/gamma and completes other requested Greeks numerically.
 /// Values own their settings; shared instances support concurrent pricing.
 /// See [`Self::price`] for an example.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct CoxRossRubinsteinVanillaEngine {
     settings: BinomialSettings,
+    rollback_tolerance: Option<f64>,
 }
 
 impl CoxRossRubinsteinVanillaEngine {
@@ -89,12 +90,51 @@ impl CoxRossRubinsteinVanillaEngine {
     /// ```
     pub fn new(settings: BinomialSettings) -> Result<Self> {
         settings.validate()?;
-        Ok(Self { settings })
+        Ok(Self {
+            settings,
+            rollback_tolerance: None,
+        })
     }
 
     /// Returns owned settings. See [`Self::new`] for an example.
     pub fn settings(&self) -> BinomialSettings {
         self.settings
+    }
+
+    /// Returns the configured American put truncation tolerance in price units.
+    ///
+    /// See [`Self::with_rollback_tolerance`] for configuration.
+    pub fn rollback_tolerance(&self) -> Option<f64> {
+        self.rollback_tolerance
+    }
+
+    /// Configures tolerance-bounded rollback for American puts.
+    ///
+    /// Ordinary price, Greek and implied-volatility requests use the bound.
+    /// Pass `None` to use full rollback. See
+    /// [`Self::price_with_rollback_tolerance`] for the truncation error bound.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use kiyosi::{BinomialSettings, CoxRossRubinsteinVanillaEngine, Result};
+    /// # fn main() -> Result<()> {
+    /// let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 20_000 })?
+    ///     .with_rollback_tolerance(Some(1e-6))?;
+    /// assert_eq!(engine.rollback_tolerance(), Some(1e-6));
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for a nonpositive or nonfinite tolerance.
+    pub fn with_rollback_tolerance(mut self, tolerance: Option<f64>) -> Result<Self> {
+        if let Some(tolerance) = tolerance {
+            crate::error::finite(tolerance, true, "absolute_tolerance")?;
+        }
+        self.rollback_tolerance = tolerance;
+        Ok(self)
     }
 
     /// Prices a supported vanilla contract.
@@ -182,7 +222,13 @@ impl CoxRossRubinsteinVanillaEngine {
     ) -> Result<f64> {
         validate_banded_put(option, context, absolute_tolerance)?;
         Ok(self
-            .banded_native(option, context, absolute_tolerance, GreeksRequest::new([]))?
+            .banded_native(
+                option,
+                option.strike(),
+                context,
+                absolute_tolerance,
+                GreeksRequest::new([]),
+            )?
             .price())
     }
 
@@ -227,9 +273,28 @@ impl CoxRossRubinsteinVanillaEngine {
         validate_banded_put(option, context, absolute_tolerance)?;
         shifts.validate()?;
         time_step(option, context, self.settings)?;
+        self.banded_greeks(
+            option,
+            option.strike(),
+            context,
+            request,
+            shifts,
+            absolute_tolerance,
+        )
+    }
+
+    fn banded_greeks(
+        &self,
+        option: &impl OptionContract,
+        strike: f64,
+        context: &PricingContext,
+        request: GreeksRequest,
+        shifts: crate::NumericalShiftSettings,
+        absolute_tolerance: f64,
+    ) -> Result<PricingResult> {
         let tolerance = stencil_tolerance(option, context, request, shifts, absolute_tolerance)?;
         let evaluate = |context: &PricingContext, stencil| {
-            self.banded_native(option, context, tolerance, stencil)
+            self.banded_native(option, strike, context, tolerance, stencil)
         };
         crate::risk::numerical::complete_greeks(
             option,
@@ -244,18 +309,19 @@ impl CoxRossRubinsteinVanillaEngine {
 
     fn banded_native(
         self,
-        option: &AmericanOption,
+        option: &impl OptionContract,
+        strike: f64,
         context: &PricingContext,
         tolerance: f64,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let payoff = Payoff::vanilla(OptionType::Put, option.strike(), true);
+        let payoff = Payoff::vanilla(OptionType::Put, strike, true);
         let exact = || native(option, payoff, context, self.settings, request);
         let dt = time_step(option, context, self.settings)?;
         if dt == 0.0 || crate::engines::deterministic::enabled(context) || tolerance == 0.0 {
             return exact();
         }
-        let [spot, strike] = [context.spot_price(), option.strike()];
+        let spot = context.spot_price();
         let steps = self.settings.step_count.unsigned_abs() as usize;
         let (width, up, down, discount, p) = parameters(context, dt)?;
         let h = spot * (up - 1.0);
@@ -309,7 +375,7 @@ fn validate_banded_put(
 }
 
 fn stencil_tolerance(
-    option: &AmericanOption,
+    option: &impl OptionContract,
     context: &PricingContext,
     request: GreeksRequest,
     shifts: crate::NumericalShiftSettings,
@@ -972,6 +1038,21 @@ macro_rules! vanilla_pricing {
 
             fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
                 context.natural_bsm_parameters()?;
+                if let Some(tolerance) = self
+                    .rollback_tolerance
+                    .filter(|_| $american && option.option_type() == OptionType::Put)
+                {
+                    flat_rates(context)?;
+                    return Ok(self
+                        .banded_native(
+                            option,
+                            option.strike(),
+                            context,
+                            tolerance,
+                            GreeksRequest::new([]),
+                        )?
+                        .price());
+                }
                 Ok(native(
                     option,
                     Payoff::vanilla(option.option_type(), option.strike(), $american),
@@ -992,6 +1073,20 @@ macro_rules! vanilla_pricing {
                 context.natural_bsm_parameters()?;
                 flat_rates(context)?;
                 settings.validate()?;
+                if let Some(tolerance) = self
+                    .rollback_tolerance
+                    .filter(|_| $american && option.option_type() == OptionType::Put)
+                {
+                    time_step(option, context, self.settings)?;
+                    return self.banded_greeks(
+                        option,
+                        option.strike(),
+                        context,
+                        request,
+                        settings,
+                        tolerance,
+                    );
+                }
                 let evaluate = |context: &PricingContext, request| {
                     native(
                         option,
