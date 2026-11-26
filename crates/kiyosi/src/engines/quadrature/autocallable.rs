@@ -16,7 +16,7 @@ use crate::{
 /// Prices snowball variants and Phoenix notes by quadrature between event dates.
 ///
 /// Integrates piecewise cubic continuation values against Gaussian transition densities.
-/// Retains separate intact and knocked-in continuation layers for daily monitoring.
+/// Rolls back cash flows on event dates and the remaining knock-in exposure on daily dates.
 /// Preserves cash and asset payments below the spatial grid, including zero-lower-strike losses.
 /// Extends the spatial domain for forward drift and the backward movement of event boundaries.
 /// Spatial resolution and integration extent require separate convergence checks.
@@ -135,12 +135,34 @@ struct PreparedCurve<T: AutocallableTerms> {
     valuation: Timestamp,
     knocked_in: bool,
     nodes: Vec<f64>,
+    legs: Vec<PreparedLayer>,
+}
+
+struct PreparedLayer {
     curve: Layer,
     split: Vec<CubicPiece>,
     drift: f64,
     deviation: f64,
     discount: f64,
 }
+impl PreparedLayer {
+    fn price(&self, nodes: &[f64], current: f64, anchor: f64) -> f64 {
+        self.curve.evaluate(
+            nodes,
+            current,
+            anchor,
+            self.drift,
+            self.deviation,
+            self.discount,
+        ) + integrate_cubics(
+            &self.split,
+            current + self.drift,
+            self.deviation,
+            self.discount,
+        )
+    }
+}
+
 fn terminal<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
     record: Option<&ObservationEvent>,
@@ -248,22 +270,15 @@ impl Event {
         }
     }
 
-    fn apply(
-        &self,
-        nodes: &[f64],
-        alive: &mut Layer,
-        knocked: Option<&Layer>,
-        pieces: &mut Vec<CubicPiece>,
-    ) {
+    fn apply(&self, nodes: &[f64], alive: &mut Layer, pieces: &mut Vec<CubicPiece>) {
         pieces.clear();
         if self.knock_out.is_some() {
             alive.exact[1].cash = self.redemption;
         }
         alive.exact[1].cash += self.coupon_at(f64::INFINITY);
         if self.knock_in.is_some() {
-            let knocked = knocked.expect("daily knock-in uses its continuation layer");
-            alive.exact[0].cash = knocked.exact[0].cash;
-            alive.exact[0].asset = knocked.exact[0].asset;
+            alive.exact[0].cash = 0.0;
+            alive.exact[0].asset = 0.0;
         }
         alive.exact[0].cash += self.coupon_at(f64::NEG_INFINITY);
         let mut breaks = self.breaks().map(|level| level.unwrap_or(f64::INFINITY));
@@ -274,9 +289,7 @@ impl Event {
                 let mut value = if self.knock_out.is_some_and(|level| lower >= level) {
                     [self.redemption, 0.0, 0.0, 0.0]
                 } else if self.knock_in.is_some_and(|level| upper <= level) {
-                    knocked
-                        .expect("daily knock-in uses its continuation layer")
-                        .cells[i]
+                    [0.0; 4]
                 } else {
                     *cell
                 };
@@ -339,15 +352,15 @@ fn price<T: AutocallableTerms>(
         note.view().daily_knock_in() && !state.knocked_in && note.knock_in_affects_payoff();
     let t = note.view();
     let anchor = t.reference_spot();
-    let evaluate =
-        |nodes: &[f64], curve: &Layer, split: &[CubicPiece], drift, deviation, discount| {
-            let current = log_ratio(context.spot_price(), anchor);
-            let value = finite_price(
-                curve.evaluate(nodes, current, anchor, drift, deviation, discount)
-                    + integrate_cubics(split, current + drift, deviation, discount),
-            )?;
-            finite_price(state.coupon + value)
-        };
+    let current = log_ratio(context.spot_price(), anchor);
+    let evaluate = |nodes: &[f64], legs: &[PreparedLayer]| {
+        let mut value = crate::numerics::Sum::default();
+        value.add(state.coupon);
+        for leg in legs {
+            value.add(leg.price(nodes, current, anchor));
+        }
+        finite_price(value.total())
+    };
     if let Some(curve) = prepared.as_deref().and_then(Option::as_ref).filter(|c| {
         c.option == *note
             && context
@@ -356,16 +369,9 @@ fn price<T: AutocallableTerms>(
             && c.valuation == context.valuation_time()
             && c.knocked_in == state.knocked_in
     }) {
-        return evaluate(
-            &curve.nodes,
-            &curve.curve,
-            &curve.split,
-            curve.drift,
-            curve.deviation,
-            curve.discount,
-        );
+        return evaluate(&curve.nodes, &curve.legs);
     }
-    let dates = future_event_times(note, context, layers)?;
+    let mut dates = future_event_times(note, context, layers)?;
     let mut breaks = Vec::new();
     if let Some(ki) = t.knock_in {
         breaks.push(log_ratio(ki.level, anchor));
@@ -418,28 +424,38 @@ fn price<T: AutocallableTerms>(
     } else {
         &terminal_breaks
     };
-    let terminal = terminal(note, expiry_event, terminal_breaks, state.knocked_in);
+    let terminal_value = terminal(note, expiry_event, terminal_breaks, state.knocked_in);
     if dates.len() == 1 {
         let (drift, deviation, discount) = transition(horizon)?;
         return finite_price(
             state.coupon
-                + integrate_terminal(
-                    &terminal,
-                    log_ratio(context.spot_price(), anchor),
-                    anchor,
-                    drift,
-                    deviation,
-                    discount,
-                ),
+                + integrate_terminal(&terminal_value, current, anchor, drift, deviation, discount),
         );
     }
+    if layers {
+        let mut write = 0;
+        for i in 0..dates.len() {
+            if i % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
+            let date = dates[i];
+            if date == note.expiry_time()
+                || note.daily_time(date, note.calendar())
+                || note
+                    .event_at(date)
+                    .is_some_and(ObservationEvent::has_knock_out)
+            {
+                dates[write] = date;
+                write += 1;
+            }
+        }
+        dates.truncate(write);
+    }
     let extent = settings.integration_standard_deviations * sigma * horizon.sqrt();
-    // Cover forward paths and the backward movement of future event boundaries.
     let drift_extent = (drift_rate * horizon).abs();
-    let lower = 0.0_f64.min(breaks[0]) - drift_extent - extent;
-    let upper = 0.0_f64.max(breaks[breaks.len() - 1]) + drift_extent + extent;
+    let lower = 0.0_f64.min(breaks.first().copied().unwrap_or(0.0)) - drift_extent - extent;
+    let upper = 0.0_f64.max(breaks.last().copied().unwrap_or(0.0)) + drift_extent + extent;
     let layer_count = 1 + usize::from(layers);
-    // Retain familiar small grids. Large ladders use only per-event split cells.
     let grid_breaks = if breaks.len() <= 16 {
         breaks.as_slice()
     } else {
@@ -458,134 +474,167 @@ fn price<T: AutocallableTerms>(
         layer_count,
         settings.asset_step_count,
     )?;
-    transitions.validate_scheduled_work(
-        &nodes,
-        &dates,
-        layer_count,
-        terminal.len(),
-        // At most six pieces from one knock-in, one knock-out and one coupon.
-        dates.len().saturating_mul(6),
-        transition,
-    )?;
     let interpolation = CubicInterpolation::new(&nodes);
-    let terminal_in = if layers {
-        self::terminal(note, expiry_event, terminal_breaks, true)
+
+    // Knock-in only changes redemption. Coupons and knock-outs cancel in the difference.
+    let mut legs = Vec::with_capacity(layer_count);
+    let mut plans = Vec::with_capacity(layer_count);
+    let cash_dates;
+    if layers {
+        let knocked = terminal(note, expiry_event, terminal_breaks, true);
+        let difference = terminal_value
+            .into_iter()
+            .zip(&knocked)
+            .map(|(mut intact, hit)| {
+                intact.cash -= hit.cash;
+                intact.asset -= hit.asset;
+                intact
+            })
+            .collect();
+        cash_dates = future_event_times(note, context, false)?;
+        // Use the same interpolation dates when only a small number of daily
+        // fixings can be skipped, so the two layers cancel on the same mesh.
+        let cash_dates = if dates.len() <= cash_dates.len() + 2 {
+            &dates
+        } else {
+            &cash_dates
+        };
+        plans.push((cash_dates, knocked, false));
+        plans.push((&dates, difference, true));
     } else {
-        Vec::new()
-    };
-    let layer = |pieces: &[TerminalPiece]| Layer {
+        plans.push((&dates, terminal_value, false));
+    }
+    for (dates, payoff, _) in &plans {
+        transitions.validate_scheduled_work(
+            &nodes,
+            dates,
+            1,
+            payoff.len(),
+            dates.len().saturating_mul(6),
+            transition,
+        )?;
+    }
+    for (dates, payoff, premium) in plans {
+        legs.push(rollback(
+            note,
+            context.valuation_time(),
+            dates,
+            &nodes,
+            &interpolation,
+            payoff,
+            premium,
+            dividend,
+            transition,
+            &mut transitions,
+        )?);
+    }
+    let value = evaluate(&nodes, &legs)?;
+    if let Some(prepared) = prepared {
+        *prepared = Some(PreparedCurve {
+            option: note.clone(),
+            model: context.natural_bsm_parameters()?.clone(),
+            valuation: context.valuation_time(),
+            knocked_in: state.knocked_in,
+            nodes,
+            legs,
+        });
+    }
+    Ok(value)
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Both payoff layers share the grid and its transition cache."
+)]
+fn rollback<T: AutocallableTerms>(
+    note: &AutocallableNote<T>,
+    valuation: Timestamp,
+    dates: &[Timestamp],
+    nodes: &[f64],
+    interpolation: &CubicInterpolation,
+    terminal: Vec<TerminalPiece>,
+    premium: bool,
+    dividend: f64,
+    transition: impl Fn(f64) -> Result<(f64, f64, f64)>,
+    transitions: &mut TransitionCache,
+) -> Result<PreparedLayer> {
+    let anchor = note.view().reference_spot();
+    let mut curve = Layer {
         cells: Vec::new(),
         exact: vec![
             TerminalPiece {
                 lower: f64::NEG_INFINITY,
                 upper: nodes[0],
-                cash: pieces.first().map_or(0.0, |p| p.cash),
-                asset: pieces.first().map_or(0.0, |p| p.asset),
+                cash: terminal.first().map_or(0.0, |p| p.cash),
+                asset: terminal.first().map_or(0.0, |p| p.asset),
             },
             TerminalPiece {
                 lower: nodes[nodes.len() - 1],
                 upper: f64::INFINITY,
-                cash: pieces.last().map_or(0.0, |p| p.cash),
+                cash: terminal.last().map_or(0.0, |p| p.cash),
                 asset: 0.0,
             },
         ],
     };
-    let mut alive = layer(&terminal);
-    let mut knocked = layer(&terminal_in);
-    let mut split_alive = Vec::with_capacity(6);
-    let mut split_knocked = Vec::with_capacity(4);
+    let mut split = Vec::with_capacity(6);
     let mut values = vec![0.0; nodes.len()];
-    let mut values_in = vec![0.0; if layers { nodes.len() } else { 0 }];
     for index in (0..dates.len()).rev() {
         crate::cancellation::check()?;
+        let date = dates[index];
         let final_event = index == dates.len() - 1;
-        if !final_event {
-            let record = note.event_at(dates[index]);
-            let daily_knock_in = layers && note.daily_time(dates[index], note.calendar());
-            Event::new(note, record, daily_knock_in).apply(
-                &nodes,
-                &mut alive,
-                daily_knock_in.then_some(&knocked),
-                &mut split_alive,
-            );
-            if layers {
-                Event::new(note, record, false).apply(
-                    &nodes,
-                    &mut knocked,
-                    None,
-                    &mut split_knocked,
-                );
-            }
-        }
         let time = if index == 0 {
-            context.valuation_time().years_until(dates[index])
+            valuation
         } else {
-            dates[index - 1].years_until(dates[index])
-        };
+            dates[index - 1]
+        }
+        .years_until(date);
         let (drift, deviation, discount) = transition(time)?;
-        if index == 0 {
-            let value = evaluate(&nodes, &alive, &split_alive, drift, deviation, discount)?;
-            if let Some(prepared) = prepared {
-                *prepared = Some(PreparedCurve {
-                    option: note.clone(),
-                    model: context.natural_bsm_parameters()?.clone(),
-                    valuation: context.valuation_time(),
-                    knocked_in: state.knocked_in,
-                    nodes,
-                    curve: alive,
-                    split: split_alive,
-                    drift,
-                    deviation,
-                    discount,
-                });
+        if !final_event {
+            let mut event = Event::new(
+                note,
+                note.event_at(date),
+                premium && note.daily_time(date, note.calendar()),
+            );
+            if premium {
+                event.coupon = None;
+                event.redemption = 0.0;
             }
-            return Ok(value);
+            event.apply(nodes, &mut curve, &mut split);
+        }
+        if index == 0 {
+            if final_event {
+                curve.exact = terminal;
+            }
+            return Ok(PreparedLayer {
+                curve,
+                split,
+                drift,
+                deviation,
+                discount,
+            });
         }
         if final_event {
-            for (i, &node) in nodes.iter().enumerate() {
-                values[i] = integrate_terminal(&terminal, node, anchor, drift, deviation, discount);
-                if layers {
-                    values_in[i] =
-                        integrate_terminal(&terminal_in, node, anchor, drift, deviation, discount);
-                }
+            for (value, &node) in values.iter_mut().zip(nodes) {
+                *value = integrate_terminal(&terminal, node, anchor, drift, deviation, discount);
             }
         } else {
-            let transition = transitions.get(time, &nodes, drift, deviation)?;
-            transition.integrate(&nodes, &alive.cells, discount, &mut values)?;
-            if layers {
-                transition.integrate(&nodes, &knocked.cells, discount, &mut values_in)?;
-            }
-            for (i, &node) in nodes.iter().enumerate() {
-                values[i] +=
-                    integrate_terminal(&alive.exact, node, anchor, drift, deviation, discount)
-                        + integrate_cubics(&split_alive, node + drift, deviation, discount);
-                if layers {
-                    values_in[i] +=
-                        integrate_terminal(
-                            &knocked.exact,
-                            node,
-                            anchor,
-                            drift,
-                            deviation,
-                            discount,
-                        ) + integrate_cubics(&split_knocked, node + drift, deviation, discount);
-                }
+            let operator = transitions.get(time, nodes, drift, deviation)?;
+            operator.integrate(nodes, &curve.cells, discount, &mut values)?;
+            for (value, &node) in values.iter_mut().zip(nodes) {
+                *value +=
+                    integrate_terminal(&curve.exact, node, anchor, drift, deviation, discount)
+                        + integrate_cubics(&split, node + drift, deviation, discount);
             }
         }
-        if values.iter().chain(&values_in).any(|v| !v.is_finite()) {
+        if values.iter().any(|v| !v.is_finite()) {
             return Err(Error::ComputationFailure(
                 "quadrature continuation is non-finite".into(),
             ));
         }
-        alive.cells = interpolation.interpolate(&values);
-        if layers {
-            knocked.cells = interpolation.interpolate(&values_in);
-        }
-        for layer in std::iter::once(&mut alive).chain(layers.then_some(&mut knocked)) {
-            for piece in &mut layer.exact {
-                piece.cash = scaled_signed_cash(piece.cash, discount);
-                piece.asset = scaled_signed_cash(piece.asset, -dividend * time);
-            }
+        curve.cells = interpolation.interpolate(&values);
+        for piece in &mut curve.exact {
+            piece.cash = scaled_signed_cash(piece.cash, discount);
+            piece.asset = scaled_signed_cash(piece.asset, -dividend * time);
         }
     }
     Err(Error::ComputationFailure(

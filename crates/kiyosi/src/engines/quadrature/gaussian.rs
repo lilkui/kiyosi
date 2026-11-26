@@ -621,7 +621,12 @@ impl TransitionCache {
             .len()
             .saturating_add(terminal_pieces.saturating_sub(1))
             .saturating_add(split_pieces);
-        let mut work = remaining_rollback_work(nodes, layers, visits)?;
+        let fixed_work = WORK_BUDGET - remaining_rollback_work(nodes, layers, visits)?;
+        let mut work = self
+            .tail_work
+            .get()
+            .checked_sub(fixed_work)
+            .ok_or_else(excessive_rollback_work)?;
         // A terminal payoff with exact pieces does not integrate interpolated cells.
         let intervals = dates
             .len()
