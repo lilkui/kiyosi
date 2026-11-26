@@ -420,6 +420,34 @@ def test_coupon_signatures_express_product_requirements():
         implied_phoenix_coupon(engine, binary(), context, 1)
 
 
+@pytest.mark.parametrize("convention", get_args(CouponQuoteConvention))
+def test_quadrature_coupon_quote_reprices_daily_knock_in(convention):
+    note = snowball(
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
+        autocall_observations=autocallable_observations(
+            [datetime(2025, 2, 3), END],
+            [110, 105],
+            knock_out_coupon_rates=[0.08, 0.12],
+        ),
+    )
+    context = market()
+    engine = QuadratureAutocallableEngine()
+    quote = engine.price(note.with_coupon(0.1, quote_convention=convention), context)
+    solved = implied_snowball_coupon(
+        engine,
+        note,
+        context,
+        quote,
+        quote_convention=convention,
+        lower_bound=0.04,
+        upper_bound=0.28,
+    )
+    assert solved["first_observation_coupon"] == pytest.approx(0.1, rel=0, abs=1e-7)
+    assert engine.price(note.with_coupon(**solved), context) == pytest.approx(
+        quote, rel=0, abs=1e-8
+    )
+
+
 def test_coupon_endpoints_can_change_daily_knock_in_layers():
     end = datetime(2025, 1, 13)
     note = snowball(

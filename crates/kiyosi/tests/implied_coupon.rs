@@ -1,6 +1,48 @@
 use kiyosi::*;
 
 #[test]
+fn prepared_quadrature_coupon_matches_scalar_daily_knock_in_prices() -> Result<()> {
+    let start = date(1, 1);
+    let end = date(4, 1);
+    let note = SnowballOption::new(SnowballTerms::new(
+        0.06,
+        100.0,
+        95.0,
+        100.0,
+        60.0,
+        start,
+        end,
+        binary().autocall_observations().to_vec(),
+        KnockInObservation::EveryTradingDay {
+            observation_clock_time: end.time_of_day(),
+        },
+        TradingCalendar::weekdays(),
+    ))?;
+    let context = market(100.0, start);
+    let engine = QuadratureAutocallableEngine::default();
+    for convention in [
+        CouponQuoteConvention::PreserveMaturityCoupon,
+        CouponQuoteConvention::ShiftMaturityCoupon,
+    ] {
+        let lower = note.with_coupon(0.04, convention)?;
+        let upper = note.with_coupon(0.28, convention)?;
+        let prepared = engine
+            .prepare_coupon_pricer(&lower, &upper, &context)?
+            .expect("cash-only changes can share the rollback");
+        for (coupon, fraction) in [(0.04, 0.0), (0.10, 0.25), (0.28, 1.0)] {
+            let trial = note.with_coupon(coupon, convention)?;
+            let expected = engine.price(&trial, &context)?;
+            let actual = prepared(&trial, fraction)?.expect("trial retains the payoff regime");
+            assert!(
+                (actual - expected).abs() < 1e-10,
+                "{convention:?}, {coupon}: {actual} vs {expected}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn coupon_solvers_reprice_local_volatility_quotes() -> Result<()> {
     let start = date(1, 1);
     let end = date(4, 1);

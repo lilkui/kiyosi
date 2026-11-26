@@ -26,6 +26,7 @@ fn workspace_error() -> Error {
     )
 }
 
+#[derive(PartialEq)]
 pub(super) struct TerminalPiece {
     pub lower: f64,
     pub upper: f64,

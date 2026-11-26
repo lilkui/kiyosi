@@ -5,9 +5,10 @@ use super::gaussian::{
 use super::{QuadratureSettings, flat_rates};
 use crate::instruments::autocallable::ObservationEvent;
 use crate::instruments::autocallable::pricing::{
-    fixed_value, future_event_times, initial, validate,
+    Initial, fixed_value, future_event_times, initial, validate,
 };
 use crate::numerics::{finite_price, log_ratio, scaled_signed_cash};
+use crate::risk::analytics::CouponPricer;
 use crate::{
     AutocallableNote, AutocallableTerms, BlackScholesMertonParameters, Error, PricingContext,
     PricingEngine, Result, Timestamp,
@@ -108,6 +109,14 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for QuadratureAuto
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
     }
+    fn prepare_coupon_pricer<'a>(
+        &'a self,
+        lower: &AutocallableNote<T>,
+        upper: &AutocallableNote<T>,
+        context: &'a PricingContext,
+    ) -> Result<Option<CouponPricer<'a, AutocallableNote<T>>>> {
+        coupon_pricer(self.settings, lower, upper, context)
+    }
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<AutocallableNote<T>> + '_>>> {
         Ok(Some(Box::new(Request {
             settings: self.settings,
@@ -127,6 +136,14 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for Request<T> {
         let mut curve = self.curve.borrow_mut();
         price(option, context, self.settings, Some(&mut curve))
     }
+    fn prepare_coupon_pricer<'a>(
+        &'a self,
+        lower: &AutocallableNote<T>,
+        upper: &AutocallableNote<T>,
+        context: &'a PricingContext,
+    ) -> Result<Option<CouponPricer<'a, AutocallableNote<T>>>> {
+        coupon_pricer(self.settings, lower, upper, context)
+    }
 }
 
 struct PreparedCurve<T: AutocallableTerms> {
@@ -134,8 +151,25 @@ struct PreparedCurve<T: AutocallableTerms> {
     model: BlackScholesMertonParameters,
     valuation: Timestamp,
     knocked_in: bool,
+    rollback: PreparedRollback,
+}
+
+struct PreparedRollback {
     nodes: Vec<f64>,
-    legs: Vec<PreparedLayer>,
+    cash: Vec<PreparedLayer>,
+    exposure: Vec<PreparedLayer>,
+}
+
+impl PreparedRollback {
+    fn price(&self, lane: usize, [current, anchor, coupon]: [f64; 3]) -> Result<f64> {
+        let mut value = crate::numerics::Sum::default();
+        value.add(coupon);
+        value.add(self.cash[lane].price(&self.nodes, current, anchor));
+        if let Some(exposure) = self.exposure.get(lane).or_else(|| self.exposure.first()) {
+            value.add(exposure.price(&self.nodes, current, anchor));
+        }
+        finite_price(value.total())
+    }
 }
 
 struct PreparedLayer {
@@ -322,13 +356,63 @@ impl Event {
     }
 }
 
+fn coupon_pricer<'a, T: AutocallableTerms>(
+    settings: QuadratureSettings,
+    lower: &AutocallableNote<T>,
+    upper: &AutocallableNote<T>,
+    context: &'a PricingContext,
+) -> Result<Option<CouponPricer<'a, AutocallableNote<T>>>> {
+    let rates = flat_rates(context)?;
+    if crate::engines::deterministic::enabled(context) {
+        return Ok(None);
+    }
+    validate(lower, context)?;
+    validate(upper, context)?;
+    let affected = lower.knock_in_affects_payoff();
+    let low = initial(lower, context);
+    let high = initial(upper, context);
+    let continuing = move |note: &AutocallableNote<T>, state: &Initial| {
+        state.settlement.is_none() && fixed_value(note, context, state.knocked_in).is_none()
+    };
+    if affected != upper.knock_in_affects_payoff()
+        || low.knocked_in != high.knocked_in
+        || !continuing(lower, &low)
+        || !continuing(upper, &high)
+    {
+        return Ok(None);
+    }
+    context.validate_curve_horizon(lower.expiry_time())?;
+    let anchor = lower.view().reference_spot();
+    let current = log_ratio(context.spot_price(), anchor);
+    let rollback = prepare_rollback(&[lower, upper], context, settings, rates, low.knocked_in)?;
+    let low_price = rollback.price(0, [current, anchor, 0.0])?;
+    let high_price = rollback.price(1, [current, anchor, 0.0])?;
+    Ok(Some(Box::new(move |note, fraction| {
+        let state = initial(note, context);
+        if state.knocked_in != low.knocked_in
+            || note.knock_in_affects_payoff() != affected
+            || !continuing(note, &state)
+        {
+            return Ok(None);
+        }
+        let continuation = if fraction <= 0.0 {
+            low_price
+        } else if fraction >= 1.0 {
+            high_price
+        } else {
+            low_price * (1.0 - fraction) + high_price * fraction
+        };
+        Ok(Some(finite_price(state.coupon + continuation)?))
+    })))
+}
+
 fn price<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
     context: &PricingContext,
     settings: QuadratureSettings,
     prepared: Option<&mut Option<PreparedCurve<T>>>,
 ) -> Result<f64> {
-    let (rate, dividend) = flat_rates(context)?;
+    let rates = flat_rates(context)?;
     if crate::engines::deterministic::enabled(context) {
         return crate::engines::deterministic::autocallable(note, context);
     }
@@ -348,19 +432,12 @@ fn price<T: AutocallableTerms>(
         );
     }
     context.validate_curve_horizon(note.expiry_time())?;
-    let layers =
-        note.view().daily_knock_in() && !state.knocked_in && note.knock_in_affects_payoff();
-    let t = note.view();
-    let anchor = t.reference_spot();
-    let current = log_ratio(context.spot_price(), anchor);
-    let evaluate = |nodes: &[f64], legs: &[PreparedLayer]| {
-        let mut value = crate::numerics::Sum::default();
-        value.add(state.coupon);
-        for leg in legs {
-            value.add(leg.price(nodes, current, anchor));
-        }
-        finite_price(value.total())
-    };
+    let anchor = note.view().reference_spot();
+    let query = [
+        log_ratio(context.spot_price(), anchor),
+        anchor,
+        state.coupon,
+    ];
     if let Some(curve) = prepared.as_deref().and_then(Option::as_ref).filter(|c| {
         c.option == *note
             && context
@@ -369,8 +446,33 @@ fn price<T: AutocallableTerms>(
             && c.valuation == context.valuation_time()
             && c.knocked_in == state.knocked_in
     }) {
-        return evaluate(&curve.nodes, &curve.legs);
+        return curve.rollback.price(0, query);
     }
+    let rollback = prepare_rollback(&[note], context, settings, rates, state.knocked_in)?;
+    let value = rollback.price(0, query)?;
+    if let Some(prepared) = prepared {
+        *prepared = Some(PreparedCurve {
+            option: note.clone(),
+            model: context.natural_bsm_parameters()?.clone(),
+            valuation: context.valuation_time(),
+            knocked_in: state.knocked_in,
+            rollback,
+        });
+    }
+    Ok(value)
+}
+
+fn prepare_rollback<T: AutocallableTerms>(
+    notes: &[&AutocallableNote<T>],
+    context: &PricingContext,
+    settings: QuadratureSettings,
+    (rate, dividend): (f64, f64),
+    knocked_in: bool,
+) -> Result<PreparedRollback> {
+    let note = notes[0];
+    let t = note.view();
+    let layers = t.daily_knock_in() && !knocked_in && note.knock_in_affects_payoff();
+    let anchor = t.reference_spot();
     let mut dates = future_event_times(note, context, layers)?;
     let mut breaks = Vec::new();
     if let Some(ki) = t.knock_in {
@@ -424,13 +526,51 @@ fn price<T: AutocallableTerms>(
     } else {
         &terminal_breaks
     };
-    let terminal_value = terminal(note, expiry_event, terminal_breaks, state.knocked_in);
+    let mut cash = Vec::with_capacity(notes.len());
+    let mut exposure = Vec::with_capacity(notes.len());
+    for &note in notes {
+        let event = note.event_at(note.expiry_time());
+        let value = terminal(note, event, terminal_breaks, knocked_in);
+        if layers && dates.len() > 1 {
+            // Knock-in only changes redemption. Coupons and calls cancel in
+            // the difference. Equal exposure is rolled back just once.
+            let knocked = terminal(note, event, terminal_breaks, true);
+            let difference = value
+                .into_iter()
+                .zip(&knocked)
+                .map(|(mut intact, hit)| {
+                    intact.cash -= hit.cash;
+                    intact.asset -= hit.asset;
+                    intact
+                })
+                .collect::<Vec<_>>();
+            if exposure.first() != Some(&difference) {
+                exposure.push(difference);
+            }
+            cash.push(knocked);
+        } else {
+            cash.push(value);
+        }
+    }
     if dates.len() == 1 {
         let (drift, deviation, discount) = transition(horizon)?;
-        return finite_price(
-            state.coupon
-                + integrate_terminal(&terminal_value, current, anchor, drift, deviation, discount),
-        );
+        return Ok(PreparedRollback {
+            nodes: Vec::new(),
+            cash: cash
+                .into_iter()
+                .map(|exact| PreparedLayer {
+                    curve: Layer {
+                        cells: Vec::new(),
+                        exact,
+                    },
+                    split: Vec::new(),
+                    drift,
+                    deviation,
+                    discount,
+                })
+                .collect(),
+            exposure: Vec::new(),
+        });
     }
     if layers {
         let mut write = 0;
@@ -455,7 +595,7 @@ fn price<T: AutocallableTerms>(
     let drift_extent = (drift_rate * horizon).abs();
     let lower = 0.0_f64.min(breaks.first().copied().unwrap_or(0.0)) - drift_extent - extent;
     let upper = 0.0_f64.max(breaks.last().copied().unwrap_or(0.0)) + drift_extent + extent;
-    let layer_count = 1 + usize::from(layers);
+    let layer_count = cash.len() + exposure.len();
     let grid_breaks = if breaks.len() <= 16 {
         breaks.as_slice()
     } else {
@@ -476,70 +616,57 @@ fn price<T: AutocallableTerms>(
     )?;
     let interpolation = CubicInterpolation::new(&nodes);
 
-    // Knock-in only changes redemption. Coupons and knock-outs cancel in the difference.
-    let mut legs = Vec::with_capacity(layer_count);
-    let mut plans = Vec::with_capacity(layer_count);
     let cash_dates;
-    if layers {
-        let knocked = terminal(note, expiry_event, terminal_breaks, true);
-        let difference = terminal_value
-            .into_iter()
-            .zip(&knocked)
-            .map(|(mut intact, hit)| {
-                intact.cash -= hit.cash;
-                intact.asset -= hit.asset;
-                intact
-            })
-            .collect();
+    let cash_schedule = if layers {
         cash_dates = future_event_times(note, context, false)?;
-        // Use the same interpolation dates when only a small number of daily
-        // fixings can be skipped, so the two layers cancel on the same mesh.
-        let cash_dates = if dates.len() <= cash_dates.len() + 2 {
+        // Keep both legs on the same mesh when few daily fixings can be skipped.
+        if dates.len() <= cash_dates.len() + 2 {
             &dates
         } else {
             &cash_dates
-        };
-        plans.push((cash_dates, knocked, false));
-        plans.push((&dates, difference, true));
+        }
     } else {
-        plans.push((&dates, terminal_value, false));
+        &dates
+    };
+    for (schedule, payoffs) in [(cash_schedule, &cash), (&dates, &exposure)] {
+        for payoff in payoffs {
+            transitions.validate_scheduled_work(
+                &nodes,
+                schedule,
+                1,
+                payoff.len(),
+                schedule.len().saturating_mul(6),
+                transition,
+            )?;
+        }
     }
-    for (dates, payoff, _) in &plans {
-        transitions.validate_scheduled_work(
-            &nodes,
-            dates,
-            1,
-            payoff.len(),
-            dates.len().saturating_mul(6),
-            transition,
-        )?;
-    }
-    for (dates, payoff, premium) in plans {
-        legs.push(rollback(
-            note,
-            context.valuation_time(),
-            dates,
-            &nodes,
-            &interpolation,
-            payoff,
-            premium,
-            dividend,
-            transition,
-            &mut transitions,
-        )?);
-    }
-    let value = evaluate(&nodes, &legs)?;
-    if let Some(prepared) = prepared {
-        *prepared = Some(PreparedCurve {
-            option: note.clone(),
-            model: context.natural_bsm_parameters()?.clone(),
-            valuation: context.valuation_time(),
-            knocked_in: state.knocked_in,
-            nodes,
-            legs,
-        });
-    }
-    Ok(value)
+    let mut solve = |schedule: &[Timestamp], payoffs: Vec<_>, premium| {
+        payoffs
+            .into_iter()
+            .zip(notes)
+            .map(|(payoff, &note)| {
+                rollback(
+                    note,
+                    context.valuation_time(),
+                    schedule,
+                    &nodes,
+                    &interpolation,
+                    payoff,
+                    premium,
+                    dividend,
+                    transition,
+                    &mut transitions,
+                )
+            })
+            .collect::<Result<Vec<_>>>()
+    };
+    let cash = solve(cash_schedule, cash, false)?;
+    let exposure = solve(&dates, exposure, true)?;
+    Ok(PreparedRollback {
+        nodes,
+        cash,
+        exposure,
+    })
 }
 
 #[expect(
