@@ -244,9 +244,10 @@ fd_engine!(
         /// Notes
         /// -----
         /// Compatible BSM strikes share a rescaled solution with automatic
-        /// boundaries. Compatible calendar-time local-volatility strikes share an
-        /// absolute-spot grid. Outliers can use individual solves. Check grid
-        /// convergence across the strike range. Cancellation returns no partial result.
+        /// boundaries. Compatible calendar-time BSM strikes with fixed boundaries
+        /// and local-volatility strikes share an absolute-spot grid. Outliers can
+        /// use individual solves. Check grid convergence across the strike range.
+        /// Cancellation returns no partial result.
         #[pyo3(signature = (instrument, context, *, strikes))]
         #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns extracted strikes.")]
         fn price_strikes<'py>(

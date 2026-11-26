@@ -11,8 +11,9 @@ impl FiniteDifferenceVanillaEngine {
     ///
     /// Uses the template's direction and dates. Compatible BSM strikes share a
     /// rescaled solution with automatic boundaries. Compatible calendar-time
-    /// local-volatility strikes share an absolute-spot mesh. Outliers can use
-    /// individual solves. Check convergence over the full strike range.
+    /// BSM with fixed boundaries and local-volatility strikes share an
+    /// absolute-spot mesh. Outliers can use individual solves. Check convergence
+    /// over the full strike range.
     ///
     /// # Errors
     ///
@@ -48,19 +49,32 @@ impl FiniteDifferenceVanillaEngine {
         }
         let spot = context.spot_price();
         let expiry = option.expiry_time();
-        let mut local_strip = None;
+        let valuation = context.valuation_time();
+        let root_time = valuation.years_until(expiry).sqrt();
+        let mut strip = None;
         if let Some(local) = local_volatility::local_model(context) {
             let surface = local.surface();
-            let at = context.valuation_time();
-            let width = surface.volatility(at, spot)? * at.years_until(expiry).sqrt();
-            if width >= 0.04 && surface.constant_volatility_between(at, expiry)?.is_none() {
-                local_strip = Some((surface, width));
+            let width = surface.volatility(valuation, spot)? * root_time;
+            if width >= 0.04
+                && surface
+                    .constant_volatility_between(valuation, expiry)?
+                    .is_none()
+            {
+                strip = Some((StripModel::Local(surface), width));
             }
         }
-        let normalized = self.settings.asset_upper_boundary.is_none()
-            && matches!(context.model_parameters(), crate::ModelParameters::BlackScholesMerton(model)
-                if model.volatility() * context.valuation_time().years_until(expiry).sqrt() >= 0.04);
-        if !normalized && local_strip.is_none() {
+        let mut normalized = false;
+        if let crate::ModelParameters::BlackScholesMerton(model) = context.model_parameters() {
+            let sigma = model.volatility();
+            let width = sigma * root_time;
+            if width >= 0.04 {
+                normalized = self.settings.asset_upper_boundary.is_none();
+                if !normalized {
+                    strip = Some((StripModel::Constant(sigma), width));
+                }
+            }
+        }
+        if !normalized && strip.is_none() {
             return strikes.iter().copied().map(scalar).collect();
         }
 
@@ -91,8 +105,8 @@ impl FiniteDifferenceVanillaEngine {
             remaining = tail;
             let last = group[count - 1].1;
             if count >= 4 && first < last {
-                let fast = if let Some((surface, width)) = local_strip {
-                    MarketStrip::new(self, option, context, surface, [low, spot.max(last)], width)
+                let fast = if let Some((model, width)) = strip {
+                    MarketStrip::new(self, option, context, model, [low, spot.max(last)], width)
                         .and_then(|batch| {
                             for &(i, strike) in group {
                                 crate::cancellation::check()?;
@@ -145,12 +159,35 @@ impl FiniteDifferenceVanillaEngine {
     }
 }
 
+#[derive(Clone, Copy)]
+enum StripModel<'a> {
+    Constant(f64),
+    Local(&'a crate::LocalVolatilitySurface),
+}
+
+struct BoundaryStep {
+    weights: [f64; 2],
+    discount: [f64; 2],
+    remaining: f64,
+}
+
+enum Boundary {
+    Constant {
+        sigma: f64,
+        bounds: [f64; 2],
+        steps: Vec<BoundaryStep>,
+    },
+    Local {
+        terms: Vec<[f64; 3]>,
+        moments: StrikeMoments,
+    },
+}
+
 struct MarketStrip {
     space: SpatialGrid,
     weights: Vec<f64>,
-    edges: Vec<[f64; 3]>,
     terminal: StrikeMoments,
-    boundary: StrikeMoments,
+    boundary: Boundary,
     discount: [f64; 2],
 }
 
@@ -159,7 +196,7 @@ impl MarketStrip {
         engine: &FiniteDifferenceVanillaEngine,
         option: &EuropeanOption,
         context: &PricingContext,
-        surface: &crate::LocalVolatilitySurface,
+        model: StripModel<'_>,
         [low, high]: [f64; 2],
         width: f64,
     ) -> Result<Self> {
@@ -198,9 +235,16 @@ impl MarketStrip {
         let mut weights = vec![0.0; space.count + 1];
         let mut previous = weights.clone();
         weights[node] = 1.0;
-        let mut edges = Vec::new();
-        let mut stepper = Stepper::new_local(space.count);
-        let offset = surface.times()[0].years_until(valuation);
+        let sign = Payoff::vanilla(option.option_type(), option.strike(), false).sign;
+        let mut local_terms = Vec::new();
+        let mut constant_steps = Vec::new();
+        let (mut stepper, offset) = match model {
+            StripModel::Constant(_) => (Stepper::new(space.count), 0.0),
+            StripModel::Local(surface) => (
+                Stepper::new_local(space.count),
+                surface.times()[0].years_until(valuation),
+            ),
+        };
         for step in 0..time_grid.widths.len() {
             crate::cancellation::check()?;
             let mut damping = u32::try_from(time_grid.widths.len() - step).unwrap_or(u32::MAX);
@@ -210,27 +254,51 @@ impl MarketStrip {
             let later = substeps.next().expect("each interval has a substep");
             for (current, dt, theta) in substeps.chain([later]) {
                 let middle = current + 0.5 * dt;
-                let contribution = stepper.transpose_local(
-                    &mut weights,
-                    &mut previous,
-                    &space,
-                    surface,
-                    offset + middle,
-                    [dt, theta, risk.rate(middle), dividend.rate(middle)],
-                )?;
-                let cash = risk.log_factor(current, time).exp();
-                let asset = dividend.log_factor(current, time).exp();
-                for (bound, weight) in [lower, upper].into_iter().zip(contribution) {
-                    let present = bound * asset;
-                    if !present.is_normal() || !cash.is_normal() || !(present / cash).is_normal() {
-                        return Err(super::unstable());
+                let key = [dt, theta, risk.rate(middle), dividend.rate(middle)];
+                let discount = [
+                    risk.log_factor(current, time),
+                    dividend.log_factor(current, time),
+                ];
+                match model {
+                    StripModel::Constant(sigma) => {
+                        let weights = stepper.transpose_constant(
+                            &mut weights,
+                            &mut previous,
+                            &space,
+                            sigma,
+                            key,
+                        )?;
+                        constant_steps.push(BoundaryStep {
+                            weights,
+                            discount,
+                            remaining: time - current,
+                        });
                     }
-                    edges.push([present / cash, weight * present, weight * cash]);
+                    StripModel::Local(surface) => {
+                        let contribution = stepper.transpose_local(
+                            &mut weights,
+                            &mut previous,
+                            &space,
+                            surface,
+                            offset + middle,
+                            key,
+                        )?;
+                        let [cash, asset] = discount.map(f64::exp);
+                        for (bound, weight) in [lower, upper].into_iter().zip(contribution) {
+                            let present = bound * asset;
+                            if !present.is_normal()
+                                || !cash.is_normal()
+                                || !(present / cash).is_normal()
+                            {
+                                return Err(super::unstable());
+                            }
+                            local_terms.push([present / cash, weight * present, weight * cash]);
+                        }
+                    }
                 }
                 std::mem::swap(&mut weights, &mut previous);
             }
         }
-        let sign = Payoff::vanilla(option.option_type(), option.strike(), false).sign;
         let terminal = StrikeMoments::new(
             space
                 .spots
@@ -240,11 +308,20 @@ impl MarketStrip {
                 .collect(),
             sign,
         );
-        let boundary = StrikeMoments::new(edges.clone(), sign);
+        let boundary = match model {
+            StripModel::Constant(sigma) => Boundary::Constant {
+                sigma,
+                bounds: [lower, upper],
+                steps: constant_steps,
+            },
+            StripModel::Local(_) => Boundary::Local {
+                moments: StrikeMoments::new(local_terms.clone(), sign),
+                terms: local_terms,
+            },
+        };
         Ok(Self {
             space,
             weights,
-            edges,
             terminal,
             boundary,
             discount: [risk.log_factor(0.0, time), dividend.log_factor(0.0, time)],
@@ -253,8 +330,41 @@ impl MarketStrip {
 
     fn price(&self, payoff: Payoff, spot: f64) -> Result<f64> {
         let strike = payoff.strike;
+        let constant_boundary = if let Boundary::Constant {
+            sigma,
+            bounds,
+            steps,
+        } = &self.boundary
+        {
+            let mut value = crate::numerics::Sum::default();
+            let mut scale = 0.0;
+            for (index, step) in steps.iter().enumerate() {
+                if index % 1024 == 0 {
+                    crate::cancellation::check()?;
+                }
+                for (bound, weight) in bounds.iter().zip(step.weights) {
+                    let term = weight
+                        * payoff::boundary_value(
+                            payoff,
+                            *bound,
+                            step.discount,
+                            *sigma,
+                            step.remaining,
+                        );
+                    value.add(term);
+                    scale += term.abs();
+                }
+            }
+            Some([value.total(), scale])
+        } else {
+            None
+        };
+        let boundary = match &self.boundary {
+            Boundary::Constant { .. } => constant_boundary,
+            Boundary::Local { moments, .. } => moments.at(strike),
+        };
         if let Some(([mut value, scale], [edge, edge_scale])) =
-            self.terminal.at(strike).zip(self.boundary.at(strike))
+            self.terminal.at(strike).zip(boundary)
         {
             let coordinate = self.space.coordinate(strike);
             let right = self.space.nodes.partition_point(|&node| node < coordinate);
@@ -279,13 +389,17 @@ impl MarketStrip {
                 weight * project_payoff(&self.space, &[strike], index, |spot| payoff.value(spot)),
             );
         }
-        for (index, &[cutoff, asset, cash]) in self.edges.iter().enumerate() {
-            if index % 1024 == 0 {
-                crate::cancellation::check()?;
+        if let Boundary::Local { terms, .. } = &self.boundary {
+            for (index, &[cutoff, asset, cash]) in terms.iter().enumerate() {
+                if index % 1024 == 0 {
+                    crate::cancellation::check()?;
+                }
+                if payoff.sign * (cutoff - strike) > 0.0 {
+                    value.add(payoff.sign * (-strike).mul_add(cash, asset));
+                }
             }
-            if payoff.sign * (cutoff - strike) > 0.0 {
-                value.add(payoff.sign * (-strike).mul_add(cash, asset));
-            }
+        } else if let Some([edge, _]) = constant_boundary {
+            value.add(edge);
         }
         payoff::checked_price(payoff, spot, value.total(), self.discount, 0.0)
     }

@@ -315,9 +315,29 @@ impl Stepper {
         key: [f64; 4],
     ) -> Result<[f64; 2]> {
         self.prepare_local(space, surface, [time, 1.0], key)?;
+        Self::transpose(&self.factors[0], weights, previous, key)
+    }
+
+    pub fn transpose_constant(
+        &mut self,
+        weights: &mut [f64],
+        previous: &mut [f64],
+        space: &SpatialGrid,
+        sigma: f64,
+        key: [f64; 4],
+    ) -> Result<[f64; 2]> {
+        let active = self.prepare_constant(space, sigma, key)?;
+        Self::transpose(&self.factors[active], weights, previous, key)
+    }
+
+    fn transpose(
+        factors: &Factors,
+        weights: &mut [f64],
+        previous: &mut [f64],
+        key: [f64; 4],
+    ) -> Result<[f64; 2]> {
         let [dt, theta, _, _] = key;
-        let factors = &self.factors[0];
-        let count = space.count;
+        let count = weights.len() - 1;
         let mut edges = [weights[0], weights[count]];
         let rhs = &mut weights[1..count];
         // A = L U. Applying A^(-T) solves with U^T first, then L^T.
@@ -359,10 +379,6 @@ impl Stepper {
         Ok(edges)
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "Factorization cache keys must match exactly before reusing a matrix solve."
-    )]
     pub fn advance(
         &mut self,
         old: &[f64],
@@ -372,47 +388,57 @@ impl Stepper {
         key: [f64; 4],
         boundaries: [f64; 2],
     ) -> Result<()> {
+        let active = self.prepare_constant(grid, sigma, key)?;
+        self.apply(old, next, key[0], key[1], boundaries, active)
+    }
+
+    #[expect(
+        clippy::float_cmp,
+        reason = "Factorization cache keys must match exactly before reusing a matrix solve."
+    )]
+    fn prepare_constant(&mut self, grid: &SpatialGrid, sigma: f64, key: [f64; 4]) -> Result<usize> {
         let [dt, theta, rate, dividend] = key;
         let key = [dt, theta, rate, dividend, sigma];
         let count = grid.count;
         let size = count - 1;
-        let active = if let Some(index) = self.factors.iter().position(|f| f.key == key) {
-            index
-        } else {
-            let mut coefficients = Vec::with_capacity(size);
-            for i in 1..count {
-                let row = grid.coefficients(i, rate, dividend, sigma);
-                if row.iter().any(|v| !v.is_finite()) {
-                    return Err(unstable());
-                }
-                if theta == 0.0 && -dt * row[1] > 1.0 {
-                    return Err(invalid_grid("explicit finite-difference grid is unstable"));
-                }
-                coefficients.push(row);
-            }
-            let mut factors = Factors {
-                key,
-                coefficients,
-                upper: vec![0.0; size],
-                multipliers: vec![0.0; size],
-                diagonal: vec![0.0; size],
-                inverse: vec![0.0; size],
-            };
-            if theta != 0.0 {
-                for i in 0..size {
-                    factors.factor_row(i, dt, theta)?;
-                }
-            }
-            if self.factors.len() < Self::FACTOR_CACHE_LEN {
-                self.factors.push(factors);
-                self.factors.len() - 1
+        Ok(
+            if let Some(index) = self.factors.iter().position(|f| f.key == key) {
+                index
             } else {
-                self.active = (self.active + 1) % Self::FACTOR_CACHE_LEN;
-                self.factors[self.active] = factors;
-                self.active
-            }
-        };
-        self.apply(old, next, dt, theta, boundaries, active)
+                let mut coefficients = Vec::with_capacity(size);
+                for i in 1..count {
+                    let row = grid.coefficients(i, rate, dividend, sigma);
+                    if row.iter().any(|v| !v.is_finite()) {
+                        return Err(unstable());
+                    }
+                    if theta == 0.0 && -dt * row[1] > 1.0 {
+                        return Err(invalid_grid("explicit finite-difference grid is unstable"));
+                    }
+                    coefficients.push(row);
+                }
+                let mut factors = Factors {
+                    key,
+                    coefficients,
+                    upper: vec![0.0; size],
+                    multipliers: vec![0.0; size],
+                    diagonal: vec![0.0; size],
+                    inverse: vec![0.0; size],
+                };
+                if theta != 0.0 {
+                    for i in 0..size {
+                        factors.factor_row(i, dt, theta)?;
+                    }
+                }
+                if self.factors.len() < Self::FACTOR_CACHE_LEN {
+                    self.factors.push(factors);
+                    self.factors.len() - 1
+                } else {
+                    self.active = (self.active + 1) % Self::FACTOR_CACHE_LEN;
+                    self.factors[self.active] = factors;
+                    self.active
+                }
+            },
+        )
     }
 
     pub fn advance_tangent(

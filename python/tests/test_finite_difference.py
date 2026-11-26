@@ -800,10 +800,15 @@ def test_american_long_expiry_domain_matches_live_quantlib():
     assert engine.price_with_greeks(option, context, "vega").price == refined
 
 
-def test_bsm_strike_batch_matches_analytic_prices_in_input_order():
+@pytest.mark.parametrize("upper", [None, 140])
+def test_bsm_strike_batch_matches_analytic_prices_in_input_order(upper):
     snapshot = market()
-    engine = FiniteDifferenceVanillaEngine(asset_step_count=800, time_step_count=200)
-    strikes = (121, 77, 101, 89, 121, 200)
+    engine = FiniteDifferenceVanillaEngine(
+        asset_upper_boundary=upper, asset_step_count=800, time_step_count=200
+    )
+    strikes = (121, 77, 101, 89, 121)
+    if upper is None:
+        strikes += (200,)
     for direction in ("call", "put"):
         template = EuropeanOption(
             option_type=direction, strike=130, effective_time=START, expiry_time=END
@@ -815,3 +820,6 @@ def test_bsm_strike_batch_matches_analytic_prices_in_input_order():
         ]
         assert prices == pytest.approx(expected, abs=0.0003, rel=0)
         assert prices[0] == prices[4]
+        if upper is not None:
+            with pytest.raises(InvalidInputError, match="upper bound"):
+                engine.price_strikes(template, snapshot, strikes=(*strikes, upper))
