@@ -30,6 +30,11 @@ pub(super) fn survival(
     let mut sum = [0.0; 3];
     let mut converged = false;
     if variance < 0.25 {
+        let inverse_variance = if variance.is_normal() {
+            variance.recip()
+        } else {
+            f64::INFINITY
+        };
         sum[0] = -(-2.0 * (x / ratio) * (y / ratio)).exp_m1();
         let mut add = |k: f64, direct: bool| {
             let exponent = if direct {
@@ -45,9 +50,18 @@ pub(super) fn survival(
             if derivatives {
                 let numerator = if direct { 2.0 * k } else { -2.0 * (y + k) };
                 if numerator != 0.0 {
-                    let log_slope = numerator.abs().ln() - 2.0 * ratio.ln();
-                    sum[1] += sign * (exponent + log_slope).exp().copysign(numerator);
-                    sum[2] += sign * (exponent + 2.0 * log_slope).exp();
+                    let slope = numerator * inverse_variance;
+                    let first = weight * slope;
+                    let second = first * slope;
+                    if weight.is_normal() && first.is_normal() && second.is_normal() {
+                        sum[1] += sign * first;
+                        sum[2] += sign * second;
+                    } else {
+                        // Preserve derivatives when variance or weight underflows.
+                        let log_slope = numerator.abs().ln() - 2.0 * ratio.ln();
+                        sum[1] += sign * (exponent + log_slope).exp().copysign(numerator);
+                        sum[2] += sign * (exponent + 2.0 * log_slope).exp();
+                    }
                 }
             }
             weight
