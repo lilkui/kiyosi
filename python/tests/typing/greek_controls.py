@@ -148,6 +148,15 @@ def common_controls(option: EuropeanOption, context: PricingContext) -> None:
         )
 
 
+def fd_american_strikes(option: AmericanOption, context: PricingContext) -> None:
+    assert_type(
+        FiniteDifferenceVanillaEngine().price_strikes(
+            option, context, strikes=(90, 110)
+        ),
+        tuple[float, ...],
+    )
+
+
 def fd_request_shifts(option: EuropeanOption, context: PricingContext) -> None:
     engine = FiniteDifferenceVanillaEngine()
     assert_type(

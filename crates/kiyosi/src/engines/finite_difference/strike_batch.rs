@@ -1,5 +1,9 @@
 mod surface;
 
+use std::ops::RangeInclusive;
+
+use crate::{AmericanOption, AmericanOptionChanges, FiniteDifferenceSolution};
+
 use super::diffusion::{BusinessDiffusion, Diffusion};
 use super::grid::{StrikeMoments, concentrate, project_payoff, spot_floor};
 use super::{
@@ -99,86 +103,168 @@ impl FiniteDifferenceVanillaEngine {
             return strikes.iter().copied().map(scalar).collect();
         }
 
-        let mut ordered = Vec::new();
-        ordered
-            .try_reserve_exact(strikes.len())
-            .map_err(|_| super::unstable())?;
-        ordered.extend(strikes.iter().copied().enumerate());
-        ordered.sort_unstable_by(|a, b| a.1.total_cmp(&b.1));
-        crate::cancellation::check()?;
-        let mut prices = Vec::new();
-        prices
-            .try_reserve_exact(strikes.len())
-            .map_err(|_| super::unstable())?;
-        prices.resize(strikes.len(), 0.0);
-        let mut remaining = ordered.as_slice();
-        while let Some(&(_, first)) = remaining.first() {
-            crate::cancellation::check()?;
-            let low = spot.min(first);
-            let count = if low >= 0.5 * spot {
-                remaining
-                    .partition_point(|&(_, strike)| 0.5 * strike <= low)
-                    .max(1)
-            } else {
-                1
-            };
-            let (group, tail) = remaining.split_at(count);
-            remaining = tail;
-            let last = group[count - 1].1;
-            if count >= 4 && first < last {
-                let fast = if let Some((model, width)) = strip {
-                    MarketStrip::new(self, option, context, model, [first, last], width).and_then(
-                        |batch| {
-                            for &(i, strike) in group {
-                                crate::cancellation::check()?;
-                                let payoff = Payoff::vanilla(option.option_type(), strike, false);
-                                prices[i] = batch.price(payoff, spot)?;
-                            }
-                            Ok(())
-                        },
-                    )
-                } else {
-                    self.normalized_strikes(option, context, group, &mut prices)
-                };
-                match fast {
-                    Ok(()) => continue,
-                    Err(error @ crate::Error::Io(_)) => return Err(error),
-                    // A shared grid can fail even when individual grids are representable.
-                    Err(_) => {}
+        batch_strikes(spot, strikes, scalar, |group, prices| {
+            if let Some((model, width)) = strip {
+                let range = [group[0].1, group[group.len() - 1].1];
+                let batch = MarketStrip::new(self, option, context, model, range, width)?;
+                for &(i, strike) in group {
+                    crate::cancellation::check()?;
+                    let payoff = Payoff::vanilla(option.option_type(), strike, false);
+                    prices[i] = batch.price(payoff, spot)?;
                 }
+                Ok(())
+            } else {
+                normalized_strikes(spot, group, prices, |range| {
+                    let option = option.replace(crate::EuropeanOptionChanges {
+                        strike: Some(spot),
+                        ..Default::default()
+                    })?;
+                    self.solve(&option, context, range)
+                })
             }
-            for &(i, strike) in group {
-                prices[i] = scalar(strike)?;
-            }
-        }
-        Ok(prices)
+        })
     }
 
-    fn normalized_strikes(
+    /// Prices American vanilla options across strikes in input order.
+    ///
+    /// Uses the template's direction and dates. Compatible Black–Scholes–Merton
+    /// strikes with automatic asset boundaries share a rescaled solution. Other
+    /// strikes use individual solves. Check convergence across the strike range.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kiyosi::{AmericanOption, BlackScholesMertonParameters, Date,
+    ///     FiniteDifferenceVanillaEngine, OptionType, PricingContext};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let put = AmericanOption::new(OptionType::Put, 100.0, start, start.add_days(365)?)?;
+    /// let model = BlackScholesMertonParameters::new(0.05, 0.02, 0.25)?;
+    /// let market = PricingContext::new(model, 100.0, start)?;
+    /// let prices = FiniteDifferenceVanillaEngine::default()
+    ///     .price_american_strikes(&put, &market, &[90.0, 95.0, 100.0, 105.0])?;
+    /// assert!(prices[0] < prices[3]);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::Error::InvalidInput`] for nonpositive or non-finite strikes
+    /// or valuation outside contract life. Propagates pricing and cancellation
+    /// errors without returning partial results.
+    pub fn price_american_strikes(
         &self,
-        template: &EuropeanOption,
+        option: &AmericanOption,
         context: &PricingContext,
-        group: &[(usize, f64)],
-        prices: &mut [f64],
-    ) -> Result<()> {
+        strikes: &[f64],
+    ) -> Result<Vec<f64>> {
+        local_volatility::validate_model(context)?;
+        validate_life(option, context)?;
+        for &strike in strikes {
+            crate::cancellation::check()?;
+            crate::error::finite(strike, true, "strike")?;
+        }
+        let at_strike = |strike| {
+            option.replace(AmericanOptionChanges {
+                strike: Some(strike),
+                ..Default::default()
+            })
+        };
+        let scalar = |strike| {
+            crate::cancellation::check()?;
+            self.price(&at_strike(strike)?, context)
+        };
+        if strikes.len() < 4
+            || self.settings.asset_step_count < 128
+            || self.settings.scheme != FiniteDifferenceScheme::Rannacher
+            || self.settings.asset_upper_boundary.is_some()
+        {
+            return strikes.iter().copied().map(scalar).collect();
+        }
+        let crate::ModelParameters::BlackScholesMerton(model) = context.model_parameters() else {
+            return strikes.iter().copied().map(scalar).collect();
+        };
+        let time = model
+            .variance_time_convention()
+            .year_fraction(context.valuation_time(), option.expiry_time())?;
+        if model.volatility() * time.sqrt() < 0.04 {
+            return strikes.iter().copied().map(scalar).collect();
+        }
         let spot = context.spot_price();
-        let option = template.replace(crate::EuropeanOptionChanges {
-            strike: Some(spot),
-            ..Default::default()
-        })?;
-        let normalized_spot = |strike| spot * (spot / strike);
-        let low = normalized_spot(group[group.len() - 1].1);
-        let high = normalized_spot(group[0].1);
-        if !low.is_normal() || !high.is_normal() || low >= high {
-            return Err(super::unstable());
-        }
-        let solved = self.solve(&option, context, low..=high)?;
-        for &(i, strike) in group {
-            prices[i] =
-                crate::numerics::checked(solved.price(normalized_spot(strike))? * (strike / spot))?;
-        }
-        Ok(())
+        batch_strikes(spot, strikes, scalar, |group, prices| {
+            normalized_strikes(spot, group, prices, |range| {
+                self.solve(&at_strike(spot)?, context, range)
+            })
+        })
     }
+}
+
+fn batch_strikes(
+    spot: f64,
+    strikes: &[f64],
+    scalar: impl Fn(f64) -> Result<f64>,
+    shared: impl Fn(&[(usize, f64)], &mut [f64]) -> Result<()>,
+) -> Result<Vec<f64>> {
+    let mut ordered = Vec::new();
+    ordered
+        .try_reserve_exact(strikes.len())
+        .map_err(|_| super::unstable())?;
+    ordered.extend(strikes.iter().copied().enumerate());
+    ordered.sort_unstable_by(|a, b| a.1.total_cmp(&b.1));
+    crate::cancellation::check()?;
+    let mut prices = Vec::new();
+    prices
+        .try_reserve_exact(strikes.len())
+        .map_err(|_| super::unstable())?;
+    prices.resize(strikes.len(), 0.0);
+    let mut remaining = ordered.as_slice();
+    while let Some(&(_, first)) = remaining.first() {
+        crate::cancellation::check()?;
+        let low = spot.min(first);
+        let count = if low >= 0.5 * spot {
+            remaining
+                .partition_point(|&(_, strike)| 0.5 * strike <= low)
+                .max(1)
+        } else {
+            1
+        };
+        let (group, tail) = remaining.split_at(count);
+        remaining = tail;
+        let last = group[count - 1].1;
+        if count >= 4 && first < last {
+            match shared(group, &mut prices) {
+                Ok(()) => continue,
+                Err(error @ crate::Error::Io(_)) => return Err(error),
+                // A shared grid can fail even when individual grids are representable.
+                Err(_) => {}
+            }
+        }
+        for &(i, strike) in group {
+            prices[i] = scalar(strike)?;
+        }
+    }
+    Ok(prices)
+}
+
+fn normalized_strikes(
+    spot: f64,
+    group: &[(usize, f64)],
+    prices: &mut [f64],
+    solve: impl FnOnce(RangeInclusive<f64>) -> Result<FiniteDifferenceSolution>,
+) -> Result<()> {
+    let normalized_spot = |strike| spot * (spot / strike);
+    let low = normalized_spot(group[group.len() - 1].1);
+    let high = normalized_spot(group[0].1);
+    if !low.is_normal() || !high.is_normal() || low >= high {
+        return Err(super::unstable());
+    }
+    let solved = solve(low..=high)?;
+    for &(i, strike) in group {
+        prices[i] =
+            crate::numerics::checked(solved.price(normalized_spot(strike))? * (strike / spot))?;
+    }
+    Ok(())
 }
 
 #[derive(Clone, Copy)]

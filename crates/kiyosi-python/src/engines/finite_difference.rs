@@ -225,11 +225,11 @@ fd_engine!(
     binomial::with_vanilla,
     expiry_short_pricing,
     ; {
-        /// Price European options across strikes on a fixed market snapshot.
+        /// Price vanilla options across strikes on a fixed market snapshot.
         ///
         /// Parameters
         /// ----------
-        /// instrument : EuropeanOption
+        /// instrument : EuropeanOption or AmericanOption
         ///     Template supplying direction and dates.
         /// context : PricingContext
         ///     Fixed model inputs and valuation time.
@@ -244,8 +244,8 @@ fd_engine!(
         /// Notes
         /// -----
         /// Compatible BSM strikes share a rescaled solution with automatic
-        /// boundaries. Compatible calendar-time BSM strikes with fixed boundaries
-        /// and local-volatility strikes share an absolute-spot grid. Outliers can
+        /// boundaries. European calendar-time BSM strikes with fixed boundaries
+        /// and compatible European local-volatility strikes share an absolute-spot grid. Outliers can
         /// use individual solves. Check grid convergence across the strike range.
         /// Cancellation returns no partial result.
         #[pyo3(signature = (instrument, context, *, strikes))]
@@ -253,14 +253,22 @@ fd_engine!(
         fn price_strikes<'py>(
             &self,
             py: Python<'py>,
-            #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, crate::instruments::vanilla::EuropeanOption>,
+            #[pyo3(from_py_with = crate::conversions::instrument)] instrument: binomial::VanillaInstrument<'_>,
             context: &crate::market::PricingContext,
             #[pyo3(from_py_with = crate::conversions::reals)] strikes: Vec<f64>,
         ) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
-            let option = &instrument.0;
             let context = &context.0;
-            let values = domain(crate::cancellation::run(py, || self.0.price_strikes(option, context, &strikes))?)?;
-            pyo3::types::PyTuple::new(py, values)
+            let values = match &instrument {
+                binomial::VanillaInstrument::European(option) => {
+                    let option = &option.0;
+                    crate::cancellation::run(py, || self.0.price_strikes(option, context, &strikes))
+                }
+                binomial::VanillaInstrument::American(option) => {
+                    let option = &option.0;
+                    crate::cancellation::run(py, || self.0.price_american_strikes(option, context, &strikes))
+                }
+            }?;
+            crate::conversions::python_tuple(py, domain(values)?, Ok)
         }
         /// Price a European strike and expiry surface.
         ///

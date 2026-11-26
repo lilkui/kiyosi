@@ -823,3 +823,20 @@ def test_bsm_strike_batch_matches_analytic_prices_in_input_order(upper):
         if upper is not None:
             with pytest.raises(InvalidInputError, match="upper bound"):
                 engine.price_strikes(template, snapshot, strikes=(*strikes, upper))
+
+
+def test_american_strike_batch_matches_scalar_prices_in_input_order():
+    put = AmericanOption(
+        option_type="put", strike=100, effective_time=START, expiry_time=END
+    )
+    context = market(spot=100, rate=0.05, dividend=0.02, sigma=0.25)
+    engine = FiniteDifferenceVanillaEngine()
+    strikes = (110, 90, 100, 95, 105, 90)
+    prices = engine.price_strikes(put, context, strikes=iter(strikes))
+    expected = tuple(engine.price(put.replace(strike=k), context) for k in strikes)
+    assert prices[1] == prices[5]
+    assert prices == pytest.approx(expected, abs=0.001, rel=0)
+    assert engine.price_strikes(put, context, strikes=()) == ()
+    assert_rejection(
+        InvalidInputError, engine.price_strikes, put, context, strikes=(100, 0)
+    )

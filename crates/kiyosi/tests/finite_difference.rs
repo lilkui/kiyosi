@@ -1302,3 +1302,26 @@ fn weekday_strike_batch_uses_one_rescaled_solution() -> Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn american_strike_batch_matches_scalar_prices_in_input_order() -> Result<()> {
+    let (start, end) = dates();
+    let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let context = market(100.0, 0.05, 0.02, 0.25);
+    let engine = FiniteDifferenceVanillaEngine::default();
+    let strikes = [110.0, 90.0, 100.0, 95.0, 105.0, 90.0];
+    let prices = engine.price_american_strikes(&option, &context, &strikes)?;
+    assert_eq!(prices[1], prices[5]);
+    for (&strike, price) in strikes.iter().zip(prices) {
+        let scalar = option.replace(AmericanOptionChanges {
+            strike: Some(strike),
+            ..Default::default()
+        })?;
+        let reference = engine.price(&scalar, &context)?;
+        assert!(
+            (price - reference).abs() < 0.001,
+            "strike {strike}: {price} vs {reference}"
+        );
+    }
+    Ok(())
+}

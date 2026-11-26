@@ -3787,16 +3787,16 @@ class FiniteDifferenceVanillaEngine(
 
     def price_strikes(
         self,
-        instrument: EuropeanOption,
+        instrument: EuropeanOption | AmericanOption,
         context: PricingContext,
         *,
         strikes: Iterable[_Real],
     ) -> tuple[float, ...]:
-        """Price European options across strikes on a fixed market snapshot.
+        """Price vanilla options across strikes on a fixed market snapshot.
 
         Parameters
         ----------
-        instrument : EuropeanOption
+        instrument : EuropeanOption or AmericanOption
             Template supplying direction and dates.
         context : PricingContext
             Fixed model inputs and valuation time.
@@ -3811,8 +3811,8 @@ class FiniteDifferenceVanillaEngine(
         Notes
         -----
         Compatible BSM strikes share a rescaled solution with automatic
-        boundaries. Compatible calendar-time BSM strikes with fixed boundaries
-        and local-volatility strikes share an absolute-spot grid. Outliers can
+        boundaries. European calendar-time BSM strikes with fixed boundaries
+        and compatible European local-volatility strikes share an absolute-spot grid. Outliers can
         use individual solves. Check grid convergence across the strike range.
         Cancellation returns no partial result.
         """
