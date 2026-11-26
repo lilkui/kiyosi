@@ -29,6 +29,30 @@ from test_snowball import END, START, market
 from test_snowball import contract as snowball
 
 
+def test_daily_knock_in_market_greeks_match_price_bumps():
+    note = snowball(
+        knock_in_level=95,
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time(0)),
+        autocall_observations=autocallable_observations(
+            [datetime(2025, 2, 3), datetime(2025, 3, 3), END],
+            [110, 108, 105],
+            knock_out_coupon_rates=[0.08] * 3,
+        ),
+    )
+    context = market(volatility=0.2)
+    engine = FD(asset_step_count=800, time_step_count=1200, asset_upper_boundary=400)
+    measures = ("rho", "dividend_rho", "vega")
+    shared = engine.price_with_greeks(note, context, measures)
+    bumped = engine.price_with_greeks(
+        note, context, measures, rate_shift=0.0002, volatility_shift=0.0002
+    )
+    assert shared.price == engine.price(note, context)
+    for measure in measures:
+        assert getattr(shared, measure) == pytest.approx(
+            getattr(bumped, measure), rel=0, abs=0.0002
+        )
+
+
 def test_engine_defaults_and_representation_errors(subtests):
     engine = FD()
     assert ((engine.asset_step_count, engine.time_step_count)) == ((800, 400))

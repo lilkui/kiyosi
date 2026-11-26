@@ -620,21 +620,22 @@ fn solve_layers<T: AutocallableTerms, D: Diffusion, const N: usize>(
     let size = space.count + 1;
     let knock_in_size = if layered { size } else { 0 };
     let buffers = || std::array::from_fn(|_| [vec![0.0; size], vec![0.0; knock_in_size]]);
+    let tangent_count = bumps.iter().flatten().count() as u64;
     let bumps = if bumps.iter().any(Option::is_some)
         && N == 1
-        && !layered
         && !D::LOCAL
         && settings.scheme != FiniteDifferenceScheme::ExplicitEuler
         && validate_work(
-            u64::from(settings.asset_step_count.unsigned_abs())
-                * (1 + bumps.iter().flatten().count() as u64),
+            u64::from(settings.asset_step_count.unsigned_abs()) * (1 + tangent_count),
             rollback_steps,
         )
         .is_ok()
         && validate_workspace(
             settings.scheme,
-            (u64::from(settings.asset_step_count.unsigned_abs()) + 1) * 4,
-            grid.widths.len() as u64,
+            (u64::from(settings.asset_step_count.unsigned_abs()) + 1)
+                * (1 + tangent_count)
+                * (1 + u64::from(layered)),
+            (grid.widths.len() + cash_grid.as_ref().map_or(0, |grid| grid.widths.len())) as u64,
             risk.workspace_bytes() + dividend.workspace_bytes(),
         )
         .is_ok()
@@ -645,9 +646,9 @@ fn solve_layers<T: AutocallableTerms, D: Diffusion, const N: usize>(
     };
     let mut tangent = bumps.map(|bump| {
         if bump.is_some() {
-            vec![0.0; size]
+            [vec![0.0; size], vec![0.0; knock_in_size]]
         } else {
-            Vec::new()
+            [Vec::new(), Vec::new()]
         }
     });
     let mut tangent_next = tangent.clone();
@@ -753,7 +754,6 @@ fn solve_layers<T: AutocallableTerms, D: Diffusion, const N: usize>(
                     .enumerate()
                     .filter(|(_, derivative)| !derivative.is_empty())
                 {
-                    let [before, after] = [&values[0][0], &next[0][0]];
                     let [dr, dq] = [
                         if lane == 0 { -dt * discount } else { 0.0 },
                         if lane == 1 {
@@ -762,18 +762,27 @@ fn solve_layers<T: AutocallableTerms, D: Diffusion, const N: usize>(
                             0.0
                         },
                     ];
-                    let edge =
-                        space.discount_affine_edges(&tangent[lane], discount, dividend_discount);
-                    let source = space.discount_affine_edges(before, dr, dq);
-                    stepper.advance_tangent(
-                        [&tangent[lane], before, after],
-                        &mut tangent_next[lane],
-                        [dt, weight, rate, q, sigma],
-                        [edge[0] + source[0], edge[1] + source[1]],
-                        derivative,
-                    )?;
+                    for (i, (old, new)) in tangent[lane]
+                        .iter()
+                        .zip(&mut tangent_next[lane])
+                        .enumerate()
+                    {
+                        if old.is_empty() || (split && (i == 1) != cash) {
+                            continue;
+                        }
+                        let [before, after] = [&values[0][i], &next[0][i]];
+                        let edge = space.discount_affine_edges(old, discount, dividend_discount);
+                        let source = space.discount_affine_edges(before, dr, dq);
+                        stepper.advance_tangent(
+                            [old, before, after],
+                            new,
+                            [dt, weight, rate, q, sigma],
+                            [edge[0] + source[0], edge[1] + source[1]],
+                            derivative,
+                        )?;
+                    }
                 }
-                std::mem::swap(&mut tangent, &mut tangent_next);
+                swap_layers(&mut tangent, &mut tangent_next, layer);
                 swap_layers(&mut values, &mut next, layer);
             }
             let time = grid.times[step];
@@ -847,24 +856,50 @@ fn solve_layers<T: AutocallableTerms, D: Diffusion, const N: usize>(
                         }
                     }
                 }
-                if let Some(record) = record.filter(|r| r.has_knock_out()) {
-                    for (values, next) in tangent.iter().zip(&mut tangent_next) {
-                        for (i, output) in next.iter_mut().enumerate() {
-                            let [correction] =
+                let knockout = record
+                    .filter(|r| r.has_knock_out())
+                    .map(ObservationEvent::knock_out_level);
+                if ki || knockout.is_some() {
+                    for ([alive, knocked], [next_alive, next_knocked]) in
+                        tangent.iter().zip(&mut tangent_next)
+                    {
+                        if alive.is_empty() {
+                            continue;
+                        }
+                        for i in 0..size {
+                            let correction =
                                 project_grid_node(&space, &breaks, i, |asset, node| {
-                                    [if asset >= record.knock_out_level() {
-                                        -node.map_or_else(
+                                    let value = |values: &[f64]| {
+                                        node.map_or_else(
                                             || space.linear(values, asset),
                                             |index| values[index],
                                         )
+                                    };
+                                    let hit = knockout.is_some_and(|level| asset >= level);
+                                    let transfer = ki && t.below_knock_in(asset);
+                                    let a = if cash { 0.0 } else { value(alive) };
+                                    let k = if layered && layer != RollbackLayer::Exposure {
+                                        value(knocked)
                                     } else {
                                         0.0
-                                    }]
+                                    };
+                                    if hit {
+                                        [-a, -k]
+                                    } else if transfer {
+                                        [k - a, 0.0]
+                                    } else {
+                                        [0.0, 0.0]
+                                    }
                                 });
-                            *output = values[i] + correction;
+                            if !cash {
+                                next_alive[i] = alive[i] + correction[0];
+                            }
+                            if layered && layer != RollbackLayer::Exposure {
+                                next_knocked[i] = knocked[i] + correction[1];
+                            }
                         }
                     }
-                    std::mem::swap(&mut tangent, &mut tangent_next);
+                    swap_layers(&mut tangent, &mut tangent_next, layer);
                 }
                 swap_layers(&mut values, &mut next, layer);
                 damping = 2;
@@ -877,8 +912,13 @@ fn solve_layers<T: AutocallableTerms, D: Diffusion, const N: usize>(
                 *value += cash;
             }
         }
+        for [alive, knocked] in &mut tangent {
+            for (value, &cash) in alive.iter_mut().zip(knocked.iter()) {
+                *value += cash;
+            }
+        }
     }
-    Ok((space, values, tangent))
+    Ok((space, values, tangent.map(|[alive, _]| alive)))
 }
 
 fn tangent_coefficients(

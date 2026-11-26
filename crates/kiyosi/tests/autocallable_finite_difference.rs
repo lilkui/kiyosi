@@ -678,8 +678,6 @@ fn explicit_uniform_log_grid_checks_stencil_stability() {
 
 #[test]
 fn flat_bsm_market_tangents_match_autocallable_price_bumps() -> Result<()> {
-    let (terms, _, _) = autocallable_support::multi_event_terms(KnockInObservation::AtExpiry);
-    let note = SnowballOption::new(terms)?;
     let context = market(100.0, date(1, 1));
     let engine = FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {
         asset_step_count: 800,
@@ -689,25 +687,35 @@ fn flat_bsm_market_tangents_match_autocallable_price_bumps() -> Result<()> {
     })?;
     let measures = [Greek::Rho, Greek::DividendRho, Greek::Vega];
     let request = GreeksRequest::new(measures);
-    let actual = engine.price_with_greeks(&note, &context, request)?;
-    let bumped = engine.price_with_greeks_with_settings(
-        &note,
-        &context,
-        request,
-        NumericalShiftSettings {
-            rate_shift: 0.0002,
-            volatility_shift: Some(0.0002),
-            ..Default::default()
+    let modes = [
+        KnockInObservation::AtExpiry,
+        KnockInObservation::EveryTradingDay {
+            observation_clock_time: date(1, 1).time_of_day(),
         },
-    )?;
-    assert_eq!(actual.price(), engine.price(&note, &context)?);
-    for greek in measures {
-        let actual = actual.require(greek)?;
-        let expected = bumped.require(greek)?;
-        assert!(
-            (actual - expected).abs() < 0.0002,
-            "{greek:?}: {actual} vs {expected}"
-        );
+    ];
+    for mode in modes {
+        let (terms, _, _) = autocallable_support::multi_event_terms(mode);
+        let note = SnowballOption::new(terms)?;
+        let actual = engine.price_with_greeks(&note, &context, request)?;
+        let bumped = engine.price_with_greeks_with_settings(
+            &note,
+            &context,
+            request,
+            NumericalShiftSettings {
+                rate_shift: 0.0002,
+                volatility_shift: Some(0.0002),
+                ..Default::default()
+            },
+        )?;
+        assert_eq!(actual.price(), engine.price(&note, &context)?);
+        for greek in measures {
+            let actual = actual.require(greek)?;
+            let expected = bumped.require(greek)?;
+            assert!(
+                (actual - expected).abs() < 0.0002,
+                "{greek:?}: {actual} vs {expected}"
+            );
+        }
     }
     Ok(())
 }
