@@ -157,11 +157,11 @@ impl CoxRossRubinsteinBarrierEngine {
         let future = &observations[observations.partition_point(|&at| at <= time)..];
         let terminal_only = option.observation_mode() == crate::ObservationMode::Scheduled
             && future.iter().all(|&at| at == option.expiry_time());
-        if !terminal_only {
+        let continuous = option.observation_mode() == crate::ObservationMode::Continuous;
+        if !terminal_only && !continuous {
             self.settings.validate_rollback()?;
         }
         let duration = time.micros_until(option.expiry_time());
-        let continuous = option.observation_mode() == crate::ObservationMode::Continuous;
         let direct = terminal_only && steps >= 256;
         let mut observed = if direct {
             Vec::new()
@@ -215,6 +215,9 @@ impl CoxRossRubinsteinBarrierEngine {
             && (1e-100..=1e100).contains(&spot)
             && (1e-100..=1e100).contains(&option.strike())
             && option.rebate() <= 1e100;
+        if continuous && !reflection {
+            self.settings.validate_rollback()?;
+        }
         let mut values = vec![0.0; steps + 1];
         let mut vanilla = if knock_in && !reflection && !direct {
             vec![0.0; steps + 1]

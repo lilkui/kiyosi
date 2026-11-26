@@ -9,11 +9,14 @@ fn barrier_rollback_budget_preserves_resolved_settlement() -> Result<()> {
     })?;
     let engine = CoxRossRubinsteinBarrierEngine::new(BinomialSettings { step_count: 16_001 })?;
     let start = option.effective_time();
+    let ordinary = market(start, 100.0, 0.05, 0.2);
+    let reference = AnalyticBarrierEngine.price(&option, &ordinary)?;
+    assert!((engine.price(&option, &ordinary)? - reference).abs() < 0.03);
     assert!(matches!(
-        engine.price(&option, &market(start, 100.0, 0.05, 0.2)),
+        engine.price(&option, &market(start, 100.0, 0.05, 10.0)),
         Err(Error::InvalidInput(_))
     ));
-    assert!((engine.price(&option, &market(start, 102.0, 0.05, 0.2))? - 2.0).abs() < 1e-12);
+    assert!((engine.price(&option, &market(start, 102.0, 0.05, 10.0))? - 2.0).abs() < 1e-12);
     Ok(())
 }
 
