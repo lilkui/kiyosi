@@ -1115,3 +1115,32 @@ fn american_local_volatility_strips_match_refined_scalar_pricing() -> Result<()>
     }
     Ok(())
 }
+
+#[test]
+fn american_local_surface_matches_separate_expiry_strips() -> Result<()> {
+    let (start, end) = dates();
+    let snapshot = context(surface(vec![vec![0.30, 0.21], vec![0.34, 0.23]]));
+    let engine = engine(800, 400, 400.0);
+    let put = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let expiries = [
+        end,
+        start.add_days(220)?,
+        start,
+        start.add_days(260)?,
+        start.add_days(320)?,
+        end,
+    ];
+    let strikes = [105.0, 90.0, 100.0, 95.0, 110.0, 95.0];
+    let rows = engine.price_american_surface(&put, &snapshot, &expiries, &strikes)?;
+    assert_eq!(rows[0], rows[5]);
+    assert_eq!(rows[2], [5.0, 0.0, 0.0, 0.0, 10.0, 0.0]);
+    for (expiry, row) in expiries.into_iter().zip(rows) {
+        let option = AmericanOption::new(OptionType::Put, 100.0, start, expiry)?;
+        let reference = engine.price_american_strikes(&option, &snapshot, &strikes)?;
+        assert_eq!(row[3].to_bits(), row[5].to_bits());
+        for (actual, expected) in row.into_iter().zip(reference) {
+            close(actual, expected, 0.002);
+        }
+    }
+    Ok(())
+}

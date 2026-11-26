@@ -1,14 +1,15 @@
 use super::{
     AmericanOption, AmericanOptionChanges, FiniteDifferenceScheme, FiniteDifferenceVanillaEngine,
-    Payoff, PricingContext, Result, SpatialGrid, diffusion, invalid_grid, local_volatility, payoff,
-    strike_group_len,
+    Payoff, PricingContext, Result, SpatialGrid, american, diffusion, invalid_grid,
+    local_volatility, payoff, strike_group_len,
 };
 
 impl FiniteDifferenceVanillaEngine {
     /// Prices an American strike and expiry surface in input order.
     ///
     /// Compatible flat-rate calendar-time BSM strikes and tenors share a
-    /// rollback per strike group on a normalized log-spot grid. Short tenors and other markets use
+    /// rollback per strike group on a normalized log-spot grid. Compatible local-volatility
+    /// tenors share step factors on an absolute spot grid. Other strips use
     /// [`Self::price_american_strikes`]. Check convergence over the surface.
     ///
     /// # Examples
@@ -197,6 +198,8 @@ impl FiniteDifferenceVanillaEngine {
                 remaining = tail;
             }
             rows
+        } else if let Some(local) = local_volatility::local_model(context) {
+            american::local_surface(self, template, context, local, &ordered, &unique, scalar)?
         } else {
             scalar(&ordered, &unique)?
         };

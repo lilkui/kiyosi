@@ -656,3 +656,33 @@ def test_american_local_volatility_strips_match_refined_scalar_pricing():
     assert actual[2] == actual[5]
     expected = [refined.price(put.replace(strike=strike), market) for strike in strikes]
     assert actual == pytest.approx(expected, abs=0.002, rel=0)
+
+
+def test_american_local_surface_matches_separate_expiry_strips():
+    snapshot = context(surface(((0.30, 0.21), (0.34, 0.23))))
+    pricer = pricing.FiniteDifferenceVanillaEngine(
+        asset_upper_boundary=400, asset_step_count=800, time_step_count=400
+    )
+    put = AmericanOption(
+        option_type="put", strike=100, effective_time=START, expiry_time=END
+    )
+    expiries = (
+        END,
+        START + timedelta(days=220),
+        START,
+        START + timedelta(days=260),
+        START + timedelta(days=320),
+        END,
+    )
+    strikes = (105, 90, 100, 95, 110, 95)
+    rows = pricer.price_american_surface(
+        put, snapshot, expiries=expiries, strikes=strikes
+    )
+    assert rows[0] == rows[-1]
+    assert rows[2] == (5, 0, 0, 0, 10, 0)
+    for expiry, row in zip(expiries, rows, strict=True):
+        assert row[3] == row[5]
+        expected = pricer.price_strikes(
+            put.replace(expiry_time=expiry), snapshot, strikes=strikes
+        )
+        assert row == pytest.approx(expected, abs=0.002, rel=0)
