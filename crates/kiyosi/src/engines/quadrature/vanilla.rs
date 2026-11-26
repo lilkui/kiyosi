@@ -91,7 +91,8 @@ impl QuadratureVanillaSettings {
 ///
 /// # Greeks
 ///
-/// Computes requested numerical Greeks with shared bump controls.
+/// Computes requested numerical Greeks with shared bump controls. American spot bumps
+/// reuse the continuation curve for matching market parameters and valuation time.
 ///
 /// Expiry Greeks follow terminal payoffs; time Greeks are absent. Infeasible stencils leave affected measures
 /// absent; feasible bumped failures propagate. See [`Self::new`] for usage.
@@ -143,69 +144,151 @@ impl QuadratureVanillaEngine {
     }
 }
 
-macro_rules! vanilla_pricing {
-    ($option:ty, $american:literal $(, $vanilla:ident)?) => {
-        impl PricingEngine<$option> for QuadratureVanillaEngine {
-            fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-                flat_rates(context).map(|_| ())
-            }
-            fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
-                let (rate, dividend) = flat_rates(context)?;
-                validate_life(option, context)?;
-                context.validate_curve_horizon(option.expiry_time())?;
-                let payoff = Payoff::vanilla(option.option_type(), option.strike(), $american);
-                if crate::engines::deterministic::enabled(context) {
-                    return crate::engines::deterministic::vanilla(option, payoff, context);
-                }
-                let time = context
-                    .valuation_time()
-                    .years_until(option.expiry_time().into());
-                if time == 0.0 {
-                    return checked(payoff.value(context.spot_price()));
-                }
-                $(
-                    if payoff.sign > 0.0 && rate >= 0.0 && dividend <= 0.0 {
-                        return crate::AnalyticEuropeanEngine.price(option.$vanilla(), context);
-                    }
-                    if self.settings.time_step_count == 1 {
-                        let continuation = crate::AnalyticEuropeanEngine.price(option.$vanilla(), context)?;
-                        return Ok(continuation.max(payoff.value(context.spot_price())));
-                    }
-                )?
-                let sigma = context.natural_bsm_parameters()?.volatility();
-                let width = sigma * time.sqrt();
-                let carry = (rate - dividend) * time;
-                let half_variance = (0.5 * width) * width;
-                let drift = carry - half_variance;
-                if !drift.is_finite() || !width.is_finite() || width <= 0.0 {
-                    return Err(invalid_transition());
-                }
-                if $american {
-                    let price = american_price(payoff, context, time, drift, width, rate, self.settings)?;
-                    $(let price = price.max(crate::AnalyticEuropeanEngine.price(option.$vanilla(), context)?);)?
-                    Ok(price)
-                } else {
-                    let forward =
-                        context.log_forward_moneyness(option.expiry_time(), payoff.strike, carry);
-                    let discount = if payoff.sign > 0.0 {
-                        (context.spot_price(), -dividend * time)
-                    } else {
-                        (payoff.strike, -rate * time)
-                    };
-                    european_price(
-                        payoff.sign,
-                        forward - half_variance,
-                        width,
-                        discount,
-                        self.settings,
-                    )
-                }
-            }
+impl PricingEngine<EuropeanOption> for QuadratureVanillaEngine {
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        flat_rates(context).map(|_| ())
+    }
+
+    fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
+        let (rate, dividend) = flat_rates(context)?;
+        validate_life(option, context)?;
+        let expiry = option.expiry_time();
+        context.validate_curve_horizon(expiry)?;
+        let payoff = Payoff::vanilla(option.option_type(), option.strike(), false);
+        if crate::engines::deterministic::enabled(context) {
+            return crate::engines::deterministic::vanilla(option, payoff, context);
         }
-    };
+        let time = context.valuation_time().years_until(expiry);
+        if time == 0.0 {
+            return checked(payoff.value(context.spot_price()));
+        }
+        let carry = (rate - dividend) * time;
+        let (width, half_variance) = log_transition(context, time, carry)?;
+        let forward = context.log_forward_moneyness(expiry, payoff.strike, carry);
+        let discount = if payoff.sign > 0.0 {
+            (context.spot_price(), -dividend * time)
+        } else {
+            (payoff.strike, -rate * time)
+        };
+        european_price(
+            payoff.sign,
+            forward - half_variance,
+            width,
+            discount,
+            self.settings,
+        )
+    }
 }
-vanilla_pricing!(EuropeanOption, false);
-vanilla_pricing!(AmericanOption, true, vanilla);
+
+impl PricingEngine<AmericanOption> for QuadratureVanillaEngine {
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        flat_rates(context).map(|_| ())
+    }
+
+    fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<AmericanOption> + '_>>> {
+        Ok(Some(Box::new(AmericanRequest {
+            settings: self.settings,
+            curves: std::cell::RefCell::new(Vec::new()),
+        })))
+    }
+
+    fn price(&self, option: &AmericanOption, context: &PricingContext) -> Result<f64> {
+        price_american(option, context, self.settings, None)
+    }
+}
+
+struct AmericanRequest {
+    settings: QuadratureVanillaSettings,
+    curves: std::cell::RefCell<Vec<(AmericanCurveKey, AmericanCurve)>>,
+}
+
+impl PricingEngine<AmericanOption> for AmericanRequest {
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        flat_rates(context).map(|_| ())
+    }
+
+    fn price(&self, option: &AmericanOption, context: &PricingContext) -> Result<f64> {
+        price_american(
+            option,
+            context,
+            self.settings,
+            Some(&mut self.curves.borrow_mut()),
+        )
+    }
+}
+
+#[derive(PartialEq)]
+struct AmericanCurveKey {
+    option: AmericanOption,
+    valuation: crate::Timestamp,
+    inputs: [u64; 3],
+}
+
+fn price_american(
+    option: &AmericanOption,
+    context: &PricingContext,
+    settings: QuadratureVanillaSettings,
+    cache: Option<&mut Vec<(AmericanCurveKey, AmericanCurve)>>,
+) -> Result<f64> {
+    let (rate, dividend) = flat_rates(context)?;
+    validate_life(option, context)?;
+    let expiry = option.expiry_time();
+    context.validate_curve_horizon(expiry)?;
+    let payoff = Payoff::vanilla(option.option_type(), option.strike(), true);
+    if crate::engines::deterministic::enabled(context) {
+        return crate::engines::deterministic::vanilla(option, payoff, context);
+    }
+    let spot = context.spot_price();
+    let valuation = context.valuation_time();
+    let time = valuation.years_until(expiry);
+    if time == 0.0 {
+        return checked(payoff.value(spot));
+    }
+    let european = || crate::AnalyticEuropeanEngine.price(option.vanilla(), context);
+    if payoff.sign > 0.0 && rate >= 0.0 && dividend <= 0.0 {
+        return european();
+    }
+    if settings.time_step_count == 1 {
+        return Ok(european()?.max(payoff.value(spot)));
+    }
+    let carry = (rate - dividend) * time;
+    let (width, half_variance) = log_transition(context, time, carry)?;
+    let build = || american_curve(payoff, time, carry - half_variance, width, rate, settings);
+    let price = if let Some(cache) = cache {
+        // The numerical stencils alternate between at most two active scenarios.
+        let key = AmericanCurveKey {
+            option: option.clone(),
+            valuation,
+            inputs: [width, rate, dividend].map(f64::to_bits),
+        };
+        if let Some(index) = cache.iter().position(|(candidate, _)| *candidate == key) {
+            let entry = cache.remove(index);
+            let price = entry.1.price(payoff, spot)?;
+            cache.push(entry);
+            price
+        } else {
+            if cache.len() == 2 {
+                cache.remove(0);
+            }
+            let curve = build()?;
+            let price = curve.price(payoff, spot)?;
+            cache.push((key, curve));
+            price
+        }
+    } else {
+        build()?.price(payoff, spot)?
+    };
+    Ok(price.max(european()?))
+}
+
+fn log_transition(context: &PricingContext, time: f64, carry: f64) -> Result<(f64, f64)> {
+    let width = context.natural_bsm_parameters()?.volatility() * time.sqrt();
+    let half_variance = (0.5 * width) * width;
+    if !(carry - half_variance).is_finite() || !width.is_finite() || width <= 0.0 {
+        return Err(invalid_transition());
+    }
+    Ok((width, half_variance))
+}
 
 fn invalid_transition() -> Error {
     Error::ComputationFailure(
@@ -257,15 +340,35 @@ fn european_price(
     ))
 }
 
-fn american_price(
+struct AmericanCurve {
+    nodes: Vec<f64>,
+    layer: Layer,
+    transition: [f64; 3],
+}
+
+impl AmericanCurve {
+    fn price(&self, payoff: Payoff, spot: f64) -> Result<f64> {
+        let [drift, deviation, discount] = self.transition;
+        let continuation = self.layer.evaluate(
+            &self.nodes,
+            log_ratio(spot, payoff.strike),
+            payoff.strike,
+            drift,
+            deviation,
+            discount,
+        );
+        Ok(checked_with_scale(continuation, spot + payoff.strike)?.max(payoff.value(spot)))
+    }
+}
+
+fn american_curve(
     payoff: Payoff,
-    context: &PricingContext,
     time: f64,
     drift: f64,
     width: f64,
     rate: f64,
     settings: QuadratureVanillaSettings,
-) -> Result<f64> {
+) -> Result<AmericanCurve> {
     let intervals = f64::from(settings.time_step_count);
     let deviation = width / intervals.sqrt();
     let drift_step = drift / intervals;
@@ -326,18 +429,11 @@ fn american_price(
             exact: tails(payoff, &nodes, &values)?,
         };
     }
-    let continuation = layer.evaluate(
-        &nodes,
-        log_ratio(context.spot_price(), payoff.strike),
-        payoff.strike,
-        drift_step,
-        deviation,
-        discount,
-    );
-    Ok(
-        checked_with_scale(continuation, context.spot_price() + payoff.strike)?
-            .max(payoff.value(context.spot_price())),
-    )
+    Ok(AmericanCurve {
+        nodes,
+        layer,
+        transition: [drift_step, deviation, discount],
+    })
 }
 
 fn continuation_curve(interpolation: &CubicInterpolation, values: &[f64]) -> Vec<Polynomial> {
