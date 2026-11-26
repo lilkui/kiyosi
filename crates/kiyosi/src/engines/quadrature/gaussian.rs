@@ -446,7 +446,10 @@ impl CubicInterpolation {
 
 fn active_cells(nodes: &[f64], mean: f64, deviation: f64) -> std::ops::Range<usize> {
     // Beyond 56 deviations the Gaussian tail is below the -1500 cutoff.
-    let radius = 56.0 * deviation;
+    cells_within(nodes, mean, 56.0 * deviation)
+}
+
+fn cells_within(nodes: &[f64], mean: f64, radius: f64) -> Range<usize> {
     let first = nodes
         .partition_point(|&x| x <= mean - radius)
         .saturating_sub(1)
@@ -578,7 +581,7 @@ impl TransitionCache {
             .enumerate()
             .try_fold(fft_work, |work, (index, &node)| {
                 crate::cancellation::check()?;
-                let active = active_cells(nodes, node + drift, deviation);
+                let active = planned_cells(nodes, node + drift, deviation, grids.len());
                 Ok(direct_ranges(active, index, grids)
                     .into_iter()
                     .fold(work, |work, range| work.saturating_add(range.len())))
@@ -711,6 +714,7 @@ impl TransitionCache {
                 max_moments,
                 index_bytes != 0,
                 &grids,
+                Rc::clone(&self.tail_work),
             )?;
             for (patch, grid) in grids {
                 let workspace = grid.use_fft(deviation).then(|| {
@@ -744,10 +748,18 @@ fn covers_grid(grids: &[(Range<usize>, Arc<ConvolutionGrid>)], nodes: usize) -> 
     matches!(grids, [(patch, _)] if *patch == (0..nodes))
 }
 
-fn direct_ranges(
+fn planned_cells(nodes: &[f64], mean: f64, deviation: f64, patches: usize) -> Range<usize> {
+    if patches > 1 {
+        cells_within(nodes, mean, 10.0 * deviation)
+    } else {
+        active_cells(nodes, mean, deviation)
+    }
+}
+
+fn direct_ranges<T>(
     active: Range<usize>,
     node: usize,
-    grids: &[(Range<usize>, Arc<ConvolutionGrid>)],
+    grids: &[(Range<usize>, T)],
 ) -> [Range<usize>; 2] {
     if let Some((patch, _)) = grids.iter().find(|(patch, _)| patch.contains(&node)) {
         [
@@ -767,6 +779,7 @@ pub(super) struct Transition {
     drift: f64,
     deviation: f64,
     convolutions: Vec<(Range<usize>, GaussianConvolution)>,
+    tail_work: Rc<Counter<usize>>,
 }
 impl Transition {
     fn storage_bytes(&self) -> usize {
@@ -799,7 +812,8 @@ impl Transition {
         let mut bytes = 0;
         for (index, &node) in nodes.iter().enumerate() {
             crate::cancellation::check()?;
-            let cells = direct_ranges(active_cells(nodes, node + drift, deviation), index, grids)
+            let active = planned_cells(nodes, node + drift, deviation, grids.len());
+            let cells = direct_ranges(active, index, grids)
                 .iter()
                 .map(ExactSizeIterator::len)
                 .sum::<usize>();
@@ -818,6 +832,7 @@ impl Transition {
         max_moments: usize,
         cache_indices: bool,
         grids: &[(Range<usize>, Arc<ConvolutionGrid>)],
+        tail_work: Rc<Counter<usize>>,
     ) -> Result<Self> {
         let mut moments = Vec::new();
         let mut geometries = HashMap::new();
@@ -833,7 +848,8 @@ impl Transition {
         for (index, &node) in nodes.iter().take(row_count).enumerate() {
             crate::cancellation::check()?;
             let mean = node + drift;
-            let ranges = direct_ranges(active_cells(nodes, mean, deviation), index, grids);
+            let active = planned_cells(nodes, mean, deviation, grids.len());
+            let ranges = direct_ranges(active, index, grids);
             let cells = ranges.iter().cloned().flatten();
             let mut indices = Vec::new();
             if cache_indices {
@@ -868,6 +884,7 @@ impl Transition {
             drift,
             deviation,
             convolutions: Vec::new(),
+            tail_work,
         })
     }
     pub fn integrate(
@@ -889,7 +906,26 @@ impl Transition {
             )?;
         }
         let factor = discount.exp();
-        for ((value, (ranges, indices)), &node) in values.iter_mut().zip(&self.rows).zip(nodes) {
+        let pruned = self.convolutions.len() > 1;
+        let threshold = if pruned {
+            // A unit-cell cubic is bounded by four times its largest coefficient.
+            // Bound the sum of both tails and leave slack for rounding the edges.
+            let scale = curve
+                .iter()
+                .flatten()
+                .try_fold(0.0_f64, |max, v| v.is_finite().then_some(max.max(v.abs())))
+                .unwrap_or(f64::INFINITY);
+            if scale == 0.0 {
+                values.fill(0.0);
+                return Ok(());
+            }
+            (8.0 * (-49.0_f64).exp() / f64::EPSILON) * scale * factor
+        } else {
+            0.0
+        };
+        for (row, ((value, (ranges, indices)), &node)) in
+            values.iter_mut().zip(&self.rows).zip(nodes).enumerate()
+        {
             crate::cancellation::check()?;
             let mut sum = Sum::default();
             if !self.convolutions.is_empty() {
@@ -916,6 +952,37 @@ impl Transition {
                 } else {
                     scaled_signed_cash(value, discount)
                 });
+            }
+            if pruned && (!threshold.is_normal() || sum.total().abs() < threshold) {
+                let mean = node + self.drift;
+                let full = direct_ranges(
+                    active_cells(nodes, mean, self.deviation),
+                    row,
+                    &self.convolutions,
+                );
+                for (full, near) in full.into_iter().zip(ranges) {
+                    let left = full.start..full.end.min(near.start);
+                    let right = full.start.max(near.end.max(left.end))..full.end;
+                    let work = left.len() + right.len();
+                    self.tail_work.set(
+                        self.tail_work
+                            .get()
+                            .checked_sub(work)
+                            .ok_or_else(excessive_rollback_work)?,
+                    );
+                    for cell in left.chain(right) {
+                        if cell % 1024 == 0 {
+                            crate::cancellation::check()?;
+                        }
+                        let term = cell_moments(nodes[cell], nodes[cell + 1], mean, self.deviation)
+                            .integrate(&curve[cell]);
+                        sum.add(if factor.is_normal() {
+                            term * factor
+                        } else {
+                            scaled_signed_cash(term, discount)
+                        });
+                    }
+                }
             }
             *value = sum.total();
         }
@@ -1422,7 +1489,15 @@ mod tests {
     fn transition_integrates_when_there_is_no_room_to_cache_moments() -> Result<()> {
         let nodes = [-1.0, 0.0, 1.0];
         let curve = [[1.0, 0.0, 0.0, 0.0]; 2];
-        let mut transition = Transition::new(&nodes, 0.25, 0.5, 0, false, &[])?;
+        let mut transition = Transition::new(
+            &nodes,
+            0.25,
+            0.5,
+            0,
+            false,
+            &[],
+            Rc::new(Counter::new(WORK_BUDGET)),
+        )?;
         let mut values = [0.0; 3];
         transition.integrate(&nodes, &curve, -0.05, &mut values)?;
         for (&node, actual) in nodes.iter().zip(values) {
