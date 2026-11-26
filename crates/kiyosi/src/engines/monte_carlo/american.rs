@@ -105,6 +105,7 @@ fn exercise_window<const N: usize>(
     reserved_paths: usize,
     intervals: usize,
     growth_count: usize,
+    extra_bytes: usize,
 ) -> Result<(usize, usize)> {
     let blocks = settings.sample_count().div_ceil(BLOCK_SIZE);
     let sobol = settings.sampling == MonteCarloSampling::Sobol;
@@ -142,6 +143,7 @@ fn exercise_window<const N: usize>(
             )
             .saturating_add(blocks * overhead)
             .saturating_add(sampling)
+            .saturating_add(extra_bytes)
     };
     let minimum_window = intervals.isqrt();
     let minimum_bytes = workspace(minimum_window);
@@ -519,19 +521,51 @@ impl MonteCarloVanillaEngine {
         if N > 1 && !normalized {
             return scalar();
         }
-        let growth_count = if same_growth { 1 } else { N };
-        let growth_index: [usize; N] =
-            std::array::from_fn(|index| if same_growth { 0 } else { index });
         let (anchor, scale) = if normalized {
             (1.0, initial)
         } else {
             (initial[0], [1.0; N])
         };
-        let (window, workspace_bytes) =
-            match exercise_window::<N>(settings, reserved_paths, intervals, growth_count) {
-                Err(Error::InvalidInput(_)) if !same_growth => return scalar(),
-                result => result?,
-            };
+        // At equal volatility, the ratio of two GBM paths depends only on elapsed time.
+        let shared_drift = !same_growth
+            && parameters
+                .iter()
+                .all(|p| p[2].to_bits() == parameters[0][2].to_bits())
+            && growth.iter().zip(scale).all(|(g, spot)| {
+                let adjustment = (g[0] - growth[0][0]) * intervals as f64;
+                adjustment.abs() < 600.0
+                    && (spot * adjustment.exp()).is_normal()
+                    && (spot * (-adjustment).exp()).is_normal()
+            });
+        let shared_growth = same_growth || shared_drift;
+        let growth_count = if shared_growth { 1 } else { N };
+        let growth_index: [usize; N] =
+            std::array::from_fn(|index| if shared_growth { 0 } else { index });
+        let drift_scales: Vec<[f64; N]> = if shared_drift {
+            let mut output = american_workspace(intervals)?;
+            for step in 1..=intervals {
+                if step % 1024 == 0 {
+                    crate::cancellation::check()?;
+                }
+                output.push(std::array::from_fn(|i| {
+                    scale[i] * ((growth[i][0] - growth[0][0]) * step as f64).exp()
+                }));
+            }
+            output
+        } else {
+            Vec::new()
+        };
+        let scales_at = |step| drift_scales.get(step).unwrap_or(&scale);
+        let (window, workspace_bytes) = match exercise_window::<N>(
+            settings,
+            reserved_paths,
+            intervals,
+            growth_count,
+            drift_scales.capacity() * size_of::<[f64; N]>(),
+        ) {
+            Err(Error::InvalidInput(_)) if !same_growth => return scalar(),
+            result => result?,
+        };
         let path_values = reserved_paths * intervals;
         let seed = settings.resolved_seed()?;
         let key = PathKey {
@@ -549,14 +583,14 @@ impl MonteCarloVanillaEngine {
             };
             if let Some(index) = cache
                 .iter()
-                .position(|(previous, _)| same_growth && normalized && *previous == key)
+                .position(|(previous, _)| shared_growth && normalized && *previous == key)
             {
                 let entry = cache.remove(index);
                 let found = Arc::clone(&entry.1);
                 cache.push(entry);
                 return (false, Some(found));
             }
-            let retain = same_growth
+            let retain = shared_growth
                 && normalized
                 && window == intervals
                 && path_values <= MAX_CACHED_PATH_VALUES;
@@ -608,7 +642,9 @@ impl MonteCarloVanillaEngine {
                 spots[spots.len() - path_count * growth_count..]
                     .chunks_exact(growth_count)
                     .map(|spots| {
-                        std::array::from_fn(|i| payoff(spots[growth_index[i]] * scale[i]))
+                        std::array::from_fn(|i| {
+                            payoff(spots[growth_index[i]] * scales_at(intervals - 1)[i])
+                        })
                     }),
             );
             block.spots = spots;
@@ -629,28 +665,30 @@ impl MonteCarloVanillaEngine {
             });
         }
         let strike = option.strike();
-        let apply_exercise =
-            |cash: &mut [f64; N], spots: &[f64], coefficients: &[Option<[f64; 3]>; N]| {
-                for (index, (cash, coefficient)) in cash.iter_mut().zip(coefficients).enumerate() {
-                    let Some([constant, linear, quadratic]) = *coefficient else {
-                        continue;
-                    };
-                    let spot = spots[growth_index[index]] * scale[index];
-                    let intrinsic = payoff(spot);
-                    if intrinsic <= 0.0 {
-                        continue;
-                    }
-                    let x = spot / strike;
-                    let continuation = constant + x * (linear + x * quadratic);
-                    if !continuation.is_finite() {
-                        return Err(unstable());
-                    }
-                    if intrinsic / strike > continuation {
-                        *cash = intrinsic;
-                    }
+        let apply_exercise = |cash: &mut [f64; N],
+                              spots: &[f64],
+                              scales: &[f64; N],
+                              coefficients: &[Option<[f64; 3]>; N]| {
+            for (index, (cash, coefficient)) in cash.iter_mut().zip(coefficients).enumerate() {
+                let Some([constant, linear, quadratic]) = *coefficient else {
+                    continue;
+                };
+                let spot = spots[growth_index[index]] * scales[index];
+                let intrinsic = payoff(spot);
+                if intrinsic <= 0.0 {
+                    continue;
                 }
-                Ok(())
-            };
+                let x = spot / strike;
+                let continuation = constant + x * (linear + x * quadratic);
+                if !continuation.is_finite() {
+                    return Err(unstable());
+                }
+                if intrinsic / strike > continuation {
+                    *cash = intrinsic;
+                }
+            }
+            Ok(())
+        };
         let mut coefficients = [None; N];
         for step in (0..intervals - 1).rev() {
             if step < window_start {
@@ -662,7 +700,7 @@ impl MonteCarloVanillaEngine {
                             .chunks_exact(growth_count)
                             .zip(&mut block.cash)
                         {
-                            apply_exercise(cash, spots, &coefficients)?;
+                            apply_exercise(cash, spots, scales_at(step + 1), &coefficients)?;
                         }
                     }
                     exercise_paths.replay(index, block, window_start)
@@ -688,10 +726,10 @@ impl MonteCarloVanillaEngine {
                     .zip(&mut block.cash)
                 {
                     if decide {
-                        apply_exercise(cash, following, &coefficients)?;
+                        apply_exercise(cash, following, scales_at(step + 1), &coefficients)?;
                     }
                     for (index, (cash, matrix)) in cash.iter_mut().zip(&mut matrices).enumerate() {
-                        let spot = base[growth_index[index]] * scale[index];
+                        let spot = base[growth_index[index]] * scales_at(step)[index];
                         *cash *= discount[index];
                         if !cash.is_finite() {
                             return Err(unstable());
@@ -747,7 +785,7 @@ impl MonteCarloVanillaEngine {
             crate::cancellation::check()?;
             for (spots, mut cash) in block.spots.chunks_exact(growth_count).zip(block.cash) {
                 if decide {
-                    apply_exercise(&mut cash, spots, &coefficients)?;
+                    apply_exercise(&mut cash, spots, scales_at(0), &coefficients)?;
                 }
                 for (mean, value) in means.iter_mut().zip(cash) {
                     mean.add(value, false);
@@ -1051,7 +1089,7 @@ mod tests {
             antithetic: false,
             ..Default::default()
         };
-        let (window, bytes) = exercise_window::<1>(settings, 340_000, 50, 1)?;
+        let (window, bytes) = exercise_window::<1>(settings, 340_000, 50, 1, 0)?;
         assert!(bytes > MAX_CACHED_PATH_VALUES * size_of::<f64>());
         assert_eq!(window, 50);
 
@@ -1059,7 +1097,7 @@ mod tests {
             path_count: 680_000,
             ..settings
         };
-        let (window, bytes) = exercise_window::<1>(settings, 680_000, 50, 1)?;
+        let (window, bytes) = exercise_window::<1>(settings, 680_000, 50, 1, 0)?;
         assert_eq!(window, 25);
         assert!(bytes <= PREFERRED_PATH_WORKSPACE);
         Ok(())

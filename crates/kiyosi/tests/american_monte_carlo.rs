@@ -788,3 +788,48 @@ fn batched_volatility_scenarios_replay_scalar_exercise_paths() -> Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn equal_volatility_rate_stencils_match_scalar_exercise_paths() -> Result<()> {
+    let put = option(OptionType::Put, 100.0);
+    let shift = 0.015_625;
+    let rate = 0.0625;
+    let dividend = 0.03125;
+    let context = |r, q| market(r, q, 0.25, 100.0);
+    for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
+        let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+            sampling: MonteCarloSettings {
+                path_count: 4096,
+                seed: Some(42),
+                sampling,
+                ..Default::default()
+            },
+            step_count: 100,
+        })?;
+        let result = engine.price_with_greeks_with_settings(
+            &put,
+            &context(rate, dividend),
+            GreeksRequest::new([Greek::Rho, Greek::DividendRho]),
+            NumericalShiftSettings {
+                rate_shift: shift,
+                ..Default::default()
+            },
+        )?;
+        for (greek, high, low) in [
+            (
+                Greek::Rho,
+                context(rate + shift, dividend),
+                context(rate - shift, dividend),
+            ),
+            (
+                Greek::DividendRho,
+                context(rate, dividend + shift),
+                context(rate, dividend - shift),
+            ),
+        ] {
+            let expected = (engine.price(&put, &high)? - engine.price(&put, &low)?) / (2.0 * shift);
+            assert!((result.require(greek)? - expected).abs() < 1e-9);
+        }
+    }
+    Ok(())
+}
