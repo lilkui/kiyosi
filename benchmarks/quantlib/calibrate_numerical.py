@@ -8,6 +8,7 @@ import os
 import shlex
 from decimal import Decimal, localcontext
 
+from generate_digitals_asian_references import price as digital_price
 from generate_european_references import normal_cdf
 from generate_european_references import price as vanilla_price
 from run import (
@@ -24,7 +25,13 @@ from run import (
 
 def analytic(inputs, precision):
     """Evaluate binary and down-out reflection formulas independently in Decimal."""
-    if "payoff" not in inputs and "barrier" not in inputs:
+    if "payoff" in inputs:
+        case = {
+            "family": "digital_bsm",
+            "inputs": inputs | {"payout": inputs["payoff"]},
+        }
+        return digital_price(case, precision)
+    if "barrier" not in inputs:
         return vanilla_price(inputs, precision)
     with localcontext() as context:
         context.prec = precision
@@ -38,16 +45,6 @@ def analytic(inputs, precision):
         ).days
         t = Decimal(days) / 365
         width = sigma * t.sqrt()
-        d2 = ((s / k).ln() + (r - q - sigma * sigma / 2) * t) / width
-        if "payoff" in inputs:
-            direction = Decimal(1 if inputs["option"] == "call" else -1)
-            if inputs["payoff"] == "cash":
-                return (
-                    Decimal(str(inputs["cash"]))
-                    * (-r * t).exp()
-                    * normal_cdf(direction * d2)
-                )
-            return s * (-q * t).exp() * normal_cdf(direction * (d2 + width))
         # H < K down-and-out call, zero rebate: vanilla minus reflected knock-in.
         assert inputs["barrier_type"] == "down_out" and inputs["option"] == "call"
         h = Decimal(str(inputs["barrier"]))
