@@ -22,6 +22,7 @@ type IndexedPlan<'a, T> = (usize, PathPlan<'a, T>);
 
 pub(super) struct SparseEvents {
     key: u64,
+    maturity_on_grid: bool,
     events: Vec<(usize, CashEvent)>,
 }
 
@@ -38,6 +39,7 @@ struct DailyGrid<'a> {
     dates: Vec<Timestamp>,
     steps: Arc<Vec<PathStep>>,
     key: u64,
+    maturity_on_grid: bool,
     excursion: f64,
 }
 
@@ -82,7 +84,8 @@ impl<'a> DailyGrids<'a> {
             if dates.is_empty() {
                 return Ok(None);
             }
-            if dates.last() != Some(&expiry) {
+            let maturity_on_grid = dates.last() == Some(&expiry);
+            if !maturity_on_grid {
                 dates.push(expiry);
             }
             if dates.capacity() * size_of::<Timestamp>() + dates.len() * size_of::<PathStep>()
@@ -110,7 +113,13 @@ impl<'a> DailyGrids<'a> {
                 });
                 previous = date;
             }
-            let key = grid_key(&steps, true, false)?.0;
+            let key = if maturity_on_grid {
+                let mut key = DefaultHasher::new();
+                ("daily", clock.micros_since_midnight()).hash(&mut key);
+                key.finish()
+            } else {
+                grid_key(&steps, true, false)?.0
+            };
             if self.0.len() == DAILY_GRID_SLOTS {
                 self.0.remove(0);
             }
@@ -121,6 +130,7 @@ impl<'a> DailyGrids<'a> {
                 dates,
                 steps: Arc::new(steps),
                 key,
+                maturity_on_grid,
                 excursion,
             }
         };
@@ -138,6 +148,7 @@ impl<'a> DailyGrids<'a> {
             steps: Arc::clone(&grid.steps),
             events: SparseEvents {
                 key: grid.key,
+                maturity_on_grid: grid.maturity_on_grid,
                 events: sparse,
             },
             excursion: grid.excursion,
@@ -289,7 +300,7 @@ fn key_and_workspace<T: AutocallableTerms>(
     let bytes = schedule
         + if shared {
             // Buckets and packed events coexist while assembling the schedule.
-            6 * events * size_of::<(usize, Event)>()
+            6 * (events + 1) * size_of::<(usize, SharedAction)>()
                 + size_of::<(f64, usize)>()
                 + if plan.shared_events.is_none() {
                     plan.steps.len() * SHARED_STEP_BYTES
@@ -339,16 +350,22 @@ fn price_groups<T: AutocallableTerms>(
 
 struct Portfolio<'a, 'b, T: AutocallableTerms> {
     notes: &'a [IndexedPlan<'b, T>],
+    base: &'a PathPlan<'b, T>,
     events: Vec<Event>,
     shared: Option<SharedEvents>,
     expiry_discount: f64,
 }
 
 struct SharedEvents {
-    events: Vec<(usize, Event)>,
+    events: Vec<(usize, SharedAction)>,
     intervals: Vec<SharedInterval>,
     daily: Vec<[f64; 2]>,
     barriers: Vec<(f64, usize)>,
+}
+
+enum SharedAction {
+    Cash(Event),
+    Maturity(f64),
 }
 
 struct SharedInterval {
@@ -368,7 +385,18 @@ impl<T: AutocallableTerms> PathPlan<'_, T> {
             return Ok(true);
         }
         if self.steps.len() != other.steps.len() {
-            return Ok(false);
+            let aligned = |plan: &Self| {
+                plan.shared_events
+                    .as_ref()
+                    .is_some_and(|events| events.maturity_on_grid)
+            };
+            if !aligned(self)
+                || !aligned(other)
+                || self.note.calendar() != other.note.calendar()
+                || self.note.observation_clock_time() != other.note.observation_clock_time()
+            {
+                return Ok(false);
+            }
         }
         for (left, right) in self.steps.chunks(1024).zip(other.steps.chunks(1024)) {
             crate::cancellation::check()?;
@@ -384,8 +412,10 @@ impl<T: AutocallableTerms> PathPlan<'_, T> {
 }
 
 impl SharedEvents {
-    fn new<T: AutocallableTerms>(notes: &[IndexedPlan<'_, T>]) -> Result<Self> {
-        let base = &notes[0].1;
+    fn new<T: AutocallableTerms>(
+        notes: &[IndexedPlan<'_, T>],
+        base: &PathPlan<'_, T>,
+    ) -> Result<Self> {
         let steps = &base.steps;
         let mut ends = Vec::with_capacity(steps.len());
         let mut events = Vec::new();
@@ -400,16 +430,24 @@ impl SharedEvents {
             if let Some(sparse) = &note.shared_events {
                 for (i, &(step, event)) in sparse.events.iter().enumerate() {
                     check_path_step(i)?;
-                    buckets[step].push((lane, Event::new(event, steps[step].transition[2])));
+                    buckets[step].push((
+                        lane,
+                        SharedAction::Cash(Event::new(event, steps[step].transition[2])),
+                    ));
                 }
             } else {
                 for (i, (step, bucket)) in note.steps.iter().zip(&mut buckets).enumerate() {
                     check_path_step(i)?;
                     if let Some(event) = step.event {
-                        bucket.push((lane, Event::new(event, step.transition[2])));
+                        bucket.push((
+                            lane,
+                            SharedAction::Cash(Event::new(event, step.transition[2])),
+                        ));
                     }
                 }
             }
+            let maturity = note.steps.len() - 1;
+            buckets[maturity].push((lane, SharedAction::Maturity(steps[maturity].transition[2])));
         }
         for (step, mut bucket) in buckets.into_iter().enumerate() {
             check_path_step(step)?;
@@ -538,10 +576,16 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
             .expect("an active path has an expiry step")
             .transition[2];
         if shared {
+            let base = notes
+                .iter()
+                .map(|(_, plan)| plan)
+                .max_by_key(|plan| plan.steps.len())
+                .expect("the portfolio has a base note");
             return Ok(Self {
                 notes,
+                base,
                 events: Vec::new(),
-                shared: Some(SharedEvents::new(notes)?),
+                shared: Some(SharedEvents::new(notes, base)?),
                 expiry_discount,
             });
         }
@@ -566,6 +610,7 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
         }
         Ok(Self {
             notes,
+            base,
             events,
             shared: None,
             expiry_discount,
@@ -573,7 +618,7 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
     }
 
     fn price(&self, settings: MonteCarloSettings, prices: &mut [f64]) -> Result<()> {
-        let base = &self.notes[0].1;
+        let base = self.base;
         let dimensions = base.steps.len();
         let blocks = PathBlocks::new(settings, dimensions)?;
         let lanes = self.notes.len();
@@ -636,7 +681,7 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
         schedule: &SharedEvents,
     ) -> Result<()> {
         self.reset_states(states)?;
-        let base = &self.notes[0].1;
+        let base = self.base;
         let mut log_return = 0.0;
         let mut minimum = f64::INFINITY;
         let mut first = 0;
@@ -672,10 +717,31 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
             if base.steps[step].observe_knock_in {
                 minimum = minimum.min(log_return);
             }
-            for (event_index, (lane, event)) in schedule.events[first..end].iter().enumerate() {
+            for (event_index, (index, action)) in schedule.events[first..end].iter().enumerate() {
                 check_path_step(event_index)?;
-                let lane = &mut states[*lane];
-                if !lane.terminated && event.pay(lane, log_return)? {
+                let lane = &mut states[*index];
+                if lane.terminated {
+                    continue;
+                }
+                let terminated = match action {
+                    SharedAction::Cash(event) => event.pay(lane, log_return)?,
+                    SharedAction::Maturity(discount) => {
+                        let plan = &self.notes[*index].1;
+                        let floor = if plan.expiry_knock_in {
+                            minimum.min(log_return)
+                        } else {
+                            minimum
+                        };
+                        knock_in(lane, floor);
+                        lane.cash +=
+                            plan.discounted_terminal(log_return, lane.knocked_in, *discount)?;
+                        if !lane.cash.is_finite() {
+                            return Err(unstable());
+                        }
+                        true
+                    }
+                };
+                if terminated {
                     lane.terminated = true;
                     remaining -= 1;
                 }
@@ -686,23 +752,7 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
             first = end;
             first_step = step + 1;
         }
-        for (i, (lane, (_, plan))) in states.iter_mut().zip(self.notes).enumerate() {
-            check_path_step(i)?;
-            if !lane.terminated {
-                let floor = if plan.expiry_knock_in {
-                    minimum.min(log_return)
-                } else {
-                    minimum
-                };
-                knock_in(lane, floor);
-                lane.cash +=
-                    plan.discounted_terminal(log_return, lane.knocked_in, self.expiry_discount)?;
-                if !lane.cash.is_finite() {
-                    return Err(unstable());
-                }
-            }
-        }
-        Ok(())
+        Err(unstable())
     }
 
     fn payoffs(

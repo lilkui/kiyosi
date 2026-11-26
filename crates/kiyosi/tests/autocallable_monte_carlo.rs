@@ -797,3 +797,59 @@ fn shared_daily_grid_prices_staggered_cash_flows() -> Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn shared_daily_grid_settles_notes_at_their_own_maturities() -> Result<()> {
+    let (terms, _, _) =
+        autocallable_support::multi_event_terms(KnockInObservation::EveryTradingDay {
+            observation_clock_time: date(1, 1).time_of_day(),
+        });
+    let long = SnowballOption::new(terms.clone())?;
+    let short = SnowballOption::new(SnowballTerms {
+        expiry_time: date(3, 4),
+        autocall_observations: autocallable_observations(
+            &[date(2, 3), date(3, 4)],
+            &[110.0, 105.0],
+            &[0.08; 2],
+        )?,
+        ..terms
+    })?;
+    let context = market(100.0, date(1, 1));
+    let notes = [&short, &long, &short];
+    let oracle = QuadratureAutocallableEngine::default();
+    let mut settings = MonteCarloSettings {
+        path_count: 16384,
+        seed: Some(42),
+        max_active_workers: 1,
+        antithetic: true,
+        ..Default::default()
+    };
+    let scalar = MonteCarloAutocallableEngine::new(settings)?;
+    for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
+        settings.sampling = sampling;
+        let engine = MonteCarloAutocallableEngine::new(settings)?;
+        let shared = engine.price_many_on_shared_grid(&notes, &context)?;
+        assert_ne!(
+            [shared[1], shared[0]],
+            engine.price_many(&[&long, &short], &context)?[..],
+            "the two maturities share draws"
+        );
+        assert_eq!(shared[0].to_bits(), shared[2].to_bits());
+        let parallel = MonteCarloAutocallableEngine::new(MonteCarloSettings {
+            max_active_workers: 2,
+            ..settings
+        })?;
+        assert_eq!(
+            parallel.price_many_on_shared_grid(&[&long, &short], &context)?,
+            [shared[1], shared[0]],
+        );
+        for (price, note) in shared.into_iter().zip(notes) {
+            let error = scalar
+                .price_with_statistics(note, &context)?
+                .standard_error()
+                .unwrap();
+            assert!((price - oracle.price(note, &context)?).abs() < 5.0 * error);
+        }
+    }
+    Ok(())
+}

@@ -514,3 +514,41 @@ def test_shared_daily_grid_prices_staggered_cash_flows():
     assert engine.price_many([], context, shared_grid=True) == ()
     with pytest.raises(TypeError):
         engine.price_many(notes, context, shared_grid=1)
+
+
+def test_shared_daily_grid_settles_notes_at_their_own_maturities():
+    long = contract(
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
+        knock_in_level=95,
+        autocall_observations=autocallable_observations(
+            [datetime(2025, 2, 3), datetime(2025, 3, 3), END],
+            [110, 108, 105],
+            knock_out_coupon_rates=[0.08] * 3,
+        ),
+    )
+    short_end = datetime(2025, 3, 4)
+    short = long.replace(
+        expiry_time=short_end,
+        autocall_observations=autocallable_observations(
+            [datetime(2025, 2, 3), short_end],
+            [110, 105],
+            knock_out_coupon_rates=[0.08] * 2,
+        ),
+    )
+    notes = (short, long, short)
+    context = market()
+    scalar = MC(path_count=16384, seed=42, antithetic=True, max_active_workers=1)
+    oracle = QuadratureAutocallableEngine()
+    for engine in (scalar, scalar.replace(sampling="sobol")):
+        shared = engine.price_many(notes, context, shared_grid=True)
+        assert (shared[1], shared[0]) != engine.price_many((long, short), context)
+        assert shared[0] == shared[2]
+        assert engine.replace(max_active_workers=2).price_many(
+            (long, short), context, shared_grid=True
+        ) == (shared[1], shared[0])
+        for price, note in zip(shared, notes, strict=True):
+            error = scalar.price_with_statistics(note, context).standard_error
+            assert error is not None
+            assert price == pytest.approx(
+                oracle.price(note, context), abs=5 * error, rel=0
+            )
