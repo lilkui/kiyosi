@@ -49,6 +49,17 @@ def test_portfolio_prices_replay_scalar_paths(sampling):
     assert engine.price_many(iter(notes), context) == tuple(
         engine.price(item, context) for item in notes
     )
+    early = note.replace(
+        autocall_observations=autocallable_observations(
+            [datetime(2025, 2, 3), datetime(2025, 3, 3), END],
+            [85] * 3,
+            knock_out_coupon_rates=[0.08] * 3,
+        )
+    )
+    staggered = (note,) + (early,) * 32
+    assert engine.price_many(staggered, context) == tuple(
+        engine.price(item, context) for item in staggered
+    )
     different_grid = note.replace(knock_in_observation=KnockInObservation.at_expiry())
     interleaved = (variation, different_grid, note) * 13
     expected = tuple(engine.price(item, context) for item in interleaved)

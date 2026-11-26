@@ -104,7 +104,7 @@ fn key_and_workspace<T: AutocallableTerms>(
     let blocks = settings.sample_count().div_ceil(BLOCK_SIZE);
     let bytes = schedule
         + events * size_of::<Event>()
-        + blocks * (size_of::<Moments>() + size_of::<Lane>())
+        + blocks * (size_of::<Moments>() + size_of::<Lane>() + size_of::<usize>())
         + 2 * size_of::<IndexedPlan<'_, T>>();
     Ok((key.finish(), bytes))
 }
@@ -168,7 +168,6 @@ struct Lane {
     cash: f64,
     monitoring: Option<f64>,
     knocked_in: bool,
-    alive: bool,
 }
 
 impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
@@ -213,9 +212,10 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
         let mut blocks_out = partials.chunks_exact_mut(lanes).collect::<Vec<_>>();
         let simulate = |block, moments: &mut [Moments]| {
             let mut states = Vec::with_capacity(lanes);
+            let mut live = Vec::with_capacity(lanes);
             blocks.sample(block, base.bridge.is_some(), |draws, paired| {
                 skipped_sample_pair(draws, dimensions, paired, |path, _| {
-                    self.payoffs(path, &mut states)?;
+                    self.payoffs(path, &mut states, &mut live)?;
                     for (moment, lane) in moments.iter_mut().zip(&states) {
                         moment.add(lane.cash, false);
                     }
@@ -238,22 +238,27 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
         Ok(())
     }
 
-    fn payoffs(&self, normals: &mut SkippingPath<'_, '_>, states: &mut Vec<Lane>) -> Result<()> {
+    fn payoffs(
+        &self,
+        normals: &mut SkippingPath<'_, '_>,
+        states: &mut Vec<Lane>,
+        live: &mut Vec<usize>,
+    ) -> Result<()> {
         states.clear();
+        live.clear();
         for (index, (_, plan)) in self.notes.iter().enumerate() {
             check_path_step(index)?;
             states.push(Lane {
                 cash: plan.state.coupon,
                 monitoring: (!plan.state.knocked_in).then_some(plan.knock_in).flatten(),
                 knocked_in: plan.state.knocked_in,
-                alive: true,
             });
+            live.push(index);
         }
         let base = &self.notes[0].1;
         let mut events = self.events.chunks_exact(states.len());
         let mut log_return = 0.0;
         let mut minimum = f64::INFINITY;
-        let mut living = states.len();
         if let Some(bridge) = &base.bridge {
             let mut start = 0;
             for (index, interval) in bridge.intervals.iter().enumerate() {
@@ -261,9 +266,9 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
                 let target =
                     log_return + interval.diffusion.mul_add(normals.normal(), interval.drift);
                 minimum = f64::INFINITY;
-                if let Some(floor) = states
+                if let Some(floor) = live
                     .iter()
-                    .filter_map(|lane| lane.monitoring)
+                    .filter_map(|&index| states[index].monitoring)
                     .reduce(f64::min)
                 {
                     for i in start..interval.end {
@@ -287,13 +292,13 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
                     minimum = minimum.min(log_return);
                 }
                 if let Some(events) = step.event.and_then(|_| events.next()) {
-                    living -= observe(states, events, log_return, minimum)?;
+                    observe(states, live, events, log_return, minimum)?;
                 } else {
-                    for lane in &mut *states {
-                        knock_in(lane, minimum);
+                    for &index in &*live {
+                        knock_in(&mut states[index], minimum);
                     }
                 }
-                if living == 0 {
+                if live.is_empty() {
                     break;
                 }
             }
@@ -308,25 +313,25 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
                     minimum = minimum.min(log_return);
                 }
                 if let Some(events) = step.event.and_then(|_| events.next()) {
-                    living -= observe(states, events, log_return, f64::INFINITY)?;
-                    if living == 0 {
+                    observe(states, live, events, log_return, f64::INFINITY)?;
+                    if live.is_empty() {
                         break;
                     }
                 }
             }
         }
-        for (index, ((_, plan), lane)) in self.notes.iter().zip(states).enumerate() {
-            check_path_step(index)?;
-            if lane.alive {
-                let floor = if plan.expiry_knock_in {
-                    minimum.min(log_return)
-                } else {
-                    minimum
-                };
-                knock_in(lane, floor);
-                lane.cash +=
-                    plan.discounted_terminal(log_return, lane.knocked_in, self.expiry_discount)?;
-            }
+        for (position, &index) in live.iter().enumerate() {
+            check_path_step(position)?;
+            let plan = &self.notes[index].1;
+            let lane = &mut states[index];
+            let floor = if plan.expiry_knock_in {
+                minimum.min(log_return)
+            } else {
+                minimum
+            };
+            knock_in(lane, floor);
+            lane.cash +=
+                plan.discounted_terminal(log_return, lane.knocked_in, self.expiry_discount)?;
             if !lane.cash.is_finite() {
                 return Err(unstable());
             }
@@ -342,26 +347,34 @@ fn knock_in(lane: &mut Lane, minimum: f64) {
     }
 }
 
-fn observe(states: &mut [Lane], events: &[Event], log_return: f64, minimum: f64) -> Result<usize> {
-    let mut ended = 0;
-    for (index, (lane, event)) in states.iter_mut().zip(events).enumerate() {
-        check_path_step(index)?;
-        if !lane.alive {
-            continue;
-        }
+fn observe(
+    states: &mut [Lane],
+    live: &mut Vec<usize>,
+    events: &[Event],
+    log_return: f64,
+    minimum: f64,
+) -> Result<()> {
+    let mut survivors = 0;
+    for position in 0..live.len() {
+        check_path_step(position)?;
+        let index = live[position];
+        let lane = &mut states[index];
+        let event = &events[index];
         knock_in(lane, minimum);
         let hit = event.knock_out.is_some_and(|level| log_return >= level);
         let due = log_return >= event.coupon_barrier;
         let payment = event.payments[usize::from(hit)][usize::from(due)];
-        if !payment.is_finite() {
+        lane.cash += payment;
+        if !lane.cash.is_finite() {
             return Err(unstable());
         }
-        lane.cash += payment;
-        if hit {
-            lane.alive = false;
-            lane.monitoring = None;
-            ended += 1;
+        if !hit {
+            if survivors != position {
+                live[survivors] = index;
+            }
+            survivors += 1;
         }
     }
-    Ok(ended)
+    live.truncate(survivors);
+    Ok(())
 }

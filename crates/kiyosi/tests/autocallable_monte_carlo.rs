@@ -13,6 +13,14 @@ fn portfolio_prices_replay_scalar_paths() -> Result<()> {
     terms.maturity_coupon_rate = 0.09;
     terms.knock_in_level = 90.0;
     let second = SnowballOption::new(terms.clone())?;
+    let early = SnowballOption::new(SnowballTerms {
+        autocall_observations: autocallable_observations(
+            &[date(2, 3), date(3, 3), date(4, 1)],
+            &[85.0; 3],
+            &[0.08; 3],
+        )?,
+        ..terms.clone()
+    })?;
     terms.knock_in_observation = KnockInObservation::AtExpiry;
     let different_grid = SnowballOption::new(terms)?;
     let context = market(100.0, date(1, 1));
@@ -26,6 +34,9 @@ fn portfolio_prices_replay_scalar_paths() -> Result<()> {
         })?;
         for notes in [
             vec![&first, &second, &first],
+            std::iter::once(&first)
+                .chain(std::iter::repeat_n(&early, 32))
+                .collect(),
             vec![&first, &different_grid, &second],
             (0..41)
                 .map(|index| [&first, &different_grid, &second][index % 3])
