@@ -34,7 +34,7 @@ macro_rules! prepare_seeded_request {
 
 mod accumulator;
 mod american;
-pub(crate) use american::AmericanGreekCache;
+pub(crate) use american::AmericanPathCache;
 mod asian;
 pub use asian::MonteCarloAsianEngine;
 mod autocallable;

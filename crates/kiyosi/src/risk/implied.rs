@@ -104,6 +104,7 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     }
     super::validate_solver_bounds(s.lower_bound, s.upper_bound, s.max_iterations)?;
     engine.validate_solver_seed()?;
+    let _paths = crate::engines::monte_carlo::AmericanPathCache::for_path_sharing(true);
     if let Some(prepared) = engine.prepare_request()? {
         prepared.validate_applicability(context)?;
         prepared.validate_solver_seed()?;

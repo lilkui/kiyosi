@@ -42,14 +42,14 @@ thread_local! {
     static PATH_CACHE: RefCell<Option<PathCache>> = const { RefCell::new(None) };
 }
 
-pub(crate) struct AmericanGreekCache {
+pub(crate) struct AmericanPathCache {
     active: bool,
     previous: Option<PathCache>,
     _thread: PhantomData<*mut ()>,
 }
 
-impl AmericanGreekCache {
-    pub(crate) fn new(request: GreeksRequest) -> Self {
+impl AmericanPathCache {
+    pub(crate) fn for_greeks(request: GreeksRequest) -> Self {
         let spot_bumps = [
             Greek::Delta,
             Greek::Gamma,
@@ -62,7 +62,7 @@ impl AmericanGreekCache {
         Self::for_path_sharing(spot_bumps.into_iter().any(|greek| request.has(greek)))
     }
 
-    fn for_path_sharing(active: bool) -> Self {
+    pub(crate) fn for_path_sharing(active: bool) -> Self {
         let previous = if active {
             PATH_CACHE.with(|cache| cache.replace(Some(Vec::new())))
         } else {
@@ -76,7 +76,7 @@ impl AmericanGreekCache {
     }
 }
 
-impl Drop for AmericanGreekCache {
+impl Drop for AmericanPathCache {
     fn drop(&mut self) {
         if self.active {
             PATH_CACHE.with(|cache| cache.replace(self.previous.take()));
@@ -711,7 +711,7 @@ impl MonteCarloVanillaEngine {
             }
             self.with_resolved_seed()?
         };
-        let _paths = AmericanGreekCache::for_path_sharing(strikes.len() > 4);
+        let _paths = AmericanPathCache::for_path_sharing(strikes.len() > 4);
         let _sobol = sobol::RequestCache::new();
         let mut remaining = strikes;
         while let Some(&strike) = remaining.first() {
@@ -1420,7 +1420,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
         let _sampling = super::RequestCache::new();
-        let _growth = AmericanGreekCache::new(request);
+        let _growth = AmericanPathCache::for_greeks(request);
         context.natural_bsm_parameters()?;
         <Self as PricingEngine<AmericanOption>>::validate_applicability(self, context)?;
         settings.validate()?;

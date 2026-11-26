@@ -169,7 +169,7 @@ pub fn numerical_greeks<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     settings: NumericalShiftSettings,
 ) -> Result<PricingResult> {
     let _sampling = crate::engines::monte_carlo::RequestCache::new();
-    let _growth = crate::engines::monte_carlo::AmericanGreekCache::new(request);
+    let _growth = crate::engines::monte_carlo::AmericanPathCache::for_greeks(request);
     context.bsm_parameters()?;
     engine.validate_applicability(context)?;
     settings.validate()?;
