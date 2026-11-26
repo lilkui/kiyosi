@@ -566,7 +566,7 @@ fn prepare_batch(
     let strikes_count = additional_strikes.len() as u64 + 1;
     let batch_bytes = if adjoint {
         // Terminal weights, hinge terms and their cumulative sums.
-        assets * 80 + strikes_count * 16
+        assets * 80 + strikes_count * 16 + assets * rows * size_of::<f64>() as u64
     } else {
         0
     };
@@ -907,39 +907,66 @@ fn european_strike_weights(
     let mut previous = vec![0.0; length];
     let mut stage = vec![0.0; length];
     weights[valuation_node] = 1.0;
+    let mut mixed = vec![0.0; length];
+    let mut contributions = vec![[0.0; 2]; op.dynamic_rows().div_ceil(ASSET_LANES)];
+    let active = op.dynamic_rows() * nx;
+    let pool = (active >= 64_000 && active.saturating_mul(times.widths.len()) >= 8_000_000)
+        .then(heston_pool)
+        .flatten();
+    let tokens = crate::cancellation::current();
+    let workers = pool.map(|(_, count)| AssetWorkers {
+        count,
+        tokens: tokens.clone(),
+        rows_per_task: op.dynamic_rows().div_ceil(count).max(ASSET_LANES),
+    });
     // Reverse each linear rollback stage, carrying weights from valuation to expiry.
-    for (step, &dt) in times.widths.iter().enumerate() {
-        crate::cancellation::check()?;
-        let a = times.times[step];
-        let middle = a.midpoint(times.times[step + 1]);
-        let var = if variance.is_none() {
-            variance_at(model, middle)
-        } else {
-            0.0
-        };
-        op.prepare(
-            asset,
-            variance,
-            model,
-            [var, risk.rate(middle), dividend.rate(middle), dt / 3.0],
-        )?;
-        let mut edges = op.take_boundary_weights(&mut weights);
-        previous.copy_from_slice(&weights);
-        let inc1 = op.transpose_solve(&mut weights)?;
-        stage.fill(0.0);
-        op.transpose_explicit(&weights, &mut stage, dt / 6.0, dt * 0.5)?;
-        let inc2 = op.transpose_solve(&mut stage)?;
-        for (value, correction) in weights.iter_mut().zip(&stage) {
-            *value += correction;
+    let mut propagate = || {
+        for (step, &dt) in times.widths.iter().enumerate() {
+            crate::cancellation::check()?;
+            let a = times.times[step];
+            let middle = a.midpoint(times.times[step + 1]);
+            let var = if variance.is_none() {
+                variance_at(model, middle)
+            } else {
+                0.0
+            };
+            op.prepare(
+                asset,
+                variance,
+                model,
+                [var, risk.rate(middle), dividend.rate(middle), dt / 3.0],
+            )?;
+            let mut edges = op.take_boundary_weights(&mut weights);
+            previous.copy_from_slice(&weights);
+            let workers = workers.as_ref();
+            let inc1 = op.transpose_solve(&mut weights, &mut contributions, workers)?;
+            stage.fill(0.0);
+            op.transpose_explicit(
+                &weights,
+                &mut stage,
+                &mut mixed,
+                [dt / 6.0, dt * 0.5],
+                workers,
+            )?;
+            let inc2 = op.transpose_solve(&mut stage, &mut contributions, workers)?;
+            for (value, correction) in weights.iter_mut().zip(&stage) {
+                *value += correction;
+            }
+            op.transpose_explicit(&weights, &mut previous, &mut mixed, [dt, dt], workers)?;
+            for (i, column) in [0, nx - 1].into_iter().enumerate() {
+                let increment = inc1[i] + inc2[i];
+                previous[column] -= increment;
+                edges[i] += increment;
+            }
+            edge_weights.push(edges);
+            std::mem::swap(&mut previous, &mut weights);
         }
-        op.transpose_explicit(&weights, &mut previous, dt, dt)?;
-        for (i, column) in [0, nx - 1].into_iter().enumerate() {
-            let increment = inc1[i] + inc2[i];
-            previous[column] -= increment;
-            edges[i] += increment;
-        }
-        edge_weights.push(edges);
-        std::mem::swap(&mut previous, &mut weights);
+        Ok(())
+    };
+    if let Some((pool, _)) = pool {
+        pool.install(|| crate::cancellation::with_tokens(tokens, propagate))?;
+    } else {
+        propagate()?;
     }
     let mut terminal = vec![0.0; nx];
     for row in weights.chunks_exact(nx) {
@@ -1542,48 +1569,46 @@ impl Operator {
         edges
     }
 
-    fn transpose_solve(&self, values: &mut [f64]) -> Result<[f64; 2]> {
-        let nx = self.nx;
+    fn transpose_solve(
+        &self,
+        values: &mut [f64],
+        contributions: &mut [[f64; 2]],
+        workers: Option<&AssetWorkers>,
+    ) -> Result<[f64; 2]> {
         let mut edges = self.take_boundary_weights(values);
-        // U^T and L^T use the existing LU factors in the opposite order.
-        for (j, &[_, diagonal, _]) in self.variance_factors.iter().enumerate() {
-            crate::cancellation::check()?;
-            let upper = if j == 0 {
-                0.0
-            } else {
-                self.variance_factors[j - 1][2]
-            };
-            for i in 1..nx - 1 {
-                let k = j * nx + i;
-                let previous = if j == 0 { 0.0 } else { values[k - nx] };
-                values[k] = (values[k] - upper * previous) / diagonal;
+        self.variance_strips(values, workers, |strip| {
+            transpose_variance_strip(strip, &self.variance_factors)
+        })?;
+        let nx = self.nx;
+        let active = self.dynamic_rows() * nx;
+        values[active..].fill(0.0);
+        let width = ASSET_LANES * nx;
+        let solve = |values: &mut [f64], factors: &[AssetFactor], edges: &mut [[f64; 2]]| {
+            for ((tile, factors), edges) in values
+                .chunks_mut(width)
+                .zip(factors.chunks_exact(nx))
+                .zip(edges)
+            {
+                crate::cancellation::check()?;
+                *edges = transpose_asset_tile(tile, factors);
             }
+            Ok(())
+        };
+        if let Some(workers) = workers {
+            let tiles = workers.rows_per_task.div_ceil(ASSET_LANES);
+            workers.apply(
+                values[..active]
+                    .par_chunks_mut(tiles * width)
+                    .zip(self.asset_factors.par_chunks(tiles * nx))
+                    .zip(contributions.par_chunks_mut(tiles)),
+                |((values, factors), edges)| solve(values, factors, edges),
+            )?;
+        } else {
+            solve(&mut values[..active], &self.asset_factors, contributions)?;
         }
-        for j in (0..self.rows - 1).rev() {
-            let multiplier = self.variance_factors[j + 1][0];
-            for i in 1..nx - 1 {
-                let k = j * nx + i;
-                values[k] -= multiplier * values[k + nx];
-            }
-        }
-        values[self.dynamic_rows() * nx..].fill(0.0);
-        for (j, row) in values
-            .chunks_exact_mut(nx)
-            .take(self.dynamic_rows())
-            .enumerate()
-        {
-            crate::cancellation::check()?;
-            let lane = j % ASSET_LANES;
-            let start = j / ASSET_LANES * nx;
-            let factors = &self.asset_factors[start..start + nx];
-            for i in 1..nx - 1 {
-                row[i] = (row[i] - factors[i - 1][2][lane] * row[i - 1]) / factors[i][1][lane];
-            }
-            for i in (1..nx - 2).rev() {
-                row[i] -= factors[i + 1][0][lane] * row[i + 1];
-            }
-            edges[0] -= factors[1][0][lane] * row[1];
-            edges[1] -= factors[nx - 2][2][lane] * row[nx - 2];
+        for contribution in contributions {
+            edges[0] += contribution[0];
+            edges[1] += contribution[1];
         }
         Ok(edges)
     }
@@ -1592,35 +1617,107 @@ impl Operator {
         &self,
         input: &[f64],
         output: &mut [f64],
-        directional_weight: f64,
-        mixed_weight: f64,
+        mixed: &mut [f64],
+        [directional_weight, mixed_weight]: [f64; 2],
+        workers: Option<&AssetWorkers>,
     ) -> Result<()> {
         let nx = self.nx;
-        for j in 0..self.dynamic_rows() {
-            crate::cancellation::check()?;
-            let [lower, middle, upper] = self.variance[j];
-            for i in 1..nx - 1 {
-                let k = j * nx + i;
-                let weight = input[k] * directional_weight;
-                for (value, coefficient) in output[k - 1..=k + 1].iter_mut().zip(self.asset[k]) {
-                    *value += weight * coefficient;
+        let active = self.dynamic_rows();
+        // The mixed stencil is separable. Gather along the asset axis once
+        // per source row, then gather along variance into owned output rows.
+        let transpose_dx = |first: usize, rows: &mut [f64]| {
+            for (j, dst) in (first..).zip(rows.chunks_exact_mut(nx)) {
+                crate::cancellation::check()?;
+                if j == 0 || j >= active {
+                    dst.fill(0.0);
+                    continue;
                 }
-                output[k] += weight * middle;
-                if j > 0 {
-                    output[k - nx] += weight * lower;
-                    let weight = input[k] * self.mixed[j] * mixed_weight;
-                    for (dx, x) in self.dx[i].iter().zip(i - 1..=i + 1) {
-                        for (dv, v) in self.dv[j].iter().zip(j - 1..=j + 1) {
-                            output[v * nx + x] += weight * dx * dv;
-                        }
-                    }
-                }
-                if self.rows > 1 {
-                    output[k + nx] += weight * upper;
+                let src = &input[j * nx..][..nx];
+                let scale = self.mixed[j] * mixed_weight;
+                dst[0] = (src[1] * scale) * self.dx[1][0];
+                dst[nx - 1] = (src[nx - 2] * scale) * self.dx[nx - 2][2];
+                for ((dst, src), dx) in dst[1..nx - 1]
+                    .iter_mut()
+                    .zip(src.windows(3))
+                    .zip(self.dx.windows(3))
+                {
+                    *dst = (src[0] * scale) * dx[0][2]
+                        + (src[1] * scale) * dx[1][1]
+                        + (src[2] * scale) * dx[2][0];
                 }
             }
+            Ok(())
+        };
+        if let Some(workers) = workers {
+            let chunk = workers.rows_per_task * nx;
+            workers.apply(mixed.par_chunks_mut(chunk).enumerate(), |(i, rows)| {
+                transpose_dx(i * workers.rows_per_task, rows)
+            })?;
+        } else {
+            transpose_dx(0, mixed)?;
         }
-        Ok(())
+        let gather = |first: usize, rows: &mut [f64]| {
+            for (j, dst) in (first..).zip(rows.chunks_exact_mut(nx)) {
+                crate::cancellation::check()?;
+                let low = j.saturating_sub(1);
+                let high = (j + 1).min(self.rows - 1);
+                let offset = j * nx;
+                let here = &input[offset..][..nx];
+                let below = &input[low * nx..][..nx];
+                let above = &input[high * nx..][..nx];
+                let asset = &self.asset[offset..][..nx];
+                let middle = self.variance[j][1];
+                let lower = if j > 0 { self.variance[low][2] } else { 0.0 };
+                let upper = if j + 1 < active {
+                    self.variance[high][0]
+                } else {
+                    0.0
+                };
+                dst[0] += directional_weight * here[1] * asset[1][0];
+                dst[nx - 1] += directional_weight * here[nx - 2] * asset[nx - 2][2];
+                for ((((dst, here), below), above), asset) in dst[1..nx - 1]
+                    .iter_mut()
+                    .zip(here.windows(3))
+                    .zip(&below[1..nx - 1])
+                    .zip(&above[1..nx - 1])
+                    .zip(asset.windows(3))
+                {
+                    let center = here[1] * directional_weight;
+                    *dst += (here[0] * directional_weight) * asset[0][2]
+                        + center * asset[1][1]
+                        + (here[2] * directional_weight) * asset[2][0]
+                        + (below * directional_weight) * lower
+                        + center * middle
+                        + (above * directional_weight) * upper;
+                }
+                if self.rows > 1 {
+                    let previous = &mixed[low * nx..][..nx];
+                    let current = &mixed[offset..][..nx];
+                    let next = &mixed[high * nx..][..nx];
+                    let a = if j > 0 { self.dv[low][2] } else { 0.0 };
+                    let b = self.dv[j][1];
+                    let c = if j + 1 < active {
+                        self.dv[high][0]
+                    } else {
+                        0.0
+                    };
+                    for (((dst, previous), current), next) in
+                        dst.iter_mut().zip(previous).zip(current).zip(next)
+                    {
+                        *dst += a * previous + b * current + c * next;
+                    }
+                }
+            }
+            Ok(())
+        };
+        if let Some(workers) = workers {
+            let chunk = workers.rows_per_task * nx;
+            workers.apply(output.par_chunks_mut(chunk).enumerate(), |(i, rows)| {
+                gather(i * workers.rows_per_task, rows)
+            })
+        } else {
+            gather(0, output)
+        }
     }
 
     fn solve(
@@ -1654,6 +1751,20 @@ impl Operator {
             solve_rows(&mut values[..active], factor_rows)?;
         }
 
+        self.variance_strips(values, workers, |strip| {
+            solve_variance_strip(strip, &self.variance_factors, rows)
+        })?;
+        self.boundaries(values, edges);
+        Ok(())
+    }
+
+    fn variance_strips(
+        &self,
+        values: &mut [f64],
+        workers: Option<&AssetWorkers>,
+        solve: impl Fn(&mut [&mut [f64]]) -> Result<()> + Sync,
+    ) -> Result<()> {
+        let nx = self.nx;
         // Each strip owns a cache-sized group of complete variance lines.
         let interior = nx - 2;
         let columns = workers.map_or(interior, |workers| {
@@ -1667,17 +1778,73 @@ impl Operator {
                 strip.push(values);
             }
         }
-        let solve = |strip: &mut Vec<_>| solve_variance_strip(strip, &self.variance_factors, rows);
         if let Some(workers) = workers {
-            workers.apply(strips.par_iter_mut(), solve)?;
+            workers.apply(strips.par_iter_mut(), |strip| solve(strip))
         } else {
-            for strip in &mut strips {
-                solve(strip)?;
-            }
+            strips.iter_mut().try_for_each(|strip| solve(strip))
         }
-        self.boundaries(values, edges);
-        Ok(())
     }
+}
+
+fn transpose_asset_tile(tile: &mut [f64], factors: &[AssetFactor]) -> [f64; 2] {
+    let nx = factors.len();
+    let mut rows = tile.chunks_exact_mut(nx);
+    let mut rows: [&mut [f64]; ASSET_LANES] =
+        std::array::from_fn(|_| rows.next().unwrap_or(&mut []));
+    let lanes = rows.iter().take_while(|row| !row.is_empty()).count();
+    let mut previous = [0.0; ASSET_LANES];
+    for i in 1..nx - 1 {
+        let mut rhs = [0.0; ASSET_LANES];
+        for (value, row) in rhs.iter_mut().zip(&rows[..lanes]) {
+            *value = row[i];
+        }
+        previous = std::array::from_fn(|lane| {
+            (rhs[lane] - factors[i - 1][2][lane] * previous[lane]) / factors[i][1][lane]
+        });
+        for (row, value) in rows[..lanes].iter_mut().zip(previous) {
+            row[i] = value;
+        }
+    }
+    let mut next = previous;
+    for i in (1..nx - 2).rev() {
+        let mut rhs = [0.0; ASSET_LANES];
+        for (value, row) in rhs.iter_mut().zip(&rows[..lanes]) {
+            *value = row[i];
+        }
+        next = std::array::from_fn(|lane| rhs[lane] - factors[i + 1][0][lane] * next[lane]);
+        for (row, value) in rows[..lanes].iter_mut().zip(next) {
+            row[i] = value;
+        }
+    }
+    let mut edges = [0.0; 2];
+    for (lane, row) in rows[..lanes].iter().enumerate() {
+        edges[0] -= factors[1][0][lane] * row[1];
+        edges[1] -= factors[nx - 2][2][lane] * row[nx - 2];
+    }
+    edges
+}
+
+fn transpose_variance_strip(strip: &mut [&mut [f64]], factors: &[[f64; 3]]) -> Result<()> {
+    for value in &mut *strip[0] {
+        *value /= factors[0][1];
+    }
+    for j in 1..strip.len() {
+        crate::cancellation::check()?;
+        let (before, after) = strip.split_at_mut(j);
+        let upper = factors[j - 1][2];
+        let diagonal = factors[j][1];
+        for (value, previous) in after[0].iter_mut().zip(before[j - 1].iter()) {
+            *value = (*value - upper * previous) / diagonal;
+        }
+    }
+    for j in (1..strip.len()).rev() {
+        let (before, after) = strip.split_at_mut(j);
+        let multiplier = factors[j][0];
+        for (value, next) in before[j - 1].iter_mut().zip(after[0].iter()) {
+            *value -= multiplier * next;
+        }
+    }
+    Ok(())
 }
 
 fn solve_asset_tile(tile: &mut [f64], factors: &[AssetFactor], edges: [f64; 2]) -> Result<()> {
@@ -1786,8 +1953,8 @@ mod adjoint_tests {
 
     #[test]
     fn heston_transpose_matches_primal_directional_solve_and_boundaries() -> Result<()> {
-        let asset = SpatialGrid::new(5, [0.25, 4.0], 1.0)?;
-        let variance = [0.0, 0.025, 0.07, 0.2];
+        let asset = SpatialGrid::new(33, [0.25, 4.0], 1.0)?;
+        let variance = [0.0, 0.01, 0.02, 0.035, 0.06, 0.1, 0.15, 0.22, 0.3, 0.4];
         let model = HestonParameters::new(crate::HestonParameterInputs {
             risk_free_rate: 0.04.into(),
             dividend_yield: 0.01.into(),
@@ -1800,17 +1967,22 @@ mod adjoint_tests {
         let mut op = Operator::new(&asset, Some(&variance));
         op.prepare(&asset, Some(&variance), &model, [0.0, 0.04, 0.01, 0.02])?;
         let nx = asset.nodes.len();
-        let input: Vec<_> = (0..24).map(|i| f64::from(i % 5 - 2)).collect();
-        let weights: Vec<_> = (0..24).map(|i| 0.25 * f64::from(i % 7 - 3)).collect();
+        let length = nx * variance.len();
+        let input: Vec<_> = [-2.0, -1.0, 0.0, 1.0, 2.0]
+            .into_iter()
+            .cycle()
+            .take(length)
+            .collect();
+        let weights: Vec<_> = [-0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75]
+            .into_iter()
+            .cycle()
+            .take(length)
+            .collect();
         let dot = |a: &[f64], b: &[f64]| a.iter().zip(b).map(|(a, b)| a * b).sum::<f64>();
         let edges = [0.8, -0.25];
         let mut values = input.clone();
         op.solve(&mut values, edges, None)?;
-        let mut weights_at_input = weights.clone();
-        let edge_weights = op.transpose_solve(&mut weights_at_input)?;
-        let expected = dot(&values, &weights);
-        let actual = dot(&input, &weights_at_input) + dot(&edges, &edge_weights);
-        assert!((actual - expected).abs() < 1e-12);
+        let solve_expected = dot(&values, &weights);
 
         let mut values = vec![0.0; input.len()];
         for (j, row) in values
@@ -1822,9 +1994,36 @@ mod adjoint_tests {
                 row[i] = 0.5 * mixed + (along_asset + along_variance) / 6.0;
             });
         }
-        weights_at_input.fill(0.0);
-        op.transpose_explicit(&weights, &mut weights_at_input, 1.0 / 6.0, 0.5)?;
-        assert!((dot(&values, &weights) - dot(&input, &weights_at_input)).abs() < 1e-12);
+        let explicit_expected = dot(&values, &weights);
+        let transpose = |workers| {
+            let mut weights_at_input = weights.clone();
+            let mut contributions = vec![[0.0; 2]; op.dynamic_rows().div_ceil(ASSET_LANES)];
+            let edge_weights =
+                op.transpose_solve(&mut weights_at_input, &mut contributions, workers)?;
+            let solve_actual = dot(&input, &weights_at_input) + dot(&edges, &edge_weights);
+            assert!((solve_actual - solve_expected).abs() < 1e-11);
+            let mut explicit = vec![0.0; length];
+            op.transpose_explicit(
+                &weights,
+                &mut explicit,
+                &mut vec![0.0; length],
+                [1.0 / 6.0, 0.5],
+                workers,
+            )?;
+            assert!((explicit_expected - dot(&input, &explicit)).abs() < 1e-11);
+            Ok::<_, crate::Error>((weights_at_input, edge_weights, explicit))
+        };
+        let serial = transpose(None)?;
+        let workers = AssetWorkers {
+            count: 2,
+            tokens: Vec::new(),
+            rows_per_task: 5,
+        };
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(2)
+            .build()
+            .map_err(std::io::Error::other)?;
+        assert_eq!(serial, pool.install(|| transpose(Some(&workers)))?);
         Ok(())
     }
 }
