@@ -640,3 +640,51 @@ def test_terminal_digital_portfolios_match_quantlib(
             assert pricing.QuadratureAccumulatorEngine().price(
                 option, context
             ) == pytest.approx(expected, rel=0, abs=1e-9)
+
+
+def test_unmonitored_daily_accumulator_matches_the_conditional_digital_portfolio():
+    option = contract(
+        expiry_time=START + timedelta(days=365),
+        calendar=all_days_calendar(),
+        accumulated_quantity=None,
+        knock_out_settled=None,
+        knock_out_observation_times=[],
+    )
+    context = market(100, valuation=START, volatility=0.25, rate=0.04, dividend=0.01)
+    # The portfolio combines a forward for each daily unit and a cash/asset
+    # digital pair at each future fixing for the additional below-strike units.
+    stock = 100 * math.exp(-0.01)
+    cash = 100 * math.exp(-0.04)
+    expected = 366 * (stock - cash)
+    for day in range(1, 366):
+        time = day / 365
+        deviation = 0.25 * math.sqrt(time)
+        d2 = (0.04 - 0.01 - 0.5 * 0.25**2) * time / deviation
+        expected += (
+            stock * math.erfc((d2 + deviation) / math.sqrt(2))
+            - cash * math.erfc(d2 / math.sqrt(2))
+        ) / 2
+    for steps in (4, 1024):
+        engine = pricing.QuadratureAccumulatorEngine(asset_step_count=steps)
+        assert engine.price(option, context) == pytest.approx(
+            expected, abs=1e-10, rel=0
+        )
+
+
+def test_unmonitored_accumulator_combines_quantity_and_discount_before_exponentiating():
+    daily = 1e307
+    option = contract(
+        strike=90,
+        daily_quantity=daily,
+        acceleration_factor=1,
+        expiry_time=START + timedelta(days=365),
+        calendar=all_days_calendar(),
+        accumulated_quantity=None,
+        knock_out_settled=None,
+        knock_out_observation_times=[],
+    )
+    context = market(100, valuation=START, volatility=0.25, rate=1000, dividend=1000)
+    reference = 366 * 10 * math.exp(math.log(daily) - 1000)
+    assert pricing.QuadratureAccumulatorEngine().price(
+        option, context
+    ) == pytest.approx(reference, rel=1e-10, abs=0)

@@ -3,7 +3,7 @@ use super::gaussian::{
     integration_nodes,
 };
 use super::{QuadratureSettings, flat_rates};
-use crate::numerics::{finite_price, log_ratio, scaled_signed_cash};
+use crate::numerics::{Sum, finite_price, log_ratio, scaled_signed_cash};
 use crate::{
     Accumulator, BlackScholesMertonParameters, Error, OptionType, PricingContext, PricingEngine,
     Result, Timestamp,
@@ -145,6 +145,13 @@ fn price(
     let horizon = context.valuation_time().years_until(option.expiry_time());
     let strike = option.strike();
     let current = log_ratio(context.spot_price(), strike);
+    if option.knock_out_observation_times().is_some_and(|dates| {
+        dates
+            .last()
+            .is_none_or(|&last| last <= context.valuation_time())
+    }) {
+        return expiry_settlement(option, context, quantity, [rate, dividend]);
+    }
     let evaluate = |nodes: &[f64], layers: &[Layer; 2], drift, deviation, discount| {
         let value =
             |layer: &Layer| layer.evaluate(nodes, current, strike, drift, deviation, discount);
@@ -386,4 +393,88 @@ fn price(
     Err(Error::ComputationFailure(
         "quadrature has no future observation".into(),
     ))
+}
+
+// Conditional on each fixing, the expected expiry spot is a fixed multiple of
+// that fixing's spot. Quantities therefore contribute separate digital moments.
+fn expiry_settlement(
+    option: &Accumulator,
+    context: &PricingContext,
+    quantity: f64,
+    [rate, dividend]: [f64; 2],
+) -> Result<f64> {
+    let valuation = context.valuation_time();
+    let expiry = option.expiry_time();
+    let strike = option.strike();
+    let current = log_ratio(context.spot_price(), strike);
+    let sigma = context.natural_bsm_parameters()?.volatility();
+    let carry = rate - dividend;
+    let horizon = valuation.years_until(expiry);
+    let discount = -rate * horizon;
+    let sign = if option.option_type() == OptionType::Call {
+        1.0
+    } else {
+        -1.0
+    };
+    let leg = |lower, upper| TerminalPiece {
+        lower,
+        upper,
+        cash: -sign * strike,
+        asset: sign,
+    };
+    let integrate = |piece, fixing: f64, remaining: f64, log_quantity| {
+        let deviation = sigma * fixing.sqrt();
+        integrate_terminal(
+            &[piece],
+            current,
+            strike,
+            carry.mul_add(remaining, (carry - 0.5 * sigma * sigma) * fixing),
+            deviation,
+            discount + log_quantity,
+        )
+    };
+    let mut sum = Sum::default();
+    if quantity != 0.0 {
+        sum.add(integrate(
+            leg(f64::NEG_INFINITY, f64::INFINITY),
+            horizon,
+            0.0,
+            quantity.ln(),
+        ));
+    }
+    if option.daily_quantity() != 0.0 {
+        let start = valuation.max(option.effective_time());
+        let fixings = crate::ObservationSchedule::daily_times(
+            start,
+            expiry,
+            option.calendar(),
+            valuation < start,
+            option.observation_clock_time(),
+        )?;
+        let log_lower_quantity = option.purchase(0.0).ln();
+        let log_upper_quantity = option.purchase(f64::INFINITY).ln();
+        for at in fixings {
+            crate::cancellation::check()?;
+            let fixing = valuation.years_until(at);
+            let remaining = at.years_until(expiry);
+            let split = carry * remaining;
+            if log_lower_quantity > f64::NEG_INFINITY {
+                sum.add(integrate(
+                    leg(f64::NEG_INFINITY, split),
+                    fixing,
+                    remaining,
+                    log_lower_quantity,
+                ));
+            }
+            if log_upper_quantity > f64::NEG_INFINITY {
+                sum.add(integrate(
+                    leg(split, f64::INFINITY),
+                    fixing,
+                    remaining,
+                    log_upper_quantity,
+                ));
+            }
+        }
+    }
+    finite_price(sum.total())
 }

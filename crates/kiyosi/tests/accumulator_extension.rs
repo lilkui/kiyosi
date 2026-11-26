@@ -964,3 +964,61 @@ fn current_greek_discontinuities_follow_the_knock_out_schedule() {
         }
     }
 }
+
+#[test]
+fn unmonitored_daily_accumulator_matches_the_conditional_digital_portfolio() -> Result<()> {
+    let start = day(1);
+    let end = start.add_days(365)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.04, 0.01, 0.25)?,
+        100.0,
+        start,
+    )?;
+    let option = Accumulator::new(AccumulatorTerms {
+        knock_out_observation_times: Some(Vec::new()),
+        calendar: TradingCalendar::all_days(),
+        ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, start, end, start.time_of_day())
+    })?;
+    let mut expected = 366.0 * 100.0 * ((-0.01_f64).exp() - (-0.04_f64).exp());
+    for day in 1..=365 {
+        let fixing = start.add_days(day)?;
+        let asset = DigitalOption::asset_or_nothing(OptionType::Put, 100.0, start, fixing)?;
+        let cash = DigitalOption::cash_or_nothing(OptionType::Put, 100.0, 100.0, start, fixing)?;
+        let remaining = fixing.years_until(end);
+        expected += (-0.01 * remaining).exp() * AnalyticDigitalEngine.price(&asset, &context)?
+            - (-0.04 * remaining).exp() * AnalyticDigitalEngine.price(&cash, &context)?;
+    }
+    for steps in [4, 1024] {
+        let engine = QuadratureAccumulatorEngine::new(QuadratureSettings {
+            asset_step_count: steps,
+            ..Default::default()
+        })?;
+        let actual = engine.price(&option, &context)?;
+        assert!(
+            (actual - expected).abs() < 1e-10,
+            "price {actual}, reference {expected}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn unmonitored_accumulator_combines_quantity_and_discount_before_exponentiating() -> Result<()> {
+    let start = day(1);
+    let end = start.add_days(365)?;
+    let daily = 1e307_f64;
+    let option = Accumulator::new(AccumulatorTerms {
+        knock_out_observation_times: Some(Vec::new()),
+        calendar: TradingCalendar::all_days(),
+        ..AccumulatorTerms::new(90.0, 110.0, daily, 1.0, start, end, start.time_of_day())
+    })?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(1000.0, 1000.0, 0.25)?,
+        100.0,
+        start,
+    )?;
+    let reference = 366.0 * 10.0 * (daily.ln() - 1000.0).exp();
+    let actual = QuadratureAccumulatorEngine::default().price(&option, &context)?;
+    assert!((actual / reference - 1.0).abs() < 1e-10);
+    Ok(())
+}
