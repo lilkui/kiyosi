@@ -21,6 +21,7 @@ const BLOCK_SIZE: usize = 256;
 const PATH_CHECK_INTERVAL: usize = 1024;
 const DEFAULT_STEP_COUNT: i32 = 50;
 const SCHEDULED_WORKSPACE_BUDGET: usize = 1 << 30;
+const TERMINAL_PEAK_SCALING_WIDTH: f64 = 25.0;
 
 macro_rules! prepare_seeded_request {
     ($engine:expr, $settings:expr) => {{
@@ -1302,7 +1303,7 @@ struct TerminalPayoff {
 
 impl TerminalPayoff {
     fn needs_peak_scaling(&self) -> bool {
-        self.sign > 0.0 && self.diffusion > 25.0
+        self.sign > 0.0 && self.diffusion > TERMINAL_PEAK_SCALING_WIDTH
     }
 
     fn at_normal(&self, normal: f64) -> Result<f64> {

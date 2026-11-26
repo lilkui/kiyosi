@@ -32,6 +32,17 @@ def contract(direction="put", strike=100):
     )
 
 
+def test_american_strike_batch_caps_combined_exercise_work():
+    put = contract()
+    engine = MonteCarloVanillaEngine(path_count=100_000, step_count=100, seed=42)
+    strikes = tuple(range(50, 152))
+    with pytest.raises(InvalidInputError, match="one billion simulated path steps"):
+        engine.price_american_strikes(put, market(), strikes=strikes)
+    assert len(
+        engine.price_american_strikes(put, market(sigma=0), strikes=strikes)
+    ) == len(strikes)
+
+
 @pytest.mark.parametrize("sampling", ("pseudo_random", "sobol"))
 def test_mixed_american_greeks_replay_individual_stencils(sampling):
     put = contract()

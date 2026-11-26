@@ -1,10 +1,14 @@
-use std::{cell::RefCell, marker::PhantomData, sync::Arc};
+use std::{
+    cell::{Cell, RefCell},
+    marker::PhantomData,
+    sync::Arc,
+};
 
 use super::{
     BLOCK_SIZE, BlockRunner, Error, EuropeanOption, GreeksRequest, Moments, MonteCarloSampling,
     MonteCarloSettings, MonteCarloVanillaEngine, NormalDraws, NumericalShiftSettings, OptionType,
-    Pcg32, PricingContext, PricingEngine, PricingResult, Result, check_path_step, scaled_value,
-    sobol, unstable,
+    Pcg32, PricingContext, PricingEngine, PricingResult, Result, TERMINAL_PEAK_SCALING_WIDTH,
+    check_path_step, scaled_value, sobol, unstable,
 };
 use crate::risk::numerical::symmetric_shift;
 use crate::{
@@ -104,13 +108,31 @@ struct ExerciseBlock<const N: usize, const S: usize = N> {
     regression: [[[f64; 4]; 3]; N],
 }
 
+fn validate_work(work: usize) -> Result<()> {
+    if work > WORK_BUDGET {
+        return Err(Error::InvalidInput(
+            "American Monte Carlo exceeds one billion simulated path steps and exercise updates; reduce path_count or step_count".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn charge_work(budget: Option<&Cell<usize>>, work: usize) -> Result<()> {
+    if let Some(budget) = budget {
+        let total = budget.get().saturating_add(work);
+        validate_work(total)?;
+        budget.set(total);
+    }
+    Ok(())
+}
+
 fn reverse_workspace<const N: usize, const S: usize>(
     settings: MonteCarloSettings,
     reserved_paths: usize,
     samples: usize,
     intervals: usize,
     extra_bytes: usize,
-) -> Result<(usize, usize)> {
+) -> Result<(usize, usize, usize)> {
     let blocks = samples.div_ceil(BLOCK_SIZE);
     let sampler = if settings.sampling == MonteCarloSampling::Sobol {
         sobol::validate_dimensions(intervals)?;
@@ -128,16 +150,11 @@ fn reverse_workspace<const N: usize, const S: usize>(
             "American Monte Carlo workspace exceeds 1 GiB; reduce path_count or step_count".into(),
         ));
     }
-    if samples
+    let work = samples
         .saturating_mul(intervals)
-        .saturating_add(reserved_paths.saturating_mul(N * (intervals - 1)))
-        > WORK_BUDGET
-    {
-        return Err(Error::InvalidInput(
-            "American Monte Carlo exceeds one billion simulated path steps and exercise updates; reduce path_count or step_count".into(),
-        ));
-    }
-    Ok((1, bytes))
+        .saturating_add(reserved_paths.saturating_mul(N * (intervals - 1)));
+    validate_work(work)?;
+    Ok((1, bytes, work))
 }
 
 fn exercise_window<const N: usize, const S: usize>(
@@ -146,7 +163,7 @@ fn exercise_window<const N: usize, const S: usize>(
     stored_paths: usize,
     intervals: usize,
     extra_bytes: usize,
-) -> Result<(usize, usize)> {
+) -> Result<(usize, usize, usize)> {
     let blocks = settings.sample_count().div_ceil(BLOCK_SIZE);
     let sobol = settings.sampling == MonteCarloSampling::Sobol;
     let workers = if sobol {
@@ -227,12 +244,8 @@ fn exercise_window<const N: usize, const S: usize>(
     let work = stored_paths
         .saturating_mul(intervals + replay)
         .saturating_add(reserved_paths.saturating_mul(N * (intervals - 1)));
-    if work > WORK_BUDGET {
-        return Err(Error::InvalidInput(
-            "American Monte Carlo exceeds one billion simulated path steps and exercise updates; reduce path_count or step_count".into(),
-        ));
-    }
-    Ok((window, bytes))
+    validate_work(work)?;
+    Ok((window, bytes, work))
 }
 
 impl<const N: usize, const S: usize> Default for ExerciseBlock<N, S> {
@@ -676,7 +689,9 @@ impl MonteCarloVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Propagates input, market, sampling and cancellation errors.
+    /// Propagates input, market, sampling and cancellation errors. Returns
+    /// [`Error::InvalidInput`] when combined sampling and exercise work exceeds
+    /// one billion updates.
     /// A failed request returns no partial prices.
     ///
     /// # Panics
@@ -721,6 +736,25 @@ impl MonteCarloVanillaEngine {
         context: &PricingContext,
         strikes: &[f64],
     ) -> Result<Vec<f64>> {
+        let time = context.valuation_time().years_until(option.expiry_time());
+        let stochastic = time > 0.0 && !crate::engines::deterministic::enabled(context);
+        if stochastic {
+            let (rate, dividend) = crate::engines::flat_rates(context)?;
+            let work_per_path =
+                if option.option_type() == OptionType::Call && dividend <= 0.0 && rate >= 0.0 {
+                    let sigma = context.natural_bsm_parameters()?.volatility();
+                    1 + usize::from(sigma * time.sqrt() > TERMINAL_PEAK_SCALING_WIDTH)
+                } else {
+                    (self.settings.step_count.unsigned_abs() as usize).saturating_sub(1)
+                };
+            validate_work(
+                strikes
+                    .len()
+                    .saturating_mul(work_per_path)
+                    .saturating_mul(self.settings.sampling.path_count.unsigned_abs() as usize),
+            )?;
+        }
+        let work = Cell::new(0);
         let mut prices = american_workspace(strikes.len())?;
         let _paths = AmericanPathCache::for_path_sharing(strikes.len() > 4);
         let _sobol = sobol::RequestCache::new();
@@ -737,6 +771,7 @@ impl MonteCarloVanillaEngine {
                             *strikes,
                             true,
                             None,
+                            Some(&work),
                         ) {
                             Ok((batch, _)) => {
                                 prices.extend(batch);
@@ -754,11 +789,15 @@ impl MonteCarloVanillaEngine {
                 quote!(2);
             }
             if !quoted {
-                let contract = option.replace(AmericanOptionChanges {
-                    strike: Some(strike),
-                    ..Default::default()
-                })?;
-                prices.push(self.american_price(&contract, context, true)?.0);
+                let ([price], _) = self.american_scenarios::<1, 1>(
+                    option,
+                    [context],
+                    [strike],
+                    true,
+                    None,
+                    Some(&work),
+                )?;
+                prices.push(price);
                 remaining = &remaining[1..];
             }
         }
@@ -901,6 +940,7 @@ impl MonteCarloVanillaEngine {
             [option.strike(); N],
             terminal_only,
             policy,
+            None,
         )
     }
 
@@ -916,6 +956,7 @@ impl MonteCarloVanillaEngine {
         strikes: [f64; N],
         terminal_only: bool,
         mut policy: Option<&mut Vec<[Option<[f64; 3]>; N]>>,
+        batch_work: Option<&Cell<usize>>,
     ) -> Result<([f64; N], Option<u64>)> {
         let context = contexts[0];
         let initial = contexts.map(PricingContext::spot_price);
@@ -931,7 +972,16 @@ impl MonteCarloVanillaEngine {
             let mut prices = [0.0; N];
             let mut seed = None;
             for ((price, context), strike) in prices.iter_mut().zip(contexts).zip(strikes) {
-                (*price, seed) = self.american_price(&contract(strike)?, context, terminal_only)?;
+                let ([value], used_seed) = self.american_scenarios::<1, 1>(
+                    option,
+                    [context],
+                    [strike],
+                    terminal_only,
+                    None,
+                    batch_work,
+                )?;
+                *price = value;
+                seed = used_seed;
             }
             Ok((prices, seed))
         };
@@ -996,6 +1046,12 @@ impl MonteCarloVanillaEngine {
             && dividend <= 0.0
             && rate >= 0.0
         {
+            let passes =
+                1 + usize::from(parameters[0][2] * time.sqrt() > TERMINAL_PEAK_SCALING_WIDTH);
+            charge_work(
+                batch_work,
+                settings.path_count.unsigned_abs() as usize * N * passes,
+            )?;
             let mut prices = immediate;
             let mut seed = None;
             for ((price, context), strike) in prices.iter_mut().zip(contexts).zip(strikes) {
@@ -1136,10 +1192,11 @@ impl MonteCarloVanillaEngine {
                 policy_bytes,
             )
         };
-        let (window, workspace_bytes) = match workspace {
+        let (window, workspace_bytes, work) = match workspace {
             Err(Error::InvalidInput(_)) if !same_growth => return scalar(),
             result => result?,
         };
+        charge_work(batch_work, work)?;
         let seed = settings.resolved_seed()?;
         let key = PathKey {
             seed,
@@ -1700,7 +1757,7 @@ mod tests {
             antithetic: false,
             ..Default::default()
         };
-        let (window, bytes) = exercise_window::<1, 1>(settings, 340_000, 340_000, 50, 0)?;
+        let (window, bytes, _) = exercise_window::<1, 1>(settings, 340_000, 340_000, 50, 0)?;
         assert!(bytes > MAX_CACHED_PATH_VALUES * size_of::<f64>());
         assert_eq!(window, 50);
 
@@ -1708,7 +1765,7 @@ mod tests {
             path_count: 680_000,
             ..settings
         };
-        let (window, bytes) = exercise_window::<1, 1>(settings, 680_000, 680_000, 50, 0)?;
+        let (window, bytes, _) = exercise_window::<1, 1>(settings, 680_000, 680_000, 50, 0)?;
         assert_eq!(window, 25);
         assert!(bytes <= PREFERRED_PATH_WORKSPACE);
         Ok(())
@@ -1722,7 +1779,7 @@ mod tests {
             path_count: paths,
             ..Default::default()
         };
-        let (window, bytes) = exercise_window::<3, 3>(settings, 65_536, 65_536, intervals, 0)?;
+        let (window, bytes, _) = exercise_window::<3, 3>(settings, 65_536, 65_536, intervals, 0)?;
         assert_eq!(window, intervals);
         assert!((100 * 1024 * 1024..110 * 1024 * 1024).contains(&bytes));
         Ok(())

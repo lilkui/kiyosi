@@ -20,6 +20,31 @@ fn market(rate: f64, dividend: f64, volatility: f64, spot: f64) -> PricingContex
 }
 
 #[test]
+fn american_strike_batch_caps_combined_exercise_work() -> Result<()> {
+    let put = option(OptionType::Put, 100.0);
+    let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+        sampling: MonteCarloSettings {
+            path_count: 100_000,
+            seed: Some(42),
+            ..Default::default()
+        },
+        step_count: 100,
+    })?;
+    let strikes: Vec<_> = (50..152).map(f64::from).collect();
+    assert!(matches!(
+        engine.price_american_strikes(&put, &market(0.05, 0.02, 0.2, 100.0), &strikes),
+        Err(Error::InvalidInput(message)) if message.contains("one billion simulated path steps")
+    ));
+    assert_eq!(
+        engine
+            .price_american_strikes(&put, &market(0.05, 0.02, 0.0, 100.0), &strikes)?
+            .len(),
+        strikes.len()
+    );
+    Ok(())
+}
+
+#[test]
 fn mixed_american_greeks_replay_individual_stencils() -> Result<()> {
     let put = option(OptionType::Put, 100.0);
     let snapshot = market(0.05, 0.02, 0.2, 100.0).replace(PricingContextChanges {

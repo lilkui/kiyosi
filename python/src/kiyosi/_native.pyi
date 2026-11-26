@@ -4380,6 +4380,7 @@ class MonteCarloVanillaEngine(
         -----
         The request uses one seed and fits a separate exercise rule for each
         distinct strike. Call with_resolved_seed() first to replay an unseeded engine.
+        Combined sampling and exercise work is capped at one billion updates.
 
         Raises
         ------
