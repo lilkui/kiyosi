@@ -106,15 +106,16 @@ impl FiniteDifferenceVanillaEngine {
             let last = group[count - 1].1;
             if count >= 4 && first < last {
                 let fast = if let Some((model, width)) = strip {
-                    MarketStrip::new(self, option, context, model, [low, spot.max(last)], width)
-                        .and_then(|batch| {
+                    MarketStrip::new(self, option, context, model, [first, last], width).and_then(
+                        |batch| {
                             for &(i, strike) in group {
                                 crate::cancellation::check()?;
                                 let payoff = Payoff::vanilla(option.option_type(), strike, false);
                                 prices[i] = batch.price(payoff, spot)?;
                             }
                             Ok(())
-                        })
+                        },
+                    )
                 } else {
                     self.normalized_strikes(option, context, group, &mut prices)
                 };
@@ -165,17 +166,57 @@ enum StripModel<'a> {
     Local(&'a crate::LocalVolatilitySurface),
 }
 
-struct BoundaryStep {
-    weights: [f64; 2],
+struct BoundaryTerm {
+    spot: f64,
+    weight: f64,
     discount: [f64; 2],
     remaining: f64,
+}
+
+impl BoundaryTerm {
+    fn value(&self, payoff: Payoff, sigma: f64) -> f64 {
+        self.weight
+            * payoff::boundary_value(payoff, self.spot, self.discount, sigma, self.remaining)
+    }
+
+    fn bounded_intrinsic(&self, sigma: f64, range: [f64; 2], budget: f64) -> Option<[f64; 3]> {
+        let [risk, dividend] = self.discount;
+        let cash = risk.exp();
+        let asset = super::scaled(self.spot, dividend);
+        let forward = asset / cash;
+        let weighted = [self.weight * asset, self.weight * cash];
+        if !asset.is_normal()
+            || !cash.is_normal()
+            || !forward.is_normal()
+            || !weighted.iter().all(|x| x.is_finite())
+        {
+            return None;
+        }
+        // Time value is an OTM put below the forward and an OTM call above it.
+        // Both are largest at the strike nearest the forward. Dropping the
+        // subtracted leg bounds the error without subtracting nearly equal terms.
+        let strike = forward.clamp(range[0], range[1]);
+        let moneyness = crate::numerics::log_ratio(self.spot, strike) + (dividend - risk);
+        let (d1, d2) = super::black_scholes_arguments(moneyness, sigma, self.remaining.sqrt());
+        let limit = if d2.is_nan() || d1.is_nan() {
+            return None;
+        } else if strike < forward {
+            super::weighted_cdf(strike, risk, -d2)
+        } else {
+            super::weighted_cdf(self.spot, dividend, d1)
+        };
+        // Leave room for rounding in the forward and bound evaluation.
+        (self.weight.abs() * limit <= budget).then_some([forward, weighted[0], weighted[1]])
+    }
 }
 
 enum Boundary {
     Constant {
         sigma: f64,
-        bounds: [f64; 2],
-        steps: Vec<BoundaryStep>,
+        exact: Vec<BoundaryTerm>,
+        approximated: Vec<BoundaryTerm>,
+        moments: StrikeMoments,
+        error_budget: f64,
     },
     Local {
         terms: Vec<[f64; 3]>,
@@ -197,13 +238,14 @@ impl MarketStrip {
         option: &EuropeanOption,
         context: &PricingContext,
         model: StripModel<'_>,
-        [low, high]: [f64; 2],
+        strikes: [f64; 2],
         width: f64,
     ) -> Result<Self> {
         let expiry = option.expiry_time();
         let valuation = context.valuation_time();
         let time = valuation.years_until(expiry);
         let spot = context.spot_price();
+        let [low, high] = [spot.min(strikes[0]), spot.max(strikes[1])];
         let settings = engine.settings;
         let (risk, dividend) = diffusion::rate_curves(context, expiry, settings)?;
         let domain_width =
@@ -226,18 +268,32 @@ impl MarketStrip {
         let time_grid = diffusion::time_grid(context, expiry, settings, &risk, &dividend, &[])?;
         let steps = time_grid.rollback_steps(settings.scheme, &[])?;
         validate_work(space.count as u64, steps)?;
+        // Constant boundaries retain the exact fallback terms alongside the
+        // prefix sums. Include both growing vectors while building the index.
+        let bytes_per_step = match model {
+            StripModel::Constant(_) => 384,
+            StripModel::Local(_) => 256,
+        };
         validate_workspace(
             settings.scheme,
             2 * (space.count as u64 + 1),
             steps,
-            risk.workspace_bytes() + dividend.workspace_bytes() + 256 * steps,
+            risk.workspace_bytes() + dividend.workspace_bytes() + bytes_per_step * steps,
         )?;
         let mut weights = vec![0.0; space.count + 1];
         let mut previous = weights.clone();
         weights[node] = 1.0;
         let sign = Payoff::vanilla(option.option_type(), option.strike(), false).sign;
         let mut local_terms = Vec::new();
-        let mut constant_steps = Vec::new();
+        let mut exact = Vec::new();
+        let mut approximated = Vec::new();
+        let mut constant_terms = Vec::new();
+        let error_budget = spot * 1e-8;
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "bounded time step count fits exactly"
+        )]
+        let term_budget = 0.25 * error_budget / steps as f64;
         let (mut stepper, offset) = match model {
             StripModel::Constant(_) => (Stepper::new(space.count), 0.0),
             StripModel::Local(surface) => (
@@ -268,11 +324,25 @@ impl MarketStrip {
                             sigma,
                             key,
                         )?;
-                        constant_steps.push(BoundaryStep {
-                            weights,
-                            discount,
-                            remaining: time - current,
-                        });
+                        for (spot, weight) in [lower, upper].into_iter().zip(weights) {
+                            if weight == 0.0 {
+                                continue;
+                            }
+                            let term = BoundaryTerm {
+                                spot,
+                                weight,
+                                discount,
+                                remaining: time - current,
+                            };
+                            if let Some(intrinsic) =
+                                term.bounded_intrinsic(sigma, strikes, term_budget)
+                            {
+                                constant_terms.push(intrinsic);
+                                approximated.push(term);
+                            } else {
+                                exact.push(term);
+                            }
+                        }
                     }
                     StripModel::Local(surface) => {
                         let contribution = stepper.transpose_local(
@@ -311,8 +381,14 @@ impl MarketStrip {
         let boundary = match model {
             StripModel::Constant(sigma) => Boundary::Constant {
                 sigma,
-                bounds: [lower, upper],
-                steps: constant_steps,
+                exact,
+                error_budget: if approximated.is_empty() {
+                    0.0
+                } else {
+                    error_budget
+                },
+                approximated,
+                moments: StrikeMoments::new(constant_terms, sign),
             },
             StripModel::Local(_) => Boundary::Local {
                 moments: StrikeMoments::new(local_terms.clone(), sign),
@@ -330,38 +406,32 @@ impl MarketStrip {
 
     fn price(&self, payoff: Payoff, spot: f64) -> Result<f64> {
         let strike = payoff.strike;
-        let constant_boundary = if let Boundary::Constant {
-            sigma,
-            bounds,
-            steps,
-        } = &self.boundary
-        {
-            let mut value = crate::numerics::Sum::default();
-            let mut scale = 0.0;
-            for (index, step) in steps.iter().enumerate() {
-                if index % 1024 == 0 {
-                    crate::cancellation::check()?;
-                }
-                for (bound, weight) in bounds.iter().zip(step.weights) {
-                    let term = weight
-                        * payoff::boundary_value(
-                            payoff,
-                            *bound,
-                            step.discount,
-                            *sigma,
-                            step.remaining,
-                        );
-                    value.add(term);
+        let mut exact_sum = crate::numerics::Sum::default();
+        let (boundary, error_budget) = match &self.boundary {
+            Boundary::Constant {
+                sigma,
+                exact,
+                moments,
+                error_budget,
+                ..
+            } => {
+                let mut scale = 0.0;
+                for (index, term) in exact.iter().enumerate() {
+                    if index % 1024 == 0 {
+                        crate::cancellation::check()?;
+                    }
+                    let term = term.value(payoff, *sigma);
+                    exact_sum.add(term);
                     scale += term.abs();
                 }
+                (
+                    moments
+                        .at(strike)
+                        .map(|[a, b]| [a + exact_sum.total(), b + scale]),
+                    *error_budget,
+                )
             }
-            Some([value.total(), scale])
-        } else {
-            None
-        };
-        let boundary = match &self.boundary {
-            Boundary::Constant { .. } => constant_boundary,
-            Boundary::Local { moments, .. } => moments.at(strike),
+            Boundary::Local { moments, .. } => (moments.at(strike), 0.0),
         };
         if let Some(([mut value, scale], [edge, edge_scale])) =
             self.terminal.at(strike).zip(boundary)
@@ -375,6 +445,7 @@ impl MarketStrip {
             }
             value += edge;
             if value.is_finite()
+                && (error_budget == 0.0 || value > error_budget)
                 && (scale + edge_scale == 0.0 || value.abs() > 1e-6 * (scale + edge_scale))
             {
                 return payoff::checked_price(payoff, spot, value, self.discount, 0.0);
@@ -398,9 +469,47 @@ impl MarketStrip {
                     value.add(payoff.sign * (-strike).mul_add(cash, asset));
                 }
             }
-        } else if let Some([edge, _]) = constant_boundary {
-            value.add(edge);
+        } else if let Boundary::Constant {
+            sigma,
+            approximated,
+            ..
+        } = &self.boundary
+        {
+            for (index, term) in approximated.iter().enumerate() {
+                if index % 1024 == 0 {
+                    crate::cancellation::check()?;
+                }
+                exact_sum.add(term.value(payoff, *sigma));
+            }
+            value.add(exact_sum.total());
         }
         payoff::checked_price(payoff, spot, value.total(), self.discount, 0.0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn constant_boundary_uses_intrinsic_only_within_its_budget() {
+        let term = BoundaryTerm {
+            spot: 200.0,
+            weight: -0.002,
+            discount: [-0.05, -0.02],
+            remaining: 0.25,
+        };
+        let budget = 1e-8;
+        let intrinsic = term.bounded_intrinsic(0.2, [85.0, 115.0], budget).unwrap();
+        assert!(term.bounded_intrinsic(0.2, [85.0, 220.0], budget).is_none());
+        for direction in [crate::OptionType::Call, crate::OptionType::Put] {
+            for strike in [85.0, 100.0, 115.0] {
+                let payoff = Payoff::vanilla(direction, strike, false);
+                let [value, _] = StrikeMoments::new(vec![intrinsic], payoff.sign)
+                    .at(strike)
+                    .unwrap();
+                assert!((term.value(payoff, 0.2) - value).abs() <= budget);
+            }
+        }
     }
 }
