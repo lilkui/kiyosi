@@ -1,5 +1,6 @@
 use super::{check_path_step, greeks, path_means_lazy, scaled_value, unstable};
 use crate::engines::analytic::barrier::{hit_value, resolved_price};
+use crate::engines::analytic::european::lognormal_price;
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::log_ratio;
 use crate::{
@@ -21,8 +22,9 @@ enum Contract<'a> {
 ///
 /// Continuous monitoring uses one terminal draw and Brownian-bridge survival;
 /// double barriers use an image/spectral survival series. Scheduled monitoring
-/// uses original fixing dates and an unobserved expiry leg
-/// when needed. Future barrier tests preserve log-price movements even when the
+/// uses original fixing dates and an unobserved expiry leg when needed.
+/// On dense scheduled knock-ins, the estimator can integrate the terminal
+/// payoff conditional on the first hit. Future barrier tests preserve log-price movements even when the
 /// simulated spot rounds to the barrier. Sampling, exact path counts and
 /// thread reproducibility follow [`crate::MonteCarloVanillaEngine`]. Shared and distinct
 /// instances support concurrent calls with request-owned samples and shared workers.
@@ -279,6 +281,7 @@ impl MonteCarloBarrierEngine {
         let dimensions = dates.len() + usize::from(extra.is_some());
         let mut previous = time;
         let mut steps = self.settings.scheduled_steps(dimensions)?;
+        let mut width_sum = 0.0;
         for (date, observe) in dates.iter().map(|&date| (date, true)).chain(extra) {
             crate::cancellation::check()?;
             let dt = previous.years_until(date);
@@ -295,6 +298,7 @@ impl MonteCarloBarrierEngine {
                 )
             });
             steps.push((mean, width, -rate * elapsed, observation));
+            width_sum += width;
             previous = date;
         }
         let spot = context.spot_price();
@@ -305,6 +309,12 @@ impl MonteCarloBarrierEngine {
         let knock_in = option.barrier_type().is_knock_in();
         let at_hit = option.rebate_timing() == RebateTiming::AtHit;
         let log_discount = -rate * duration;
+        // Preserve the path overflow checks for inputs whose simulated spots can
+        // leave the ordinary floating-point range. Short schedules use the same draws.
+        let condition_on_hit = knock_in
+            && !continuous
+            && dimensions > 8
+            && spot.ln().abs() + 10.0 * width_sum + (drift * duration).abs() < 600.0;
         let sign = if option.option_type() == OptionType::Call {
             1.0
         } else {
@@ -317,6 +327,7 @@ impl MonteCarloBarrierEngine {
             let mut noise = 0.0;
             let mut touched = false;
             let mut knocked_out = 0.0;
+            let mut conditioned = None;
             let first_normal = normals.normal();
             for (index, &(mean, width, discount, observation)) in steps.iter().enumerate() {
                 let z = if index == 0 {
@@ -341,6 +352,19 @@ impl MonteCarloBarrierEngine {
                     }
                 }) {
                     touched = true;
+                    if condition_on_hit && steps.len() - index > 8 {
+                        let remaining = dates[index].years_until(expiry);
+                        conditioned = Some(lognormal_price(
+                            asset,
+                            option.strike(),
+                            moneyness + noise + half_variance_rate * remaining,
+                            (discount - dividend * remaining, log_discount),
+                            sigma,
+                            remaining.sqrt(),
+                            sign,
+                        )?);
+                        break;
+                    }
                 }
                 if touched && !knock_in {
                     knocked_out = scaled_value(
@@ -362,7 +386,9 @@ impl MonteCarloBarrierEngine {
             let weighted = |amount: f64, log_weight: f64| {
                 scaled_value(amount.abs(), amount.signum(), log_discount + log_weight)
             };
-            let (value, first, second) = if let (true, Some(upper)) = (continuous, upper) {
+            let (value, first, second) = if let Some(value) = conditioned {
+                (value, 0.0, 0.0)
+            } else if let (true, Some(upper)) = (continuous, upper) {
                 let [survival, first, second] = super::double_barrier::survival(
                     -barrier,
                     terminal_barrier + noise,
@@ -483,7 +509,13 @@ impl MonteCarloBarrierEngine {
             }
             Ok([value, d, g])
         };
-        let (means, error, seed) = path_means_lazy(self.settings, steps.len(), statistics, sample)?;
+        let (means, error, seed) = path_means_lazy(
+            self.settings,
+            steps.len(),
+            statistics,
+            condition_on_hit,
+            sample,
+        )?;
         let mut values = means;
         if continuous && !knock_in && at_hit && option.rebate() != 0.0 {
             let hit = |context: &PricingContext| {

@@ -22,6 +22,38 @@ from support.assertions import assert_rejection
 from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, option
 
 
+@pytest.mark.parametrize(
+    "sampling, antithetic, seed", [("pseudo_random", True, 42), ("sobol", False, 91)]
+)
+def test_dense_scheduled_knock_in_matches_quadrature(sampling, antithetic, seed):
+    contract = option(
+        "down_and_in",
+        "call",
+        barrier_level=99,
+        rebate=2,
+        observation_times=[START + timedelta(days=60 + 18 * i) for i in range(16)],
+    )
+    snapshot = market(rate=0.04)
+    request = ("delta", "gamma")
+    expected = pricing.QuadratureBarrierEngine().price_with_greeks(
+        contract, snapshot, request
+    )
+    engine = pricing.MonteCarloBarrierEngine(
+        path_count=65_536,
+        sampling=sampling,
+        antithetic=antithetic,
+        seed=seed,
+        max_active_workers=1,
+    )
+    actual = engine.price_with_greeks(contract, snapshot, request)
+    parallel = engine.replace(max_active_workers=4)
+    assert actual == parallel.price_with_greeks(contract, snapshot, request)
+    assert actual.price == engine.price(contract, snapshot)
+    assert actual.price == pytest.approx(expected.price, abs=0.12)
+    assert actual.delta == pytest.approx(expected.delta, abs=0.035)
+    assert actual.gamma == pytest.approx(expected.gamma, abs=0.016)
+
+
 def test_scheduled_barrier_checks_path_budget_before_building_steps():
     end = START + timedelta(microseconds=101)
     contract = option(

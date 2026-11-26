@@ -243,7 +243,7 @@ impl MonteCarloAccumulatorEngine {
         }
         let terminal_log_discount = steps.last().ok_or_else(unstable)?.2;
         let ([moments], [pairs], seed) =
-            path_samples_lazy(self.settings, steps.len(), statistics, |normals| {
+            path_samples_lazy(self.settings, steps.len(), statistics, false, |normals| {
                 let mut spot = initial_spot;
                 let mut log_return = 0.0;
                 let mut quantity = quantity;

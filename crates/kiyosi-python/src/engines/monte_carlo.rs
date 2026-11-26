@@ -484,7 +484,8 @@ sampling_settings!(
     ],
     [
         /// Monitoring uses continuous survival or the original
-        /// fixing dates. Near-strike payoffs retain movements even when terminal spot
+        /// fixing dates. Dense scheduled knock-ins can integrate the terminal
+        /// payoff conditional on the first hit. Near-strike payoffs retain movements even when terminal spot
         /// rounds to strike. Only delta and gamma are returned.
         /// Scheduled transition and sampling workspace is capped at 1 GiB per request.
     ]

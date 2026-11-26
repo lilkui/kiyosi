@@ -444,7 +444,7 @@ impl<T: AutocallableTerms> PathPlan<'_, T> {
                 self.bridge_payoffs(bridge, plans, normals)
             });
         }
-        path_samples_lazy(settings, self.steps.len(), statistics, |normals| {
+        path_samples_lazy(settings, self.steps.len(), statistics, false, |normals| {
             if spot_stencil {
                 self.spot_payoffs(plans, normals)
             } else {

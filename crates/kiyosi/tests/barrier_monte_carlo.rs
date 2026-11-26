@@ -25,6 +25,54 @@ fn market(rate: f64) -> PricingContext {
     )
     .unwrap()
 }
+
+#[test]
+fn dense_scheduled_knock_in_matches_quadrature() -> Result<()> {
+    let mut input = terms(BarrierType::DownAndIn, OptionType::Call);
+    input.barrier_level = 99.0;
+    input.rebate = 2.0;
+    input.calendar = TradingCalendar::all_days();
+    input.observation_times = Some(
+        (0..16)
+            .map(|i| input.effective_time.add_days(60 + 18 * i))
+            .collect::<Result<_>>()?,
+    );
+    let option = BarrierOption::new(input)?;
+    let context = market(0.04);
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
+    let expected =
+        QuadratureBarrierEngine::default().price_with_greeks(&option, &context, request)?;
+    for (sampling, antithetic, seed) in [
+        (MonteCarloSampling::PseudoRandom, true, 42),
+        (MonteCarloSampling::Sobol, false, 91),
+    ] {
+        let settings = MonteCarloSettings {
+            path_count: 65_536,
+            seed: Some(seed),
+            max_active_workers: 1,
+            sampling,
+            antithetic,
+        };
+        let engine = MonteCarloBarrierEngine::new(settings)?;
+        let actual = engine.price_with_greeks(&option, &context, request)?;
+        assert_eq!(
+            actual.price().to_bits(),
+            engine.price(&option, &context)?.to_bits()
+        );
+        let parallel = MonteCarloBarrierEngine::new(MonteCarloSettings {
+            max_active_workers: 4,
+            ..settings
+        })?;
+        assert_eq!(
+            actual,
+            parallel.price_with_greeks(&option, &context, request)?
+        );
+        assert!((actual.price() - expected.price()).abs() < 0.12);
+        assert!((actual.require(Greek::Delta)? - expected.require(Greek::Delta)?).abs() < 0.035);
+        assert!((actual.require(Greek::Gamma)? - expected.require(Greek::Gamma)?).abs() < 0.016);
+    }
+    Ok(())
+}
 const KINDS: [BarrierType; 4] = [
     BarrierType::UpAndIn,
     BarrierType::UpAndOut,

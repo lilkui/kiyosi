@@ -4232,7 +4232,8 @@ class MonteCarloBarrierEngine(
     Parallel pricing raises UnsupportedOperationError in a child forked after
     the parent's first parallel request. Use spawn or max_active_workers=1.
     Monitoring uses continuous survival or the original
-    fixing dates. Near-strike payoffs retain movements even when terminal spot
+    fixing dates. Dense scheduled knock-ins can integrate the terminal
+    payoff conditional on the first hit. Near-strike payoffs retain movements even when terminal spot
     rounds to strike. Only delta and gamma are returned.
     Scheduled transition and sampling workspace is capped at 1 GiB per request.
     """

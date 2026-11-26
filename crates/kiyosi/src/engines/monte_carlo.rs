@@ -442,7 +442,7 @@ mod tests {
                             Ok(payoff(&mut || values.next().unwrap()))
                         })?;
                     let (lazy, lazy_pairs, _) =
-                        path_samples_lazy(settings, dimensions, true, |path| {
+                        path_samples_lazy(settings, dimensions, true, false, |path| {
                             Ok(payoff(&mut || path.normal()))
                         })?;
                     for (eager, lazy) in [(&eager[0], &lazy[0]), (&eager_pairs[0], &lazy_pairs[0])]
@@ -1290,12 +1290,13 @@ fn path_means_lazy<const N: usize>(
     settings: MonteCarloSettings,
     dimensions: usize,
     statistics: bool,
+    skip_dimensions: bool,
     payoff: impl Fn(&mut LazyPath<'_, '_>) -> Result<[f64; N]> + Sync,
 ) -> Result<([f64; N], Option<f64>, u64)> {
     path_sample_means(
         settings,
         statistics,
-        path_samples_lazy(settings, dimensions, statistics, payoff)?,
+        path_samples_lazy(settings, dimensions, statistics, skip_dimensions, payoff)?,
     )
 }
 
@@ -1354,6 +1355,7 @@ fn path_samples_lazy<const N: usize>(
     settings: MonteCarloSettings,
     dimensions: usize,
     statistics: bool,
+    skip_dimensions: bool,
     payoff: impl Fn(&mut LazyPath<'_, '_>) -> Result<[f64; N]> + Sync,
 ) -> Result<([Moments; N], [Moments; N], u64)> {
     sample_paths(
@@ -1361,7 +1363,7 @@ fn path_samples_lazy<const N: usize>(
         dimensions,
         statistics,
         if settings.antithetic { dimensions } else { 0 },
-        false,
+        skip_dimensions && !settings.antithetic,
         |draws, normals, paired| {
             let mut path = LazyPath {
                 draws,
