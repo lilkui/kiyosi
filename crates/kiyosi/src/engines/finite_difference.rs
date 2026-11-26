@@ -948,7 +948,9 @@ fn vanilla_time_analysis(
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
 ) -> Result<Option<PricingResult>> {
-    if diffusion::uses_business_time(context)
+    // An explicit time shift retains the scalar repricing contract and its grids.
+    if shifts.time_shift.is_some()
+        || diffusion::uses_business_time(context)
         || settings.scheme == FiniteDifferenceScheme::ExplicitEuler
         || ![Greek::Theta, Greek::Charm, Greek::Color]
             .into_iter()
