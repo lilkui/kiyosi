@@ -3486,10 +3486,11 @@ class FiniteDifferenceHestonVanillaEngine(
 
         Notes
         -----
-        Compatible flat-rate markets with automatic asset bounds share a
-        rollback from the payoff through all requested tenors. Other markets
-        use independent expiry rollbacks. Check convergence at the shortest
-        maturity and across strikes. Cancellation returns no partial result.
+        Compatible flat-rate markets share a rollback through the requested
+        tenors. Fixed bounds use strike tiles, with individual meshes for
+        short tenors. Other markets use independent expiry rollbacks, which
+        can run in parallel. Check convergence across the surface.
+        Cancellation returns no partial result.
         """
 
     def price_european_surface(

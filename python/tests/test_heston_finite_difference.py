@@ -27,13 +27,22 @@ from test_heston import END, START, context, model, option, reference
 
 
 @pytest.mark.parametrize("asset_upper_boundary", [None, 400])
+@pytest.mark.parametrize("dated", [False, True])
 def test_american_surface_matches_scalar_expiries_and_preserves_order(
-    asset_upper_boundary,
+    asset_upper_boundary, dated
 ):
     engine = FiniteDifferenceHestonVanillaEngine(
         asset_upper_boundary=asset_upper_boundary
     )
-    market = context(model())
+    parameters = model()
+    if dated:
+        curve = RateTermStructure(
+            reference_time=START,
+            times=[START + timedelta(days=60), END],
+            factors=[0.99, 0.95],
+        )
+        parameters = model(risk_free_rate=curve)
+    market = context(parameters)
     put = AmericanOption(
         option_type="put", strike=100, effective_time=START, expiry_time=END
     )
@@ -48,11 +57,28 @@ def test_american_surface_matches_scalar_expiries_and_preserves_order(
         expected = engine.price_strikes(
             put.replace(expiry_time=expiry), market, strikes=strikes
         )
-        if asset_upper_boundary is None:
-            assert row == pytest.approx(expected, rel=0, abs=0.003)
-        else:
+        if dated:
             assert row == expected
+        else:
+            assert row == pytest.approx(expected, rel=0, abs=0.003)
         assert row[1] == row[3]
+
+
+def test_fixed_american_surface_uses_an_independent_mesh_for_short_tenors():
+    engine = FiniteDifferenceHestonVanillaEngine(asset_upper_boundary=400)
+    market = context(model())
+    put = AmericanOption(
+        option_type="put", strike=100, effective_time=START, expiry_time=END
+    )
+    short = START + timedelta(days=1)
+    strikes = (90, 95, 100, 105, 110)
+    rows = engine.price_american_surface(
+        put, market, expiries=(short, START + timedelta(days=60), END), strikes=strikes
+    )
+    expected = engine.price_strikes(
+        put.replace(expiry_time=short), market, strikes=strikes
+    )
+    assert rows[0] == expected
 
 
 def test_european_surface_matches_analytic_prices_and_preserves_both_input_orders():

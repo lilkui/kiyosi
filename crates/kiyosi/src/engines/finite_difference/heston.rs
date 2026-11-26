@@ -1054,7 +1054,10 @@ fn rollback_primal<const N: usize>(
     } else {
         cells >= 24_000 && work >= 1_000_000 && rows >= 16
     };
-    let pool = parallel.then(rollback_pool).flatten();
+    let pool = parallel
+        .then(rollback_pool)
+        .flatten()
+        .filter(|(pool, _)| pool.current_thread_index().is_none());
     let tokens = crate::cancellation::current();
     let operator_workers = pool.map(|(_, count)| AssetWorkers {
         count,
@@ -1128,12 +1131,12 @@ fn rollback_primal<const N: usize>(
             if let Some(surface) = &mut exercise_surface {
                 surface.capture(
                     a,
-                    || {
+                    |lane| {
                         let row = &values[valuation_row * nx..][..nx];
-                        asset.spline(row.iter().map(|value| value[0]).collect())
+                        asset.spline(row.iter().map(|value| value[lane]).collect())
                     },
                     asset,
-                    payoffs[0],
+                    payoffs,
                     scale,
                 )?;
             }
