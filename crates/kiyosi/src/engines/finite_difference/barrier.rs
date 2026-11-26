@@ -19,6 +19,7 @@ impl FiniteDifferenceBarrierEngine {
     /// Prior at-hit rebates are already paid; resolved vanilla payoffs use the selected model.
     /// Local volatility supports price, delta and gamma, holding the surface fixed.
     /// Continuous barriers are exact domain edges; scheduled dates are inserted unchanged.
+    /// The configured upper bound is used only when pricing needs a full upper domain.
     /// Continuous single-barrier payoffs and local-volatility knock-in continuations
     /// use cell averaging at the strike.
     /// See [`Self::price`] for an example.
@@ -492,24 +493,35 @@ fn solve_grid<D: Diffusion>(
     let expiry = option.expiry_time();
     let (risk, dividend) = diffusion::rate_curves(context, expiry, settings)?;
     let width = super::diffusion_log_width(context, expiry, &risk, &dividend)?;
-    let upper = settings.asset_upper_boundary.unwrap_or_else(|| {
-        let default = default_upper(option, context);
-        if D::LOCAL {
-            default.max(diffusion_upper(
-                context.spot_price().max(terms.strike()),
-                width,
-            ))
-        } else {
-            default
-        }
-    });
     let scheduled = terms.observation_mode() == ObservationMode::Scheduled;
     let up = terms.barrier_type().is_up();
-    if upper
-        <= context
-            .spot_price()
-            .max(terms.strike())
-            .max(upper_barrier.unwrap_or(terms.barrier_level()))
+    let knock_in = terms.barrier_type().is_knock_in();
+    let local_in = D::LOCAL && knock_in;
+    let fixed_upper = if scheduled {
+        None
+    } else {
+        upper_barrier.or(up.then_some(terms.barrier_level()))
+    };
+    let upper = fixed_upper
+        .filter(|_| !local_in)
+        .or(settings.asset_upper_boundary)
+        .unwrap_or_else(|| {
+            let default = default_upper(option, context);
+            if D::LOCAL {
+                default.max(diffusion_upper(
+                    context.spot_price().max(terms.strike()),
+                    width,
+                ))
+            } else {
+                default
+            }
+        });
+    if (fixed_upper.is_none() || local_in)
+        && upper
+            <= context
+                .spot_price()
+                .max(terms.strike())
+                .max(upper_barrier.unwrap_or(terms.barrier_level()))
     {
         return Err(super::invalid_grid(
             "finite-difference upper bound must exceed spot and contract levels",
@@ -525,11 +537,7 @@ fn solve_grid<D: Diffusion>(
     } else {
         full_lower
     };
-    let grid_upper = if scheduled {
-        upper
-    } else {
-        upper_barrier.unwrap_or(if up { terms.barrier_level() } else { upper })
-    };
+    let grid_upper = fixed_upper.unwrap_or(upper);
     let mut space = SpatialGrid::new(
         settings.asset_step_count,
         [lower, grid_upper],
@@ -577,8 +585,6 @@ fn solve_grid<D: Diffusion>(
         terms.observation_times().unwrap_or(&[]),
     )?;
     let grid = diffusion::time_grid(context, expiry, settings, &risk, &dividend, &observations)?;
-    let knock_in = terms.barrier_type().is_knock_in();
-    let local_in = D::LOCAL && knock_in;
     let implicit_fallback = !scheduled
         && upper_barrier.is_some()
         && settings.scheme == super::FiniteDifferenceScheme::Rannacher;
@@ -1038,7 +1044,7 @@ impl<I: Contract> super::solution::Backend<I> for BarrierState {
 fn prepare_solution<I: Contract + Clone + PartialEq + Send + Sync + 'static>(
     option: &I,
     context: &PricingContext,
-    mut settings: FiniteDifferenceSettings,
+    settings: FiniteDifferenceSettings,
     range: std::ops::RangeInclusive<f64>,
 ) -> Result<super::FiniteDifferenceSolution> {
     local_volatility::validate_model(context)?;
@@ -1099,12 +1105,6 @@ fn prepare_solution<I: Contract + Clone + PartialEq + Send + Sync + 'static>(
         {
             None
         } else {
-            if terms.observation_mode() != ObservationMode::Scheduled
-                && (terms.barrier_type().is_up() || option.upper_barrier().is_some())
-                && !(local && terms.barrier_type().is_knock_in())
-            {
-                settings.asset_upper_boundary = None;
-            }
             let (rolled, carry, _) = continuation_context(&anchor, end)?;
             let rolled = rolled.as_ref();
             Some(diffusion::with_diffusion!(rolled, |diffusion| solve_grid(

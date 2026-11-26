@@ -449,6 +449,7 @@ fn greeks_and_implied_volatility_preserve_inputs_and_error_categories() {
 #[test]
 fn grids_schedules_and_validation_fail_before_mutating_inputs() {
     let mut terms = TouchOptionTerms::new(start(), end(), 120.13, BarrierType::UpAndIn);
+    terms.observation_times = Some(vec![end()]);
     let option = TouchOption::cash(terms.clone(), 10.0).unwrap();
     for settings in [
         FiniteDifferenceSettings {

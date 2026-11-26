@@ -597,7 +597,7 @@ def test_grid_validation_calendar_and_shared_instance_concurrency():
     clipped = pricing.FiniteDifferenceDoubleBarrierEngine(asset_upper_boundary=110)
     assert_rejection(
         InvalidInputError,
-        lambda: clipped.price(contract(), market()),
+        lambda: clipped.price(contract(observation_times=[END]), market()),
     )
     weekend = datetime(2025, 7, 5)
     with pytest.raises(InvalidInputError):

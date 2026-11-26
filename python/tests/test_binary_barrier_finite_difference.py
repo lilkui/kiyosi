@@ -400,7 +400,7 @@ def test_settings_protocols_defaults_and_errors():
         assert_rejection(
             InvalidInputError,
             FiniteDifferenceBinaryBarrierEngine(**fields).price,
-            touch(),
+            touch(observation_times=[END]),
             market(),
         )
     with pytest.raises(InvalidInputError):

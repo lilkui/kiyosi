@@ -1,6 +1,22 @@
 use kiyosi::*;
 
 #[test]
+fn continuous_upper_edge_uses_barrier_for_scalar_and_saved_prices() -> Result<()> {
+    let option = BarrierOption::new(terms(BarrierType::UpAndOut, OptionType::Call))?;
+    let context = market(100.0);
+    let engine = FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings {
+        asset_upper_boundary: Some(110.0),
+        ..Default::default()
+    })?;
+    let expected = FiniteDifferenceBarrierEngine::default().price(&option, &context)?;
+    assert!((engine.price(&option, &context)? - expected).abs() <= 1e-12);
+    let saved = engine.solve(&option, &context, 90.0..=130.0)?;
+    assert!((saved.price(100.0)? - expected).abs() < 1e-4);
+    assert_eq!(saved.price(130.0)?, 0.0);
+    Ok(())
+}
+
+#[test]
 fn scheduled_barrier_rejects_drift_that_overwhelms_grid_diffusion() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = start.add_days(365)?;
@@ -464,8 +480,11 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
             assert_eq!(result.require(greek).unwrap(), 0.0);
         }
     }
+    t.observation_times = Some(vec![t.expiry_time]);
     assert!(matches!(
-        engine.price(&option, &market(100.0)).unwrap_err(),
+        engine
+            .price(&BarrierOption::new(t).unwrap(), &market(100.0))
+            .unwrap_err(),
         Error::InvalidInput(_)
     ));
 }

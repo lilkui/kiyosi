@@ -220,6 +220,14 @@ fn solve_grid<D: Diffusion>(
         )
     };
     let scheduled = option.observation_mode() == ObservationMode::Scheduled;
+    let up = option.barrier_type().is_up();
+    let digital_knock_in = knock_in && contract.digital.is_some();
+    let local_in = D::LOCAL && digital_knock_in;
+    let fixed_upper = if scheduled {
+        None
+    } else {
+        upper_barrier.or(up.then_some(option.barrier_level()))
+    };
     let horizon = if scheduled && at_hit {
         option
             .observation_times()
@@ -235,18 +243,22 @@ fn solve_grid<D: Diffusion>(
     let strike = contract
         .digital
         .map_or(option.barrier_level(), DigitalOption::strike);
-    let upper = settings.asset_upper_boundary.unwrap_or_else(|| {
-        let upper = default_upper(contract, context);
-        if D::LOCAL {
-            upper.max(diffusion_upper(spot.max(strike), width))
-        } else {
-            upper
-        }
-    });
-    if upper
-        <= spot
-            .max(strike)
-            .max(upper_barrier.unwrap_or(option.barrier_level()))
+    let upper = fixed_upper
+        .filter(|_| !local_in)
+        .or(settings.asset_upper_boundary)
+        .unwrap_or_else(|| {
+            let upper = default_upper(contract, context);
+            if D::LOCAL {
+                upper.max(diffusion_upper(spot.max(strike), width))
+            } else {
+                upper
+            }
+        });
+    if (fixed_upper.is_none() || local_in)
+        && upper
+            <= spot
+                .max(strike)
+                .max(upper_barrier.unwrap_or(option.barrier_level()))
     {
         return Err(super::invalid_grid(
             "finite-difference upper bound must exceed spot and contract levels",
@@ -257,17 +269,12 @@ fn solve_grid<D: Diffusion>(
         strike.min(option.barrier_level()),
         (1.5 * width).max(std::f64::consts::LN_2),
     );
-    let up = option.barrier_type().is_up();
     let lower = if !scheduled && (!up || upper_barrier.is_some()) {
         option.barrier_level()
     } else {
         full_lower
     };
-    let grid_upper = if scheduled {
-        upper
-    } else {
-        upper_barrier.unwrap_or(if up { option.barrier_level() } else { upper })
-    };
+    let grid_upper = fixed_upper.unwrap_or(upper);
     let mut space = SpatialGrid::new(
         settings.asset_step_count,
         [lower, grid_upper],
@@ -285,11 +292,10 @@ fn solve_grid<D: Diffusion>(
     let observations =
         diffusion::observation_times(context.valuation_time(), expiry, option.observation_times())?;
     let grid = diffusion::time_grid(context, horizon, settings, &risk, &dividend, &observations)?;
-    let digital_knock_in = knock_in && contract.digital.is_some();
     let implicit_fallback = !scheduled
         && upper_barrier.is_some()
         && settings.scheme == super::FiniteDifferenceScheme::Rannacher;
-    if !(D::LOCAL && digital_knock_in) {
+    if !local_in {
         let mut steps =
             grid.rollback_steps(settings.scheme, &observations)? + u64::from(implicit_fallback);
         if digital_knock_in {
@@ -420,7 +426,7 @@ fn solve_grid<D: Diffusion>(
             observe,
         )
     };
-    let mut values = if D::LOCAL && digital_knock_in {
+    let mut values = if local_in {
         local_digital_knock_in(
             contract,
             settings,
@@ -685,7 +691,7 @@ impl<I: BinaryInstrument> super::solution::Backend<I> for BinaryState {
 fn prepare_solution<I: BinaryInstrument + Clone + PartialEq + Send + Sync + 'static>(
     option: &I,
     context: &PricingContext,
-    mut settings: FiniteDifferenceSettings,
+    settings: FiniteDifferenceSettings,
     range: std::ops::RangeInclusive<f64>,
 ) -> Result<super::FiniteDifferenceSolution> {
     local_volatility::validate_model(context)?;
@@ -735,14 +741,6 @@ fn prepare_solution<I: BinaryInstrument + Clone + PartialEq + Send + Sync + 'sta
         {
             None
         } else {
-            if contract.monitoring.observation_mode() != ObservationMode::Scheduled
-                && (contract.monitoring.barrier_type().is_up() || contract.upper_barrier.is_some())
-                && !(local
-                    && contract.monitoring.barrier_type().is_knock_in()
-                    && contract.digital.is_some())
-            {
-                settings.asset_upper_boundary = None;
-            }
             let (rolled, carry, _) = continuation_context(&anchor, end)?;
             let rolled = rolled.as_ref();
             Some(diffusion::with_diffusion!(rolled, |diffusion| solve_grid(

@@ -150,8 +150,11 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
             assert_eq!(result.require(greek).unwrap(), 0.0);
         }
     }
+    t.observation_times = Some(vec![t.expiry_time]);
     assert!(matches!(
-        engine.price(&option, &market(100.0)).unwrap_err(),
+        engine
+            .price(&DoubleBarrierOption::new(t).unwrap(), &market(100.0))
+            .unwrap_err(),
         Error::InvalidInput(_)
     ));
 }

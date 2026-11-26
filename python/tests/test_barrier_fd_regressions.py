@@ -42,6 +42,35 @@ def test_scheduled_barrier_rejects_drift_that_overwhelms_grid_diffusion():
         engine.solve(option, context, spot_range=(99.9, 100.1))
 
 
+@pytest.mark.parametrize("kind", ("vanilla", "touch"))
+def test_continuous_upper_edge_uses_barrier_for_scalar_and_saved_prices(kind):
+    start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+    terms = {"effective_time": start, "expiry_time": end, "barrier_level": 120}
+    if kind == "vanilla":
+        option = BarrierOption(
+            option_type="call", strike=100, barrier_type="up_and_out", **terms
+        )
+        engine_type = pricing.FiniteDifferenceBarrierEngine
+    else:
+        option = TouchOption(
+            payoff_type="cash", payout=2, barrier_type="up_and_out", **terms
+        )
+        engine_type = pricing.FiniteDifferenceBinaryBarrierEngine
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+        ),
+        spot_price=100,
+        valuation_time=start,
+    )
+    engine = engine_type(asset_upper_boundary=110)
+    scalar = engine.price(option, context)
+    assert scalar == engine_type().price(option, context)
+    saved = engine.solve(option, context, spot_range=(90, 130))
+    assert saved.price(100) == pytest.approx(scalar, rel=0, abs=1e-4)
+    assert saved.price(130) == 0
+
+
 @pytest.mark.parametrize("asset_steps", (799, 800))
 def test_nearby_grid_sizes_resolve_narrow_up_and_out_payoff(asset_steps):
     start, end = datetime(2025, 1, 1), datetime(2025, 1, 31)

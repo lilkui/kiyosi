@@ -1285,7 +1285,7 @@ fn narrow_band_tiny_volatility_and_grid_validation() {
     let mut t = terms(DoubleBarrierType::KnockOut);
     t.lower_barrier = 99.5;
     t.upper_barrier = 100.5;
-    let option = DoubleTouchOption::cash(t, 1.0).unwrap();
+    let option = DoubleTouchOption::cash(t.clone(), 1.0).unwrap();
     let engine = FiniteDifferenceDoubleTouchEngine::new(FiniteDifferenceSettings {
         asset_step_count: 160,
         time_step_count: 800,
@@ -1323,21 +1323,25 @@ fn narrow_band_tiny_volatility_and_grid_validation() {
             Error::InvalidInput(_)
         ));
     }
-    for settings in [
-        FiniteDifferenceSettings {
-            asset_upper_boundary: Some(100.5),
-            ..Default::default()
-        },
-        FiniteDifferenceSettings {
-            scheme: FiniteDifferenceScheme::ExplicitEuler,
-            time_step_count: 1,
-            ..Default::default()
-        },
-    ] {
-        let engine = FiniteDifferenceDoubleTouchEngine::new(settings).unwrap();
-        assert!(matches!(
-            engine.price(&option, &market(100.0)).unwrap_err(),
-            Error::InvalidInput(_)
-        ));
-    }
+    let unstable = FiniteDifferenceDoubleTouchEngine::new(FiniteDifferenceSettings {
+        scheme: FiniteDifferenceScheme::ExplicitEuler,
+        time_step_count: 1,
+        ..Default::default()
+    })
+    .unwrap();
+    assert!(matches!(
+        unstable.price(&option, &market(100.0)),
+        Err(Error::InvalidInput(_))
+    ));
+    let clipped = FiniteDifferenceDoubleTouchEngine::new(FiniteDifferenceSettings {
+        asset_upper_boundary: Some(100.5),
+        ..Default::default()
+    })
+    .unwrap();
+    t.observation_times = Some(vec![t.expiry_time]);
+    let scheduled = DoubleTouchOption::cash(t, 1.0).unwrap();
+    assert!(matches!(
+        clipped.price(&scheduled, &market(100.0)),
+        Err(Error::InvalidInput(_))
+    ));
 }
