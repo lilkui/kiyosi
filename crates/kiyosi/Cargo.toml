@@ -13,6 +13,6 @@ workspace = true
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 libm = "0.2"
-getrandom = { version = "0.3", features = ["std"] }
+getrandom = { version = "0.4.3", features = ["std"] }
 rayon = "1.12"
 rustfft = "6.4.1"

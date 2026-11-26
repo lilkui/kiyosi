@@ -4,7 +4,7 @@ Examples
 --------
 Regenerate the table with the optional lunar-calendar dependency::
 
-    uv run --no-project --with lunar-python==1.4.8 python \
+    uv run --no-project --with lunar-python==1.4.9 python \
         tools/generate_sse_calendar.py --write
 """
 
@@ -64,7 +64,7 @@ def forecast(year):
         from lunar_python import Lunar, Solar
     except ImportError as error:
         raise RuntimeError(
-            "install lunar-python==1.4.8 to regenerate the SSE table"
+            "install lunar-python==1.4.9 to regenerate the SSE table"
         ) from error
 
     spring = dt.date.fromisoformat(Lunar.fromYmd(year, 1, 1).getSolar().toYmd())
