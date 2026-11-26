@@ -397,18 +397,6 @@ fn lockout_history_depends_only_on_eligible_knock_out_observations() {
 }
 
 #[test]
-fn coupon_only_dates_do_not_create_knock_out_greek_discontinuities() {
-    let mut input = terms();
-    input.knock_out_observations.remove(0);
-    let note = PhoenixOption::new(input).unwrap();
-    let context = market(110.0, date(2, 3));
-    let greeks = QuadratureAutocallableEngine::default()
-        .price_with_greeks(&note, &context, GreeksRequest::new([Greek::Delta]))
-        .unwrap();
-    assert!(greeks.require(Greek::Delta).unwrap().is_finite());
-    assert_eq!(note.knock_out_observations().len(), 1);
-}
-#[test]
 fn quoted_coupons_preserve_units_and_reprice_solved_quotes() {
     let engine = QuadratureAutocallableEngine::default();
     let context = PricingContext::new(
@@ -683,6 +671,22 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
     assert!(!result.has(Greek::Theta));
     assert!(result.has(Greek::Vega));
     assert!(result.has(Greek::Rho));
+
+    let coupon_only = note
+        .replace(PhoenixOptionChanges {
+            knock_out_observations: Some(note.knock_out_observations()[1..].to_vec()),
+            ..Default::default()
+        })
+        .unwrap();
+    let result = engine
+        .price_with_greeks(
+            &coupon_only,
+            &market(110.0, date(2, 3)),
+            GreeksRequest::new([Greek::Delta]),
+        )
+        .unwrap();
+    assert!(result.require(Greek::Delta).unwrap().is_finite());
+
     let settled = note
         .replace(PhoenixOptionChanges {
             barrier_state: Some(Some(AutocallableBarrierState::KnockedOut)),

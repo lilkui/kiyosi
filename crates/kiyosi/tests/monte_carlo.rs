@@ -525,7 +525,8 @@ fn sample_block_boundaries_and_shared_instances_are_thread_invariant() {
     fn send_sync<T: Send + Sync>() {}
     send_sync::<MonteCarloVanillaEngine>();
     send_sync::<MonteCarloEstimate>();
-    for paths in [1, 2, 255, 256, 257, 511, 512, 513, 769, 1025, 3073, 4097] {
+    // Exact multiples and single-block cases are covered for every sampling mode below.
+    for paths in [255, 257, 511, 513, 769, 1025, 3073, 4097] {
         for seed in [0, 42, u64::MAX] {
             let engine = MonteCarloVanillaEngine::new(
                 MonteCarloSettings {
@@ -1375,7 +1376,6 @@ fn resolved_seed_engines_preserve_configuration_and_replay() -> Result<()> {
         }};
     }
     check!(MonteCarloDigitalEngine::new(settings)?);
-    check!(MonteCarloBarrierEngine::new(settings)?);
     check!(MonteCarloBarrierEngine::new(settings)?);
     check!(MonteCarloAutocallableEngine::new(settings)?);
     check!(MonteCarloAccumulatorEngine::new(settings)?);

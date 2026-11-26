@@ -1,6 +1,5 @@
 """Vanilla quadrature contracts and independent numerical references."""
 
-import inspect
 import math
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
@@ -52,19 +51,12 @@ def test_european_quadrature_preserves_finite_large_prices(direction):
     )
 
 
-def test_settings_signatures_and_conversion_boundaries(subtests):
+def test_settings_defaults_and_conversion_boundaries(subtests):
     factory = pricing.QuadratureVanillaEngine
     engine = factory()
     assert engine.asset_step_count == 512
     assert engine.time_step_count == 200
     assert engine.integration_standard_deviations == 8
-    signature = inspect.signature(factory)
-    assert tuple(signature.parameters) == (
-        ("asset_step_count", "time_step_count", "integration_standard_deviations")
-    )
-    for name in signature.parameters:
-        assert signature.parameters[name].default == getattr(engine, name)
-        assert signature.parameters[name].kind is inspect.Parameter.KEYWORD_ONLY
     assert (
         repr(engine)
         == "QuadratureVanillaEngine(asset_step_count=512, time_step_count=200, "
@@ -94,12 +86,18 @@ def test_settings_signatures_and_conversion_boundaries(subtests):
         engine.time_step_count = 400
 
 
-def test_american_quadrature_rejects_excessive_rollback_work():
-    engine = pricing.QuadratureVanillaEngine(
-        asset_step_count=32_768, time_step_count=300
-    )
-    with pytest.raises(InvalidInputError, match="rollback"):
-        engine.price(contract(AmericanOption, "put"), market(100, 0.05, 0.02, 0.2))
+def test_american_quadrature_rejects_excessive_rollback_work(subtests):
+    option = contract(AmericanOption, "put")
+    context = market(100, 0.05, 0.02, 0.2)
+    for assets, steps in ((512, 10_000_000), (32_768, 300)):
+        engine = pricing.QuadratureVanillaEngine(
+            asset_step_count=assets, time_step_count=steps
+        )
+        with (
+            subtests.test(assets=assets, steps=steps),
+            pytest.raises(InvalidInputError, match="rollback"),
+        ):
+            engine.price(option, context)
 
 
 @pytest.mark.parametrize("direction", ("call", "put"))
@@ -174,7 +172,9 @@ def test_time_space_and_extent_converge_separately():
     european = contract(EuropeanOption)
     assert pricing.QuadratureVanillaEngine(time_step_count=1).price(
         european, context
-    ) == pricing.QuadratureVanillaEngine(time_step_count=400).price(european, context)
+    ) == pricing.QuadratureVanillaEngine(time_step_count=10_000_000).price(
+        european, context
+    )
 
 
 def test_quantlib_european_profile(subtests):

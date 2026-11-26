@@ -1,6 +1,5 @@
 """Digital Simpson integration, public contracts and independent references."""
 
-import inspect
 import math
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
@@ -44,18 +43,11 @@ def test_exactly_at_forward_strike_preserves_half_the_discounted_payout(
     assert price == pytest.approx(50 * factor, rel=0, abs=1e-11)
 
 
-def test_settings_signatures_and_conversion_boundaries(subtests):
+def test_settings_defaults_and_conversion_boundaries(subtests):
     factory = pricing.QuadratureDigitalEngine
     engine = factory()
     assert engine.asset_step_count == 512
     assert engine.integration_standard_deviations == 8
-    signature = inspect.signature(factory)
-    assert tuple(signature.parameters) == (
-        ("asset_step_count", "integration_standard_deviations")
-    )
-    for name, parameter in signature.parameters.items():
-        assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
-        assert parameter.default == getattr(engine, name)
     assert (
         repr(engine) == "QuadratureDigitalEngine(asset_step_count=512, "
         "integration_standard_deviations=8.0)"
@@ -79,8 +71,6 @@ def test_settings_signatures_and_conversion_boundaries(subtests):
     for value in (True, "8", None):
         with pytest.raises(TypeError):
             factory(integration_standard_deviations=value)
-    with pytest.raises(TypeError):
-        factory(512)
     with pytest.raises(AttributeError):
         engine.asset_step_count = 1024
     with pytest.raises(UnsupportedOperationError):

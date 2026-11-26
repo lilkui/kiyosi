@@ -122,15 +122,18 @@ fn american_quadrature_rejects_excessive_rollback_work() -> Result<()> {
     let (start, end) = dates();
     let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
     let context = market(100.0, 0.05, 0.02, 0.2);
-    let engine = QuadratureVanillaEngine::new(QuadratureVanillaSettings {
-        asset_step_count: 32_768,
-        time_step_count: 300,
-        ..Default::default()
-    })?;
-    assert!(matches!(
-        engine.price(&option, &context),
-        Err(Error::InvalidInput(message)) if message.contains("rollback")
-    ));
+    // Exercise-node visits alone can exceed the budget, or transition cells can put it over.
+    for (asset_step_count, time_step_count) in [(512, 10_000_000), (32_768, 300)] {
+        let engine = QuadratureVanillaEngine::new(QuadratureVanillaSettings {
+            asset_step_count,
+            time_step_count,
+            ..Default::default()
+        })?;
+        assert!(matches!(
+            engine.price(&option, &context),
+            Err(Error::InvalidInput(message)) if message.contains("rollback")
+        ));
+    }
     Ok(())
 }
 

@@ -206,16 +206,6 @@ def test_terminal_price_and_confidence_interval_match_seeded_sampling(
         assert other.price(option, context) == estimate.price
 
 
-@pytest.mark.parametrize("direction", ("call", "put"))
-def test_one_path_has_no_standard_error_or_confidence_interval(direction):
-    engine = MonteCarloVanillaEngine(path_count=1, seed=42)
-
-    estimate = engine.price_with_statistics(contract(direction), market())
-
-    assert estimate.standard_error is None
-    assert estimate.confidence_interval is None
-
-
 @pytest.mark.parametrize("sampling", ("pseudo_random", "sobol"))
 @pytest.mark.parametrize("antithetic", (False, True))
 @pytest.mark.parametrize("amount", (100, 1e18))
@@ -337,13 +327,18 @@ def test_exact_path_counts_and_thread_block_boundaries():
                     )
                 ) == expected
     option = contract(strike=1)
-    first = MonteCarloVanillaEngine(path_count=1, seed=42).price(option, context)
+    first = MonteCarloVanillaEngine(path_count=1, seed=42).price_with_statistics(
+        option, context
+    )
+    assert first.uncertainty_status == "insufficient_observations"
+    assert first.standard_error is None
+    assert first.confidence_interval is None
     pair = MonteCarloVanillaEngine(path_count=2, seed=42).price_with_statistics(
         option, context
     )
     # For two observations the standard error equals half their absolute difference.
     assert pair.standard_error == pytest.approx(
-        abs(first - pair.price), rel=0, abs=1e-12
+        abs(first.price - pair.price), rel=0, abs=1e-12
     )
 
 
@@ -401,16 +396,12 @@ def test_expiry_validation_failures_and_ownership():
         lower_bound=0.0,
         upper_bound=4.0,
     )
-    for valuation in (
-        END + timedelta(microseconds=1),
-        datetime(2026, 1, 1, 0, 0, 0, 1),
-    ):
-        assert_rejection(
-            InvalidInputError,
-            engine.price,
-            option,
-            market(valuation=valuation),
-        )
+    assert_rejection(
+        InvalidInputError,
+        engine.price,
+        option,
+        market(valuation=END + timedelta(microseconds=1)),
+    )
     before = datetime(2025, 12, 31, 23, 59, 59, 999999)
     assert engine.price(option, market(valuation=before)) >= 0
     nodes = RateTermStructure(

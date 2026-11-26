@@ -86,18 +86,6 @@ def make_market(base_terms):
     return create
 
 
-def test_american_quadrature_rejects_excessive_rollback_work(base_terms, make_market):
-    engine = QuadratureVanillaEngine(time_step_count=10_000_000)
-    context = make_market(spot=1e308)
-    option = AmericanOption(**dict(base_terms, strike=1e308))
-    with pytest.raises(InvalidInputError, match="rollback"):
-        engine.price(option, context)
-    european = EuropeanOption(**base_terms)
-    assert engine.price(european, make_market()) == QuadratureVanillaEngine().price(
-        european, make_market()
-    )
-
-
 @pytest.mark.parametrize("direction", ["call", "put"])
 @pytest.mark.parametrize("tiny_rate", [1e-17, 1e-20])
 def test_american_approximation_preserves_the_near_zero_exercise_premium_limit(

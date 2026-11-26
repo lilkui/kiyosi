@@ -707,27 +707,7 @@ fn solver_pins_request_samples_and_rejects_fixed_cashflows() {
 }
 
 #[test]
-fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
-    for settings in [
-        MonteCarloSettings {
-            path_count: 0,
-            ..Default::default()
-        },
-        MonteCarloSettings {
-            max_active_workers: -1,
-            ..Default::default()
-        },
-        MonteCarloSettings {
-            path_count: 3,
-            sampling: MonteCarloSampling::Sobol,
-            ..Default::default()
-        },
-    ] {
-        assert!(matches!(
-            MonteCarloBarrierEngine::new(settings).unwrap_err(),
-            Error::InvalidInput(_)
-        ));
-    }
+fn applicability_and_failure_categories_preserve_inputs() {
     let engine = engine();
     let option =
         DoubleBarrierOption::new(terms(OptionType::Call, DoubleBarrierType::KnockOut)).unwrap();

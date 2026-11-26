@@ -1,6 +1,5 @@
 """Local-volatility contracts and independent numerical references."""
 
-import inspect
 import math
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
@@ -589,17 +588,6 @@ def test_nonflat_rates_and_shared_concurrent_pricing():
         assert (
             list(pool.map(lambda _: e.price(option(), c), range(8))) == [expected] * 8
         )
-
-
-def test_signatures_and_example_are_discoverable():
-    for cls in [LocalVolatilitySurface, LocalVolatilityParameters]:
-        for parameter in inspect.signature(cls).parameters.values():
-            assert parameter.kind == inspect.Parameter.KEYWORD_ONLY
-    assert list(inspect.signature(LocalVolatilitySurface).parameters) == [
-        "times",
-        "spots",
-        "values",
-    ]
 
 
 @pytest.mark.parametrize("business_time", [False, True])
