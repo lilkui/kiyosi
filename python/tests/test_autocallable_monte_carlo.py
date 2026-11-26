@@ -485,7 +485,7 @@ def test_sobol_dimension_limit_uses_remaining_monitoring_dates():
 
 
 @pytest.mark.parametrize("sampling", ["pseudo_random", "sobol"])
-def test_batched_phoenix_spot_greeks_replay_scalar_stencils(sampling):
+def test_batched_phoenix_spot_and_market_greeks_replay_scalar_stencils(sampling):
     first = datetime(2025, 2, 3)
     note = phoenix(
         coupon_per_period=0.02,
@@ -508,17 +508,15 @@ def test_batched_phoenix_spot_greeks_replay_scalar_stencils(sampling):
         max_active_workers=2,
     )
     context = market(100, START)
-    greeks = ["delta", "gamma", "vega"]
-    batch = engine.price_with_greeks(note, context, greeks, spot_shift=4)
-    scalar = numerical_greeks(engine, note, context, greeks, spot_shift=4)
-    assert (batch.price, batch.delta, batch.gamma, batch.vega, batch.seed) == (
-        scalar.price,
-        scalar.delta,
-        scalar.gamma,
-        scalar.vega,
-        scalar.seed,
-    )
-    assert all(math.isfinite(value) for value in (batch.delta, batch.gamma, batch.vega))
+    for greeks in (
+        ["delta", "gamma", "vega", "rho"],
+        ["delta", "gamma", "vega", "rho", "dividend_rho"],
+    ):
+        batch = engine.price_with_greeks(note, context, greeks, spot_shift=4)
+        scalar = numerical_greeks(engine, note, context, greeks, spot_shift=4)
+        assert batch == scalar
+        for greek in greeks:
+            assert math.isfinite(batch.require(greek))
 
 
 def test_shared_daily_grid_prices_staggered_cash_flows():

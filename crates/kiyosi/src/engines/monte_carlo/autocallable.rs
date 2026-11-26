@@ -278,38 +278,89 @@ impl MonteCarloAutocallableEngine {
         )))
     }
 
-    fn market_pair<T: AutocallableTerms>(
+    fn market_prices<T: AutocallableTerms, const N: usize>(
         &self,
         note: &AutocallableNote<T>,
-        a: &PricingContext,
-        b: &PricingContext,
-    ) -> Result<Option<([f64; 2], u64)>> {
-        let (Sample::Path(a), Sample::Path(b)) = (
-            self.prepare_sample::<_, 2>(note, a)?,
-            self.prepare_sample::<_, 2>(note, b)?,
-        ) else {
-            return Ok(None);
-        };
-        // For the same note and valuation, equal monitoring modes select the same dates.
-        if a.steps.len() != b.steps.len()
-            || a.state.knocked_in != b.state.knocked_in
-            || a.bridge.is_some() != b.bridge.is_some()
-        {
-            return Ok(None);
+        contexts: [&PricingContext; N],
+    ) -> Result<Option<([f64; N], u64)>> {
+        let mut plans = Vec::with_capacity(N);
+        for context in contexts {
+            let Sample::Path(plan) = self.prepare_sample::<_, N>(note, context)? else {
+                return Ok(None);
+            };
+            plans.push(plan);
         }
-        let ([v, w], _, seed) = if a.shares_transitions(&b)? {
-            a.sample(self.settings, [&a, &b], false, true)?
-        } else if let Some(bridge) = &a.bridge {
-            path_samples_skipping(self.settings, a.steps.len(), false, |normals| {
-                PathPlan::bridge_payoffs::<2, false>(bridge, [&a, &b], normals)
+        let plans: [&PathPlan<'_, T>; N] = std::array::from_fn(|lane| &plans[lane]);
+        let base = plans[0];
+        // For the same note and valuation, equal monitoring modes select the same dates.
+        let mut shared = true;
+        for plan in &plans[1..] {
+            if base.steps.len() != plan.steps.len()
+                || base.state.knocked_in != plan.state.knocked_in
+                || base.bridge.is_some() != plan.bridge.is_some()
+            {
+                return Ok(None);
+            }
+            shared = shared && base.shares_transitions(plan)?;
+        }
+        let (moments, _, seed) = if shared {
+            base.sample(self.settings, plans, false, true)?
+        } else if let Some(bridge) = &base.bridge {
+            path_samples_skipping(self.settings, base.steps.len(), false, |normals| {
+                PathPlan::bridge_payoffs::<N, false>(bridge, plans, normals)
             })?
         } else {
-            path_samples_lazy(self.settings, a.steps.len(), false, false, |normals| {
-                a.spot_payoffs::<2, false>([&a, &b], normals)
+            path_samples_lazy(self.settings, base.steps.len(), false, false, |normals| {
+                base.spot_payoffs::<N, false>(plans, normals)
             })?
         };
-        let price = |moment: Moments| scaled_value(moment.scale, moment.mean, 0.0);
-        Ok(Some(([price(v)?, price(w)?], seed)))
+        let mut prices = [0.0; N];
+        for (price, moment) in prices.iter_mut().zip(moments) {
+            *price = scaled_value(moment.scale, moment.mean, 0.0)?;
+        }
+        Ok(Some((prices, seed)))
+    }
+
+    fn market_greek_prices<T: AutocallableTerms>(
+        &self,
+        note: &AutocallableNote<T>,
+        context: &PricingContext,
+        request: GreeksRequest,
+        shifts: NumericalShiftSettings,
+    ) -> Result<Vec<(PricingContext, PricingResult)>> {
+        let greeks = [Greek::Vega, Greek::Rho, Greek::DividendRho]
+            .into_iter()
+            .filter(|&greek| {
+                request.has(greek) || greek == Greek::Vega && request.has(Greek::Volga)
+            });
+        let greeks = greeks.collect::<Vec<_>>();
+        if greeks.len() < 2 || context.valuation_time() == note.expiry_time() {
+            return Ok(Vec::new());
+        }
+        let scenarios = crate::risk::numerical::greek_scenarios(
+            note,
+            context,
+            GreeksRequest::new(greeks),
+            shifts,
+        )?;
+        let batch = match &scenarios[1..] {
+            [a, b, c, d] => self
+                .market_prices(note, [a, b, c, d])?
+                .map(|(p, seed)| (p.to_vec(), seed)),
+            [a, b, c, d, e, f] => self
+                .market_prices(note, [a, b, c, d, e, f])?
+                .map(|(p, seed)| (p.to_vec(), seed)),
+            _ => None,
+        };
+        let Some((prices, seed)) = batch else {
+            return Ok(Vec::new());
+        };
+        scenarios
+            .into_iter()
+            .skip(1)
+            .zip(prices)
+            .map(|(context, price)| Ok((context, PricingResult::new(price)?.with_seed(Some(seed)))))
+            .collect()
     }
 
     fn prepare_sample<'a, T: AutocallableTerms, const N: usize>(
@@ -664,7 +715,8 @@ impl<T: AutocallableTerms> PathPlan<'_, T> {
             });
             let floor = monitoring.iter().flatten().copied().reduce(f64::min);
             let mut minimum = f64::INFINITY;
-            for i in start..interval.end {
+            for (offset, &daily) in bridge.daily[start..interval.end].iter().enumerate() {
+                let i = start + offset;
                 if if SHARED_GROWTH {
                     floor.is_none_or(|level| minimum < level)
                 } else {
@@ -677,7 +729,11 @@ impl<T: AutocallableTerms> PathPlan<'_, T> {
                 let normal = normals.normal();
                 for lane in 0..if SHARED_GROWTH { 1 } else { N } {
                     if SHARED_GROWTH || monitoring[lane].is_some() {
-                        let [weight, diffusion] = bridges[lane].daily[i];
+                        let [weight, diffusion] = if SHARED_GROWTH {
+                            daily
+                        } else {
+                            bridges[lane].daily[i]
+                        };
                         let value = &mut log_returns[lane];
                         *value += weight.mul_add(targets[lane] - *value, diffusion * normal);
                     }
@@ -940,6 +996,13 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
         } else {
             native(context, request)?
         };
+        let market_batch = match engine.market_greek_prices(option, context, request, settings) {
+            Ok(prices) => prices,
+            Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted => {
+                return Err(error.into());
+            }
+            Err(_) => Vec::new(),
+        };
         crate::risk::numerical::complete_greeks_with_pair(
             option,
             context,
@@ -957,7 +1020,17 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
                 if a.valuation_time() == b.valuation_time()
                     && a.model_parameters() != b.model_parameters()
                 {
-                    match engine.market_pair(option, a, b) {
+                    let cached = |context| {
+                        market_batch
+                            .iter()
+                            .find(|(scenario, _)| scenario == context)
+                            .map(|(_, result)| result.clone())
+                    };
+                    if let (Some(up), Some(down)) = (cached(a), cached(b)) {
+                        seed.set(up.seed());
+                        return Ok(Some((up, down)));
+                    }
+                    match engine.market_prices(option, [a, b]) {
                         Ok(Some(([up, down], used_seed))) => {
                             seed.set(Some(used_seed));
                             return Ok(Some((PricingResult::new(up)?, PricingResult::new(down)?)));

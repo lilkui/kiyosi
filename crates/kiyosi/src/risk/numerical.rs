@@ -293,6 +293,36 @@ pub(crate) fn complete_greeks(
     )
 }
 
+pub(crate) fn greek_scenarios(
+    option: &impl OptionContract,
+    context: &PricingContext,
+    request: GreeksRequest,
+    shifts: NumericalShiftSettings,
+) -> Result<Vec<PricingContext>> {
+    let scenarios = std::cell::RefCell::new(vec![context.clone()]);
+    let zero = PricingResult::new(0.0)?;
+    let record = |scenario: &PricingContext| {
+        let mut scenarios = scenarios.borrow_mut();
+        if !scenarios.contains(scenario) {
+            scenarios.push(scenario.clone());
+        }
+        zero.clone()
+    };
+    // Visit the actual numerical stencils so planning uses the same shifts and
+    // availability checks as pricing.
+    complete_greeks_with_pair(
+        option,
+        context,
+        request,
+        shifts,
+        false,
+        zero.clone(),
+        |scenario, _| Ok(record(scenario)),
+        |high, low, _| Ok(Some((record(high), record(low)))),
+    )?;
+    Ok(scenarios.into_inner())
+}
+
 #[expect(
     clippy::float_cmp,
     clippy::too_many_arguments,

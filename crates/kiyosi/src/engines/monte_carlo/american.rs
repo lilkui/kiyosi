@@ -782,33 +782,12 @@ impl MonteCarloVanillaEngine {
         {
             return Ok(Vec::new());
         }
-        let scenarios = std::cell::RefCell::new(vec![context.clone()]);
-        let zero = PricingResult::new(0.0)?;
-        let record = |scenario: &PricingContext| {
-            let mut scenarios = scenarios.borrow_mut();
-            if !scenarios.contains(scenario) {
-                scenarios.push(scenario.clone());
-            }
-            zero.clone()
-        };
-        // Visit the same price stencils with zero prices to collect their inputs.
-        // The subsequent evaluation uses the same stencil implementation.
-        let planned = crate::risk::numerical::complete_greeks_with_pair(
-            option,
-            context,
-            request,
-            shifts,
-            false,
-            zero.clone(),
-            |scenario, _| Ok(record(scenario)),
-            |high, low, _| Ok(Some((record(high), record(low)))),
-        );
-        match planned {
-            Err(error @ Error::Io(_)) => return Err(error),
-            Err(_) => return Ok(Vec::new()),
-            Ok(_) => {}
-        }
-        let scenarios = scenarios.into_inner();
+        let scenarios =
+            match crate::risk::numerical::greek_scenarios(option, context, request, shifts) {
+                Ok(scenarios) => scenarios,
+                Err(error @ Error::Io(_)) => return Err(error),
+                Err(_) => return Ok(Vec::new()),
+            };
         if scenarios.len() <= 3 {
             return Ok(Vec::new());
         }
