@@ -152,8 +152,8 @@ pub use engines::analytic::european::AnalyticEuropeanEngine;
 pub use engines::analytic::heston::{AnalyticHestonEuropeanEngine, HestonIntegrationSettings};
 pub use engines::analytic::range_accrual::AnalyticRangeAccrualEngine;
 pub use engines::binomial::{
-    BinomialSettings, CoxRossRubinsteinBarrierEngine, CoxRossRubinsteinDigitalEngine,
-    CoxRossRubinsteinVanillaEngine,
+    BinomialSettings, BinomialVanilla, CoxRossRubinsteinBarrierEngine,
+    CoxRossRubinsteinDigitalEngine, CoxRossRubinsteinVanillaEngine,
 };
 pub use engines::finite_difference::heston::{
     FiniteDifferenceHestonVanillaEngine, HestonFiniteDifferenceSettings,

@@ -2,6 +2,10 @@ use crate::{
     BinaryPayoff, DigitalOption, Greek, GreeksRequest, NumericalShiftSettings, OptionContract,
     OptionType, PricingContext, PricingEngine, PricingResult, Result,
 };
+use std::sync::{
+    OnceLock,
+    atomic::{AtomicU32, Ordering},
+};
 
 pub(crate) mod analytic;
 pub(crate) mod binomial;
@@ -10,6 +14,33 @@ pub(crate) mod deterministic;
 pub(crate) mod finite_difference;
 pub(crate) mod monte_carlo;
 pub(crate) mod quadrature;
+
+fn rollback_pool() -> Option<(&'static rayon::ThreadPool, usize)> {
+    static PROCESS: AtomicU32 = AtomicU32::new(0);
+    static POOL: OnceLock<Option<rayon::ThreadPool>> = OnceLock::new();
+    let available = std::thread::available_parallelism().ok()?.get().min(4);
+    if available < 2 {
+        return None;
+    }
+    let pid = std::process::id();
+    if PROCESS
+        .compare_exchange(0, pid, Ordering::Relaxed, Ordering::Relaxed)
+        .is_err_and(|owner| owner != pid)
+    {
+        // A forked child can price serially even if the parent was initializing the pool.
+        return None;
+    }
+    let pool = POOL
+        .get_or_init(|| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(available)
+                .thread_name(|index| format!("kiyosi-rollback-{index}"))
+                .build()
+                .ok()
+        })
+        .as_ref()?;
+    Some((pool, available.min(pool.current_num_threads())))
+}
 
 fn flat_rates(context: &PricingContext) -> Result<(f64, f64)> {
     let model = context.natural_bsm_parameters()?;

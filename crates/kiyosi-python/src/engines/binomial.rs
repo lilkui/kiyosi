@@ -193,6 +193,8 @@ binomial_engine!(
         /// Notes
         /// -----
         /// Pricing runs in one cancellable request with the GIL released.
+        /// Compatible contracts can share lattice geometry and run in parallel.
+        /// The engine's rollback tolerance applies to American contracts.
         /// A failed request returns no partial results.
         fn price_many<'py>(
             &self,
@@ -200,10 +202,6 @@ binomial_engine!(
             instruments: &Bound<'py, PyAny>,
             context: &crate::market::PricingContext,
         ) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
-            enum Contract<'a> {
-                European(&'a kiyosi::EuropeanOption),
-                American(&'a kiyosi::AmericanOption),
-            }
             let instruments = instruments.try_iter()?.enumerate().map(|(index, instrument)| {
                 if index % 1024 == 0 {
                     py.check_signals()?;
@@ -214,18 +212,12 @@ binomial_engine!(
                 return Ok(pyo3::types::PyTuple::empty(py));
             }
             let contracts: Vec<_> = instruments.iter().map(|instrument| match instrument {
-                VanillaInstrument::European(option) => Contract::European(&option.0),
-                VanillaInstrument::American(option) => Contract::American(&option.0),
+                VanillaInstrument::European(option) => kiyosi::BinomialVanilla::European(&option.0),
+                VanillaInstrument::American(option) => kiyosi::BinomialVanilla::American(&option.0),
             }).collect();
             let context = &context.0;
-            let prices = domain(crate::cancellation::run_with_token(py, |token| {
-                contracts.into_iter().map(|contract| {
-                    token.check()?;
-                    match contract {
-                        Contract::European(option) => self.0.price(option, context),
-                        Contract::American(option) => self.0.price(option, context),
-                    }
-                }).collect::<kiyosi::Result<Vec<_>>>()
+            let prices = domain(crate::cancellation::run(py, || {
+                self.0.price_many(&contracts, context)
             })?)?;
             pyo3::types::PyTuple::new(py, prices)
         }

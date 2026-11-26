@@ -2581,6 +2581,8 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
         Notes
         -----
         Pricing runs in one cancellable request with the GIL released.
+        Compatible contracts can share lattice geometry and run in parallel.
+        The engine's rollback tolerance applies to American contracts.
         A failed request returns no partial results.
         """
 

@@ -1,8 +1,4 @@
 use rayon::prelude::*;
-use std::sync::{
-    OnceLock,
-    atomic::{AtomicU32, Ordering},
-};
 
 use super::grid::{
     SpatialGrid, Spline, StrikeMoments, TimeGrid, concentrate, project_payoff, spot_floor,
@@ -10,6 +6,7 @@ use super::grid::{
 use super::{Payoff, WORKSPACE_BUDGET, invalid_grid, prepare_rate_curves, unstable, validate_work};
 use crate::engines::analytic::heston::integrated_variance;
 use crate::engines::deterministic::{self, AmericanExercise, ExerciseBoundaries};
+use crate::engines::rollback_pool;
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{checked_with_scale, scaled_cash};
 use crate::{
@@ -1025,7 +1022,7 @@ fn rollback_primal<const N: usize>(
     } else {
         cells >= 24_000 && work >= 1_000_000 && rows >= 16
     };
-    let pool = parallel.then(heston_pool).flatten();
+    let pool = parallel.then(rollback_pool).flatten();
     let tokens = crate::cancellation::current();
     let operator_workers = pool.map(|(_, count)| AssetWorkers {
         count,
@@ -1167,7 +1164,7 @@ fn european_strike_weights(
     let active = op.dynamic_rows() * nx;
     let work = active.saturating_mul(times.widths.len());
     let pool = (active >= 24_000 && work >= 1_000_000 && op.dynamic_rows() >= 16)
-        .then(heston_pool)
+        .then(rollback_pool)
         .flatten();
     let tokens = crate::cancellation::current();
     let operator_workers = pool.map(|(_, count)| AssetWorkers {
@@ -1489,39 +1486,10 @@ fn derivative(nodes: &[f64], i: usize) -> [f64; 3] {
     ]
 }
 
-static HESTON_POOL_PROCESS: AtomicU32 = AtomicU32::new(0);
-static HESTON_POOL: OnceLock<Option<rayon::ThreadPool>> = OnceLock::new();
-
 struct AssetWorkers {
     count: usize,
     tokens: Vec<crate::CancellationToken>,
     rows_per_task: usize,
-}
-
-fn heston_pool() -> Option<(&'static rayon::ThreadPool, usize)> {
-    let available = std::thread::available_parallelism().ok()?.get().min(4);
-    if available < 2 {
-        return None;
-    }
-    let pid = std::process::id();
-    if HESTON_POOL_PROCESS
-        .compare_exchange(0, pid, Ordering::Relaxed, Ordering::Relaxed)
-        .is_err_and(|owner| owner != pid)
-    {
-        // A forked child can price serially, including while the parent was
-        // initializing its pool.
-        return None;
-    }
-    let pool = HESTON_POOL
-        .get_or_init(|| {
-            rayon::ThreadPoolBuilder::new()
-                .num_threads(available)
-                .thread_name(|index| format!("kiyosi-heston-{index}"))
-                .build()
-                .ok()
-        })
-        .as_ref()?;
-    Some((pool, available.min(pool.current_num_threads())))
 }
 
 impl AssetWorkers {

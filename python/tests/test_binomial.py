@@ -73,6 +73,20 @@ def test_vanilla_batch_matches_scalar_prices_and_preserves_input_order():
     assert engine.price_many(instruments, snapshot) == expected
 
 
+@pytest.mark.parametrize("tolerance", (None, 1e-6))
+def test_american_batch_matches_scalar_for_full_and_banded_trees(tolerance):
+    engine = CoxRossRubinsteinVanillaEngine(
+        step_count=1024, rollback_tolerance=tolerance
+    )
+    snapshot = market()
+    put = contract(AmericanOption, "put")
+    puts = tuple(put.replace(strike=strike) for strike in (115, 90, 100, 115))
+    options = (*puts, contract(AmericanOption), contract(EuropeanOption), put)
+    assert engine.price_many(options, snapshot) == tuple(
+        engine.price(option, snapshot) for option in options
+    )
+
+
 def test_banded_american_put_preserves_price_within_the_truncation_budget():
     put = AmericanOption(
         option_type="put", strike=100, effective_time=START, expiry_time=END

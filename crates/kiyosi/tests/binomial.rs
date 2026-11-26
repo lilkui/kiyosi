@@ -1,6 +1,37 @@
 use kiyosi::*;
 
 #[test]
+fn american_batch_matches_scalar_for_full_and_banded_trees() -> Result<()> {
+    let (start, end) = dates();
+    let snapshot = market(100.0, 0.05, 0.02, 0.2);
+    let puts = [115.0, 90.0, 100.0, 115.0]
+        .map(|strike| AmericanOption::new(OptionType::Put, strike, start, end).unwrap());
+    let early = AmericanOption::new(OptionType::Call, 85.0, start, end)?;
+    let call = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let mut options = puts
+        .iter()
+        .map(BinomialVanilla::American)
+        .collect::<Vec<_>>();
+    options.extend([
+        BinomialVanilla::American(&early),
+        BinomialVanilla::European(&call),
+        BinomialVanilla::American(&puts[0]),
+    ]);
+    let full = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 1024 })?;
+    for engine in [full, full.with_rollback_tolerance(Some(1e-6))?] {
+        let expected = options
+            .iter()
+            .map(|option| match option {
+                BinomialVanilla::American(option) => engine.price(*option, &snapshot),
+                BinomialVanilla::European(option) => engine.price(*option, &snapshot),
+            })
+            .collect::<Result<Vec<_>>>()?;
+        assert_eq!(engine.price_many(&options, &snapshot)?, expected);
+    }
+    Ok(())
+}
+
+#[test]
 fn banded_american_call_matches_full_tree_and_original_spot_greeks() -> Result<()> {
     let (start, end) = dates();
     let call = AmericanOption::new(OptionType::Call, 92.0, start, end)?;

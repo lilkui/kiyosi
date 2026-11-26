@@ -2,7 +2,9 @@ use super::{Payoff, flat_rates};
 use crate::numerics::{log_ratio, scaled_cash as scaled};
 
 mod barrier;
+mod batch;
 pub use barrier::CoxRossRubinsteinBarrierEngine;
+pub use batch::BinomialVanilla;
 
 use crate::{
     AmericanOption, DigitalOption, Error, EuropeanOption, Greek, GreeksRequest,

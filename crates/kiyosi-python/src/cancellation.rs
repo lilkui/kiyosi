@@ -6,13 +6,6 @@ pub(crate) fn run<T: Send>(
     py: Python<'_>,
     operation: impl FnOnce() -> kiyosi::Result<T> + Send,
 ) -> PyResult<kiyosi::Result<T>> {
-    run_with_token(py, |_| operation())
-}
-
-pub(crate) fn run_with_token<T: Send>(
-    py: Python<'_>,
-    operation: impl FnOnce(&kiyosi::CancellationToken) -> kiyosi::Result<T> + Send,
-) -> PyResult<kiyosi::Result<T>> {
     py.check_signals()?;
     let token = kiyosi::CancellationToken::default();
     thread::scope(|scope| {
@@ -21,7 +14,7 @@ pub(crate) fn run_with_token<T: Send>(
         let worker = thread::Builder::new()
             .name("kiyosi-request".into())
             .spawn_scoped(scope, move || {
-                let result = worker_token.run(|| operation(&worker_token));
+                let result = worker_token.run(operation);
                 let _ = sender.send(());
                 result
             })?;
