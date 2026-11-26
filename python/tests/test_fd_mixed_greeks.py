@@ -176,3 +176,42 @@ def test_shared_time_slices_match_independent_vanilla_rollbacks(contract):
     for greek, value in (("theta", "price"), ("charm", "delta"), ("color", "gamma")):
         expected = (getattr(high, value) - getattr(low, value)) * 365 / 2
         assert getattr(actual, greek) == pytest.approx(expected, rel=0.002, abs=1e-6)
+
+
+def test_american_market_greeks_match_independent_grid_prices():
+    start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+    option = AmericanOption(
+        option_type="put", strike=100, effective_time=start, expiry_time=end
+    )
+    values = {"volatility": 0.25, "risk_free_rate": 0.0625, "dividend_yield": 0.03125}
+    model = BlackScholesMertonParameters(**values)
+    context = PricingContext(
+        model_parameters=model, spot_price=100, valuation_time=start
+    )
+    engine = pricing.FiniteDifferenceVanillaEngine(asset_upper_boundary=400)
+    shift = 0.015625
+    actual = engine.price_with_greeks(
+        option,
+        context,
+        ("vega", "rho", "dividend_rho"),
+        volatility_shift=shift,
+        rate_shift=shift,
+    )
+    assert actual.price == engine.price(option, context)
+    for greek, parameter in (
+        ("vega", "volatility"),
+        ("rho", "risk_free_rate"),
+        ("dividend_rho", "dividend_yield"),
+    ):
+        high, low = (
+            engine.price(
+                option,
+                context.replace(
+                    model_parameters=model.replace(
+                        **{parameter: values[parameter] + bump}
+                    )
+                ),
+            )
+            for bump in (shift, -shift)
+        )
+        assert getattr(actual, greek) == (high - low) / (2 * shift)

@@ -110,7 +110,15 @@ impl PricingEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
         shifts: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
         <Self as PricingEngine<Accumulator>>::validate_applicability(self, context)?;
-        analysis(option, context, self.settings, request, shifts, native)
+        analysis(
+            option,
+            context,
+            self.settings,
+            request,
+            shifts,
+            false,
+            native,
+        )
     }
 }
 

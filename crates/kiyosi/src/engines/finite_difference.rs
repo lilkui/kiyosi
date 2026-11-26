@@ -971,17 +971,60 @@ impl VanillaGrid {
     }
 }
 
+fn parallel_american_pairs(
+    payoff: Payoff,
+    context: &PricingContext,
+    settings: FiniteDifferenceSettings,
+) -> bool {
+    let assets = u64::from(settings.asset_step_count.unsigned_abs());
+    let steps = u64::from(settings.time_step_count.unsigned_abs());
+    payoff.is_american()
+        && assets * steps >= 65_536
+        && context.natural_bsm_parameters().is_ok_and(|model| {
+            model.volatility() > 0.0
+                && [model.risk_free_curve(), model.dividend_curve()]
+                    .into_iter()
+                    .all(|curve| curve.nodes().is_empty() && curve.calendar_quote().is_none())
+        })
+        // Allow for two simultaneous legs and the saved central time slices.
+        && validate_workspace(settings.scheme, 3 * (assets + 1), 3 * (steps + 4), 0).is_ok()
+}
+
 fn complete_greeks(
     option: &impl OptionContract,
     context: &PricingContext,
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
     mut result: PricingResult,
-    native: impl Fn(&PricingContext, GreeksRequest) -> Result<PricingResult>,
+    parallel_pairs: bool,
+    native: impl Fn(&PricingContext, GreeksRequest) -> Result<PricingResult> + Sync,
 ) -> Result<PricingResult> {
     if local_volatility::local_model(context).is_none() {
-        return crate::risk::numerical::complete_greeks(
-            option, context, request, shifts, true, result, native,
+        return crate::risk::numerical::complete_greeks_with_pair(
+            option,
+            context,
+            request,
+            shifts,
+            true,
+            result,
+            &native,
+            |high, low, measures| {
+                if !parallel_pairs || high.model_parameters() == low.model_parameters() {
+                    return Ok(None);
+                }
+                let Some((pool, _)) = super::rollback_pool() else {
+                    return Ok(None);
+                };
+                if pool.current_thread_index().is_some() {
+                    return Ok(None);
+                }
+                let tokens = crate::cancellation::current();
+                let evaluate = |scenario: &PricingContext| {
+                    crate::cancellation::with_tokens(tokens.clone(), || native(scenario, measures))
+                };
+                let (high, low) = pool.install(|| rayon::join(|| evaluate(high), || evaluate(low)));
+                Ok(Some((high?, low?)))
+            },
         );
     }
     result = result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));
@@ -1028,7 +1071,7 @@ fn complete_greeks(
 }
 
 fn vanilla_time_analysis(
-    option: &impl OptionContract,
+    option: &(impl OptionContract + Sync),
     payoff: Payoff,
     context: &PricingContext,
     settings: FiniteDifferenceSettings,
@@ -1167,6 +1210,7 @@ fn vanilla_time_analysis(
         request,
         shifts,
         result,
+        parallel_american_pairs(payoff, context, bumped_settings),
         |context, request| {
             native(
                 option,
@@ -1183,19 +1227,21 @@ fn vanilla_time_analysis(
     .map(Some)
 }
 
-fn analysis<I: OptionContract>(
+fn analysis<I: OptionContract + Sync>(
     option: &I,
     context: &PricingContext,
     mut settings: FiniteDifferenceSettings,
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
+    parallel_pairs: bool,
     native: impl Fn(
         &I,
         &PricingContext,
         FiniteDifferenceSettings,
         GreeksRequest,
         NumericalShiftSettings,
-    ) -> Result<(PricingResult, Option<f64>)>,
+    ) -> Result<(PricingResult, Option<f64>)>
+    + Sync,
 ) -> Result<PricingResult> {
     shifts.validate()?;
     let (result, upper) = native(option, context, settings, request, shifts)?;
@@ -1208,6 +1254,7 @@ fn analysis<I: OptionContract>(
         request,
         shifts,
         result,
+        parallel_pairs,
         |context, request| Ok(native(option, context, settings, request, shifts)?.0),
     )
 }
@@ -1219,7 +1266,8 @@ fn barrier_analysis(
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
     default_upper: impl FnOnce() -> f64,
-    native: impl Fn(&PricingContext, FiniteDifferenceSettings, GreeksRequest) -> Result<PricingResult>,
+    native: impl Fn(&PricingContext, FiniteDifferenceSettings, GreeksRequest) -> Result<PricingResult>
+    + Sync,
 ) -> Result<PricingResult> {
     shifts.validate()?;
     if settings.asset_upper_boundary.is_none() && local_volatility::local_model(context).is_none() {
@@ -1234,6 +1282,7 @@ fn barrier_analysis(
         request,
         shifts,
         native(context, settings, request)?,
+        false,
         |context, request| native(context, settings, request),
     )
 }
@@ -1576,6 +1625,7 @@ macro_rules! vanilla_pricing {
                     self.settings,
                     request,
                     shifts,
+                    parallel_american_pairs(payoff, context, self.settings),
                     |option, context, settings, request, shifts| {
                         native(
                             option,
@@ -1670,6 +1720,7 @@ impl PricingEngine<DigitalOption> for FiniteDifferenceDigitalEngine {
             self.settings,
             request,
             shifts,
+            false,
             |option, context, settings, request, shifts| {
                 native(
                     option,

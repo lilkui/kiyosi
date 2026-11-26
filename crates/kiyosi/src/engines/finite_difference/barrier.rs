@@ -151,7 +151,7 @@ impl Contract for DoubleBarrierOption {
 }
 
 fn analysis(
-    option: &impl Contract,
+    option: &(impl Contract + Sync),
     context: &PricingContext,
     settings: FiniteDifferenceSettings,
     request: GreeksRequest,
