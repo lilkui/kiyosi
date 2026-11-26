@@ -650,3 +650,29 @@ fn fixed_heston_strike_batches_preserve_boundary_and_payoff_order() -> kiyosi::R
     }
     Ok(())
 }
+
+#[test]
+fn dense_fixed_heston_batch_resolves_the_full_strike_range() -> kiyosi::Result<()> {
+    let (start, end) = dates();
+    let market = context(0.3, -0.7);
+    let call = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let strikes: Vec<_> = (0..64).map(|i| 85.0 + 30.0 * f64::from(i) / 63.0).collect();
+    let engine = FiniteDifferenceHestonVanillaEngine::new(HestonFiniteDifferenceSettings {
+        asset_step_count: 256,
+        variance_step_count: 64,
+        time_step_count: 128,
+        asset_upper_boundary: Some(400.0),
+        ..Default::default()
+    })?;
+    let expected =
+        AnalyticHestonEuropeanEngine::default().price_strikes(&call, &market, &strikes)?;
+    let actual = engine.price_european_strikes(&call, &market, &strikes)?;
+    assert_eq!(actual.len(), strikes.len());
+    for ((strike, actual), expected) in strikes.into_iter().zip(actual).zip(expected) {
+        assert!(
+            (actual - expected).abs() < 0.002,
+            "strike {strike}: {actual} vs {expected}"
+        );
+    }
+    Ok(())
+}

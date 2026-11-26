@@ -557,3 +557,21 @@ def test_american_heston_dense_curves_preserve_price_and_bound_boundary_work():
     )
     with pytest.raises(InvalidInputError, match="exercise boundary"):
         engine.price(contract, market(6000, 0.00002, 0.2))
+
+
+def test_dense_fixed_heston_batch_resolves_the_full_strike_range():
+    market = context(model())
+    template = option()
+    strikes = tuple(85 + 30 * i / 63 for i in range(64))
+    engine = FiniteDifferenceHestonVanillaEngine(
+        asset_step_count=256,
+        variance_step_count=64,
+        time_step_count=128,
+        asset_upper_boundary=400,
+    )
+    expected = AnalyticHestonEuropeanEngine().price_strikes(
+        template, market, strikes=strikes
+    )
+    assert engine.price_strikes(template, market, strikes=strikes) == pytest.approx(
+        expected, rel=0, abs=0.002
+    )

@@ -422,15 +422,24 @@ fn fixed_boundary_prices(
         ));
     }
     let mut prices = Vec::with_capacity(ordered.len());
-    let batch_size = if payoff.is_american() { 8 } else { 16 };
-    for chunk in ordered.chunks(batch_size) {
+    let mut remaining = ordered.as_slice();
+    while let Some(&first) = remaining.first() {
         crate::cancellation::check()?;
-        let [first, rest @ ..] = chunk else { continue };
-        let low = spot.min(*first);
-        let high = spot.max(chunk[chunk.len() - 1]);
+        let low = spot.min(first);
+        let count = if payoff.is_american() {
+            remaining.len().min(8)
+        } else if low >= 0.5 * spot {
+            remaining.partition_point(|&strike| 0.5 * strike <= low)
+        } else {
+            1
+        };
+        let (chunk, tail) = remaining.split_at(count);
+        remaining = tail;
+        let rest = &chunk[1..];
+        let high = spot.max(chunk[count - 1]);
         if !rest.is_empty() && low >= 0.5 * high && settings.asset_step_count >= 128 {
             let template = Payoff {
-                strike: *first,
+                strike: first,
                 ..payoff
             };
             match prepare_batch(option, context, template, settings, low, rest) {
@@ -548,11 +557,25 @@ fn prepare_batch(
     let steps = u64::try_from(settings.time_step_count).map_err(|_| unstable())?;
     let factor_rows = if deterministic { rows } else { rows - 1 };
     let padded = factor_rows.next_multiple_of(ASSET_LANES as u64) - factor_rows;
-    let extra_rhs = additional_strikes.len() as u64;
+    let adjoint = !payoff.is_american() && !additional_strikes.is_empty();
+    let extra_rhs = if adjoint {
+        0
+    } else {
+        additional_strikes.len() as u64
+    };
+    let strikes_count = additional_strikes.len() as u64 + 1;
+    let contract_bytes = if adjoint {
+        strikes_count.saturating_mul(
+            size_of::<(Payoff, ExerciseBoundaries<'_>, crate::numerics::Sum)>() as u64 + 8,
+        )
+    } else {
+        0
+    };
     let grid_bytes = (assets * rows)
         .saturating_mul(BYTES_PER_GRID_POINT + extra_rhs * 4 * size_of::<f64>() as u64)
         .saturating_add(padded * assets * size_of::<[f64; 3]>() as u64)
-        .saturating_add((assets + rows) * BYTES_PER_AXIS_NODE);
+        .saturating_add((assets + rows) * BYTES_PER_AXIS_NODE)
+        .saturating_add(contract_bytes);
     let validate_grid = |time_steps, curve_bytes| {
         if grid_bytes
             .saturating_add(time_steps * BYTES_PER_TIME_STEP)
@@ -563,7 +586,14 @@ fn prepare_batch(
                 "Heston finite-difference workspace exceeds 1 GiB; reduce grid step counts",
             ));
         }
-        validate_work((assets * rows).saturating_mul(1 + extra_rhs), time_steps)
+        if adjoint {
+            let work = (assets * rows)
+                .saturating_mul(time_steps)
+                .saturating_add(strikes_count.saturating_mul(assets + time_steps));
+            validate_work(work, 1)
+        } else {
+            validate_work((assets * rows).saturating_mul(1 + extra_rhs), time_steps)
+        }
     };
     let (risk, dividend) = prepare_rate_curves(context, end, |knots, bytes| {
         validate_grid(steps.max(knots), bytes)
@@ -606,11 +636,18 @@ fn prepare_batch(
         } else {
             0.06
         };
-        let mut levels = vec![payoff.strike];
-        if !additional_strikes.is_empty() {
-            levels.push(context.spot_price() / scale);
-            levels.extend(additional_strikes.iter().map(|strike| strike / scale));
-        }
+        let levels = if adjoint {
+            // Project each terminal kink onto the same mesh. Clustering every
+            // strike can leave most of the diffusion region under-resolved.
+            vec![context.spot_price() / scale]
+        } else {
+            let mut levels = vec![payoff.strike];
+            if !additional_strikes.is_empty() {
+                levels.push(context.spot_price() / scale);
+                levels.extend(additional_strikes.iter().map(|strike| strike / scale));
+            }
+            levels
+        };
         concentrate(&mut asset, levels, asset_scale)?;
     }
     let mut valuation_row = 0;
@@ -665,24 +702,26 @@ fn prepare_batch(
         std::iter::once(payoff.strike).chain(additional_strikes.iter().map(|strike| strike / scale))
     };
     let mut op = Operator::new(&asset, variance.as_deref());
-    if !payoff.is_american() && !additional_strikes.is_empty() {
+    if adjoint {
         let spot = context.spot_price() / scale;
-        if let Ok(node) = asset.spots.binary_search_by(|s| s.total_cmp(&spot)) {
-            return european_strike_weights(
-                &asset,
-                variance.as_deref(),
-                &times,
-                [&risk, &dividend],
-                model,
-                &mut op,
-                [lower, upper],
-                valuation_row * nx + node,
-                payoff,
-                strikes(),
-                scale,
-            )
-            .map(|prices| (None, prices));
-        }
+        let node = asset
+            .spots
+            .binary_search_by(|s| s.total_cmp(&spot))
+            .map_err(|_| invalid_grid("Heston strike batch requires a valuation node"))?;
+        return european_strike_weights(
+            &asset,
+            variance.as_deref(),
+            &times,
+            [&risk, &dividend],
+            model,
+            &mut op,
+            [lower, upper],
+            valuation_row * nx + node,
+            payoff,
+            strikes(),
+            scale,
+        )
+        .map(|prices| (None, prices));
     }
     let mut lanes = Vec::with_capacity(additional_strikes.len() + 1);
     for strike in strikes() {
