@@ -1,3 +1,4 @@
+use super::diffusion::{BusinessDiffusion, Diffusion};
 use super::grid::{StrikeMoments, concentrate, project_payoff, spot_floor};
 use super::{
     EuropeanOption, FiniteDifferenceEngine, FiniteDifferenceScheme, FiniteDifferenceVanillaEngine,
@@ -52,13 +53,22 @@ impl FiniteDifferenceVanillaEngine {
         let root_time = valuation.years_until(expiry).sqrt();
         let business_time = diffusion::uses_business_time(context);
         let mut strip = None;
-        if let Some(local) = local_volatility::local_model(context).filter(|_| !business_time) {
+        if let Some(local) = local_volatility::local_model(context) {
             let surface = local.surface();
-            let width = surface.volatility(valuation, spot)? * root_time;
+            let root = if business_time {
+                local
+                    .variance_time_convention()
+                    .year_fraction(valuation, expiry)?
+                    .sqrt()
+            } else {
+                root_time
+            };
+            let width = surface.volatility(valuation, spot)? * root;
             if width >= 0.04
-                && surface
-                    .constant_volatility_between(valuation, expiry)?
-                    .is_none()
+                && (business_time
+                    || surface
+                        .constant_volatility_between(valuation, expiry)?
+                        .is_none())
             {
                 strip = Some((StripModel::Local(surface), width));
             }
@@ -310,6 +320,8 @@ impl MarketStrip {
                 surface.times()[0].years_until(valuation),
             ),
         };
+        let clock =
+            diffusion::uses_business_time(context).then(|| BusinessDiffusion::new(context, 0.0));
         for step in 0..time_grid.widths.len() {
             crate::cancellation::check()?;
             let mut damping = u32::try_from(time_grid.widths.len() - step).unwrap_or(u32::MAX);
@@ -359,7 +371,10 @@ impl MarketStrip {
                             &mut previous,
                             &space,
                             surface,
-                            offset + middle,
+                            [
+                                offset + middle,
+                                clock.map_or(1.0, |clock| clock.variance_rate(middle).sqrt()),
+                            ],
                             key,
                         )?;
                         let [cash, asset] = discount.map(f64::exp);

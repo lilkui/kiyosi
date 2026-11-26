@@ -15,6 +15,7 @@ from kiyosi.market import (
     LocalVolatilitySurface,
     PricingContext,
     RateTermStructure,
+    weekdays_calendar,
 )
 from support.assertions import assert_decimal_equal
 from support.terminal import assert_terminal_greeks
@@ -564,12 +565,23 @@ def test_signatures_and_example_are_discoverable():
     ]
 
 
-def test_european_strike_strip_matches_refined_local_volatility_prices():
+@pytest.mark.parametrize("business_time", [False, True])
+def test_european_strike_strip_matches_refined_local_volatility_prices(business_time):
+    clock = (
+        {"variance_time_convention": "business", "calendar": weekdays_calendar()}
+        if business_time
+        else {}
+    )
     snapshot = PricingContext(
         model_parameters=LocalVolatilityParameters(
             risk_free_rate=0.05,
             dividend_yield=0.02,
-            surface=surface(((0.25, 0.18), (0.27, 0.20))),
+            surface=LocalVolatilitySurface(
+                times=[START, START + timedelta(days=183), END],
+                spots=[80, 120],
+                values=[[0.25, 0.18], [0.25, 0.20], [0.27, 0.20]],
+            ),
+            **clock,
         ),
         spot_price=100,
         valuation_time=START,

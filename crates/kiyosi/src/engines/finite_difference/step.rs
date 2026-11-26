@@ -311,10 +311,10 @@ impl Stepper {
         previous: &mut [f64],
         space: &SpatialGrid,
         surface: &crate::LocalVolatilitySurface,
-        time: f64,
+        time_and_scale: [f64; 2],
         key: [f64; 4],
     ) -> Result<[f64; 2]> {
-        self.prepare_local(space, surface, [time, 1.0], key)?;
+        self.prepare_local(space, surface, time_and_scale, key)?;
         Self::transpose(&self.factors[0], weights, previous, key)
     }
 
