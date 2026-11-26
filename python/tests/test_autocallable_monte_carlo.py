@@ -32,6 +32,18 @@ from test_phoenix import contract as phoenix
 from test_snowball import END, START, contract, market
 
 
+def test_portfolio_reduction_replays_across_waves():
+    first = contract(
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time())
+    )
+    notes = (first, first.replace(knock_in_level=85))
+    snapshot = market()
+    serial = MC(path_count=32768, seed=42, antithetic=False, max_active_workers=1)
+    expected = tuple(serial.price(note, snapshot) for note in notes)
+    assert serial.price_many(notes, snapshot) == expected
+    assert serial.replace(max_active_workers=2).price_many(notes, snapshot) == expected
+
+
 @pytest.mark.parametrize("sampling", ("pseudo_random", "sobol"))
 def test_shared_portfolio_coupon_strips_match_two_lane_quotes(sampling):
     daily = KnockInObservation.every_trading_day(clock_time())

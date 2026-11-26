@@ -11,6 +11,7 @@ use super::{
 use crate::{ObservationSchedule, TimeOfDay, Timestamp, TradingCalendar};
 
 // Leave room for the next note's preparation and the request's Sobol table.
+const BLOCKS_PER_WAVE: usize = 64;
 const BATCH_BYTES: usize = 256 * 1024 * 1024;
 const PLAN_RESERVATION: usize = 16;
 const DAILY_GRID_SLOTS: usize = 4;
@@ -296,7 +297,10 @@ fn key_and_workspace<T: AutocallableTerms>(
                     + bridge.intervals.capacity() * size_of::<super::BridgeInterval>()
             })
     };
-    let blocks = settings.sample_count().div_ceil(BLOCK_SIZE);
+    let blocks = settings
+        .sample_count()
+        .div_ceil(BLOCK_SIZE)
+        .min(BLOCKS_PER_WAVE);
     let bytes = schedule
         + if shared {
             // Buckets and packed events coexist while assembling the schedule.
@@ -310,7 +314,8 @@ fn key_and_workspace<T: AutocallableTerms>(
         } else {
             events * size_of::<Event>()
         }
-        + blocks * (size_of::<Moments>() + size_of::<Lane>() + size_of::<usize>())
+        + (blocks + 1) * size_of::<Moments>()
+        + blocks * (size_of::<Lane>() + size_of::<usize>())
         + 2 * size_of::<IndexedPlan<'_, T>>();
     Ok((key, bytes))
 }
@@ -680,36 +685,46 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
         let dimensions = base.steps.len();
         let blocks = PathBlocks::new(settings, dimensions)?;
         let lanes = self.notes.len();
-        let mut partials = vec![Moments::default(); blocks.count() * lanes];
-        let mut blocks_out = partials.chunks_exact_mut(lanes).collect::<Vec<_>>();
-        let simulate = |block, moments: &mut [Moments]| {
-            let mut states = Vec::with_capacity(lanes);
-            let mut live = Vec::with_capacity(lanes);
-            blocks.sample(
-                block,
-                base.bridge.is_some() || self.shared.is_some(),
-                |draws, paired| {
-                    skipped_sample_pair(draws, dimensions, paired, |path, _| {
-                        if let Some(events) = &self.shared {
-                            self.shared_payoffs(path, &mut states, events)?;
-                        } else {
-                            self.payoffs(path, &mut states, &mut live)?;
-                        }
-                        for (moment, lane) in moments.iter_mut().zip(&states) {
-                            moment.add(lane.cash, false);
-                        }
-                        Ok(())
-                    })
-                },
-            )
-        };
-        BlockRunner::new(blocks.count(), settings.max_active_workers)?
-            .run(&mut blocks_out, |block, moments| simulate(block, moments))?;
+        let wave = blocks.count().min(BLOCKS_PER_WAVE);
+        let mut partials: Vec<_> = (0..wave)
+            .map(|_| {
+                (
+                    vec![Moments::default(); lanes],
+                    Vec::with_capacity(lanes),
+                    Vec::with_capacity(lanes),
+                )
+            })
+            .collect();
+        let runner = BlockRunner::new(wave, settings.max_active_workers)?;
         let mut total = vec![Moments::default(); lanes];
-        for partial in partials.chunks_exact(lanes) {
-            crate::cancellation::check()?;
-            for (total, &moment) in total.iter_mut().zip(partial) {
-                total.merge(moment, false);
+        for start in (0..blocks.count()).step_by(wave) {
+            let partials = &mut partials[..wave.min(blocks.count() - start)];
+            runner.run(partials, |block, (moments, states, live)| {
+                moments.fill(Moments::default());
+                blocks.sample(
+                    start + block,
+                    base.bridge.is_some() || self.shared.is_some(),
+                    |draws, paired| {
+                        skipped_sample_pair(draws, dimensions, paired, |path, _| {
+                            if let Some(events) = &self.shared {
+                                self.shared_payoffs(path, states, events)?;
+                            } else {
+                                self.payoffs(path, states, live)?;
+                            }
+                            for (moment, lane) in moments.iter_mut().zip(&*states) {
+                                moment.add(lane.cash, false);
+                            }
+                            Ok(())
+                        })
+                    },
+                )
+            })?;
+            // The original block indices and merge order make results independent of scheduling.
+            for (partial, _, _) in partials {
+                crate::cancellation::check()?;
+                for (total, &moment) in total.iter_mut().zip(&*partial) {
+                    total.merge(moment, false);
+                }
             }
         }
         for ((index, _), moment) in self.notes.iter().zip(total) {

@@ -56,6 +56,40 @@ fn portfolio_prices_replay_scalar_paths() -> Result<()> {
 }
 
 #[test]
+fn portfolio_reduction_replays_across_waves() -> Result<()> {
+    let (terms, _, _) =
+        autocallable_support::multi_event_terms(KnockInObservation::EveryTradingDay {
+            observation_clock_time: date(1, 1).time_of_day(),
+        });
+    let first = SnowballOption::new(terms)?;
+    let second = first.replace(SnowballOptionChanges {
+        knock_in_level: Some(85.0),
+        ..Default::default()
+    })?;
+    let notes = [&first, &second];
+    let context = market(100.0, date(1, 1));
+    let settings = MonteCarloSettings {
+        path_count: 32_768,
+        seed: Some(42),
+        antithetic: false,
+        max_active_workers: 1,
+        ..Default::default()
+    };
+    let serial = MonteCarloAutocallableEngine::new(settings)?;
+    let expected = [
+        serial.price(&first, &context)?,
+        serial.price(&second, &context)?,
+    ];
+    assert_eq!(serial.price_many(&notes, &context)?, expected);
+    let parallel = MonteCarloAutocallableEngine::new(MonteCarloSettings {
+        max_active_workers: 2,
+        ..settings
+    })?;
+    assert_eq!(parallel.price_many(&notes, &context)?, expected);
+    Ok(())
+}
+
+#[test]
 fn shared_portfolio_coupon_strips_match_two_lane_quotes() -> Result<()> {
     fn check<T: AutocallableTerms>(
         engine: &MonteCarloAutocallableEngine,
