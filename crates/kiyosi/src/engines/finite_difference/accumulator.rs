@@ -233,6 +233,13 @@ fn solve_grid<D: Diffusion>(
     let mut breaks = vec![option.strike(), option.knock_out_level()];
     breaks.sort_by(f64::total_cmp);
     breaks.dedup();
+    let mut split_cells = [None; 2];
+    for (split, &asset) in split_cells.iter_mut().zip(&breaks) {
+        *split = space.split_cell_at(asset);
+    }
+    if split_cells[0] == split_cells[1] {
+        split_cells[1] = None;
+    }
     let event =
         |index: usize, asset: f64, slope: f64, intercept: f64, observe: bool, accumulate: bool| {
             let (before, purchase) = if let Some(events) = &fixed {
@@ -302,20 +309,47 @@ fn solve_grid<D: Diffusion>(
             let date = dates[event_index];
             let observe = option.observes_knock_out(date);
             let accumulate = option.accumulates_at(date, option.calendar());
-            for i in 0..=space.count {
-                // Project only the event jump to preserve smooth continuation.
-                let correction = super::grid::project_in_coordinates(&space, &breaks, i, |asset| {
-                    let slope = space.linear(&layers[0], asset);
-                    let intercept = space.linear(&layers[1], asset);
-                    let value = event(event_index, asset, slope, intercept, observe, accumulate);
-                    [value[0] - slope, value[1] - intercept]
-                });
-                for layer in 0..count {
-                    next[layer][i] = layers[layer][i] + correction[layer];
+            // Compute the split cells before modifying their neighbors. Ordinary
+            // cells use their node values directly and need no interpolation.
+            let corrections = split_cells.map(|cell| {
+                cell.map(|i| {
+                    let correction =
+                        super::grid::project_grid_node(&space, &breaks, i, |asset, node| {
+                            let at = |layer: &[f64]| {
+                                node.map_or_else(|| space.linear(layer, asset), |j| layer[j])
+                            };
+                            let slope = at(&layers[0]);
+                            let intercept = at(&layers[1]);
+                            let value =
+                                event(event_index, asset, slope, intercept, observe, accumulate);
+                            [value[0] - slope, value[1] - intercept]
+                        });
+                    (
+                        i,
+                        [layers[0][i] + correction[0], layers[1][i] + correction[1]],
+                    )
+                })
+            });
+            let [slope, intercept] = &mut layers;
+            for (i, ((slope, intercept), &asset)) in slope
+                .iter_mut()
+                .zip(intercept)
+                .zip(&space.spots)
+                .enumerate()
+            {
+                if i % 1024 == 0 {
+                    crate::cancellation::check()?;
+                }
+                let value = event(event_index, asset, *slope, *intercept, observe, accumulate);
+                *slope += value[0] - *slope;
+                if count == 2 {
+                    *intercept += value[1] - *intercept;
                 }
             }
-            for layer in 0..count {
-                std::mem::swap(&mut layers[layer], &mut next[layer]);
+            for (i, value) in corrections.into_iter().flatten() {
+                for layer in 0..count {
+                    layers[layer][i] = value[layer];
+                }
             }
             damping = 2;
         }

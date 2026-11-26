@@ -339,6 +339,20 @@ impl SpatialGrid {
         log_ratio(asset, self.reference)
     }
 
+    pub fn split_cell_at(&self, asset: f64) -> Option<usize> {
+        let x = self.coordinate(asset);
+        let right = self.nodes.partition_point(|&node| node <= x);
+        if right == 0 || right > self.count {
+            return None;
+        }
+        [right - 1, right].into_iter().find(|&i| {
+            i > 0
+                && i < self.count
+                && self.nodes[i - 1].midpoint(self.nodes[i]) < x
+                && x < self.nodes[i].midpoint(self.nodes[i + 1])
+        })
+    }
+
     pub fn asset(&self, index: usize) -> f64 {
         self.spots[index]
     }
