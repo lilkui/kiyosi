@@ -1399,29 +1399,45 @@ fn path_samples_skipping<const N: usize>(
         0,
         true,
         |draws, _, paired| {
-            let (generator, spare) = (draws.generator, draws.spare);
-            let mut path = SkippingPath {
-                draws,
-                used: 0,
-                sign: 1.0,
-            };
-            let positive = payoff(&mut path)?;
-            let negative = if paired {
-                path.draws.generator = generator;
-                path.draws.spare = spare;
-                if let Some(cursor) = &mut path.draws.cursor {
-                    cursor.seek(0);
-                }
-                path.used = 0;
-                path.sign = -1.0;
-                Some(payoff(&mut path)?)
-            } else {
-                None
-            };
-            path.skip(dimensions - path.used);
-            Ok((positive, negative))
+            let mut values = [[0.0; N]; 2];
+            skipped_sample_pair(draws, dimensions, paired, |path, lane| {
+                values[lane] = payoff(path)?;
+                Ok(())
+            })?;
+            let [positive, negative] = values;
+            Ok((positive, paired.then_some(negative)))
         },
     )
+}
+
+fn skipped_sample_pair(
+    draws: &mut NormalDraws<'_>,
+    dimensions: usize,
+    paired: bool,
+    mut sample: impl FnMut(&mut SkippingPath<'_, '_>, usize) -> Result<()>,
+) -> Result<()> {
+    let origin = (draws.generator, draws.spare);
+    let mut path = SkippingPath {
+        draws,
+        used: 0,
+        sign: 1.0,
+    };
+    sample(&mut path, 0)?;
+    let positive_used = path.used;
+    if paired {
+        (path.draws.generator, path.draws.spare) = origin;
+        if let Some(cursor) = &mut path.draws.cursor {
+            cursor.seek(0);
+        }
+        path.used = 0;
+        path.sign = -1.0;
+        sample(&mut path, 1)?;
+    }
+    if let Some(cursor) = &mut path.draws.cursor {
+        cursor.defer_unused_dimensions(positive_used.max(path.used));
+    }
+    path.skip(dimensions - path.used);
+    Ok(())
 }
 
 struct SkippingPath<'a, 'b> {
@@ -1508,10 +1524,62 @@ impl NormalDraws<'_> {
     }
 }
 
-#[expect(
-    clippy::cast_sign_loss,
-    reason = "Settings validate positive path counts before allocating sample buffers."
-)]
+struct PathBlocks {
+    settings: MonteCarloSettings,
+    seed: u64,
+    sobol: Option<Arc<sobol::SobolSequence>>,
+}
+
+impl PathBlocks {
+    fn new(settings: MonteCarloSettings, dimensions: usize) -> Result<Self> {
+        settings.validate_path_steps(dimensions)?;
+        let seed = settings.resolved_seed()?;
+        let sobol = (settings.sampling == MonteCarloSampling::Sobol)
+            .then(|| sobol::sequence(dimensions, seed))
+            .transpose()?;
+        Ok(Self {
+            settings,
+            seed,
+            sobol,
+        })
+    }
+
+    fn count(&self) -> usize {
+        self.settings.sample_count().div_ceil(BLOCK_SIZE)
+    }
+
+    fn sample(
+        &self,
+        block: usize,
+        skip_dimensions: bool,
+        mut sample: impl FnMut(&mut NormalDraws<'_>, bool) -> Result<()>,
+    ) -> Result<()> {
+        let first = block * BLOCK_SIZE;
+        let mut cursor = self.sobol.as_ref().map(|sequence| sequence.cursor(first));
+        if skip_dimensions {
+            if let Some(cursor) = &mut cursor {
+                cursor.enable_skips();
+            }
+        }
+        let mut draws = NormalDraws {
+            generator: Pcg32::new(self.seed, block as u64),
+            spare: None,
+            cursor,
+        };
+        let paths = self.settings.path_count.unsigned_abs() as usize;
+        for path in first..(first + BLOCK_SIZE).min(self.settings.sample_count()) {
+            if path % 64 == 0 {
+                crate::cancellation::check()?;
+            }
+            sample(&mut draws, self.settings.antithetic && path < paths / 2)?;
+            if let Some(cursor) = &mut draws.cursor {
+                cursor.next_path();
+            }
+        }
+        Ok(())
+    }
+}
+
 fn sample_paths<const N: usize>(
     settings: MonteCarloSettings,
     dimensions: usize,
@@ -1521,51 +1589,20 @@ fn sample_paths<const N: usize>(
     sample: impl Fn(&mut NormalDraws<'_>, &mut [f64], bool) -> Result<([f64; N], Option<[f64; N]>)>
     + Sync,
 ) -> Result<([Moments; N], [Moments; N], u64)> {
-    settings.validate_path_steps(dimensions)?;
-    let paths = settings.path_count as usize;
-    let seed = settings.resolved_seed()?;
-    let samples = settings.sample_count();
+    let blocks = PathBlocks::new(settings, dimensions)?;
     let statistics = statistics
         && settings.sampling == MonteCarloSampling::PseudoRandom
-        && (!settings.antithetic || paths % 2 == 0);
+        && (!settings.antithetic || settings.path_count % 2 == 0);
     let variance = statistics && !settings.antithetic;
-    let sobol = if settings.sampling == MonteCarloSampling::Sobol {
-        Some(sobol::sequence(dimensions, seed)?)
-    } else {
-        None
-    };
     let empty = [Moments::default(); N];
     // Seed and merge fixed blocks in index order so worker counts cannot change the result.
-    let mut partials = vec![(empty, empty); samples.div_ceil(BLOCK_SIZE)];
+    let mut partials = vec![(empty, empty); blocks.count()];
     let simulate = |block: usize| -> Result<([Moments; N], [Moments; N])> {
-        let mut cursor = sobol
-            .as_ref()
-            .map(|sequence| sequence.cursor(block * BLOCK_SIZE));
-        if skip_dimensions {
-            if let Some(cursor) = &mut cursor {
-                cursor.enable_skips();
-            }
-        }
-        let mut draws = NormalDraws {
-            generator: Pcg32::new(seed, block as u64),
-            spare: None,
-            cursor,
-        };
         let mut moments = empty;
         let mut pairs = empty;
         let mut normals = vec![0.0; buffer_len];
-        for path in block * BLOCK_SIZE..((block + 1) * BLOCK_SIZE).min(samples) {
-            if path % 64 == 0 {
-                crate::cancellation::check()?;
-            }
-            let (positive, negative) = sample(
-                &mut draws,
-                &mut normals,
-                settings.antithetic && path < paths / 2,
-            )?;
-            if let Some(cursor) = &mut draws.cursor {
-                cursor.next_path();
-            }
+        blocks.sample(block, skip_dimensions, |draws, paired| {
+            let (positive, negative) = sample(draws, &mut normals, paired)?;
             for i in 0..N {
                 moments[i].add(positive[i], variance);
             }
@@ -1577,7 +1614,8 @@ fn sample_paths<const N: usize>(
                     }
                 }
             }
-        }
+            Ok(())
+        })?;
         Ok((moments, pairs))
     };
     run_blocks(&mut partials, settings.max_active_workers, simulate)?;
@@ -1591,7 +1629,7 @@ fn sample_paths<const N: usize>(
             }
         }
     }
-    Ok((total, pairs, seed))
+    Ok((total, pairs, blocks.seed))
 }
 
 fn for_each_path_chunk(normals: &mut [f64], mut apply: impl FnMut(&mut [f64])) -> Result<()> {

@@ -524,7 +524,7 @@ sampling_settings!(
     /// ----------
     /// instruments : iterable of SnowballOption, BinarySnowballOption, TernarySnowballOption, or PhoenixOption
     ///     Notes of the same concrete type. Compatible observation grids share
-    ///     simulated paths. Other observation grids use scalar pricing.
+    ///     simulated paths within the batch workspace.
     /// context : PricingContext
     ///     Shared market snapshot and valuation instant.
     ///

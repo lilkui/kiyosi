@@ -25,11 +25,17 @@ fn portfolio_prices_replay_scalar_paths() -> Result<()> {
             max_active_workers: 2,
         })?;
         for notes in [
-            [&first, &second, &first],
-            [&first, &different_grid, &second],
+            vec![&first, &second, &first],
+            vec![&first, &different_grid, &second],
+            (0..41)
+                .map(|index| [&first, &different_grid, &second][index % 3])
+                .collect(),
         ] {
-            let expected = notes.map(|note| engine.price(note, &context).map(f64::to_bits));
+            let expected = notes
+                .iter()
+                .map(|note| engine.price(note, &context).map(f64::to_bits));
             let actual = engine.price_many(&notes, &context)?;
+            assert_eq!(actual.len(), notes.len());
             for (price, scalar) in actual.into_iter().zip(expected) {
                 assert_eq!(price.to_bits(), scalar?);
             }

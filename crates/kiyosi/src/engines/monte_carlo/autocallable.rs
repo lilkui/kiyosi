@@ -16,7 +16,7 @@ use crate::{
     Timestamp,
 };
 
-const PORTFOLIO_BLOCK: usize = 16;
+mod portfolio;
 
 /// Prices snowball variants and Phoenix notes with trading-day CPU Monte Carlo.
 ///
@@ -141,8 +141,8 @@ impl MonteCarloAutocallableEngine {
 
     /// Prices a batch of notes of one product type in input order.
     ///
-    /// Compatible observation grids share simulated paths. Other notes retain
-    /// scalar pricing. All simulations in the batch use one seed. Configure a
+    /// Compatible observation grids share simulated paths within the batch
+    /// workspace. All simulations in the batch use one seed. Configure a
     /// seed or call [`Self::with_resolved_seed`] to replay the results.
     ///
     /// # Examples
@@ -163,77 +163,7 @@ impl MonteCarloAutocallableEngine {
         notes: &[&AutocallableNote<T>],
         context: &PricingContext,
     ) -> Result<Vec<f64>> {
-        let _sampling = super::sobol::RequestCache::new();
-        let mut engine = *self;
-        let mut prices = Vec::new();
-        prices.try_reserve_exact(notes.len()).map_err(|_| {
-            Error::ComputationFailure("cannot reserve Monte Carlo batch output".into())
-        })?;
-        for chunk in notes.chunks(PORTFOLIO_BLOCK) {
-            crate::cancellation::check()?;
-            let plans = chunk
-                .iter()
-                .map(|note| self.prepare_sample::<_, PORTFOLIO_BLOCK>(note, context))
-                .collect::<Result<Vec<_>>>();
-            let plans = match plans {
-                Ok(plans) => plans,
-                Err(Error::InvalidInput(_)) => {
-                    // An individually valid schedule can outgrow the batch workspace.
-                    for note in chunk {
-                        let (price, seed) = engine.price_with_seed(note, context)?;
-                        engine.settings.seed = seed.or(engine.settings.seed);
-                        prices.push(price);
-                    }
-                    continue;
-                }
-                Err(error) => return Err(error),
-            };
-            let mut groups: Vec<Vec<_>> = Vec::new();
-            for (i, sample) in plans.iter().enumerate() {
-                let Sample::Path(plan) = sample else { continue };
-                let mut matched = false;
-                for group in &mut groups {
-                    let (_, representative): (usize, &PathPlan<'_, T>) = group[0];
-                    if representative.shares_portfolio_grid(plan)? {
-                        group.push((i, plan));
-                        matched = true;
-                        break;
-                    }
-                }
-                if !matched {
-                    groups.push(vec![(i, plan)]);
-                }
-            }
-            let mut prices_in_chunk = [0.0; PORTFOLIO_BLOCK];
-            for (i, plan) in plans.iter().enumerate() {
-                if let Sample::Fixed(price) = plan {
-                    prices_in_chunk[i] = *price;
-                }
-            }
-            if !groups.is_empty() {
-                engine = engine.with_resolved_seed()?;
-            }
-            for group in groups {
-                let representatives: Vec<_> = group.iter().map(|&(_, plan)| plan).collect();
-                let base = representatives[0];
-                let moments = match representatives.len() {
-                    1 => {
-                        let ([moment], _, _) =
-                            base.sample(engine.settings, [base], false, false)?;
-                        vec![moment]
-                    }
-                    2 => base.portfolio::<2>(engine.settings, &representatives)?,
-                    3..=4 => base.portfolio::<4>(engine.settings, &representatives)?,
-                    5..=8 => base.portfolio::<8>(engine.settings, &representatives)?,
-                    _ => base.portfolio::<PORTFOLIO_BLOCK>(engine.settings, &representatives)?,
-                };
-                for ((i, _), value) in group.into_iter().zip(moments) {
-                    prices_in_chunk[i] = scaled_value(value.scale, value.mean, 0.0)?;
-                }
-            }
-            prices.extend_from_slice(&prices_in_chunk[..chunk.len()]);
-        }
-        Ok(prices)
+        portfolio::price_many(*self, notes, context)
     }
 
     /// Returns a price with optional standard error and asymptotic 95% confidence interval.
@@ -580,76 +510,6 @@ impl<T: AutocallableTerms> PathPlan<'_, T> {
             }
         }
         Ok(true)
-    }
-
-    fn portfolio<const N: usize>(
-        &self,
-        settings: MonteCarloSettings,
-        plans: &[&Self],
-    ) -> Result<Vec<Moments>> {
-        let lanes = std::array::from_fn(|i| plans[i.min(plans.len() - 1)]);
-        let (moments, _, _) = if let Some(bridge) = &self.bridge {
-            path_samples_skipping(settings, self.steps.len(), false, |normals| {
-                Self::bridge_payoffs::<N, true>(bridge, lanes, normals)
-            })?
-        } else {
-            path_samples_lazy(settings, self.steps.len(), false, false, |normals| {
-                self.portfolio_payoffs(lanes, normals)
-            })?
-        };
-        Ok(moments.into_iter().take(plans.len()).collect())
-    }
-
-    fn portfolio_payoffs<const N: usize>(
-        &self,
-        plans: [&Self; N],
-        normals: &mut LazyPath<'_, '_>,
-    ) -> Result<[f64; N]> {
-        let mut cash = plans.map(|plan| plan.state.coupon);
-        let mut active = [true; N];
-        let mut log_return = 0.0;
-        let mut minimum = f64::INFINITY;
-        let mut discount = 0.0;
-        for (index, step) in self.steps.iter().enumerate() {
-            check_path_step(index)?;
-            let [drift, diffusion, log_discount] = step.transition;
-            discount = log_discount;
-            log_return += diffusion.mul_add(normals.normal(), drift);
-            self.validate_return(log_return)?;
-            if step.observe_knock_in {
-                minimum = minimum.min(log_return);
-            }
-            if step.event.is_some() {
-                for (lane, plan) in plans.iter().enumerate() {
-                    if !active[lane] {
-                        continue;
-                    }
-                    let event = plan.steps[index].event.expect("shared cash-flow dates");
-                    let hit = event.knock_out.is_some_and(|level| log_return >= level);
-                    cash[lane] += event.discounted_payment(
-                        log_return >= event.coupon_barrier,
-                        hit,
-                        discount,
-                    )?;
-                    active[lane] = !hit;
-                }
-                if active.iter().all(|active| !active) {
-                    return finite_payoffs(cash);
-                }
-            }
-        }
-        for (lane, plan) in plans.into_iter().enumerate() {
-            if active[lane] {
-                let min = if plan.expiry_knock_in {
-                    minimum.min(log_return)
-                } else {
-                    minimum
-                };
-                let hit = plan.state.knocked_in || plan.knock_in.is_some_and(|level| min < level);
-                cash[lane] += plan.discounted_terminal(log_return, hit, discount)?;
-            }
-        }
-        finite_payoffs(cash)
     }
 
     fn sample<const N: usize>(

@@ -49,6 +49,14 @@ def test_portfolio_prices_replay_scalar_paths(sampling):
     assert engine.price_many(iter(notes), context) == tuple(
         engine.price(item, context) for item in notes
     )
+    different_grid = note.replace(knock_in_observation=KnockInObservation.at_expiry())
+    interleaved = (variation, different_grid, note) * 13
+    expected = tuple(engine.price(item, context) for item in interleaved)
+    assert engine.price_many(iter(interleaved), context) == expected
+    assert (
+        engine.replace(max_active_workers=1).price_many(interleaved, context)
+        == expected
+    )
     assert engine.price_many([], context) == ()
     with pytest.raises(UnsupportedOperationError):
         engine.price_many((note, phoenix()), context)
