@@ -4,10 +4,10 @@ use crate::numerics::{
 use crate::{Error, Result, Timestamp};
 use rustfft::{Fft, FftPlanner, num_complex::Complex64};
 use std::{
-    cell::Cell as Counter,
+    cell::{Cell as Counter, RefCell},
     collections::hash_map::{Entry, HashMap},
     ops::Range,
-    rc::Rc,
+    rc::{Rc, Weak},
     sync::Arc,
 };
 
@@ -16,6 +16,8 @@ const WORKSPACE_BUDGET: usize = 256 << 20;
 const WORK_BUDGET: usize = 1_000_000_000;
 // Includes the hash entry and transient capacity growth during construction.
 const BYTES_PER_CACHED_MOMENT: usize = 256;
+const MAX_TRANSITIONS: usize = 8;
+const MAX_PLANNED_GAPS: usize = 64;
 
 fn workspace_error() -> Error {
     Error::InvalidInput(
@@ -493,6 +495,8 @@ pub(super) struct TransitionCache {
     budget: usize,
     grids: Vec<(Range<usize>, Arc<ConvolutionGrid>)>,
     tail_work: Rc<Counter<usize>>,
+    scheduled_gaps: HashMap<u64, (usize, usize)>,
+    fft_workspace: Weak<RefCell<FftWorkspace>>,
 }
 
 impl TransitionCache {
@@ -537,6 +541,8 @@ impl TransitionCache {
             budget,
             grids,
             tail_work: Rc::new(Counter::new(WORK_BUDGET)),
+            scheduled_gaps: HashMap::new(),
+            fft_workspace: Weak::new(),
         })
     }
 
@@ -603,7 +609,7 @@ impl TransitionCache {
     }
 
     pub fn validate_scheduled_work(
-        &self,
+        &mut self,
         nodes: &[f64],
         dates: &[Timestamp],
         layers: usize,
@@ -616,7 +622,6 @@ impl TransitionCache {
             .saturating_add(terminal_pieces.saturating_sub(1))
             .saturating_add(split_pieces);
         let mut work = remaining_rollback_work(nodes, layers, visits)?;
-        let mut last = None;
         // A terminal payoff with exact pieces does not integrate interpolated cells.
         let intervals = dates
             .len()
@@ -625,12 +630,15 @@ impl TransitionCache {
             crate::cancellation::check()?;
             let time = pair[0].years_until(pair[1]);
             let key = time.to_bits();
-            let cells = if let Some((_, cells)) = last.filter(|&(previous, _)| previous == key) {
-                cells
+            let cells = if let Some((cells, uses)) = self.scheduled_gaps.get_mut(&key) {
+                *uses += 1;
+                *cells
             } else {
                 let (drift, deviation, _) = transition(time)?;
                 let cells = self.transition_work(nodes, drift, deviation)?;
-                last = Some((key, cells));
+                if self.scheduled_gaps.len() < MAX_PLANNED_GAPS {
+                    self.scheduled_gaps.insert(key, (cells, 1));
+                }
                 cells
             };
             work = work
@@ -652,14 +660,14 @@ impl TransitionCache {
         drift: f64,
         deviation: f64,
     ) -> crate::Result<&mut Transition> {
-        let index = if let Some(index) = self
+        if let Some(index) = self
             .entries
             .iter()
             .position(|(duration, _)| *duration == time)
         {
-            index
+            let entry = self.entries.remove(index);
+            self.entries.push(entry);
         } else {
-            // Retain common event gaps without accumulating matrices for irregular schedules.
             let grids = self.convolutions(deviation).to_vec();
             let bytes = grids
                 .iter()
@@ -671,16 +679,23 @@ impl TransitionCache {
                 Transition::row_bytes(nodes, drift, deviation, self.budget - bytes, &grids)?
             };
             let minimum = bytes + row_bytes;
-            if self.entries.len() == 3 {
-                self.entries.remove(0);
-            }
             let mut retained = self
                 .entries
                 .iter()
                 .map(|(_, matrix)| matrix.storage_bytes())
                 .sum::<usize>();
-            while retained + minimum > self.budget {
-                retained -= self.entries.remove(0).1.storage_bytes();
+            while self.entries.len() >= MAX_TRANSITIONS || retained + minimum > self.budget {
+                let least_used = self
+                    .entries
+                    .iter()
+                    .enumerate()
+                    .min_by_key(|(_, (gap, _))| {
+                        self.scheduled_gaps
+                            .get(&gap.to_bits())
+                            .map_or(0, |&(_, uses)| uses)
+                    })
+                    .map_or(0, |(index, _)| index);
+                retained -= self.entries.remove(least_used).1.storage_bytes();
             }
             let index_bytes = row_bytes.saturating_sub(nodes.len() * size_of::<Row>());
             let max_moments = (self.budget - retained - minimum) / BYTES_PER_CACHED_MOMENT;
@@ -693,19 +708,30 @@ impl TransitionCache {
                 &grids,
             )?;
             for (patch, grid) in grids {
+                let workspace = grid.use_fft(deviation).then(|| {
+                    self.fft_workspace.upgrade().unwrap_or_else(|| {
+                        // All patches in this request use the same FFT size.
+                        let workspace = Rc::new(RefCell::new(FftWorkspace::new(grid.size)));
+                        self.fft_workspace = Rc::downgrade(&workspace);
+                        workspace
+                    })
+                });
                 let fft = GaussianConvolution::new(
                     grid,
                     &nodes[patch.clone()],
                     drift,
                     deviation,
                     Rc::clone(&self.tail_work),
+                    workspace,
                 )?;
                 transition.convolutions.push((patch, fft));
             }
             self.entries.push((time, transition));
-            self.entries.len() - 1
-        };
-        Ok(&mut self.entries[index].1)
+        }
+        if let Some((_, uses)) = self.scheduled_gaps.get_mut(&time.to_bits()) {
+            *uses = uses.saturating_sub(1);
+        }
+        Ok(&mut self.entries.last_mut().expect("transition was appended").1)
     }
 }
 
@@ -994,9 +1020,13 @@ struct GaussianConvolution {
 }
 
 struct Spectrum {
+    kernels: [Vec<Complex64>; 4],
+    workspace: Rc<RefCell<FftWorkspace>>,
+}
+
+struct FftWorkspace {
     forward: Arc<dyn Fft<f64>>,
     inverse: Arc<dyn Fft<f64>>,
-    kernels: [Vec<Complex64>; 4],
     input: Vec<Complex64>,
     output: Vec<Complex64>,
     scratch: Vec<Complex64>,
@@ -1013,11 +1043,10 @@ impl GaussianConvolution {
         drift: f64,
         deviation: f64,
         tail_work: Rc<Counter<usize>>,
+        workspace: Option<Rc<RefCell<FftWorkspace>>>,
     ) -> Result<Self> {
         crate::cancellation::check()?;
-        let size = grid.size;
         let spacing = grid.spacing;
-        let fft = grid.use_fft(deviation).then(|| Spectrum::new(size));
         let cells = grid.regular.len() - 1;
         let mut cell_weights = Vec::with_capacity(2 * cells);
         for offset in 0..2 * cells {
@@ -1027,8 +1056,8 @@ impl GaussianConvolution {
             let left = (offset as f64 - cells as f64) * spacing;
             cell_weights.push(cell_moments(left, left + spacing, drift, deviation));
         }
-        let fft = fft
-            .map(|fft| fft.prepare(cells, &cell_weights))
+        let fft = workspace
+            .map(|workspace| Spectrum::new(workspace, cells, &cell_weights))
             .transpose()?;
         let mut corrections = Vec::new();
         if grid.extras > 0 {
@@ -1109,11 +1138,19 @@ impl GaussianConvolution {
         let support = &regular[..cells];
         let first = support.iter().position(nonzero).unwrap_or(cells);
         let last = support.iter().rposition(nonzero).map_or(cells, |i| i + 1);
-        let fft = self.fft.as_mut().expect("FFT selected above");
-        fft.output.fill(Complex64::default());
+        let fft = self.fft.as_ref().expect("FFT selected above");
+        let mut workspace = fft.workspace.borrow_mut();
+        let FftWorkspace {
+            forward,
+            inverse,
+            input,
+            output,
+            scratch,
+        } = &mut *workspace;
+        output.fill(Complex64::default());
         for (power, kernel) in fft.kernels.iter().enumerate() {
             crate::cancellation::check()?;
-            for (value, pair) in fft.input.iter_mut().zip(regular.windows(2)) {
+            for (value, pair) in input.iter_mut().zip(regular.windows(2)) {
                 *value = Complex64::new(
                     if pair[1] == pair[0] + 1 {
                         curve[pair[0]][power]
@@ -1123,17 +1160,13 @@ impl GaussianConvolution {
                     0.0,
                 );
             }
-            fft.input[cells..].fill(Complex64::default());
-            fft.forward
-                .process_with_scratch(&mut fft.input, &mut fft.scratch);
-            for ((value, coefficient), weight) in fft.output.iter_mut().zip(&fft.input).zip(kernel)
-            {
+            input[cells..].fill(Complex64::default());
+            forward.process_with_scratch(input, scratch);
+            for ((value, coefficient), weight) in output.iter_mut().zip(input.iter()).zip(kernel) {
                 *value += coefficient * weight;
             }
         }
-        fft.inverse
-            .process_with_scratch(&mut fft.output, &mut fft.scratch);
-        let fft = self.fft.as_ref().expect("transformed spectrum");
+        inverse.process_with_scratch(output, scratch);
         let roundoff = 128.0 * f64::EPSILON * scale;
         let mut index = 0;
         for (node_index, (value, &node)) in values.iter_mut().zip(nodes).enumerate() {
@@ -1149,7 +1182,7 @@ impl GaussianConvolution {
                 *value = sum.total() * factor;
                 continue;
             }
-            let sample = fft.output[index].re;
+            let sample = output[index].re;
             let estimate = sample + sum.total();
             *value = if estimate.is_finite() && estimate.abs() > roundoff && sample.abs() > roundoff
             {
@@ -1292,7 +1325,7 @@ impl GaussianConvolution {
     }
 }
 
-impl Spectrum {
+impl FftWorkspace {
     fn new(size: usize) -> Self {
         let mut planner = FftPlanner::new();
         let forward = planner.plan_fft_forward(size);
@@ -1307,38 +1340,49 @@ impl Spectrum {
         Self {
             forward,
             inverse,
-            kernels: std::array::from_fn(|_| blank()),
             input: blank(),
             output: blank(),
             scratch,
         }
     }
+}
 
+impl Spectrum {
     #[expect(
         clippy::cast_precision_loss,
         reason = "The workspace bounds the transform length."
     )]
-    fn prepare(mut self, cells: usize, moments: &[IntervalMoments]) -> Result<Self> {
-        let size = self.input.len();
+    fn new(
+        workspace: Rc<RefCell<FftWorkspace>>,
+        cells: usize,
+        moments: &[IntervalMoments],
+    ) -> Result<Self> {
+        let mut work = workspace.borrow_mut();
+        let size = work.input.len();
+        let mut kernels = std::array::from_fn(|_| vec![Complex64::default(); size]);
         for (offset, moments) in moments.iter().enumerate() {
             // The correlation offset is j - i. The convolution kernel uses i - j.
             let index = (cells + size - offset) % size;
-            self.kernels[0][index].re = moments.mass;
+            kernels[0][index].re = moments.mass;
             if moments.mass != 0.0 {
-                for (kernel, conditional) in self.kernels[1..].iter_mut().zip(moments.conditional) {
+                for (kernel, conditional) in kernels[1..].iter_mut().zip(moments.conditional) {
                     kernel[index].re = moments.mass * conditional;
                 }
             }
         }
         let normalization = 1.0 / size as f64;
-        for kernel in &mut self.kernels {
+        let FftWorkspace {
+            forward, scratch, ..
+        } = &mut *work;
+        for kernel in &mut kernels {
             crate::cancellation::check()?;
-            self.forward.process_with_scratch(kernel, &mut self.scratch);
+            forward.process_with_scratch(kernel, scratch);
             for value in kernel {
                 *value *= normalization;
             }
         }
-        Ok(self)
+        drop(work);
+        Ok(Self { kernels, workspace })
     }
 }
 
@@ -1392,6 +1436,32 @@ mod tests {
             cache.get(1.0, &nodes, 0.0, 1.0),
             Err(Error::InvalidInput(_))
         ));
+        Ok(())
+    }
+
+    #[test]
+    fn four_recurring_gaps_reuse_kernels_and_share_fft_workspace() -> Result<()> {
+        let nodes = integration_nodes(-1.5, 1.5, 512, &[], 1)?;
+        let mut cache = TransitionCache::new(&nodes, nodes.len(), 1, 512)?;
+        let mut kernels = [std::ptr::null(); 4];
+        for duration in 0..8 {
+            let gap = duration % 4;
+            let time = f64::from(gap + 1);
+            let transition = cache.get(time, &nodes, 0.0, 0.05 * time.sqrt())?;
+            let spectrum = transition.convolutions[0].1.fft.as_ref().unwrap();
+            let kernel = &mut kernels[usize::try_from(gap).unwrap()];
+            if duration < 4 {
+                *kernel = spectrum.kernels[0].as_ptr();
+            } else {
+                assert_eq!(*kernel, spectrum.kernels[0].as_ptr());
+            }
+        }
+        let workspace = cache.fft_workspace.upgrade().unwrap();
+        assert_eq!(cache.entries.len(), 4);
+        assert!(cache.entries.iter().all(|(_, transition)| {
+            let spectrum = transition.convolutions[0].1.fft.as_ref().unwrap();
+            Rc::ptr_eq(&workspace, &spectrum.workspace)
+        }));
         Ok(())
     }
 
