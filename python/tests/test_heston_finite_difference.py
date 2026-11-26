@@ -26,6 +26,23 @@ from kiyosi.pricing import (
 from test_heston import END, START, context, model, option, reference
 
 
+def test_american_heston_surface_caps_combined_expiry_rollbacks():
+    engine = FiniteDifferenceHestonVanillaEngine(
+        asset_step_count=96,
+        variance_step_count=64,
+        time_step_count=1600,
+        asset_upper_boundary=400,
+    )
+    put = AmericanOption(
+        option_type="put", strike=100, effective_time=START, expiry_time=END
+    )
+    expiries = [END - timedelta(days=i) for i in range(120)]
+    with pytest.raises(InvalidInputError, match="one billion grid updates"):
+        engine.price_american_surface(
+            put, context(model()), expiries=expiries, strikes=[100]
+        )
+
+
 @pytest.mark.parametrize("asset_upper_boundary", [None, 400])
 @pytest.mark.parametrize("dated", [False, True])
 def test_american_surface_matches_scalar_expiries_and_preserves_order(

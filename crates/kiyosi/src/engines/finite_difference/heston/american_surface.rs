@@ -4,8 +4,9 @@ use rayon::prelude::*;
 
 use super::{
     AmericanOption, FiniteDifferenceHestonVanillaEngine, Payoff, PricingContext, Result,
-    SpatialGrid, Spline, Timestamp, WORKSPACE_BUDGET, grid_price, integrated_variance,
-    invalid_grid, prepare_batch, rollback_pool, unstable,
+    RollbackWork, SpatialGrid, Spline, Timestamp, WORKSPACE_BUDGET, grid_price,
+    integrated_variance, invalid_grid, prepare_batch, price_strikes, rollback_pool, unstable,
+    validate_work,
 };
 
 impl FiniteDifferenceHestonVanillaEngine {
@@ -21,9 +22,9 @@ impl FiniteDifferenceHestonVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Propagates strike-batch errors and rejects oversized output or expiries
-    /// before valuation or the effective time. Cancellation returns no partial
-    /// surface.
+    /// Propagates strike-batch errors and rejects oversized output, excessive
+    /// combined rollback work, or expiries before valuation or the effective
+    /// time. Cancellation returns no partial surface.
     pub fn price_american_surface(
         &self,
         template: &AmericanOption,
@@ -112,6 +113,7 @@ impl FiniteDifferenceHestonVanillaEngine {
         let first = live.partition_point(|&expiry| {
             integrated_variance(model, valuation.years_until(expiry)).sqrt() < 0.04
         });
+        let budget = RollbackWork::default();
         let rows = if share && shared_times && live.len() - first >= 2 {
             let mut surface = AmericanSurface {
                 times: times[first..].to_vec(),
@@ -128,11 +130,12 @@ impl FiniteDifferenceHestonVanillaEngine {
                 &[],
                 &[],
                 Some(&mut surface),
+                Some(&budget),
             )?;
             if surface.rows.len() != live.len() - first {
                 return Err(unstable());
             }
-            let mut rows = self.expiry_rows(template, context, &live[..first], strikes)?;
+            let mut rows = self.expiry_rows(template, context, &live[..first], strikes, &budget)?;
             rows.extend(surface.rows);
             rows
         } else if let Some(upper) = self
@@ -141,16 +144,17 @@ impl FiniteDifferenceHestonVanillaEngine {
             .filter(|_| shared_times && self.settings.asset_step_count >= 128)
         {
             if live.len() - first < 2 {
-                self.expiry_rows(template, context, live, strikes)?
+                self.expiry_rows(template, context, live, strikes, &budget)?
             } else {
-                let mut rows = self.expiry_rows(template, context, &live[..first], strikes)?;
+                let mut rows =
+                    self.expiry_rows(template, context, &live[..first], strikes, &budget)?;
                 rows.extend(self.fixed_surface(
                     template,
                     context,
-                    &live[first..],
-                    &times[first..],
+                    (&live[first..], &times[first..]),
                     strikes,
                     upper,
+                    &budget,
                 )?);
                 rows
             }
@@ -161,9 +165,9 @@ impl FiniteDifferenceHestonVanillaEngine {
             && (model.initial_variance() > 0.0
                 || model.mean_reversion_speed() > 0.0 && model.long_run_variance() > 0.0)
         {
-            self.dated_surface(template, context, live, strikes)?
+            self.dated_surface(template, context, live, strikes, &budget)?
         } else {
-            self.expiry_rows(template, context, live, strikes)?
+            self.expiry_rows(template, context, live, strikes, &budget)?
         };
         expiries
             .iter()
@@ -192,6 +196,7 @@ impl FiniteDifferenceHestonVanillaEngine {
         context: &PricingContext,
         live: &[Timestamp],
         strikes: &[f64],
+        budget: &RollbackWork,
     ) -> Result<Vec<Vec<f64>>> {
         let model = context.model_parameters().as_heston()?;
         let spot = context.spot_price();
@@ -204,7 +209,7 @@ impl FiniteDifferenceHestonVanillaEngine {
             let ratio = spot / strike;
             let normalized = spot * ratio;
             if !normalized.is_normal() || !ratio.is_normal() || !ratio.recip().is_normal() {
-                return self.expiry_rows(template, context, live, strikes);
+                return self.expiry_rows(template, context, live, strikes, budget);
             }
             low = low.min(normalized);
             high = high.max(normalized);
@@ -215,7 +220,7 @@ impl FiniteDifferenceHestonVanillaEngine {
             integrated_variance(model, valuation.years_until(expiry)).sqrt() < 0.04
         });
         if live.len() - first < 2 {
-            return self.expiry_rows(template, context, live, strikes);
+            return self.expiry_rows(template, context, live, strikes, budget);
         }
         let settings = self.settings;
         let assets = u64::from(settings.asset_step_count.unsigned_abs()) + 1;
@@ -233,10 +238,10 @@ impl FiniteDifferenceHestonVanillaEngine {
             .saturating_add(64 << 20);
         let pool = rollback_pool();
         if pool.is_some_and(|(_, workers)| live.len() - first < 2 * workers) {
-            return self.expiry_rows(template, context, live, strikes);
+            return self.expiry_rows(template, context, live, strikes, budget);
         }
         let parallel = pool.filter(|(_, workers)| bytes <= WORKSPACE_BUDGET / *workers as u64);
-        let mut rows = self.expiry_rows(template, context, &live[..first], strikes)?;
+        let mut rows = self.expiry_rows(template, context, &live[..first], strikes, budget)?;
         let queries: Arc<[(f64, f64)]> = queries.into();
         let mut jobs = Vec::new();
         let mut remaining = &live[first..];
@@ -252,7 +257,7 @@ impl FiniteDifferenceHestonVanillaEngine {
         }
         let solve = |tile: &[Timestamp]| {
             if tile.len() == 1 {
-                return self.expiry_rows(template, context, tile, strikes);
+                return self.expiry_rows(template, context, tile, strikes, budget);
             }
             let option = template.replace(crate::AmericanOptionChanges {
                 expiry_time: tile.last().copied(),
@@ -276,23 +281,22 @@ impl FiniteDifferenceHestonVanillaEngine {
                 &[spot],
                 &[],
                 Some(&mut surface),
+                Some(budget),
             );
             match batch {
                 Ok(_) if surface.rows.len() == tile.len() => Ok(surface.rows),
                 Err(error @ crate::Error::Io(_)) => Err(error),
-                _ => self.expiry_rows(template, context, tile, strikes),
+                _ => self.expiry_rows(template, context, tile, strikes, budget),
             }
         };
         if let Some((pool, _)) = parallel {
             let tokens = crate::cancellation::current();
-            let batches: Vec<_> = pool.install(|| {
+            let batches = pool.install(|| {
                 jobs.par_iter()
                     .map(|tile| crate::cancellation::with_tokens(tokens.clone(), || solve(tile)))
-                    .collect()
-            });
-            for batch in batches {
-                rows.extend(batch?);
-            }
+                    .collect::<Result<Vec<_>>>()
+            })?;
+            rows.extend(batches.into_iter().flatten());
         } else {
             for tile in jobs {
                 rows.extend(solve(tile)?);
@@ -305,17 +309,17 @@ impl FiniteDifferenceHestonVanillaEngine {
         &self,
         template: &AmericanOption,
         context: &PricingContext,
-        live: &[Timestamp],
-        times: &[f64],
+        (live, times): (&[Timestamp], &[f64]),
         strikes: &[f64],
         upper: f64,
+        budget: &RollbackWork,
     ) -> Result<Vec<Vec<f64>>> {
         let spot = context.spot_price();
         let mut ordered = strikes.to_vec();
         ordered.sort_unstable_by(f64::total_cmp);
         ordered.dedup();
         if spot.max(ordered[ordered.len() - 1]) >= upper {
-            return self.expiry_rows(template, context, live, strikes);
+            return self.expiry_rows(template, context, live, strikes, budget);
         }
         let last = template.replace(crate::AmericanOptionChanges {
             expiry_time: live.last().copied(),
@@ -349,6 +353,7 @@ impl FiniteDifferenceHestonVanillaEngine {
                 &tile[1..],
                 &[],
                 Some(&mut surface),
+                Some(budget),
             );
             match batch {
                 Ok(_) if surface.rows.len() == rows.len() => {
@@ -360,7 +365,7 @@ impl FiniteDifferenceHestonVanillaEngine {
                 _ => {
                     for (row, tile) in rows
                         .iter_mut()
-                        .zip(self.expiry_rows(template, context, live, tile)?)
+                        .zip(self.expiry_rows(template, context, live, tile, budget)?)
                     {
                         row.extend(tile);
                     }
@@ -395,6 +400,7 @@ impl FiniteDifferenceHestonVanillaEngine {
         context: &PricingContext,
         live: &[Timestamp],
         strikes: &[f64],
+        budget: &RollbackWork,
     ) -> Result<Vec<Vec<f64>>> {
         let price = |&expiry| {
             crate::cancellation::check()?;
@@ -402,14 +408,32 @@ impl FiniteDifferenceHestonVanillaEngine {
                 expiry_time: Some(expiry),
                 ..Default::default()
             })?;
-            self.price_american_strikes(&option, context, strikes)
+            price_strikes(
+                &option,
+                context,
+                Payoff::vanilla(option.option_type(), option.strike(), true),
+                self.settings,
+                strikes,
+                budget,
+            )
         };
         let settings = self.settings;
-        let model = context.model_parameters();
+        let model = context.model_parameters().as_heston()?;
         let curves = [model.risk_free_curve(), model.dividend_curve()];
         let knots: u64 = curves.iter().map(|curve| curve.nodes().len() as u64).sum();
         let assets = u64::from(settings.asset_step_count.unsigned_abs()) + 1;
         let variances = u64::from(settings.variance_step_count.unsigned_abs()) + 1;
+        if model.initial_variance() > 0.0
+            || (model.mean_reversion_speed() > 0.0 && model.long_run_variance() > 0.0)
+        {
+            let rows = if model.vol_of_vol() == 0.0 {
+                1
+            } else {
+                variances
+            };
+            let base_steps = u64::from(settings.time_step_count.unsigned_abs());
+            validate_work(assets * rows, base_steps.saturating_mul(live.len() as u64))?;
+        }
         let steps = u64::from(settings.time_step_count.unsigned_abs()) + knots;
         // Only parallelize single-lane jobs with ample room for all workers'
         // grids, curve storage and the per-job recurring-calendar factor cache.
@@ -424,14 +448,13 @@ impl FiniteDifferenceHestonVanillaEngine {
             && assets * variances < 64_000;
         if let Some((pool, _)) = parallel.then(rollback_pool).flatten() {
             let tokens = crate::cancellation::current();
-            let results: Vec<_> = pool.install(|| {
+            return pool.install(|| {
                 live.par_iter()
                     .map(|expiry| {
                         crate::cancellation::with_tokens(tokens.clone(), || price(expiry))
                     })
                     .collect()
             });
-            return results.into_iter().collect();
         }
         live.iter().map(price).collect()
     }

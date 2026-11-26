@@ -16,6 +16,27 @@ fn dates() -> (Timestamp, Timestamp) {
 }
 
 #[test]
+fn american_heston_surface_caps_combined_expiry_rollbacks() -> kiyosi::Result<()> {
+    let (start, end) = dates();
+    let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let engine = FiniteDifferenceHestonVanillaEngine::new(HestonFiniteDifferenceSettings {
+        asset_step_count: 96,
+        variance_step_count: 64,
+        time_step_count: 1600,
+        asset_upper_boundary: Some(400.0),
+        ..Default::default()
+    })?;
+    let expiries = (0..120)
+        .map(|days| end.add_days(-days))
+        .collect::<kiyosi::Result<Vec<_>>>()?;
+    assert!(matches!(
+        engine.price_american_surface(&option, &context(0.3, -0.7), &expiries, &[100.0]),
+        Err(Error::InvalidInput(message)) if message.contains("one billion grid updates")
+    ));
+    Ok(())
+}
+
+#[test]
 fn european_surface_matches_analytic_prices_and_preserves_both_input_orders() -> kiyosi::Result<()>
 {
     let (start, end) = dates();

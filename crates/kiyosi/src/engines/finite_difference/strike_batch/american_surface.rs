@@ -1,21 +1,9 @@
-use std::sync::atomic::{AtomicU64, Ordering};
-
+use super::super::RollbackWork;
 use super::{
     AmericanOption, AmericanOptionChanges, FiniteDifferenceScheme, FiniteDifferenceVanillaEngine,
     Payoff, PricingContext, Result, SpatialGrid, american, diffusion, invalid_grid,
-    local_volatility, payoff, strike_group_len, surface::fallback_work, validate_work,
+    local_volatility, payoff, strike_group_len, surface::fallback_work,
 };
-
-#[derive(Default)]
-pub(super) struct SurfaceWork(AtomicU64);
-
-impl SurfaceWork {
-    pub(super) fn charge(&self, work: u64) -> Result<()> {
-        validate_work(1, work)?;
-        let previous = self.0.fetch_add(work, Ordering::Relaxed);
-        validate_work(1, previous + work)
-    }
-}
 
 impl FiniteDifferenceVanillaEngine {
     /// Prices an American strike and expiry surface in input order.
@@ -99,7 +87,7 @@ impl FiniteDifferenceVanillaEngine {
                     .map_err(|_| super::super::unstable())
             })
             .collect::<Result<Vec<_>>>()?;
-        let budget = SurfaceWork::default();
+        let budget = RollbackWork::default();
         let local = local_volatility::local_model(context);
         let scalar = |dates: &[crate::Timestamp], strikes: &[f64]| {
             budget.charge(fallback_work(
@@ -249,7 +237,7 @@ pub(in crate::engines::finite_difference) struct AmericanSurface<'a> {
     times: Vec<f64>,
     queries: Vec<(f64, f64)>,
     rows: Vec<Vec<f64>>,
-    budget: &'a SurfaceWork,
+    budget: &'a RollbackWork,
 }
 
 impl AmericanSurface<'_> {

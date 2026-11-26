@@ -3,7 +3,10 @@ use rayon::prelude::*;
 use super::grid::{
     SpatialGrid, Spline, StrikeMoments, TimeGrid, concentrate, project_payoff, spot_floor,
 };
-use super::{Payoff, WORKSPACE_BUDGET, invalid_grid, prepare_rate_curves, unstable, validate_work};
+use super::{
+    Payoff, RollbackWork, WORKSPACE_BUDGET, invalid_grid, prepare_rate_curves, unstable,
+    validate_work,
+};
 use crate::engines::analytic::heston::integrated_variance;
 use crate::engines::deterministic::{self, AmericanExercise, ExerciseBoundaries};
 use crate::engines::rollback_pool;
@@ -220,7 +223,8 @@ impl FiniteDifferenceHestonVanillaEngine {
     /// # Errors
     ///
     /// Propagates scalar pricing errors for the supplied strikes and returns
-    /// [`crate::Error::InvalidInput`] if a strike is nonpositive or non-finite.
+    /// [`crate::Error::InvalidInput`] for a nonpositive or non-finite strike or excessive
+    /// combined rollback work.
     /// An error or cancellation returns no partial prices.
     pub fn price_european_strikes(
         &self,
@@ -234,6 +238,7 @@ impl FiniteDifferenceHestonVanillaEngine {
             Payoff::vanilla(template.option_type(), template.strike(), false),
             self.settings,
             strikes,
+            &RollbackWork::default(),
         )
     }
 
@@ -256,6 +261,7 @@ impl FiniteDifferenceHestonVanillaEngine {
             Payoff::vanilla(template.option_type(), template.strike(), true),
             self.settings,
             strikes,
+            &RollbackWork::default(),
         )
     }
 
@@ -358,6 +364,7 @@ impl FiniteDifferenceHestonVanillaEngine {
                 rest,
                 &times,
                 None,
+                None,
             )?
             .1
         };
@@ -417,6 +424,7 @@ macro_rules! pricing {
                     context,
                     Payoff::vanilla(option.option_type(), option.strike(), $american),
                     self.settings,
+                    None,
                 )
             }
 
@@ -480,8 +488,17 @@ fn price(
     context: &PricingContext,
     payoff: Payoff,
     settings: HestonFiniteDifferenceSettings,
+    budget: Option<&RollbackWork>,
 ) -> Result<f64> {
-    prepare(option, context, payoff, settings, context.spot_price())?.price(option, context)
+    prepare(
+        option,
+        context,
+        payoff,
+        settings,
+        context.spot_price(),
+        budget,
+    )?
+    .price(option, context)
 }
 
 fn price_strikes(
@@ -490,6 +507,7 @@ fn price_strikes(
     payoff: Payoff,
     settings: HestonFiniteDifferenceSettings,
     strikes: &[f64],
+    budget: &RollbackWork,
 ) -> Result<Vec<f64>> {
     let model = context.model_parameters().as_heston()?;
     validate_life(option, context)?;
@@ -515,18 +533,26 @@ fn price_strikes(
             .asset_upper_boundary
             .filter(|_| active && strikes.len() > 1)
         {
-            return fixed_boundary_prices(option, context, payoff, settings, upper, strikes);
+            return fixed_boundary_prices(
+                option, context, payoff, settings, upper, strikes, budget,
+            );
         }
         return strikes
             .iter()
             .map(|&strike| {
                 crate::cancellation::check()?;
-                price(option, context, Payoff { strike, ..payoff }, settings)
+                price(
+                    option,
+                    context,
+                    Payoff { strike, ..payoff },
+                    settings,
+                    Some(budget),
+                )
             })
             .collect();
     }
     let anchor = super::solution::at_spot(context, high)?;
-    let state = prepare(option, &anchor, payoff, settings, low)?;
+    let state = prepare(option, &anchor, payoff, settings, low, Some(budget))?;
     strikes
         .iter()
         .map(|&strike| {
@@ -545,6 +571,7 @@ fn fixed_boundary_prices(
     settings: HestonFiniteDifferenceSettings,
     upper: f64,
     strikes: &[f64],
+    budget: &RollbackWork,
 ) -> Result<Vec<f64>> {
     let mut ordered = strikes.to_vec();
     ordered.sort_unstable_by(f64::total_cmp);
@@ -576,7 +603,17 @@ fn fixed_boundary_prices(
                 strike: first,
                 ..payoff
             };
-            match prepare_batch(option, context, template, settings, low, rest, &[], None) {
+            match prepare_batch(
+                option,
+                context,
+                template,
+                settings,
+                low,
+                rest,
+                &[],
+                None,
+                Some(budget),
+            ) {
                 Ok((state, values)) => {
                     if let Some(state) = state {
                         prices.push(state.price(option, context)?);
@@ -595,6 +632,7 @@ fn fixed_boundary_prices(
                 context,
                 Payoff { strike, ..payoff },
                 settings,
+                Some(budget),
             )?);
         }
     }
@@ -616,6 +654,7 @@ fn prepare(
     payoff: Payoff,
     settings: HestonFiniteDifferenceSettings,
     minimum_spot: f64,
+    budget: Option<&RollbackWork>,
 ) -> Result<HestonState> {
     prepare_batch(
         option,
@@ -626,6 +665,7 @@ fn prepare(
         &[],
         &[],
         None,
+        budget,
     )
     .map(|(state, _)| state.expect("scalar preparation returns a saved state"))
 }
@@ -654,6 +694,7 @@ fn prepare_batch(
     additional_strikes: &[f64],
     expiries: &[f64],
     exercise_surface: Option<&mut AmericanSurface>,
+    budget: Option<&RollbackWork>,
 ) -> Result<(Option<HestonState>, Vec<f64>)> {
     // Live values, multiplier, ADI stage buffers, operator coefficients and factors.
     const BYTES_PER_GRID_POINT: u64 = 112;
@@ -735,6 +776,19 @@ fn prepare_batch(
         .saturating_add(assets * (rhs - 1) * size_of::<f64>() as u64)
         .saturating_add(batch_bytes)
         .saturating_add(surface_bytes);
+    let work_at = |time_steps| {
+        if adjoint {
+            adjoint_work(assets, rows, time_steps, expiry_count, strikes_count)
+        } else {
+            let work = (assets * rows)
+                .saturating_mul(rhs)
+                .saturating_mul(time_steps);
+            let quotes = exercise_surface
+                .as_ref()
+                .map_or(0, |surface| surface.work(assets));
+            work.saturating_add(quotes)
+        }
+    };
     let validate_grid = |time_steps, curve_bytes| {
         let time_bytes = BYTES_PER_TIME_STEP
             + if adjoint {
@@ -751,18 +805,7 @@ fn prepare_batch(
                 "Heston finite-difference workspace exceeds 1 GiB; reduce grid step counts",
             ));
         }
-        if adjoint {
-            let work = adjoint_work(assets, rows, time_steps, expiry_count, strikes_count);
-            validate_work(work, 1)
-        } else {
-            let work = (assets * rows)
-                .saturating_mul(rhs)
-                .saturating_mul(time_steps);
-            let quotes = exercise_surface
-                .as_ref()
-                .map_or(0, |surface| surface.work(assets));
-            validate_work(work.saturating_add(quotes), 1)
-        }
+        validate_work(work_at(time_steps), 1)
     };
     let (risk, dividend) = prepare_rate_curves(context, end, |knots, bytes| {
         validate_grid(steps.max(knots), bytes)
@@ -822,6 +865,9 @@ fn prepare_batch(
         &events,
         |steps| validate_grid(steps, curve_bytes),
     )?;
+    if let Some(budget) = budget {
+        budget.charge(work_at(times.widths.len() as u64))?;
+    }
     let width = integrated.sqrt();
     let tail_width = width.max(0.35 * model.vol_of_vol() * time);
     let lower = spot_floor(
@@ -1541,6 +1587,7 @@ macro_rules! heston_solution {
                     Payoff::vanilla(option.option_type(), option.strike(), $american),
                     self.settings,
                     *range.start(),
+                    None,
                 )?;
                 let low = super::solution::at_spot(context, *range.start())?;
                 state.price(option, &low)?;

@@ -3479,7 +3479,8 @@ class FiniteDifferenceHestonVanillaEngine(
         spot-to-strike range. Compatible strikes with an explicit asset bound share
         an absolute grid. European batches can reuse one set of payoff weights.
         Check mesh convergence over the full range. Pricing releases the GIL
-        and cancellation returns no partial result.
+        and cancellation returns no partial result. The request caps combined
+        rollback work at one billion grid updates.
         """
 
     def price_american_surface(
@@ -3521,6 +3522,7 @@ class FiniteDifferenceHestonVanillaEngine(
         tenors, with individual expiry meshes for short tenors. Fixed bounds
         use strike tiles. Compatible dated curves with automatic bounds share
         factored operators in expiry tiles. Check convergence across the surface.
+        The request caps combined rollback work at one billion grid updates.
         Cancellation returns no partial result.
         """
 

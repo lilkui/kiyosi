@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use super::{Payoff, curve::Curve};
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{scaled_cash as scaled, weighted_cdf};
@@ -206,13 +208,39 @@ fn prepare_rate_curves(
     ))
 }
 
+const GRID_UPDATE_BUDGET: u64 = 1_000_000_000;
+
+fn work_limit() -> Error {
+    invalid_grid(
+        "finite-difference rollback exceeds one billion grid updates; reduce grid step counts",
+    )
+}
+
 fn validate_work(spatial_steps: u64, time_steps: u64) -> Result<()> {
-    if spatial_steps.saturating_mul(time_steps) > 1_000_000_000 {
-        return Err(invalid_grid(
-            "finite-difference rollback exceeds one billion grid updates; reduce grid step counts",
-        ));
+    if spatial_steps.saturating_mul(time_steps) > GRID_UPDATE_BUDGET {
+        return Err(work_limit());
     }
     Ok(())
+}
+
+#[derive(Default)]
+struct RollbackWork(AtomicU64);
+
+impl RollbackWork {
+    fn charge(&self, work: u64) -> Result<()> {
+        let mut used = self.0.load(Ordering::Relaxed);
+        loop {
+            let total = used.saturating_add(work);
+            validate_work(1, total)?;
+            match self
+                .0
+                .compare_exchange_weak(used, total, Ordering::Relaxed, Ordering::Relaxed)
+            {
+                Ok(_) => return Ok(()),
+                Err(current) => used = current,
+            }
+        }
+    }
 }
 
 fn invalid_grid(message: &'static str) -> Error {

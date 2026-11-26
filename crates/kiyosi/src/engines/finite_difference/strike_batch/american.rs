@@ -1,4 +1,4 @@
-use super::american_surface::SurfaceWork;
+use super::super::RollbackWork;
 use super::{
     AmericanOption, Diffusion, FiniteDifferenceScheme, FiniteDifferenceVanillaEngine, Payoff,
     PricingContext, Result, SpatialGrid, concentrate, diffusion, diffusion_log_width, invalid_grid,
@@ -43,7 +43,7 @@ fn local_expiries(
     expiries: &[Timestamp],
     group: &[(usize, f64)],
     prices: &mut [&mut [f64]],
-    budget: Option<&SurfaceWork>,
+    budget: Option<&RollbackWork>,
 ) -> Result<()> {
     let mut unique = Vec::new();
     unique
@@ -262,7 +262,7 @@ pub(super) fn local_surface(
     context: &PricingContext,
     (model, expiries, strikes): (&LocalVolatilityParameters, &[Timestamp], &[f64]),
     scalar: impl Fn(&[Timestamp], &[f64]) -> Result<Vec<Vec<f64>>> + Sync,
-    budget: &SurfaceWork,
+    budget: &RollbackWork,
 ) -> Result<Vec<Vec<f64>>> {
     const EXPIRY_LANES: usize = 2;
     let settings = engine.settings;

@@ -161,7 +161,8 @@ engine_methods!(
         /// spot-to-strike range. Compatible strikes with an explicit asset bound share
         /// an absolute grid. European batches can reuse one set of payoff weights.
         /// Check mesh convergence over the full range. Pricing releases the GIL
-        /// and cancellation returns no partial result.
+        /// and cancellation returns no partial result. The request caps combined
+        /// rollback work at one billion grid updates.
         #[pyo3(signature = (instrument, context, *, strikes))]
         #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns the extracted inputs before core pricing.")]
         fn price_strikes<'py>(
@@ -266,6 +267,7 @@ engine_methods!(
         /// tenors, with individual expiry meshes for short tenors. Fixed bounds
         /// use strike tiles. Compatible dated curves with automatic bounds share
         /// factored operators in expiry tiles. Check convergence across the surface.
+        /// The request caps combined rollback work at one billion grid updates.
         /// Cancellation returns no partial result.
         #[pyo3(signature = (instrument, context, *, expiries, strikes))]
         #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns the extracted inputs before core pricing.")]
