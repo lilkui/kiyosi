@@ -208,6 +208,7 @@ pub(crate) enum ShortPricing {
     Never,
     WholeCurves,
     Scalar,
+    ScalarOnly,
 }
 
 impl From<bool> for ShortPricing {
@@ -226,7 +227,7 @@ impl ShortPricing {
         request: impl PricingRequest<R>,
         context: &kiyosi::PricingContext,
     ) -> bool {
-        if self == Self::Scalar && request.is_scalar_price() {
+        if matches!(self, Self::Scalar | Self::ScalarOnly) && request.is_scalar_price() {
             return true;
         }
         let model = context.model_parameters();
@@ -235,7 +236,9 @@ impl ShortPricing {
             .nodes()
             .len()
             .max(model.dividend_curve().nodes().len());
-        request.is_short(self != Self::Never && curve_nodes <= SHORT_CURVE_NODES)
+        request.is_short(
+            matches!(self, Self::WholeCurves | Self::Scalar) && curve_nodes <= SHORT_CURVE_NODES,
+        )
     }
 }
 
