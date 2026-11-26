@@ -309,12 +309,11 @@ impl MonteCarloBarrierEngine {
         let knock_in = option.barrier_type().is_knock_in();
         let at_hit = option.rebate_timing() == RebateTiming::AtHit;
         let log_discount = -rate * duration;
-        // Preserve the path overflow checks for inputs whose simulated spots can
-        // leave the ordinary floating-point range. Short schedules use the same draws.
-        let condition_on_hit = knock_in
-            && !continuous
-            && dimensions > 8
-            && spot.ln().abs() + 10.0 * width_sum + (drift * duration).abs() < 600.0;
+        // Both normal samplers are bounded by ten standard deviations. Keep
+        // per-step representability checks when a path can leave this safe range.
+        let bounded_log_path =
+            spot.ln().abs() + 10.0 * width_sum + (drift * duration).abs() < 600.0;
+        let condition_on_hit = knock_in && !continuous && dimensions > 8 && bounded_log_path;
         let sign = if option.option_type() == OptionType::Call {
             1.0
         } else {
@@ -338,8 +337,7 @@ impl MonteCarloBarrierEngine {
                 check_path_step(index)?;
                 noise = width.mul_add(z, noise);
                 terminal = mean + noise;
-                let asset = scaled_value(spot, 1.0, terminal)?;
-                if asset <= 0.0 {
+                if !bounded_log_path && scaled_value(spot, 1.0, terminal)? <= 0.0 {
                     return Err(unstable());
                 }
                 if observation.is_some_and(|(lower, upper)| {
@@ -353,6 +351,7 @@ impl MonteCarloBarrierEngine {
                 }) {
                     touched = true;
                     if condition_on_hit && steps.len() - index > 8 {
+                        let asset = scaled_value(spot, 1.0, terminal)?;
                         let remaining = dates[index].years_until(expiry);
                         conditioned = Some(lognormal_price(
                             asset,
