@@ -2913,8 +2913,10 @@ class _FiniteDifferenceMethods[Instrument](_PricingMethods[Instrument]):
         Notes
         -----
         Before expiry delta and gamma come from the spatial solution, except zero
-        BSM volatility uses scalar differences. Other BSM Greeks use numerical
-        differences with request-level shifts. Local volatility provides only
+        BSM volatility uses scalar differences. The vanilla engine can reuse
+        the same grid for default rate and volatility Greeks on flat-rate BSM
+        European options. Other BSM Greeks use numerical differences with
+        request-level shifts. Local volatility provides only
         delta and gamma. At expiry vanilla Greeks use exact supported payoff
         derivatives; other products use terminal-payoff stencils with the
         request's shifts. Use numerical_greeks for scalar differences under BSM.

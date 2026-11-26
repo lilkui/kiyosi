@@ -6,6 +6,41 @@ from kiyosi.instruments import AmericanOption, EuropeanOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
+def test_european_market_greeks_follow_analytic_risk_and_explicit_bumps():
+    start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+    option = EuropeanOption(
+        option_type="call", strike=100, effective_time=start, expiry_time=end
+    )
+    model = BlackScholesMertonParameters(
+        risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+    )
+    context = PricingContext(
+        model_parameters=model, spot_price=105, valuation_time=start
+    )
+    engine = pricing.FiniteDifferenceVanillaEngine(
+        asset_step_count=1000, time_step_count=1000, asset_upper_boundary=400
+    )
+    greeks = ("vega", "volga", "vanna", "zomma", "rho", "dividend_rho")
+    actual = engine.price_with_greeks(option, context, greeks)
+    reference = pricing.AnalyticEuropeanEngine().price_with_greeks(
+        option, context, greeks
+    )
+    assert actual.price == engine.price(option, context)
+    for greek in greeks:
+        assert getattr(actual, greek) == pytest.approx(
+            getattr(reference, greek), rel=0.001, abs=1e-6
+        )
+    shift = 0.015625
+    low, high = (
+        engine.price(
+            option, context.replace(model_parameters=model.replace(volatility=vol))
+        )
+        for vol in (0.2 - shift, 0.2 + shift)
+    )
+    explicit = engine.price_with_greeks(option, context, "vega", volatility_shift=shift)
+    assert explicit.vega == pytest.approx((high - low) / (2 * shift), rel=0, abs=1e-9)
+
+
 @pytest.mark.parametrize("option_type", ("call", "put"))
 def test_one_sided_native_time_greeks_remain_selective_and_accurate(
     subtests, option_type

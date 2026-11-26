@@ -317,6 +317,7 @@ fn native(
             None,
         )?;
         let result = saved.evaluate(context, request, shifts)?;
+        let result = saved.european_market_greeks(context, expiry, request, shifts, result)?;
         Ok((result, Some(saved.grid.space.upper)))
     })
 }
@@ -810,6 +811,108 @@ vanilla_solution!(
 );
 
 impl VanillaGrid {
+    fn european_market_greeks(
+        &self,
+        context: &PricingContext,
+        expiry: Timestamp,
+        request: GreeksRequest,
+        shifts: NumericalShiftSettings,
+        mut result: PricingResult,
+    ) -> Result<PricingResult> {
+        let measures = [
+            Greek::Vega,
+            Greek::Volga,
+            Greek::Vanna,
+            Greek::Zomma,
+            Greek::Rho,
+            Greek::DividendRho,
+        ];
+        if self.payoff.is_american()
+            || self.payoff.is_digital()
+            || !measures.into_iter().any(|greek| request.has(greek))
+        {
+            return Ok(result);
+        }
+        let Ok(model) = context.natural_bsm_parameters() else {
+            return Ok(result);
+        };
+        if model.risk_free_curve().exact_flat_rate().is_none()
+            || model.dividend_curve().exact_flat_rate().is_none()
+            || !model.risk_free_curve().nodes().is_empty()
+            || !model.dividend_curve().nodes().is_empty()
+        {
+            return Ok(result);
+        }
+        let spot = context.spot_price();
+        let sigma = model.volatility();
+        let time = context.valuation_time().years_until(expiry);
+        let root = time.sqrt();
+        // A coarse spatial grid can resolve price well before its curvature
+        // is suitable for mixed sensitivities.
+        if sigma * root <= 32.0 * self.grid.space.spacing {
+            return Ok(result);
+        }
+        let moneyness = context.log_forward_moneyness(
+            expiry,
+            self.payoff.strike,
+            self.discount[1] - self.discount[0],
+        );
+        let (d1, d2) = super::analytic::european::black_scholes_arguments(moneyness, sigma, root);
+        if d1.abs().max(d2.abs()) > 4.0 {
+            return Ok(result);
+        }
+        let [_, delta, gamma] = self
+            .grid
+            .sample(spot)
+            .map(|value| crate::numerics::scaled_signed_cash(value, self.value_log_discount));
+        // In the BSM equation, rate sensitivities differ only by forward-spot
+        // and discount scaling. Volatility sensitivities follow from the same
+        // solution's curvature and the derivative of the lognormal density.
+        if shifts.volatility_shift.is_none()
+            && shifts.spot_shift.is_none()
+            && crate::risk::numerical::symmetric_shift(sigma, shifts.volatility_shift_at(sigma))
+                > 0.0
+            && gamma > 0.0
+        {
+            let scaled_gamma = gamma * spot;
+            let vega = scaled_gamma * spot * sigma * time;
+            for (greek, value) in [
+                (Greek::Vega, vega),
+                (Greek::Volga, vega * (d1 * d2 / sigma)),
+                (Greek::Vanna, -scaled_gamma * root * d2),
+                (Greek::Zomma, gamma * ((d1 * d2 - 1.0) / sigma)),
+            ] {
+                if value.is_finite() {
+                    result.set(request, greek, value)?;
+                }
+            }
+        }
+        if shifts.rate_shift.to_bits() == NumericalShiftSettings::default().rate_shift.to_bits() {
+            for (greek, curve, value) in [
+                (
+                    Greek::Rho,
+                    model.risk_free_curve(),
+                    (spot * delta - result.price()) * time,
+                ),
+                (
+                    Greek::DividendRho,
+                    model.dividend_curve(),
+                    -spot * delta * time,
+                ),
+            ] {
+                if value.is_finite()
+                    && crate::risk::numerical::symmetric_shift(
+                        curve.shift_origin(),
+                        shifts.rate_shift,
+                    ) > 0.0
+                {
+                    result.set(request, greek, value)?;
+                }
+            }
+        }
+        Ok(result)
+    }
+
     fn evaluate(
         &self,
         context: &PricingContext,
@@ -1012,7 +1115,13 @@ fn vanilla_time_analysis(
         Err(error @ Error::Io(_)) => return Err(error),
         Err(_) => return Ok(None),
     };
-    let mut result = saved.evaluate(context, request, shifts)?;
+    let mut result = saved.european_market_greeks(
+        context,
+        expiry,
+        request,
+        shifts,
+        saved.evaluate(context, request, shifts)?,
+    )?;
     let stencil = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
     let sample = |values: Option<Vec<f64>>, at: Timestamp| -> Result<[f64; 3]> {
         let (result, log_spot_scale) = if let Some(values) = values {
@@ -1226,7 +1335,9 @@ engine_settings!(
     ///
     /// # Greeks
     ///
-    /// Returns spline delta/gamma and fixed-grid speed, completing other Greeks numerically.
+    /// Returns spline delta/gamma and fixed-grid speed. For resolved flat-rate BSM
+    /// European grids, default rate and volatility sensitivities can use the
+    /// same solution's price and spot derivatives. Other Greeks use numerical differences.
     ///
     /// Local-volatility results provide delta and gamma only. Bumped contexts
     /// share the central spatial domain.

@@ -17,6 +17,55 @@ fn market(spot: f64, rate: f64, dividend: f64, sigma: f64) -> PricingContext {
 }
 
 #[test]
+fn european_market_greeks_follow_analytic_risk_and_explicit_bumps() -> Result<()> {
+    let (start, end) = dates();
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let context = market(105.0, 0.05, 0.02, 0.2);
+    let engine = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 1000,
+        time_step_count: 1000,
+        asset_upper_boundary: Some(400.0),
+        ..Default::default()
+    })?;
+    let greeks = [
+        Greek::Vega,
+        Greek::Volga,
+        Greek::Vanna,
+        Greek::Zomma,
+        Greek::Rho,
+        Greek::DividendRho,
+    ];
+    let request = GreeksRequest::new(greeks);
+    let actual = engine.price_with_greeks(&option, &context, request)?;
+    let reference = AnalyticEuropeanEngine.price_with_greeks(&option, &context, request)?;
+    assert_eq!(
+        actual.price().to_bits(),
+        engine.price(&option, &context)?.to_bits()
+    );
+    for greek in greeks {
+        let expected = reference.require(greek)?;
+        assert!(
+            (actual.require(greek)? - expected).abs() < 0.001 * expected.abs() + 1e-6,
+            "{greek:?}"
+        );
+    }
+    let shift = 0.015_625;
+    let high = engine.price(&option, &market(105.0, 0.05, 0.02, 0.2 + shift))?;
+    let low = engine.price(&option, &market(105.0, 0.05, 0.02, 0.2 - shift))?;
+    let explicit = engine.price_with_greeks_with_settings(
+        &option,
+        &context,
+        GreeksRequest::new([Greek::Vega]),
+        NumericalShiftSettings {
+            volatility_shift: Some(shift),
+            ..Default::default()
+        },
+    )?;
+    assert!((explicit.require(Greek::Vega)? - (high - low) / (2.0 * shift)).abs() < 1e-9);
+    Ok(())
+}
+
+#[test]
 fn shared_time_slices_match_independent_vanilla_rollbacks() -> Result<()> {
     fn check<I: OptionContract>(
         engine: &impl PricingEngine<I>,
