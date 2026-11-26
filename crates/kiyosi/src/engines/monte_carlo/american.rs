@@ -92,16 +92,12 @@ fn american_workspace<T>(capacity: usize) -> Result<Vec<T>> {
     Ok(buffer)
 }
 
-struct ExerciseState<const N: usize> {
-    spots: [f64; N],
-    cash: [f64; N],
-}
-
 struct ExerciseBlock<const N: usize> {
     coordinates: Arc<Vec<f64>>,
     checkpoints: Vec<f64>,
     reverse_draws: Option<NormalDraws<'static>>,
-    states: Vec<ExerciseState<N>>,
+    spots: Vec<[f64; N]>,
+    cash: Vec<[f64; N]>,
     regression: [[[f64; 4]; 3]; N],
 }
 
@@ -120,7 +116,7 @@ fn reverse_workspace<const N: usize>(
         0
     };
     let bytes = samples * size_of::<f64>()
-        + reserved_paths * size_of::<ExerciseState<N>>()
+        + reserved_paths * size_of::<[[f64; N]; 2]>()
         + blocks * (size_of::<ExerciseBlock<N>>() + PATH_BLOCK_OVERHEAD)
         + sampler
         + extra_bytes;
@@ -180,7 +176,7 @@ fn exercise_window<const N: usize>(
             size_of::<ExerciseBlock<N>>() + PATH_BLOCK_OVERHEAD + size_of::<Arc<Vec<f64>>>();
         stored_paths
             .saturating_mul((window + checkpoints) * size_of::<f64>())
-            .saturating_add(reserved_paths * size_of::<ExerciseState<N>>())
+            .saturating_add(reserved_paths * size_of::<[[f64; N]; 2]>())
             .saturating_add(blocks * overhead)
             .saturating_add(sampling)
             .saturating_add(extra_bytes)
@@ -242,7 +238,8 @@ impl<const N: usize> Default for ExerciseBlock<N> {
             coordinates: Arc::default(),
             checkpoints: Vec::new(),
             reverse_draws: None,
-            states: Vec::new(),
+            spots: Vec::new(),
+            cash: Vec::new(),
             regression: [[[0.0; 4]; 3]; N],
         }
     }
@@ -932,23 +929,47 @@ impl MonteCarloVanillaEngine {
             return scalar();
         }
         let anchor = (!normalized).then_some(initial[0]);
+        let strike = option.strike();
+        let cutoff = initial.map(|spot| {
+            let log = crate::numerics::log_ratio(strike, spot);
+            // Leave a roundoff margin around the exercise boundary so the
+            // original spot-space calculation decides the near-strike cases.
+            sign * log - 32.0 * f64::EPSILON * (1.0 + log.abs())
+        });
+        let mut group_cutoff = cutoff;
+        for (lane, &source) in shared_growth.iter().enumerate() {
+            group_cutoff[source] = group_cutoff[source].min(cutoff[lane]);
+        }
         let spots_at = |step: usize| {
             let elapsed = (step + 1) as f64;
             let drifts = growth.map(|[drift, _]| drift * elapsed);
+            let root = elapsed.sqrt();
+            let screen: [bool; N] = std::array::from_fn(|i| {
+                // Predictable screening is most useful on rows where most paths
+                // are out of the money. Dense exercise rows take the direct path.
+                group_cutoff[i] > sign * drifts[i] + 0.5 * growth[i][1] * root
+            });
             move |coordinate| {
                 if !normalized {
                     [coordinate; N]
                 } else if same_growth {
-                    let spot = growth[0][1].mul_add(coordinate, drifts[0]).exp();
-                    initial.map(|scale| scale * spot)
+                    let log = growth[0][1].mul_add(coordinate, drifts[0]);
+                    if screen[0] && sign * log < group_cutoff[0] {
+                        return [strike; N];
+                    }
+                    let factor = log.exp();
+                    initial.map(|scale| scale * factor)
                 } else {
-                    let mut factors = [0.0; N];
+                    let mut factors = [None; N];
                     std::array::from_fn(|i| {
                         let source = shared_growth[i];
                         if source == i {
-                            factors[i] = growth[i][1].mul_add(coordinate, drifts[i]).exp();
+                            let log = growth[i][1].mul_add(coordinate, drifts[i]);
+                            if !screen[i] || sign * log >= group_cutoff[i] {
+                                factors[i] = Some(log.exp());
+                            }
                         }
-                        initial[i] * factors[source]
+                        factors[source].map_or(strike, |factor| initial[i] * factor)
                     })
                 }
             }
@@ -1054,20 +1075,20 @@ impl MonteCarloVanillaEngine {
             if reverse {
                 exercise_paths.reverse_row(block_index, block, intervals - 1);
             }
-            let mut states = american_workspace(path_count)?;
+            let mut spots = american_workspace(path_count)?;
+            let mut cash = american_workspace(path_count)?;
             exercise_paths.visit_row(
                 block_index,
                 &block.coordinates[block.coordinates.len() - coordinate_count..],
                 |coordinate| {
-                    let spots = terminal(coordinate);
-                    states.push(ExerciseState {
-                        spots,
-                        cash: spots.map(payoff),
-                    });
+                    let row = terminal(coordinate);
+                    spots.push(row);
+                    cash.push(row.map(payoff));
                     Ok(())
                 },
             )?;
-            block.states = states;
+            block.spots = spots;
+            block.cash = cash;
             Ok(())
         })?;
         if retain_paths {
@@ -1083,30 +1104,27 @@ impl MonteCarloVanillaEngine {
                 }
             });
         }
-        let strike = option.strike();
-        let apply_exercise = |state: &mut ExerciseState<N>,
-                              coefficients: &[Option<[f64; 3]>; N]| {
-            for ((cash, spot), coefficient) in
-                state.cash.iter_mut().zip(state.spots).zip(coefficients)
-            {
-                let Some([constant, linear, quadratic]) = *coefficient else {
-                    continue;
-                };
-                let intrinsic = payoff(spot);
-                if intrinsic <= 0.0 {
-                    continue;
+        let apply_exercise =
+            |spots: [f64; N], cash: &mut [f64; N], coefficients: &[Option<[f64; 3]>; N]| {
+                for ((cash, spot), coefficient) in cash.iter_mut().zip(spots).zip(coefficients) {
+                    let Some([constant, linear, quadratic]) = *coefficient else {
+                        continue;
+                    };
+                    let intrinsic = payoff(spot);
+                    if intrinsic <= 0.0 {
+                        continue;
+                    }
+                    let x = spot / strike;
+                    let continuation = constant + x * (linear + x * quadratic);
+                    if !continuation.is_finite() {
+                        return Err(unstable());
+                    }
+                    if intrinsic / strike > continuation {
+                        *cash = intrinsic;
+                    }
                 }
-                let x = spot / strike;
-                let continuation = constant + x * (linear + x * quadratic);
-                if !continuation.is_finite() {
-                    return Err(unstable());
-                }
-                if intrinsic / strike > continuation {
-                    *cash = intrinsic;
-                }
-            }
-            Ok(())
-        };
+                Ok(())
+            };
         let mut coefficients = [None; N];
         // Regression synchronizes all paths at every exercise date. Small
         // per-date rows are cheaper to scan serially even on long time grids.
@@ -1140,21 +1158,17 @@ impl MonteCarloVanillaEngine {
                     let width = exercise_paths
                         .block_coordinate_count(begin, (begin + BLOCK_SIZE).min(samples));
                     let values = &block.coordinates[row * width..(row + 1) * width];
-                    let mut states = block.states.iter_mut();
+                    let mut states = block.spots.iter_mut().zip(&mut block.cash);
                     exercise_paths.visit_row(index, values, |value| {
-                        let state = states
+                        let (spots, cash) = states
                             .next()
                             .expect("coordinates match their exercise states");
                         if decide {
-                            apply_exercise(state, &coefficients)?;
+                            apply_exercise(*spots, cash, &coefficients)?;
                         }
-                        state.spots = spots_at_step(value);
-                        for (index, ((cash, matrix), spot)) in state
-                            .cash
-                            .iter_mut()
-                            .zip(&mut matrices)
-                            .zip(state.spots)
-                            .enumerate()
+                        *spots = spots_at_step(value);
+                        for (index, ((cash, matrix), spot)) in
+                            cash.iter_mut().zip(&mut matrices).zip(*spots).enumerate()
                         {
                             *cash *= discount[index];
                             if !cash.is_finite() {
@@ -1215,11 +1229,11 @@ impl MonteCarloVanillaEngine {
         let decide = coefficients.iter().any(Option::is_some);
         for block in blocks {
             crate::cancellation::check()?;
-            for mut state in block.states {
+            for (spots, mut cash) in block.spots.into_iter().zip(block.cash) {
                 if decide {
-                    apply_exercise(&mut state, &coefficients)?;
+                    apply_exercise(spots, &mut cash, &coefficients)?;
                 }
-                for (mean, value) in means.iter_mut().zip(state.cash) {
+                for (mean, value) in means.iter_mut().zip(cash) {
                     mean.add(value, false);
                 }
             }
