@@ -456,7 +456,7 @@ fn checkpointed_spot_greeks_match_scalar_price_stencils() -> Result<()> {
     let put = option(OptionType::Put, 100.0);
     let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
         sampling: MonteCarloSettings {
-            path_count: 336_000,
+            path_count: 680_000,
             seed: Some(42),
             max_active_workers: 4,
             ..Default::default()

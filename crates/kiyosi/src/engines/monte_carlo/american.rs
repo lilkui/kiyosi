@@ -14,6 +14,7 @@ use crate::{
 
 const WORKSPACE_BUDGET: usize = 1 << 30;
 const WORK_BUDGET: usize = 1_000_000_000;
+const PREFERRED_PATH_WORKSPACE: usize = 256 << 20;
 const MAX_CACHED_PATH_VALUES: usize = 128 * 1024 * 1024 / size_of::<f64>();
 const PATH_BLOCK_OVERHEAD: usize = size_of::<Vec<f64>>() + 2 * size_of::<usize>();
 
@@ -142,23 +143,33 @@ fn exercise_window<const N: usize>(
             .saturating_add(blocks * overhead)
             .saturating_add(sampling)
     };
-    let window = if (intervals >= 16
-        && reserved_paths
-            .saturating_mul(intervals)
-            .saturating_mul(growth_count)
-            > MAX_CACHED_PATH_VALUES)
-        || workspace(intervals) > WORKSPACE_BUDGET
-    {
-        intervals.isqrt()
-    } else {
-        intervals
-    };
-    let bytes = workspace(window);
-    if bytes > WORKSPACE_BUDGET {
+    let minimum_window = intervals.isqrt();
+    let minimum_bytes = workspace(minimum_window);
+    if minimum_bytes > WORKSPACE_BUDGET {
         return Err(Error::InvalidInput(
             "American Monte Carlo workspace exceeds 1 GiB; reduce path_count or step_count".into(),
         ));
     }
+    let target = PREFERRED_PATH_WORKSPACE.max(minimum_bytes);
+    let mut low = minimum_window;
+    let mut high = intervals;
+    while low < high {
+        let candidate = low + (high - low).div_ceil(2);
+        if workspace(candidate) <= target {
+            low = candidate;
+        } else {
+            high = candidate - 1;
+        }
+    }
+    // Balance windows so the last one, which stays resident from the original
+    // simulation, is about as long as the earlier windows that need replay.
+    let balanced = intervals.div_ceil(intervals.div_ceil(low));
+    let window = if workspace(balanced) <= target {
+        balanced
+    } else {
+        low
+    };
+    let bytes = workspace(window);
     let replay = (intervals - 1) / window * window;
     // Count original and replayed path steps, then one exercise update per scenario and step.
     let work = growth_count * (intervals + replay) + N * (intervals - 1);
@@ -1032,6 +1043,27 @@ fn solve_quadratic(samples: [[f64; 4]; 3]) -> Option<[f64; 3]> {
 mod tests {
     use super::*;
     use crate::{BlackScholesMertonParameters, Date, MonteCarloSettings};
+
+    #[test]
+    fn cache_retention_limit_does_not_trigger_path_replay() -> Result<()> {
+        let settings = MonteCarloSettings {
+            path_count: 340_000,
+            antithetic: false,
+            ..Default::default()
+        };
+        let (window, bytes) = exercise_window::<1>(settings, 340_000, 50, 1)?;
+        assert!(bytes > MAX_CACHED_PATH_VALUES * size_of::<f64>());
+        assert_eq!(window, 50);
+
+        let settings = MonteCarloSettings {
+            path_count: 680_000,
+            ..settings
+        };
+        let (window, bytes) = exercise_window::<1>(settings, 680_000, 50, 1)?;
+        assert_eq!(window, 25);
+        assert!(bytes <= PREFERRED_PATH_WORKSPACE);
+        Ok(())
+    }
 
     #[test]
     fn weekend_rate_greeks_keep_calendar_accrual() -> Result<()> {

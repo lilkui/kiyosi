@@ -393,7 +393,7 @@ def test_checkpointed_spot_greeks_match_scalar_price_stencils():
     option = contract()
     context = market(rate=0.05, dividend=0.02, sigma=0.2)
     engine = MonteCarloVanillaEngine(
-        path_count=336_000, step_count=50, seed=42, max_active_workers=4
+        path_count=680_000, step_count=50, seed=42, max_active_workers=4
     )
     result = engine.price_with_greeks(option, context, ["delta", "gamma"])
     center, up, down = (
