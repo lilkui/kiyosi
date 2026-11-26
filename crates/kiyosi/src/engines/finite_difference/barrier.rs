@@ -1,9 +1,10 @@
+use super::autocallable::{MARKET_GREEKS, market_bumps, tangent_coefficients};
 use super::{
     Diffusion, FiniteDifferenceBarrierEngine, FiniteDifferenceDoubleBarrierEngine,
     FiniteDifferenceSettings, Greek, GreeksRequest, NumericalShiftSettings, OptionContract,
     OptionType, Payoff, PricingContext, PricingEngine, PricingResult, Result, SpatialGrid,
     diffusion, diffusion_upper, grid::project_payoff, local_volatility, payoff::boundary_value,
-    scaled, step, validate_work,
+    scaled, step, validate_work, validate_workspace,
 };
 use crate::engines::analytic::barrier::resolved_price;
 use crate::engines::deterministic::{self, BarrierPrefix, continuation_context};
@@ -36,7 +37,9 @@ impl FiniteDifferenceBarrierEngine {
     ///
     /// Returns spline delta/gamma and fixed-grid speed, completing other Greeks numerically.
     ///
-    /// Uses [`NumericalShiftSettings`] for bumps and fixes the central BSM spatial domain.
+    /// Scheduled flat-rate BSM grids reuse the pricing factorization for eligible
+    /// default first-order market sensitivities. Custom bumps reprice the contract
+    /// using [`NumericalShiftSettings`] and the central BSM upper boundary.
     /// Local volatility accepts only delta/gamma, holding the absolute surface fixed.
     /// Stencils crossing observations or barriers leave affected Greeks absent.
     /// Expiry Greeks follow terminal payoffs. Before expiry at positive BSM volatility,
@@ -328,13 +331,30 @@ fn native_barrier(
         shifts,
         |radius| option.at_spot_discontinuity(context, radius),
         |context, request, shifts| {
-            let grid = diffusion::with_diffusion!(context, |diffusion| solve_grid(
-                option,
-                context,
-                settings,
-                diffusion,
-                context.spot_price()
-            ))?;
+            let bumps = if terms.observation_mode() == ObservationMode::Scheduled
+                && !uses_local_diffusion(context)
+                && settings.scheme != super::FiniteDifferenceScheme::ExplicitEuler
+            {
+                market_bumps(context, request, shifts)
+            } else {
+                [None; 3]
+            };
+            let solve = |bumps| {
+                diffusion::with_diffusion!(context, |diffusion| solve_grid(
+                    option,
+                    context,
+                    settings,
+                    diffusion,
+                    context.spot_price(),
+                    bumps
+                ))
+            };
+            let grid = match solve(bumps) {
+                Err(crate::Error::ComputationFailure(_)) if bumps.iter().any(Option::is_some) => {
+                    solve([None; 3])?
+                }
+                result => result?,
+            };
             grid.evaluate(option, context, request, shifts)
         },
     )
@@ -462,6 +482,7 @@ fn solve_grid<D: Diffusion>(
     settings: FiniteDifferenceSettings,
     volatility: D,
     minimum_spot: f64,
+    mut bumps: [Option<f64>; 3],
 ) -> Result<BarrierGrid> {
     let terms = option.monitoring();
     let upper_barrier = option.upper_barrier();
@@ -546,6 +567,18 @@ fn solve_grid<D: Diffusion>(
             steps += grid.rollback_steps(settings.scheme, &[])? + retry;
         }
         validate_work(space.count as u64, steps)?;
+        let lanes = 1 + bumps.iter().filter(|bump| bump.is_some()).count() as u64;
+        if validate_work(space.count as u64 * lanes, steps).is_err()
+            || validate_workspace(
+                settings.scheme,
+                (space.count as u64 + 1) * lanes,
+                grid.widths.len() as u64,
+                risk.workspace_bytes() + dividend.workspace_bytes(),
+            )
+            .is_err()
+        {
+            bumps = [None; 3];
+        }
     }
     let theta = settings.scheme.theta();
     if !D::LOCAL {
@@ -575,35 +608,44 @@ fn solve_grid<D: Diffusion>(
             },
         )
     };
-    let vanilla_edges = |current: f64| {
+    let vanilla_edges = |current: f64, [rate_shift, dividend_shift, _]: [f64; 3], sigma| {
         let tau = time - current;
-        let r = risk.log_factor(current, time);
-        let q = dividend.log_factor(current, time);
+        let r = risk.log_factor(current, time) - rate_shift * tau;
+        let q = dividend.log_factor(current, time) - dividend_shift * tau;
         let value = |asset| {
             if tau == 0.0 {
                 return payoff(asset);
             }
-            boundary_value(
-                Payoff::vanilla(terms.option_type(), terms.strike(), false),
-                asset,
-                [r, q],
-                volatility,
-                tau,
-            )
+            let contract = Payoff::vanilla(terms.option_type(), terms.strike(), false);
+            if let Some(sigma) = sigma {
+                boundary_value(contract, asset, [r, q], sigma, tau)
+            } else {
+                boundary_value(contract, asset, [r, q], volatility, tau)
+            }
         };
         [value(space.asset(0)), value(space.upper)]
     };
-    let edges = |current: f64| {
-        let mut edges = vanilla_edges(current);
+    let edges = |current: f64, events: bool, shifts: [f64; 3], sigma| {
+        let mut edges = vanilla_edges(current, shifts, sigma);
+        if !events {
+            return edges;
+        }
+        let rate_shift = shifts[0];
         let next = observations.get(observations.partition_point(|&event| event < current));
         if !scheduled || next.is_some() {
             let rebate = if scheduled && terms.rebate_timing() == RebateTiming::AtHit {
                 scaled(
                     terms.rebate(),
-                    risk.log_factor(current, *next.unwrap_or(&time)),
+                    risk.log_factor(current, *next.unwrap_or(&time))
+                        - rate_shift * (*next.unwrap_or(&time) - current),
+                )
+            } else if terms.rebate_timing() == RebateTiming::AtExpiry {
+                scaled(
+                    terms.rebate(),
+                    risk.log_factor(current, time) - rate_shift * (time - current),
                 )
             } else {
-                rebate_at(current)
+                terms.rebate()
             };
             if knocked(space.asset(0)) {
                 edges[0] = rebate;
@@ -628,8 +670,7 @@ fn solve_grid<D: Diffusion>(
         .chain(upper_barrier)
         .collect();
     let breaks: Vec<_> = levels.iter().copied().chain([terms.strike()]).collect();
-    let observe = |values: &mut [f64], current, terminal: bool| {
-        let event = rebate_at(current);
+    let project = |values: &mut [f64], event: f64, terminal: bool| {
         project_event(
             &space,
             &breaks,
@@ -646,7 +687,16 @@ fn solve_grid<D: Diffusion>(
             },
         );
     };
-    let march = |mut values: Vec<f64>, events: bool| -> Result<Vec<f64>> {
+    let observe = |values: &mut [f64], current, terminal| {
+        project(values, rebate_at(current), terminal);
+    };
+    let parameters = [
+        risk.rate(0.0),
+        dividend.rate(0.0),
+        volatility.sigma(0.0, 0.0),
+    ];
+    let derivatives = tangent_coefficients(&space, parameters, bumps)?;
+    let march = |mut values: Vec<f64>, events: bool| -> Result<_> {
         if events && (!scheduled || observations.last() == Some(&time)) {
             if scheduled {
                 observe(&mut values, time, true);
@@ -658,30 +708,64 @@ fn solve_grid<D: Diffusion>(
                 }
             }
         }
-        step::march(
+        let dates = if events && scheduled {
+            &observations[..]
+        } else {
+            &[]
+        };
+        let unshifted_edges = |current| edges(current, events, [0.0; 3], None);
+        if bumps.iter().all(Option::is_none) {
+            return step::march(
+                values,
+                &space,
+                &grid,
+                volatility,
+                settings.scheme,
+                [&risk, &dividend],
+                dates,
+                implicit_fallback,
+                unshifted_edges,
+                |values, current| observe(values, current, false),
+            )
+            .map(|values| (values, std::array::from_fn(|_| Vec::new())));
+        }
+        step::march_tangents(
             values,
             &space,
             &grid,
-            volatility,
+            parameters,
             settings.scheme,
-            [&risk, &dividend],
-            if events && scheduled {
-                &observations
-            } else {
-                &[]
+            dates,
+            &derivatives,
+            unshifted_edges,
+            |current, lane| {
+                let bump = bumps[lane].expect("active derivative has a bump");
+                let shifted = |sign| {
+                    let mut shifts = [0.0; 3];
+                    shifts[lane] = sign * bump;
+                    edges(current, events, shifts, Some(parameters[2] + shifts[2]))
+                };
+                let [low, high] = [shifted(-1.0), shifted(1.0)];
+                std::array::from_fn(|i| (high[i] - low[i]) / (2.0 * bump))
             },
-            implicit_fallback,
-            |current| {
-                if events {
-                    edges(current)
-                } else {
-                    vanilla_edges(current)
+            |values, tangents, current| {
+                observe(values, current, false);
+                for (lane, tangent) in tangents
+                    .iter_mut()
+                    .enumerate()
+                    .filter(|(_, v)| !v.is_empty())
+                {
+                    let rebate = if lane == 0 && terms.rebate_timing() == RebateTiming::AtExpiry {
+                        -(time - current) * rebate_at(current)
+                    } else {
+                        0.0
+                    };
+                    project(tangent, rebate, false);
                 }
             },
-            |values, current| observe(values, current, false),
         )
     };
-    let mut values = if local_in {
+    let (mut values, mut tangents) = if local_in {
         // Evolve activation directly to avoid cancellation between independently meshed prices.
         let full_space = SpatialGrid::knock_in_continuation(
             settings,
@@ -719,7 +803,7 @@ fn solve_grid<D: Diffusion>(
                 }
             }
         }
-        step::march_with_continuation(
+        let values = step::march_with_continuation(
             unactivated,
             &space,
             continuation,
@@ -757,19 +841,28 @@ fn solve_grid<D: Diffusion>(
                 [edge(space.asset(0)), edge(space.upper)]
             },
             observe_in,
-        )?
+        )?;
+        (values, std::array::from_fn(|_| Vec::new()))
     } else {
         march(initial.clone(), true)?
     };
     if knock_in && !local_in {
-        let vanilla = march(initial, false)?;
+        let (vanilla, vanilla_tangents) = march(initial, false)?;
         let cash = scaled(terms.rebate(), risk.log_factor(0.0, time));
         for (value, vanilla) in values.iter_mut().zip(vanilla) {
             *value = vanilla - *value + cash;
         }
+        for (lane, (knock_out, vanilla)) in tangents.iter_mut().zip(vanilla_tangents).enumerate() {
+            let cash_derivative = if lane == 0 { -time * cash } else { 0.0 };
+            for (value, vanilla) in knock_out.iter_mut().zip(vanilla) {
+                *value = vanilla - *value + cash_derivative;
+            }
+        }
     }
+    let tangents = tangents.map(|values| (!values.is_empty()).then(|| space.spline(values)));
     Ok(BarrierGrid {
         grid: super::solution::Grid::new(space, values),
+        tangents,
         discount: [risk.log_factor(0.0, time), dividend.log_factor(0.0, time)],
     })
 }
@@ -777,6 +870,7 @@ fn solve_grid<D: Diffusion>(
 #[derive(PartialEq)]
 struct BarrierGrid {
     grid: super::solution::Grid,
+    tangents: [Option<super::grid::Spline>; 3],
     discount: [f64; 2],
 }
 impl BarrierGrid {
@@ -801,6 +895,14 @@ impl BarrierGrid {
             if request.has(Greek::Speed) {
                 if let Some(speed) = self.grid.speed(spot, h) {
                     result.set(request, Greek::Speed, speed)?;
+                }
+            }
+        }
+        for (greek, tangent) in MARKET_GREEKS.into_iter().zip(&self.tangents) {
+            if let Some(tangent) = tangent {
+                let [value, ..] = self.grid.space.sample(tangent, spot);
+                if value.is_finite() {
+                    result.set(request, greek, value)?;
                 }
             }
         }
@@ -988,7 +1090,8 @@ fn prepare_solution<I: Contract + Clone + PartialEq + Send + Sync + 'static>(
                 rolled,
                 settings,
                 diffusion,
-                scaled(*range.start(), carry)
+                scaled(*range.start(), carry),
+                [None; 3]
             ))?)
         }
     } else {

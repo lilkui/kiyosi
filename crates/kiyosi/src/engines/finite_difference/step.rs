@@ -513,3 +513,68 @@ impl Stepper {
         Ok(())
     }
 }
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "shares a time grid and implicit operator across sensitivities"
+)]
+pub(super) fn march_tangents(
+    mut values: Vec<f64>,
+    space: &SpatialGrid,
+    grid: &TimeGrid,
+    [rate, dividend, sigma]: [f64; 3],
+    scheme: FiniteDifferenceScheme,
+    observations: &[f64],
+    derivatives: &[Vec<[f64; 3]>; 3],
+    edges: impl Fn(f64) -> [f64; 2],
+    tangent_edges: impl Fn(f64, usize) -> [f64; 2],
+    observe: impl Fn(&mut [f64], &mut [Vec<f64>; 3], f64),
+) -> Result<(Vec<f64>, [Vec<f64>; 3])> {
+    let mut next = vec![0.0; values.len()];
+    let mut tangents = derivatives.each_ref().map(|row| {
+        if row.is_empty() {
+            Vec::new()
+        } else {
+            vec![0.0; values.len()]
+        }
+    });
+    let mut next_tangents = tangents.clone();
+    let mut stepper = Stepper::new(space.count);
+    let mut damping = 2;
+    for step in (0..grid.widths.len()).rev() {
+        crate::cancellation::check()?;
+        for (current, dt, theta) in grid.substeps(step, scheme, &mut damping) {
+            stepper.advance(
+                &values,
+                &mut next,
+                space,
+                sigma,
+                [dt, theta, rate, dividend],
+                edges(current),
+            )?;
+            for (lane, derivative) in derivatives
+                .iter()
+                .enumerate()
+                .filter(|(_, row)| !row.is_empty())
+            {
+                stepper.advance_tangent(
+                    [&tangents[lane], &values, &next],
+                    &mut next_tangents[lane],
+                    [dt, theta, rate, dividend, sigma],
+                    tangent_edges(current, lane),
+                    derivative,
+                )?;
+            }
+            std::mem::swap(&mut values, &mut next);
+            std::mem::swap(&mut tangents, &mut next_tangents);
+        }
+        if observations
+            .binary_search_by(|event| event.total_cmp(&grid.times[step]))
+            .is_ok()
+        {
+            observe(&mut values, &mut tangents, grid.times[step]);
+            damping = 2;
+        }
+    }
+    Ok((values, tangents))
+}

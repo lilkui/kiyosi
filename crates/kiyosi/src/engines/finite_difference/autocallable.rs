@@ -229,9 +229,9 @@ fn event<'a, T: AutocallableTerms>(
 }
 
 // Keep the derivative order aligned with the three operator parameters.
-const MARKET_GREEKS: [Greek; 3] = [Greek::Rho, Greek::DividendRho, Greek::Vega];
+pub(super) const MARKET_GREEKS: [Greek; 3] = [Greek::Rho, Greek::DividendRho, Greek::Vega];
 
-fn market_bumps(
+pub(super) fn market_bumps(
     context: &PricingContext,
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
@@ -921,7 +921,7 @@ fn solve_layers<T: AutocallableTerms, D: Diffusion, const N: usize>(
     Ok((space, values, tangent.map(|[alive, _]| alive)))
 }
 
-fn tangent_coefficients(
+pub(super) fn tangent_coefficients(
     space: &SpatialGrid,
     parameters: [f64; 3],
     bumps: [Option<f64>; 3],

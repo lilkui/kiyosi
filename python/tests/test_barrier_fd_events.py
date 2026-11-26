@@ -405,3 +405,41 @@ def test_projection_preserves_vanishing_volatility_settlement_and_rebate_timing(
                     abs=1e-6,
                 )
                 assert actual.gamma == pytest.approx(0, rel=0, abs=2e-10)
+
+
+@pytest.mark.parametrize(
+    ("knock_in", "timing"),
+    ((False, "at_hit"), (False, "at_expiry"), (True, "at_expiry")),
+)
+def test_scheduled_barrier_market_tangents_match_scalar_bumps(knock_in, timing):
+    contract = option(
+        False,
+        80,
+        dates=(START + timedelta(days=100), START + timedelta(days=201), END),
+        timing=timing,
+        knock_in=knock_in,
+    )
+    engine = pricing.FiniteDifferenceBarrierEngine(asset_upper_boundary=400)
+    greeks = ("vega", "rho", "dividend_rho")
+    snapshot = context().replace(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.04, dividend_yield=0.01, volatility=0.09
+        )
+    )
+    result = engine.price_with_greeks(contract, snapshot, greeks)
+    expected = engine.price_with_greeks(
+        contract, snapshot, greeks, volatility_shift=0.0001, rate_shift=0.000101
+    )
+    assert result.price == expected.price
+    for greek in greeks:
+        assert result.require(greek) == pytest.approx(
+            expected.require(greek), abs=0.0002, rel=0
+        )
+    if not knock_in and timing == "at_hit":
+        reference = pricing.QuadratureBarrierEngine(asset_step_count=5000)
+        expected = reference.price_with_greeks(contract, context(), greeks)
+        result = engine.price_with_greeks(contract, context(), greeks)
+        for greek in greeks:
+            assert result.require(greek) == pytest.approx(
+                expected.require(greek), abs=0.003, rel=0
+            )

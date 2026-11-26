@@ -704,3 +704,78 @@ fn scheduled_barrier_work_limit_counts_damping_half_steps() -> Result<()> {
     ));
     Ok(())
 }
+
+#[test]
+fn scheduled_barrier_market_tangents_match_scalar_bumps() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_days(365)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.04, 0.01, 0.09)?,
+        100.25,
+        start,
+    )?;
+    let engine = FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings {
+        asset_upper_boundary: Some(400.0),
+        ..Default::default()
+    })?;
+    let greeks = [Greek::Vega, Greek::Rho, Greek::DividendRho];
+    let request = GreeksRequest::new(greeks);
+    for (barrier, rebate_timing) in [
+        (BarrierType::DownAndOut, RebateTiming::AtHit),
+        (BarrierType::DownAndOut, RebateTiming::AtExpiry),
+        (BarrierType::DownAndIn, RebateTiming::AtExpiry),
+    ] {
+        let mut terms = BarrierOptionTerms::new(OptionType::Put, 100.0, start, end, 80.0, barrier);
+        terms.rebate = 2.0;
+        terms.rebate_timing = rebate_timing;
+        terms.observation_times = Some(vec![start.add_days(100)?, start.add_days(201)?, end]);
+        let option = BarrierOption::new(terms)?;
+        let result = engine.price_with_greeks(&option, &context, request)?;
+        let expected = engine.price_with_greeks_with_settings(
+            &option,
+            &context,
+            request,
+            NumericalShiftSettings {
+                volatility_shift: Some(0.0001),
+                rate_shift: 0.000_101,
+                ..Default::default()
+            },
+        )?;
+        assert_eq!(result.price().to_bits(), expected.price().to_bits());
+        for greek in greeks {
+            let actual = result.require(greek)?;
+            let reference = expected.require(greek)?;
+            assert!(
+                (actual - reference).abs() < 0.0002,
+                "{greek:?}: {actual} != {reference}"
+            );
+        }
+    }
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
+        100.25,
+        start,
+    )?;
+    let mut terms = BarrierOptionTerms::new(
+        OptionType::Put,
+        100.0,
+        start,
+        end,
+        80.0,
+        BarrierType::DownAndOut,
+    );
+    terms.rebate = 2.0;
+    terms.rebate_timing = RebateTiming::AtHit;
+    terms.observation_times = Some(vec![start.add_days(100)?, start.add_days(201)?, end]);
+    let option = BarrierOption::new(terms)?;
+    let reference = QuadratureBarrierEngine::new(QuadratureSettings {
+        asset_step_count: 5000,
+        ..Default::default()
+    })?
+    .price_with_greeks(&option, &context, request)?;
+    let actual = engine.price_with_greeks(&option, &context, request)?;
+    for greek in greeks {
+        assert!((actual.require(greek)? - reference.require(greek)?).abs() < 0.003);
+    }
+    Ok(())
+}
