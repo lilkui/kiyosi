@@ -566,6 +566,10 @@ sampling_settings!(
     ///     simulated paths within the batch workspace.
     /// context : PricingContext
     ///     Shared market snapshot and valuation instant.
+    /// shared_grid : bool, optional
+    ///     Share paths between notes with the same daily knock-in grid even
+    ///     when cash-flow dates differ. Defaults to False. With True, the
+    ///     seeded batch can differ from individually seeded scalar prices.
     ///
     /// Returns
     /// -------
@@ -581,11 +585,13 @@ sampling_settings!(
     ///     If scalar pricing validation or computation fails.
     /// OSError
     ///     If interrupted or worker creation or entropy retrieval fails.
+    #[pyo3(signature = (instruments, context, *, shared_grid = false))]
     fn price_many<'py>(
         &self,
         py: Python<'py>,
         instruments: &Bound<'py, PyAny>,
         context: &PricingContext,
+        #[pyo3(from_py_with = boolean)] shared_grid: bool,
     ) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
         use autocallable::AutocallableInstrument;
         let instruments = instruments.try_iter()?.enumerate().map(|(index, instrument)| {
@@ -611,7 +617,11 @@ sampling_settings!(
                     .collect::<kiyosi::Result<Vec<_>>>();
                 let notes = crate::error::domain(notes)?;
                 crate::error::domain(crate::cancellation::run(py, || {
-                    self.0.price_many(&notes, &context.0)
+                    if shared_grid {
+                        self.0.price_many_on_shared_grid(&notes, &context.0)
+                    } else {
+                        self.0.price_many(&notes, &context.0)
+                    }
                 })?)?
             }};
         }

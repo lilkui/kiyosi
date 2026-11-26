@@ -457,3 +457,38 @@ def test_batched_phoenix_spot_greeks_replay_scalar_stencils(sampling):
         scalar.seed,
     )
     assert all(math.isfinite(value) for value in (batch.delta, batch.gamma, batch.vega))
+
+
+def test_shared_daily_grid_prices_staggered_cash_flows():
+    first = contract(
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
+        autocall_observations=autocallable_observations(
+            [datetime(2025, 2, 3), datetime(2025, 3, 3), END],
+            [103, 108, 105],
+            knock_out_coupon_rates=[0.08] * 3,
+        ),
+    )
+    second = first.replace(
+        autocall_observations=autocallable_observations(
+            [datetime(2025, 2, 4), datetime(2025, 3, 4), END],
+            [106, 103, 99],
+            knock_out_coupon_rates=[0.12, 0.09, 0.06],
+        ),
+    )
+    notes = (second, first, second)
+    context = market()
+    engine = MC(path_count=16384, seed=42, max_active_workers=1)
+    actual = engine.price_many(notes, context, shared_grid=True)
+    assert actual[0] == actual[2]
+    assert actual != engine.price_many(notes, context)
+    assert actual == engine.replace(max_active_workers=2).price_many(
+        notes, context, shared_grid=True
+    )
+    oracle = QuadratureAutocallableEngine()
+    for price, note in zip(actual, notes, strict=True):
+        estimate = engine.price_with_statistics(note, context)
+        assert estimate.standard_error is not None
+        assert abs(price - oracle.price(note, context)) < 5 * estimate.standard_error
+    assert engine.price_many([], context, shared_grid=True) == ()
+    with pytest.raises(TypeError):
+        engine.price_many(notes, context, shared_grid=1)

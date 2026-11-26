@@ -4510,6 +4510,8 @@ class MonteCarloAutocallableEngine(
         | Iterable[TernarySnowballOption]
         | Iterable[PhoenixOption],
         context: PricingContext,
+        *,
+        shared_grid: bool = ...,
     ) -> tuple[float, ...]:
         """Price a batch of notes of one product type using one market snapshot.
 
@@ -4520,6 +4522,10 @@ class MonteCarloAutocallableEngine(
             simulated paths within the batch workspace.
         context : PricingContext
             Shared market snapshot and valuation instant.
+        shared_grid : bool, optional
+            Share paths between notes with the same daily knock-in grid even
+            when cash-flow dates differ. Defaults to False. With True, the
+            seeded batch can differ from individually seeded scalar prices.
 
         Returns
         -------

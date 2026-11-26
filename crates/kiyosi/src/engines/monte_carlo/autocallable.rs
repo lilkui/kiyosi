@@ -163,7 +163,30 @@ impl MonteCarloAutocallableEngine {
         notes: &[&AutocallableNote<T>],
         context: &PricingContext,
     ) -> Result<Vec<f64>> {
-        portfolio::price_many(*self, notes, context)
+        portfolio::price_many(*self, notes, context, false)
+    }
+
+    /// Prices notes on a common daily grid even when their cash-flow dates differ.
+    ///
+    /// Notes of one product type can share simulated paths when stochastic
+    /// transitions and daily knock-in monitoring dates match. Cash events keep
+    /// their contractual dates. The batch is reproducible with a fixed seed.
+    /// Shared paths can differ from the seeded scalar Brownian bridge. See
+    /// [`Self::price_many`] for an example of pricing a batch of notes.
+    ///
+    /// # Errors
+    ///
+    /// Propagates the pricing errors of [`Self::price_many`].
+    ///
+    /// # Panics
+    ///
+    /// Propagates worker panics after the batch's parallel work finishes.
+    pub fn price_many_on_shared_grid<T: AutocallableTerms>(
+        &self,
+        notes: &[&AutocallableNote<T>],
+        context: &PricingContext,
+    ) -> Result<Vec<f64>> {
+        portfolio::price_many(*self, notes, context, true)
     }
 
     /// Returns a price with optional standard error and asymptotic 95% confidence interval.

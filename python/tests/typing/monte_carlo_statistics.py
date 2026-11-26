@@ -52,6 +52,12 @@ def sampling_estimates(
     assert_type(asian.price_with_statistics(geometric, context).seed, int | None)
     assert_type(asian.price_with_statistics(arithmetic, context), MonteCarloEstimate)
     assert_type(
+        MonteCarloAutocallableEngine().price_many(
+            (snowball,), context, shared_grid=True
+        ),
+        tuple[float, ...],
+    )
+    assert_type(
         MonteCarloBarrierEngine().price_with_statistics(barrier, context),
         MonteCarloEstimate,
     )

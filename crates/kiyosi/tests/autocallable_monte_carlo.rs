@@ -719,3 +719,50 @@ fn batched_phoenix_spot_and_market_greeks_replay_scalar_stencils() -> Result<()>
     }
     Ok(())
 }
+
+#[test]
+fn shared_daily_grid_prices_staggered_cash_flows() -> Result<()> {
+    let (terms, _, _) =
+        autocallable_support::multi_event_terms(KnockInObservation::EveryTradingDay {
+            observation_clock_time: date(1, 1).time_of_day(),
+        });
+    let first = SnowballOption::new(terms.clone())?;
+    let second = SnowballOption::new(SnowballTerms {
+        autocall_observations: autocallable_observations(
+            &[date(2, 4), date(3, 4), date(4, 1)],
+            &[106.0, 103.0, 99.0],
+            &[0.12, 0.09, 0.06],
+        )?,
+        ..terms
+    })?;
+    let notes = [&second, &first, &second];
+    let context = market(100.0, date(1, 1));
+    let settings = MonteCarloSettings {
+        path_count: 16384,
+        seed: Some(42),
+        max_active_workers: 1,
+        ..Default::default()
+    };
+    let engine = MonteCarloAutocallableEngine::new(settings)?;
+    let actual = engine.price_many_on_shared_grid(&notes, &context)?;
+    let unshared = engine.price_many(&notes, &context)?;
+    assert_ne!(
+        actual, unshared,
+        "the common grid uses a distinct path ordering"
+    );
+    assert_eq!(actual[0].to_bits(), actual[2].to_bits());
+    let parallel = MonteCarloAutocallableEngine::new(MonteCarloSettings {
+        max_active_workers: 2,
+        ..settings
+    })?;
+    assert_eq!(
+        actual,
+        parallel.price_many_on_shared_grid(&notes, &context)?
+    );
+    for (&price, note) in actual.iter().zip(notes) {
+        let reference = QuadratureAutocallableEngine::default().price(note, &context)?;
+        let estimate = engine.price_with_statistics(note, &context)?;
+        assert!((price - reference).abs() < 5.0 * estimate.standard_error().unwrap());
+    }
+    Ok(())
+}
