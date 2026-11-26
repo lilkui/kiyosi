@@ -649,10 +649,10 @@ impl MonteCarloVanillaEngine {
 
     /// Prices American strikes on the same simulated spot paths.
     ///
-    /// Compatible quotes share each spot row and fit separate continuation
-    /// regressions. Prices preserve input order and duplicates. The request uses
-    /// one seed when sampling is required. Call [`Self::with_resolved_seed`] first
-    /// to replay an unseeded engine's draws.
+    /// Compatible quotes share each spot row and fit a continuation regression
+    /// for each distinct strike. Prices preserve input order and duplicates.
+    /// The request uses one seed when sampling is required. Call
+    /// [`Self::with_resolved_seed`] first to replay an unseeded engine's draws.
     ///
     /// # Examples
     ///
@@ -695,9 +695,8 @@ impl MonteCarloVanillaEngine {
             crate::cancellation::check()?;
             crate::error::finite(strike, true, "strike")?;
         }
-        let mut prices = american_workspace(strikes.len())?;
         if strikes.is_empty() {
-            return Ok(prices);
+            return Ok(Vec::new());
         }
         let engine = if crate::engines::deterministic::enabled(context)
             || context.valuation_time() == option.expiry_time()
@@ -711,6 +710,18 @@ impl MonteCarloVanillaEngine {
             }
             self.with_resolved_seed()?
         };
+        super::quote_distinct_strikes(strikes, |unique| {
+            engine.price_distinct_american_strikes(option, context, unique)
+        })
+    }
+
+    fn price_distinct_american_strikes(
+        &self,
+        option: &AmericanOption,
+        context: &PricingContext,
+        strikes: &[f64],
+    ) -> Result<Vec<f64>> {
+        let mut prices = american_workspace(strikes.len())?;
         let _paths = AmericanPathCache::for_path_sharing(strikes.len() > 4);
         let _sobol = sobol::RequestCache::new();
         let mut remaining = strikes;
@@ -720,7 +731,7 @@ impl MonteCarloVanillaEngine {
             macro_rules! quote {
                 ($count:literal) => {
                     if let Some(strikes) = remaining.first_chunk::<$count>() {
-                        match engine.american_scenarios::<$count, 1>(
+                        match self.american_scenarios::<$count, 1>(
                             option,
                             [context; $count],
                             *strikes,
@@ -747,7 +758,7 @@ impl MonteCarloVanillaEngine {
                     strike: Some(strike),
                     ..Default::default()
                 })?;
-                prices.push(engine.american_price(&contract, context, true)?.0);
+                prices.push(self.american_price(&contract, context, true)?.0);
                 remaining = &remaining[1..];
             }
         }

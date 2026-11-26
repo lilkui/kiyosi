@@ -533,6 +533,10 @@ def test_american_monte_carlo_strike_batch_replays_scalar_paths(sampling, path_c
     put = contract()
     prices = engine.price_american_strikes(put, snapshot, strikes=iter(strikes))
     assert prices == tuple(engine.price(contract(strike=k), snapshot) for k in strikes)
+    assert (
+        engine.price_american_strikes(put, snapshot, strikes=[100] * 64)
+        == (prices[0],) * 64
+    )
     serial = engine.replace(max_active_workers=1)
     assert prices == serial.price_american_strikes(put, snapshot, strikes=strikes)
     assert engine.price_american_strikes(put, snapshot, strikes=()) == ()

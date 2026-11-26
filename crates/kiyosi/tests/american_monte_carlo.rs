@@ -960,6 +960,10 @@ fn american_monte_carlo_strike_batch_replays_scalar_paths() -> Result<()> {
             .map(|&strike| engine.price(&option(OptionType::Put, strike), &snapshot))
             .collect::<Result<Vec<_>>>()?;
         assert_eq!(prices, expected);
+        assert_eq!(
+            engine.price_american_strikes(&template, &snapshot, &[100.0; 64])?,
+            vec![expected[0]; 64]
+        );
         let serial = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
             sampling: MonteCarloSettings {
                 max_active_workers: 1,

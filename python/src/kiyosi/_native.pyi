@@ -4378,7 +4378,7 @@ class MonteCarloVanillaEngine(
         Notes
         -----
         The request uses one seed and fits a separate exercise rule for each
-        strike. Call with_resolved_seed() first to replay an unseeded engine.
+        distinct strike. Call with_resolved_seed() first to replay an unseeded engine.
 
         Raises
         ------

@@ -256,41 +256,9 @@ impl MonteCarloAsianEngine {
             crate::error::finite(strike, true, "strike")?;
         }
         let stochastic = tau > 0.0 && !crate::engines::deterministic::enabled(context);
-        if strikes.len() <= 1 {
-            return self.price_distinct_arithmetic_strikes(template, context, strikes, stochastic);
-        }
-
-        let workspace_error =
-            |_| Error::ComputationFailure("cannot reserve Asian strike batch workspace".into());
-        let mut indices = Vec::new();
-        indices
-            .try_reserve_exact(strikes.len())
-            .map_err(workspace_error)?;
-        indices.extend(0..strikes.len());
-        indices.sort_unstable_by(|&i, &j| strikes[i].total_cmp(&strikes[j]));
-        let groups = || indices.chunk_by(|&i, &j| strikes[i].to_bits() == strikes[j].to_bits());
-        let mut unique = Vec::new();
-        unique
-            .try_reserve_exact(strikes.len())
-            .map_err(workspace_error)?;
-        crate::cancellation::check()?;
-        for group in groups() {
-            crate::cancellation::check()?;
-            unique.push(strikes[group[0]]);
-        }
-        let quotes =
-            self.price_distinct_arithmetic_strikes(template, context, &unique, stochastic)?;
-        let mut prices = unique;
-        prices.resize(strikes.len(), 0.0);
-        for (group, quote) in groups().zip(quotes) {
-            for chunk in group.chunks(1024) {
-                crate::cancellation::check()?;
-                for &index in chunk {
-                    prices[index] = quote;
-                }
-            }
-        }
-        Ok(prices)
+        super::quote_distinct_strikes(strikes, |unique| {
+            self.price_distinct_arithmetic_strikes(template, context, unique, stochastic)
+        })
     }
 
     /// Checks the batch workspace limit before collecting strike inputs.
