@@ -89,12 +89,25 @@ struct Factors {
 }
 
 impl Factors {
-    fn factor_row(&mut self, i: usize, dt: f64, theta: f64) -> Result<()> {
+    // Keep the cached constant-volatility preparation path small.
+    #[inline(never)]
+    fn factor_row<const REUSE_INVERSE: bool>(
+        &mut self,
+        i: usize,
+        dt: f64,
+        theta: f64,
+    ) -> Result<()> {
         let [a, b, c] = self.coefficients[i];
         self.upper[i] = -theta * dt * c;
         self.diagonal[i] = 1.0 - theta * dt * b;
         if i > 0 {
-            self.multipliers[i] = -theta * dt * a / self.diagonal[i - 1];
+            let lower = -theta * dt * a;
+            let inverse = self.inverse[i - 1];
+            self.multipliers[i] = if REUSE_INVERSE && inverse.is_normal() {
+                lower * inverse
+            } else {
+                lower / self.diagonal[i - 1]
+            };
             self.diagonal[i] -= self.multipliers[i] * self.upper[i - 1];
         }
         if !self.diagonal[i].is_finite() || self.diagonal[i] == 0.0 {
@@ -403,7 +416,7 @@ impl Stepper {
                     return Err(invalid_grid("explicit finite-difference grid is unstable"));
                 }
                 if theta != 0.0 {
-                    factors.factor_row(i, dt, theta)?;
+                    factors.factor_row::<true>(i, dt, theta)?;
                 }
             }
             self.local_operator = operator;
@@ -533,7 +546,7 @@ impl Stepper {
                 };
                 if theta != 0.0 {
                     for i in 0..size {
-                        factors.factor_row(i, dt, theta)?;
+                        factors.factor_row::<false>(i, dt, theta)?;
                     }
                 }
                 if self.factors.len() < Self::FACTOR_CACHE_LEN {
