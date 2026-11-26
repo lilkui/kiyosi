@@ -14,6 +14,8 @@ use crate::{
     PricingEngine, PricingResult, Result,
 };
 
+mod fft;
+
 const PANEL_SAMPLES: usize = 15;
 const PANEL_CACHE_CAPACITY: usize = 16_384 / PANEL_SAMPLES;
 type PanelSamples = [FourierSample; PANEL_SAMPLES];
@@ -176,8 +178,9 @@ impl AnalyticHestonEuropeanEngine {
     ///
     /// Uses the template's direction and dates. The result preserves input order
     /// and duplicates. The empty batch validates the market and returns an empty
-    /// vector. A request-local cache shares Fourier samples for complete integration panels across strikes.
-    /// Each strike retains the integration settings and budget of [`Self::price`].
+    /// vector. Dense, evenly spaced log strikes can share one fast Fourier transform
+    /// when the estimated error fits the price tolerances. Other batches share Fourier
+    /// samples across adaptive integration panels. The evaluation budget applies per strike.
     ///
     /// # Errors
     ///
@@ -215,6 +218,9 @@ impl AnalyticHestonEuropeanEngine {
         for &strike in strikes {
             crate::cancellation::check()?;
             crate::error::finite(strike, true, "strike")?;
+        }
+        if let Some(prices) = fft::price_strikes(option, context, model, strikes, self.settings)? {
+            return Ok(prices);
         }
         let mut prices = Vec::new();
         prices.try_reserve_exact(strikes.len()).map_err(|_| {
@@ -482,19 +488,28 @@ fn fourier_sample(
     t: f64,
 ) -> FourierSample {
     let u = frequency_scale * t / (1.0 - t);
-    let log_heston = log_characteristic(model, time, u);
-    let log_black = -0.5 * variance * (u * u + 0.25);
-    let difference = log_heston - log_black;
-    let transform = if difference.norm_sqr() < 0.25 {
-        -log_black.exp() * complex_expm1(difference)
-    } else {
-        Complex64::new(log_black.exp(), 0.0) - log_heston.exp()
-    };
+    let transform = characteristic_difference(model, time, variance, u);
     FourierSample {
         frequency: u,
         transform,
         payoff_denominator: u * u + 0.25,
         jacobian_denominator: (1.0 - t).powi(2),
+    }
+}
+
+fn characteristic_difference(
+    model: &HestonParameters,
+    time: f64,
+    variance: f64,
+    u: f64,
+) -> Complex64 {
+    let log_heston = log_characteristic(model, time, u);
+    let log_black = -0.5 * variance * (u * u + 0.25);
+    let difference = log_heston - log_black;
+    if difference.norm_sqr() < 0.25 {
+        -log_black.exp() * complex_expm1(difference)
+    } else {
+        Complex64::new(log_black.exp(), 0.0) - log_heston.exp()
     }
 }
 

@@ -99,7 +99,8 @@ engine_methods!(
         ///
         /// Notes
         /// -----
-        /// Strikes share Fourier transforms and retain independent convergence
+        /// Dense, evenly spaced log strikes can share a fast Fourier transform.
+        /// Other batches share transform samples and retain adaptive convergence
         /// budgets. Pricing releases the GIL and cancellation returns no partial
         /// result.
         #[pyo3(signature = (instrument, context, *, strikes))]

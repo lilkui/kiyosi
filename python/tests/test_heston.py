@@ -614,3 +614,18 @@ def test_shared_engine_supports_concurrent_independent_requests():
             pool.map(lambda snapshot: engine.price(option(), snapshot), snapshots)
         )
     assert actual == expected
+
+
+def test_dense_log_strikes_use_fft_and_meet_scalar_tolerance():
+    engine = AnalyticHestonEuropeanEngine()
+    snapshot = context()
+    strikes = tuple(60 * math.exp(math.log(160 / 60) * i / 511) for i in range(512))
+    for direction in ("call", "put"):
+        template = option(option_type=direction)
+        actual = engine.price_strikes(template, snapshot, strikes=strikes)
+        for strike, value in zip(strikes, actual, strict=True):
+            expected = engine.price(template.replace(strike=strike), snapshot)
+            tolerance = engine.absolute_tolerance + engine.relative_tolerance * abs(
+                expected
+            )
+            assert value == pytest.approx(expected, abs=0.5 * tolerance, rel=0)
