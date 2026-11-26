@@ -505,6 +505,15 @@ pub(super) struct TransitionCache {
 }
 
 impl TransitionCache {
+    pub fn reserve_workspace(&mut self, bytes: usize) -> bool {
+        if let Some(remaining) = self.budget.checked_sub(bytes) {
+            self.budget = remaining;
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn new(
         nodes: &[f64],
         node_capacity: usize,

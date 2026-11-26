@@ -5,7 +5,9 @@ use super::gaussian::{
 use super::{QuadratureSettings, flat_rates, simpson};
 use crate::engines::Payoff;
 use crate::instruments::monitoring::validate_life;
-use crate::numerics::{checked, checked_with_scale, discounted_product, log_ratio, scaled_cash};
+use crate::numerics::{
+    Sum, checked, checked_with_scale, discounted_product, log_interval_mass, log_ratio, scaled_cash,
+};
 use crate::{
     AmericanOption, AmericanOptionChanges, Error, EuropeanOption, PricingContext, PricingEngine,
     Result,
@@ -481,6 +483,10 @@ fn american_curve(
     }
     let nodes = integration_nodes(-extent, extent, settings.asset_step_count, &[0.0], 1)?;
     let mut cache = TransitionCache::new(&nodes, nodes.capacity(), 1, settings.asset_step_count)?;
+    // Narrow transitions can require the strike-anchored correction in integrate_terminal.
+    let cache_tails = settings.time_step_count > 2
+        && deviation >= 1e-5
+        && cache.reserve_workspace(nodes.len() * size_of::<TailWeights>());
     cache.validate_rollback_work(&nodes, drift_step, deviation, settings.time_step_count)?;
     let interpolation = CubicInterpolation::new(&nodes);
     let intrinsic: Vec<_> = nodes
@@ -505,7 +511,8 @@ fn american_curve(
         }],
     };
     let mut values = vec![0.0; nodes.len()];
-    for _ in 1..settings.time_step_count {
+    let mut tail_weights = Vec::new();
+    for step in 1..settings.time_step_count {
         crate::cancellation::check()?;
         if layer.cells.is_empty() {
             values.fill(0.0);
@@ -514,22 +521,40 @@ fn american_curve(
                 .get(time / intervals, &nodes, drift_step, deviation)?
                 .integrate(&nodes, &layer.cells, discount, &mut values)?;
         }
-        for ((value, &node), &exercise) in values.iter_mut().zip(&nodes).zip(&intrinsic) {
-            let continuation = *value
-                + integrate_terminal(
+        for (index, ((value, &node), &exercise)) in
+            values.iter_mut().zip(&nodes).zip(&intrinsic).enumerate()
+        {
+            let tail = if let Some(weights) = tail_weights.get(index) {
+                TailWeights::value(weights, &layer.exact[0])
+            } else {
+                integrate_terminal(
                     &layer.exact,
                     node,
                     payoff.strike,
                     drift_step,
                     deviation,
                     discount,
-                );
+                )
+            };
+            let continuation = *value + tail;
             *value = checked_with_scale(continuation, exercise + payoff.strike)?.max(exercise);
         }
-        layer = Layer {
-            cells: continuation_curve(&interpolation, &values),
-            exact: tails(payoff, &nodes, &values)?,
-        };
+        layer.cells = continuation_curve(&interpolation, &values);
+        layer.exact[0] = tail(payoff, &nodes, &values)?;
+        if step == 1 && cache_tails {
+            let anchor = payoff.strike.ln();
+            tail_weights.reserve_exact(nodes.len());
+            for &node in &nodes {
+                crate::cancellation::check()?;
+                tail_weights.push(TailWeights::new(
+                    &layer.exact[0],
+                    node + drift_step,
+                    anchor,
+                    deviation,
+                    discount,
+                ));
+            }
+        }
     }
     Ok(AmericanCurve {
         nodes,
@@ -568,7 +593,44 @@ fn log_intrinsic(payoff: Payoff, x: f64) -> f64 {
     }
 }
 
-fn tails(payoff: Payoff, nodes: &[f64], values: &[f64]) -> Result<Vec<TerminalPiece>> {
+struct TailWeights([[f64; 2]; 2]);
+
+impl TailWeights {
+    fn new(
+        piece: &TerminalPiece,
+        mean: f64,
+        log_anchor: f64,
+        deviation: f64,
+        discount: f64,
+    ) -> Self {
+        let lower = (piece.lower - mean) / deviation;
+        let upper = (piece.upper - mean) / deviation;
+        let cash = discount + log_interval_mass(lower, upper);
+        let asset = log_anchor
+            + mean
+            + 0.5 * deviation * deviation
+            + discount
+            + log_interval_mass(lower - deviation, upper - deviation);
+        Self([cash, asset].map(|log_weight| [log_weight, log_weight.exp()]))
+    }
+
+    fn value(&self, piece: &TerminalPiece) -> f64 {
+        let mut sum = Sum::default();
+        for ([log_weight, weight], amount) in self.0.into_iter().zip([piece.cash, piece.asset]) {
+            if amount != 0.0 {
+                let value = amount * weight;
+                sum.add(if weight.is_normal() && value.is_normal() {
+                    value
+                } else {
+                    (amount.abs().ln() + log_weight).exp().copysign(amount)
+                });
+            }
+        }
+        sum.total()
+    }
+}
+
+fn tail(payoff: Payoff, nodes: &[f64], values: &[f64]) -> Result<TerminalPiece> {
     let first = if payoff.sign > 0.0 {
         nodes.len() - 2
     } else {
@@ -584,7 +646,7 @@ fn tails(payoff: Payoff, nodes: &[f64], values: &[f64]) -> Result<Vec<TerminalPi
     if !slope.is_finite() || !cash.is_finite() || payoff.sign * slope < 0.0 {
         return Err(invalid_transition());
     }
-    Ok(vec![TerminalPiece {
+    Ok(TerminalPiece {
         lower: if payoff.sign > 0.0 {
             nodes[nodes.len() - 1]
         } else {
@@ -597,5 +659,5 @@ fn tails(payoff: Payoff, nodes: &[f64], values: &[f64]) -> Result<Vec<TerminalPi
         },
         cash,
         asset: slope,
-    }])
+    })
 }
