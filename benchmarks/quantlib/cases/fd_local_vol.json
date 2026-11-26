@@ -28,7 +28,7 @@
       "profiles": {
         "kiyosi": {
           "space": 800,
-          "time": 400,
+          "time": 100,
           "scheme": "rannacher",
           "upper": "automatic"
         },
@@ -80,7 +80,7 @@
       "profiles": {
         "kiyosi": {
           "space": 800,
-          "time": 400,
+          "time": 200,
           "scheme": "rannacher",
           "upper": 400
         },
@@ -133,7 +133,7 @@
       "profiles": {
         "kiyosi": {
           "space": 800,
-          "time": 400,
+          "time": 100,
           "scheme": "rannacher",
           "upper": 400
         },
@@ -185,7 +185,7 @@
       "profiles": {
         "kiyosi": {
           "space": 800,
-          "time": 400,
+          "time": 100,
           "scheme": "rannacher",
           "upper": 400
         },
@@ -238,7 +238,7 @@
       "profiles": {
         "kiyosi": {
           "space": 800,
-          "time": 400,
+          "time": 100,
           "scheme": "rannacher",
           "upper": 400
         },
@@ -293,7 +293,7 @@
       "profiles": {
         "kiyosi": {
           "space": 800,
-          "time": 400,
+          "time": 100,
           "scheme": "rannacher",
           "upper": 400
         },
@@ -347,7 +347,7 @@
       "profiles": {
         "kiyosi": {
           "space": 800,
-          "time": 400,
+          "time": 100,
           "scheme": "rannacher",
           "upper": 400
         },
@@ -401,7 +401,7 @@
       "profiles": {
         "kiyosi": {
           "space": 800,
-          "time": 400,
+          "time": 100,
           "scheme": "rannacher",
           "upper": 400
         },
@@ -454,7 +454,7 @@
       "profiles": {
         "kiyosi": {
           "space": 800,
-          "time": 400,
+          "time": 200,
           "scheme": "rannacher",
           "upper": 400
         },
@@ -508,7 +508,7 @@
       "profiles": {
         "kiyosi": {
           "space": 800,
-          "time": 400,
+          "time": 100,
           "scheme": "rannacher",
           "upper": 400
         },
@@ -561,7 +561,7 @@
       "profiles": {
         "kiyosi": {
           "space": 800,
-          "time": 400,
+          "time": 100,
           "scheme": "rannacher",
           "upper": 400
         },

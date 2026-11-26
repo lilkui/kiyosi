@@ -62,6 +62,7 @@ def main():
                 "coarse_rejected": {"space": 10, "time": 10},
             }
             if backend == "kiyosi":
+                variants["initial_time_400"] = {"time": 400}
                 variants.update(domain_probes(case))
                 if case["id"] == "fd-local-vol-asset-digital-put":
                     variants.update(
