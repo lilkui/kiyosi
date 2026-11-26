@@ -606,28 +606,36 @@ fn spatial_and_domain_convergence_meet_accuracy_targets() {
 #[test]
 fn refined_daily_accumulator_with_distant_knock_out_matches_unmonitored_limit() -> Result<()> {
     let start = day(1, 1);
-    let option = Accumulator::new(AccumulatorTerms::new(
-        100.0,
-        180.0,
-        1.0,
-        2.0,
-        start,
-        start.add_days(365)?,
-        start.time_of_day(),
-    ))?;
-    let unmonitored = option.replace(AccumulatorChanges {
-        knock_out_observation_times: Some(Some(vec![])),
-        ..Default::default()
-    })?;
-    let context = market(100.0, start, 0.04, 0.05, 0.02);
     let engine = QuadratureAccumulatorEngine::new(QuadratureSettings {
         asset_step_count: 2048,
         ..Default::default()
     })?;
-    let value = engine.price(&option, &context)?;
-    let limit = engine.price(&unmonitored, &context)?;
-    // The barrier is more than thirteen terminal standard deviations above the forward.
-    assert!((value - limit).abs() < 1e-4, "{value} != {limit}");
+    for (barrier, days, sigma, rate, dividend) in [
+        (180.0, 365, 0.04, 0.05, 0.02),
+        (160.0, 90, 0.008, 0.01, 0.01),
+    ] {
+        let option = Accumulator::new(AccumulatorTerms {
+            calendar: TradingCalendar::all_days(),
+            ..AccumulatorTerms::new(
+                100.0,
+                barrier,
+                1.0,
+                2.0,
+                start,
+                start.add_days(days)?,
+                start.time_of_day(),
+            )
+        })?;
+        let unmonitored = option.replace(AccumulatorChanges {
+            knock_out_observation_times: Some(Some(vec![])),
+            ..Default::default()
+        })?;
+        let context = market(100.0, start, sigma, rate, dividend);
+        let value = engine.price(&option, &context)?;
+        let limit = engine.price(&unmonitored, &context)?;
+        // Both barriers are more than thirteen terminal deviations above the forward.
+        assert!((value - limit).abs() < 1e-4, "{value} != {limit}");
+    }
     Ok(())
 }
 

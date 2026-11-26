@@ -19,6 +19,7 @@ from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
     RateTermStructure,
+    all_days_calendar,
     custom_calendar,
     weekdays_calendar,
 )
@@ -29,18 +30,25 @@ from support.terminal import assert_terminal_greeks
 START = datetime(2025, 1, 1)
 
 
-def test_refined_daily_accumulator_with_distant_knock_out_matches_unmonitored_limit():
+@pytest.mark.parametrize(
+    "barrier,days,volatility,rate,dividend",
+    [(180, 365, 0.04, 0.05, 0.02), (160, 90, 0.008, 0.01, 0.01)],
+)
+def test_refined_daily_accumulator_with_distant_knock_out_matches_unmonitored_limit(
+    barrier, days, volatility, rate, dividend
+):
     option = Accumulator(
         strike=100,
-        knock_out_level=180,
+        knock_out_level=barrier,
         daily_quantity=1,
         acceleration_factor=2,
         effective_time=START,
-        expiry_time=START + timedelta(days=365),
+        expiry_time=START + timedelta(days=days),
+        calendar=all_days_calendar(),
         observation_clock_time=clock_time(),
     )
     context = market(
-        spot=100, valuation=START, volatility=0.04, rate=0.05, dividend=0.02
+        spot=100, valuation=START, volatility=volatility, rate=rate, dividend=dividend
     )
     engine = pricing.QuadratureAccumulatorEngine(asset_step_count=2048)
     limit = engine.price(option.replace(knock_out_observation_times=[]), context)

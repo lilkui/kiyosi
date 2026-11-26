@@ -225,13 +225,13 @@ fn price(
     let drift_extent = (drift_rate * horizon).abs();
     let lower = knock_out.min(0.0) - drift_extent - extent;
     let upper = knock_out.max(0.0) + drift_extent + extent;
-    let mut breaks = vec![0.0, knock_out];
+    let breaks = [0.0, knock_out];
     let mut asset_steps = settings.asset_step_count;
+    let patch_radius = drift_extent + extent;
+    let mut patches = Vec::new();
     if drift_extent > extent || extent < knock_out.abs() {
-        let patch_width = 2.0 * (drift_extent + extent);
-        let aligned_steps = ((upper - lower) / patch_width * f64::from(asset_steps)).ceil();
-        // An aligned grid at patch resolution preserves the convolution fast path.
-        // Keep local refinement when filling the gap would require more cells than the patches.
+        let aligned_steps =
+            ((upper - lower) / (2.0 * patch_radius) * f64::from(asset_steps)).ceil();
         if aligned_steps <= f64::from(asset_steps.saturating_mul(3)) {
             #[expect(
                 clippy::cast_possible_truncation,
@@ -240,19 +240,40 @@ fn price(
             let refined_steps = aligned_steps as i32;
             asset_steps = asset_steps.max(refined_steps);
         } else {
-            for boundary in [0.0, knock_out] {
-                let lower = boundary - drift_extent - extent;
-                let upper = boundary + drift_extent + extent;
-                if lower < upper {
-                    breaks.extend(integration_nodes(lower, upper, asset_steps, &[], count)?);
+            // Keep the coarse bridge, with independent uniform grids around the payoff jumps.
+            for boundary in [knock_out.min(0.0), knock_out.max(0.0)] {
+                let bounds = (boundary - patch_radius)..=(boundary + patch_radius);
+                if bounds.start() < bounds.end() {
+                    patches.push((boundary, bounds));
                 }
             }
         }
     }
-    let nodes = integration_nodes(lower, upper, asset_steps, &breaks, count)?;
-    drop(breaks);
+    let mut nodes = integration_nodes(lower, upper, asset_steps, &breaks, count)?;
+    let mut ranges = Vec::new();
+    if !patches.is_empty() {
+        nodes.retain(|node| patches.iter().all(|(_, bounds)| !bounds.contains(node)));
+        for (boundary, bounds) in &patches {
+            nodes.extend(integration_nodes(
+                *bounds.start(),
+                *bounds.end(),
+                asset_steps,
+                &[*boundary],
+                count,
+            )?);
+        }
+        nodes.sort_unstable_by(f64::total_cmp);
+        ranges.extend(patches.iter().map(|(_, bounds)| {
+            nodes.partition_point(|node| node < bounds.start())
+                ..nodes.partition_point(|node| node <= bounds.end())
+        }));
+    }
     let terminal_pieces = layers[0].exact.len().max(layers[1].exact.len());
-    let mut transitions = TransitionCache::new(&nodes, nodes.capacity(), count, asset_steps)?;
+    let mut transitions = if ranges.is_empty() {
+        TransitionCache::new(&nodes, nodes.capacity(), count, asset_steps)?
+    } else {
+        TransitionCache::with_patches(&nodes, nodes.capacity(), count, asset_steps, &ranges)?
+    };
     transitions.validate_scheduled_work(&nodes, &dates, count, terminal_pieces, 0, transition)?;
     let interpolation = CubicInterpolation::new(&nodes);
     let mut continuation: [Vec<Polynomial>; 2] = Default::default();

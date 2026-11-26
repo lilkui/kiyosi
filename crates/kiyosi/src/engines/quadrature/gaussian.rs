@@ -6,6 +6,7 @@ use rustfft::{Fft, FftPlanner, num_complex::Complex64};
 use std::{
     cell::Cell as Counter,
     collections::hash_map::{Entry, HashMap},
+    ops::Range,
     rc::Rc,
     sync::Arc,
 };
@@ -466,13 +467,6 @@ fn remaining_rollback_work(nodes: &[f64], layers: usize, visits: usize) -> Resul
         .ok_or_else(excessive_rollback_work)
 }
 
-fn active_cell_visits(nodes: &[f64], drift: f64, deviation: f64) -> Result<usize> {
-    nodes.iter().try_fold(0_usize, |count, &node| {
-        crate::cancellation::check()?;
-        Ok(count.saturating_add(active_cells(nodes, node + drift, deviation).len()))
-    })
-}
-
 pub(super) fn integrate_curve(
     curve: &[Polynomial],
     nodes: &[f64],
@@ -497,7 +491,7 @@ pub(super) fn integrate_curve(
 pub(super) struct TransitionCache {
     entries: Vec<(f64, Transition)>,
     budget: usize,
-    grid: Option<Arc<ConvolutionGrid>>,
+    grids: Vec<(Range<usize>, Arc<ConvolutionGrid>)>,
     tail_work: Rc<Counter<usize>>,
 }
 
@@ -508,39 +502,79 @@ impl TransitionCache {
         layers: usize,
         asset_steps: i32,
     ) -> Result<Self> {
+        Self::with_patches(
+            nodes,
+            node_capacity,
+            layers,
+            asset_steps,
+            std::slice::from_ref(&(0..nodes.len())),
+        )
+    }
+
+    pub fn with_patches(
+        nodes: &[f64],
+        node_capacity: usize,
+        layers: usize,
+        asset_steps: i32,
+        patches: &[Range<usize>],
+    ) -> Result<Self> {
         let mut budget = WORKSPACE_BUDGET
             .checked_sub(grid_bytes(node_capacity, layers))
             .ok_or_else(workspace_error)?;
         let cells = asset_steps.unsigned_abs() as usize;
-        let grid = if (cells + 33).saturating_mul(size_of::<usize>()) <= budget {
-            ConvolutionGrid::new(nodes, cells)?.map(Arc::new)
-        } else {
-            None
-        };
-        if let Some(grid) = &grid {
-            budget -= (grid.regular.capacity() + grid.split.capacity()) * size_of::<usize>();
+        let mut grids = Vec::new();
+        for patch in patches {
+            if (cells + 33).saturating_mul(size_of::<usize>()) > budget {
+                break;
+            }
+            if let Some(grid) = ConvolutionGrid::new(&nodes[patch.clone()], cells)? {
+                budget -= (grid.regular.capacity() + grid.split.capacity()) * size_of::<usize>();
+                grids.push((patch.clone(), Arc::new(grid)));
+            }
         }
         Ok(Self {
             entries: Vec::new(),
             budget,
-            grid,
+            grids,
             tail_work: Rc::new(Counter::new(WORK_BUDGET)),
         })
     }
 
-    fn convolution(&self, drift: f64, deviation: f64) -> Option<&Arc<ConvolutionGrid>> {
-        self.grid.as_ref().filter(|grid| {
-            deviation >= 2.0 * grid.spacing
-                && drift.abs() <= 4.0 * deviation
-                && grid.bytes() <= self.budget
-        })
+    fn convolutions(&self, drift: f64, deviation: f64) -> &[(Range<usize>, Arc<ConvolutionGrid>)] {
+        let bytes = self
+            .grids
+            .iter()
+            .map(|(_, grid)| grid.bytes())
+            .sum::<usize>();
+        if bytes > self.budget
+            || drift.abs() > 4.0 * deviation
+            || self
+                .grids
+                .iter()
+                .any(|(_, grid)| deviation < 2.0 * grid.spacing)
+        {
+            &[]
+        } else {
+            &self.grids
+        }
     }
 
     fn transition_work(&self, nodes: &[f64], drift: f64, deviation: f64) -> Result<usize> {
-        self.convolution(drift, deviation).map_or_else(
-            || active_cell_visits(nodes, drift, deviation),
-            |grid| Ok(grid.work()),
-        )
+        let grids = self.convolutions(drift, deviation);
+        let fft_work = grids.iter().map(|(_, grid)| grid.work()).sum::<usize>();
+        if covers_grid(grids, nodes.len()) {
+            return Ok(fft_work);
+        }
+        nodes
+            .iter()
+            .enumerate()
+            .try_fold(fft_work, |work, (index, &node)| {
+                crate::cancellation::check()?;
+                let active = active_cells(nodes, node + drift, deviation);
+                Ok(direct_ranges(active, index, grids)
+                    .into_iter()
+                    .fold(work, |work, range| work.saturating_add(range.len())))
+            })
     }
 
     pub fn validate_rollback_work(
@@ -624,11 +658,14 @@ impl TransitionCache {
             index
         } else {
             // Retain common event gaps without accumulating matrices for irregular schedules.
-            let convolution = self.convolution(drift, deviation).cloned();
-            let minimum = match &convolution {
-                Some(grid) => grid.bytes(),
-                None => Transition::row_bytes(nodes, drift, deviation, self.budget)?,
+            let grids = self.convolutions(drift, deviation).to_vec();
+            let bytes = grids.iter().map(|(_, grid)| grid.bytes()).sum::<usize>();
+            let row_bytes = if covers_grid(&grids, nodes.len()) {
+                0
+            } else {
+                Transition::row_bytes(nodes, drift, deviation, self.budget - bytes, &grids)?
             };
+            let minimum = bytes + row_bytes;
             if self.entries.len() == 3 {
                 self.entries.remove(0);
             }
@@ -640,24 +677,18 @@ impl TransitionCache {
             while retained + minimum > self.budget {
                 retained -= self.entries.remove(0).1.storage_bytes();
             }
-            let transition = if let Some(grid) = convolution {
-                Transition {
-                    moments: Vec::new(),
-                    rows: Vec::new(),
+            let max_moments = (self.budget - retained - minimum) / BYTES_PER_CACHED_MOMENT;
+            let mut transition = Transition::new(nodes, drift, deviation, max_moments, &grids)?;
+            for (patch, grid) in grids {
+                let fft = GaussianConvolution::new(
+                    grid,
+                    &nodes[patch.clone()],
                     drift,
                     deviation,
-                    convolution: Some(GaussianConvolution::new(
-                        grid,
-                        nodes,
-                        drift,
-                        deviation,
-                        Rc::clone(&self.tail_work),
-                    )?),
-                }
-            } else {
-                let max_moments = (self.budget - retained - minimum) / BYTES_PER_CACHED_MOMENT;
-                Transition::new(nodes, drift, deviation, max_moments)?
-            };
+                    Rc::clone(&self.tail_work),
+                )?;
+                transition.convolutions.push((patch, fft));
+            }
             self.entries.push((time, transition));
             self.entries.len() - 1
         };
@@ -665,18 +696,40 @@ impl TransitionCache {
     }
 }
 
-type Row = (usize, Vec<usize>);
+fn covers_grid(grids: &[(Range<usize>, Arc<ConvolutionGrid>)], nodes: usize) -> bool {
+    matches!(grids, [(patch, _)] if *patch == (0..nodes))
+}
+
+fn direct_ranges(
+    active: Range<usize>,
+    node: usize,
+    grids: &[(Range<usize>, Arc<ConvolutionGrid>)],
+) -> [Range<usize>; 2] {
+    if let Some((patch, _)) = grids.iter().find(|(patch, _)| patch.contains(&node)) {
+        [
+            active.start..active.end.min(patch.start),
+            active.start.max(patch.end - 1)..active.end,
+        ]
+    } else {
+        [active, 0..0]
+    }
+}
+
+type Row = ([Range<usize>; 2], Vec<usize>);
 
 pub(super) struct Transition {
     moments: Vec<IntervalMoments>,
     rows: Vec<Row>,
     drift: f64,
     deviation: f64,
-    convolution: Option<GaussianConvolution>,
+    convolutions: Vec<(Range<usize>, GaussianConvolution)>,
 }
 impl Transition {
     fn storage_bytes(&self) -> usize {
-        self.convolution.as_ref().map_or(0, |fft| fft.grid.bytes())
+        self.convolutions
+            .iter()
+            .map(|(_, fft)| fft.grid.bytes())
+            .sum::<usize>()
             + self.rows.capacity() * size_of::<Row>()
             + self.moments.capacity() * size_of::<IntervalMoments>()
             + self
@@ -686,12 +739,22 @@ impl Transition {
                 .sum::<usize>()
     }
 
-    fn row_bytes(nodes: &[f64], drift: f64, deviation: f64, budget: usize) -> Result<usize> {
-        nodes.iter().try_fold(
+    fn row_bytes(
+        nodes: &[f64],
+        drift: f64,
+        deviation: f64,
+        budget: usize,
+        grids: &[(Range<usize>, Arc<ConvolutionGrid>)],
+    ) -> Result<usize> {
+        nodes.iter().enumerate().try_fold(
             nodes.len().saturating_mul(size_of::<Row>()),
-            |bytes, &node| {
+            |bytes, (index, &node)| {
                 crate::cancellation::check()?;
-                let cells = active_cells(nodes, node + drift, deviation).len();
+                let cells =
+                    direct_ranges(active_cells(nodes, node + drift, deviation), index, grids)
+                        .iter()
+                        .map(ExactSizeIterator::len)
+                        .sum::<usize>();
                 let bytes = bytes.saturating_add(cells.saturating_mul(size_of::<usize>()));
                 (bytes <= budget)
                     .then_some(bytes)
@@ -700,17 +763,25 @@ impl Transition {
         )
     }
 
-    fn new(nodes: &[f64], drift: f64, deviation: f64, max_moments: usize) -> Result<Self> {
+    fn new(
+        nodes: &[f64],
+        drift: f64,
+        deviation: f64,
+        max_moments: usize,
+        grids: &[(Range<usize>, Arc<ConvolutionGrid>)],
+    ) -> Result<Self> {
         let mut moments = Vec::new();
         let mut geometries = HashMap::new();
-        let mut rows = Vec::with_capacity(nodes.len());
-        for &node in nodes {
+        let mut rows = Vec::new();
+        if !covers_grid(grids, nodes.len()) {
+            rows.reserve_exact(nodes.len());
+        }
+        for (index, &node) in nodes.iter().take(rows.capacity()).enumerate() {
             crate::cancellation::check()?;
             let mean = node + drift;
-            let range = active_cells(nodes, mean, deviation);
-            let first = range.start;
-            let mut indices = Vec::with_capacity(range.len());
-            for cell in range {
+            let ranges = direct_ranges(active_cells(nodes, mean, deviation), index, grids);
+            let mut indices = Vec::with_capacity(ranges.iter().map(ExactSizeIterator::len).sum());
+            for cell in ranges.iter().cloned().flatten() {
                 // Reuse only exactly translated cells, including midpoint rounding.
                 let key = [
                     nodes[cell + 1] - nodes[cell],
@@ -731,14 +802,14 @@ impl Transition {
                 };
                 indices.push(index);
             }
-            rows.push((first, indices));
+            rows.push((ranges, indices));
         }
         Ok(Self {
             moments,
             rows,
             drift,
             deviation,
-            convolution: None,
+            convolutions: Vec::new(),
         })
     }
     pub fn integrate(
@@ -748,20 +819,25 @@ impl Transition {
         discount: f64,
         values: &mut [f64],
     ) -> crate::Result<()> {
-        if let Some(convolution) = &mut self.convolution {
-            return convolution.integrate(
-                nodes,
-                curve,
+        if !self.convolutions.is_empty() {
+            values.fill(0.0);
+        }
+        for (patch, convolution) in &mut self.convolutions {
+            convolution.integrate(
+                &nodes[patch.clone()],
+                &curve[patch.start..patch.end - 1],
                 [self.drift, self.deviation, discount],
-                values,
-            );
+                &mut values[patch.clone()],
+            )?;
         }
         let factor = discount.exp();
-        for ((value, (first, indices)), &node) in values.iter_mut().zip(&self.rows).zip(nodes) {
+        for ((value, (ranges, indices)), &node) in values.iter_mut().zip(&self.rows).zip(nodes) {
             crate::cancellation::check()?;
             let mut sum = Sum::default();
-            for (cell, &index) in indices.iter().enumerate() {
-                let cell = first + cell;
+            if !self.convolutions.is_empty() {
+                sum.add(*value);
+            }
+            for (cell, &index) in ranges.iter().cloned().flatten().zip(indices) {
                 let value = if index == usize::MAX {
                     cell_moments(
                         nodes[cell],
@@ -1168,7 +1244,7 @@ mod tests {
     fn transition_integrates_when_there_is_no_room_to_cache_moments() -> Result<()> {
         let nodes = [-1.0, 0.0, 1.0];
         let curve = [[1.0, 0.0, 0.0, 0.0]; 2];
-        let mut transition = Transition::new(&nodes, 0.25, 0.5, 0)?;
+        let mut transition = Transition::new(&nodes, 0.25, 0.5, 0, &[])?;
         let mut values = [0.0; 3];
         transition.integrate(&nodes, &curve, -0.05, &mut values)?;
         for (&node, actual) in nodes.iter().zip(values) {
@@ -1201,7 +1277,7 @@ mod tests {
             for (drift, deviation) in [(-0.14, 0.09), (0.19, 0.3)] {
                 let mut cache = TransitionCache::new(&nodes, nodes.len(), 1, 384)?;
                 let transition = cache.get(1.0, &nodes, drift, deviation)?;
-                assert!(transition.convolution.is_some());
+                assert!(!transition.convolutions.is_empty());
                 let mut actual = vec![0.0; nodes.len()];
                 transition.integrate(&nodes, &curve, -0.03, &mut actual)?;
                 for (&node, value) in nodes.iter().zip(actual) {
