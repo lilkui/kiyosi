@@ -406,7 +406,7 @@ sampling_settings!(
             let prices = domain(crate::cancellation::run(py, || {
                 self.0.price_american_strikes(instrument, &context.0, &strikes)
             })?)?;
-            pyo3::types::PyTuple::new(py, prices)
+            crate::conversions::python_tuple(py, prices, Ok)
         }
 
         /// Fit an American exercise rule and price it on separate paths.
@@ -732,7 +732,7 @@ sampling_settings!(
             Some(AutocallableInstrument::Phoenix(_)) => price!(Phoenix),
             None => Vec::new(),
         };
-        pyo3::types::PyTuple::new(py, prices)
+        crate::conversions::python_tuple(py, prices, Ok)
     }
     }
 );

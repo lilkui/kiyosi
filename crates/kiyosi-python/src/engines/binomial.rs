@@ -236,7 +236,7 @@ binomial_engine!(
             let prices = domain(crate::cancellation::run(py, || {
                 self.0.price_many(&contracts, context)
             })?)?;
-            pyo3::types::PyTuple::new(py, prices)
+            crate::conversions::python_tuple(py, prices, Ok)
         }
 
         /// Price an American option with a bound on the discarded lattice tails.

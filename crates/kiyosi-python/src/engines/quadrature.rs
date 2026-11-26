@@ -207,7 +207,7 @@ quadrature_engine!(
                 self.0
                     .price_american_strikes(instrument, &context.0, &strikes)
             })?)?;
-            pyo3::types::PyTuple::new(py, prices)
+            crate::conversions::python_tuple(py, prices, Ok)
         }
     },
 );
