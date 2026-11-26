@@ -22,7 +22,7 @@ macro_rules! quadrature_engine {
         quadrature_engine!($(#[$doc])* $name, $instrument, $with, QuadratureSettings);
     };
     ($(#[$doc:meta])* $name:ident, $instrument:ty,
-     $with:path, $settings:ident $(, $time:ident)? $(,)?) => {
+     $with:path, $settings:ident $(, $time:ident)? $(, { $($extra:tt)* })? $(,)?) => {
         /// Flat-rate quadrature pricing.
         ///
         /// Parameters
@@ -63,6 +63,8 @@ macro_rules! quadrature_engine {
             ],
             [],
             {
+                $($($extra)*)?
+
                 #[classattr]
                 const _STATE_FIELDS: &'static [&'static str] = &[
                     "asset_step_count", $(stringify!($time),)? "integration_standard_deviations",
@@ -162,6 +164,45 @@ quadrature_engine!(
     with_vanilla,
     QuadratureVanillaSettings,
     time_step_count,
+    {
+        /// Price American options at multiple strikes on one continuation curve.
+        ///
+        /// Parameters
+        /// ----------
+        /// instrument : AmericanOption
+        ///     Template for option direction and dates.
+        /// context : PricingContext
+        ///     Flat-rate Black–Scholes–Merton snapshot.
+        /// strikes : iterable of float
+        ///     Finite positive strikes.
+        ///
+        /// Returns
+        /// -------
+        /// tuple of float
+        ///     Prices in strike order, preserving duplicates.
+        ///
+        /// Raises
+        /// ------
+        /// KiyosiError
+        ///     If contract, market, strike or pricing validation fails.
+        /// OSError
+        ///     If interrupted.
+        #[pyo3(signature = (instrument, context, *, strikes))]
+        #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns the extracted inputs.")]
+        fn price_american_strikes<'py>(
+            &self,
+            py: Python<'py>,
+            #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, crate::instruments::american::AmericanOption>,
+            context: &PricingContext,
+            #[pyo3(from_py_with = crate::conversions::reals)] strikes: Vec<f64>,
+        ) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+            let instrument = &instrument.0;
+            let prices = domain(crate::cancellation::run(py, || {
+                self.0.price_american_strikes(instrument, &context.0, &strikes)
+            })?)?;
+            pyo3::types::PyTuple::new(py, prices)
+        }
+    },
 );
 
 quadrature_engine!(

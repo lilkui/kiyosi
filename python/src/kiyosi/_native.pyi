@@ -2526,6 +2526,37 @@ class QuadratureVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
     def integration_standard_deviations(self) -> float:
         """Return the integration extent in standard deviations."""
 
+    def price_american_strikes(
+        self,
+        instrument: AmericanOption,
+        context: PricingContext,
+        *,
+        strikes: Iterable[_Real],
+    ) -> tuple[float, ...]:
+        """Price American options at multiple strikes on one continuation curve.
+
+        Parameters
+        ----------
+        instrument : AmericanOption
+            Template for option direction and dates.
+        context : PricingContext
+            Flat-rate Black–Scholes–Merton snapshot.
+        strikes : iterable of float
+            Finite positive strikes.
+
+        Returns
+        -------
+        tuple of float
+            Prices in strike order, preserving duplicates.
+
+        Raises
+        ------
+        KiyosiError
+            If contract, market, strike or pricing validation fails.
+        OSError
+            If interrupted.
+        """
+
 class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
     """Flat-rate Cox-Ross-Rubinstein tree pricing.
 

@@ -234,3 +234,14 @@ def inherited_engine_instrument_types(
         engine.greek_method(digital, context)  # ty: ignore[invalid-argument-type]
         engine.active_greek_controls(digital, context)  # ty: ignore[invalid-argument-type]
     BjerksundStenslandVanillaEngine().price(vanilla, context)  # ty: ignore[invalid-argument-type]
+
+
+def american_quadrature_strike_types(
+    american: AmericanOption, european: EuropeanOption, context: PricingContext
+) -> None:
+    engine = QuadratureVanillaEngine()
+    assert_type(
+        engine.price_american_strikes(american, context, strikes=iter([90, 100])),
+        tuple[float, ...],
+    )
+    engine.price_american_strikes(european, context, strikes=[90])  # ty: ignore[invalid-argument-type]

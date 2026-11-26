@@ -333,3 +333,30 @@ fn european_quadrature_counts_panels_across_sections() -> Result<()> {
     assert!(engine.price(&option, &market(100.0, 0.05, 0.02, 0.0))? > 0.0);
     Ok(())
 }
+
+#[test]
+fn american_quadrature_strike_batch_matches_scalar_continuation() -> Result<()> {
+    let (start, end) = dates();
+    let context = market(100.0, 0.05, 0.06, 0.25);
+    let engine = QuadratureVanillaEngine::default();
+    let strikes = [110.0, 75.0, 100.0, 130.0, 75.0];
+    for kind in [OptionType::Call, OptionType::Put] {
+        let option = AmericanOption::new(kind, 100.0, start, end)?;
+        let prices = engine.price_american_strikes(&option, &context, &strikes)?;
+        assert_eq!(prices[1].to_bits(), prices[4].to_bits());
+        for (strike, price) in strikes.into_iter().zip(prices) {
+            let quote = AmericanOption::new(kind, strike, start, end)?;
+            let expected = engine.price(&quote, &context)?;
+            assert!((price - expected).abs() < 5e-11, "{price} vs {expected}");
+        }
+        assert_eq!(
+            engine.price_american_strikes(&option, &context, &[])?,
+            Vec::<f64>::new()
+        );
+        assert!(matches!(
+            engine.price_american_strikes(&option, &context, &[100.0, -1.0]),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    Ok(())
+}

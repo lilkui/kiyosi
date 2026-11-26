@@ -6,7 +6,10 @@ use super::{QuadratureSettings, flat_rates, simpson};
 use crate::engines::Payoff;
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{checked, checked_with_scale, discounted_product, log_ratio, scaled_cash};
-use crate::{AmericanOption, Error, EuropeanOption, PricingContext, PricingEngine, Result};
+use crate::{
+    AmericanOption, AmericanOptionChanges, Error, EuropeanOption, PricingContext, PricingEngine,
+    Result,
+};
 
 /// Configures vanilla spatial quadrature and American exercise intervals.
 ///
@@ -136,6 +139,105 @@ impl QuadratureVanillaEngine {
     pub fn new(settings: QuadratureVanillaSettings) -> Result<Self> {
         settings.validate()?;
         Ok(Self { settings })
+    }
+
+    /// Prices American options across strikes sharing one expiry and market.
+    ///
+    /// Rolls back a unit-strike continuation curve and samples it at each
+    /// spot-to-strike ratio. Results preserve input order and duplicates.
+    /// Check spatial and time convergence as for individual pricing.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kiyosi::*;
+    /// # fn main() -> Result<()> {
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let end = start.add_days(365)?;
+    /// let put = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    /// let market = PricingContext::new(
+    ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start,
+    /// )?;
+    /// let prices = QuadratureVanillaEngine::default()
+    ///     .price_american_strikes(&put, &market, &[90.0, 110.0])?;
+    /// assert!(prices[0] < prices[1]);
+    /// # Ok(()) }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Propagates invalid input, unsupported market, numerical and
+    /// cancellation errors. A failed request returns no partial prices.
+    pub fn price_american_strikes(
+        &self,
+        option: &AmericanOption,
+        context: &PricingContext,
+        strikes: &[f64],
+    ) -> Result<Vec<f64>> {
+        let (rate, dividend) = flat_rates(context)?;
+        validate_life(option, context)?;
+        let expiry = option.expiry_time();
+        context.validate_curve_horizon(expiry)?;
+        for &strike in strikes {
+            crate::cancellation::check()?;
+            crate::error::finite(strike, true, "strike")?;
+        }
+        let mut prices = Vec::new();
+        prices.try_reserve_exact(strikes.len()).map_err(|_| {
+            Error::ComputationFailure("cannot reserve quadrature strike batch output".into())
+        })?;
+        let time = context.valuation_time().years_until(expiry);
+        let unit = Payoff::vanilla(option.option_type(), 1.0, true);
+        let curve = if strikes.len() > 1
+            && time > 0.0
+            && self.settings.time_step_count > 1
+            && !crate::engines::deterministic::enabled(context)
+            && !(unit.sign > 0.0 && rate >= 0.0 && dividend <= 0.0)
+        {
+            let carry = (rate - dividend) * time;
+            let (width, half_variance) = log_transition(context, time, carry)?;
+            match american_curve(
+                unit,
+                time,
+                carry - half_variance,
+                width,
+                rate,
+                self.settings,
+            ) {
+                Ok(curve) => Some(curve),
+                Err(error @ Error::Io(_)) => return Err(error),
+                Err(_) => None,
+            }
+        } else {
+            None
+        };
+        let spot = context.spot_price();
+        for &strike in strikes {
+            crate::cancellation::check()?;
+            let contract = option.replace(AmericanOptionChanges {
+                strike: Some(strike),
+                ..Default::default()
+            })?;
+            let ratio = spot / strike;
+            if let Some(curve) = curve.as_ref().filter(|_| ratio.is_normal()) {
+                let value = match curve
+                    .price(unit, ratio)
+                    .and_then(|price| checked(price * strike))
+                {
+                    Ok(price) => Some(price),
+                    Err(error @ Error::Io(_)) => return Err(error),
+                    Err(_) => None,
+                };
+                if let Some(value) = value {
+                    let floor = crate::AnalyticEuropeanEngine.price(contract.vanilla(), context)?;
+                    let intrinsic = Payoff { strike, ..unit }.value(spot);
+                    prices.push(value.max(floor).max(intrinsic));
+                    continue;
+                }
+            }
+            prices.push(self.price(&contract, context)?);
+        }
+        Ok(prices)
     }
 
     /// Returns owned settings; see [`Self::new`] for an example.
