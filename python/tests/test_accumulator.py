@@ -29,6 +29,24 @@ from support.terminal import assert_terminal_greeks
 START = datetime(2025, 1, 1)
 
 
+def test_refined_daily_accumulator_with_distant_knock_out_matches_unmonitored_limit():
+    option = Accumulator(
+        strike=100,
+        knock_out_level=180,
+        daily_quantity=1,
+        acceleration_factor=2,
+        effective_time=START,
+        expiry_time=START + timedelta(days=365),
+        observation_clock_time=clock_time(),
+    )
+    context = market(
+        spot=100, valuation=START, volatility=0.04, rate=0.05, dividend=0.02
+    )
+    engine = pricing.QuadratureAccumulatorEngine(asset_step_count=2048)
+    limit = engine.price(option.replace(knock_out_observation_times=[]), context)
+    assert engine.price(option, context) == pytest.approx(limit, abs=1e-4, rel=0)
+
+
 def test_termination_history_is_required_after_prior_knock_out_observations(subtests):
     option = Accumulator(
         strike=100,

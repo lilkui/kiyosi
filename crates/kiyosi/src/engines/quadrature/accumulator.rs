@@ -226,27 +226,33 @@ fn price(
     let lower = knock_out.min(0.0) - drift_extent - extent;
     let upper = knock_out.max(0.0) + drift_extent + extent;
     let mut breaks = vec![0.0, knock_out];
+    let mut asset_steps = settings.asset_step_count;
     if drift_extent > extent || extent < knock_out.abs() {
-        // Resolve each event boundary's drift and diffusion range without enlarging every cell.
-        for boundary in [0.0, knock_out] {
-            let lower = boundary - drift_extent - extent;
-            let upper = boundary + drift_extent + extent;
-            if lower < upper {
-                breaks.extend(integration_nodes(
-                    lower,
-                    upper,
-                    settings.asset_step_count,
-                    &[],
-                    count,
-                )?);
+        let patch_width = 2.0 * (drift_extent + extent);
+        let aligned_steps = ((upper - lower) / patch_width * f64::from(asset_steps)).ceil();
+        // An aligned grid at patch resolution preserves the convolution fast path.
+        // Keep local refinement when filling the gap would require more cells than the patches.
+        if aligned_steps <= f64::from(asset_steps.saturating_mul(3)) {
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "The rounded count is already bounded by i32."
+            )]
+            let refined_steps = aligned_steps as i32;
+            asset_steps = asset_steps.max(refined_steps);
+        } else {
+            for boundary in [0.0, knock_out] {
+                let lower = boundary - drift_extent - extent;
+                let upper = boundary + drift_extent + extent;
+                if lower < upper {
+                    breaks.extend(integration_nodes(lower, upper, asset_steps, &[], count)?);
+                }
             }
         }
     }
-    let nodes = integration_nodes(lower, upper, settings.asset_step_count, &breaks, count)?;
+    let nodes = integration_nodes(lower, upper, asset_steps, &breaks, count)?;
     drop(breaks);
     let terminal_pieces = layers[0].exact.len().max(layers[1].exact.len());
-    let mut transitions =
-        TransitionCache::new(&nodes, nodes.capacity(), count, settings.asset_step_count)?;
+    let mut transitions = TransitionCache::new(&nodes, nodes.capacity(), count, asset_steps)?;
     transitions.validate_scheduled_work(&nodes, &dates, count, terminal_pieces, 0, transition)?;
     let interpolation = CubicInterpolation::new(&nodes);
     let mut continuation: [Vec<Polynomial>; 2] = Default::default();
