@@ -22,18 +22,10 @@ fn market(rate: f64, dividend: f64, volatility: f64, spot: f64) -> PricingContex
 #[test]
 fn mixed_american_greeks_replay_individual_stencils() -> Result<()> {
     let put = option(OptionType::Put, 100.0);
-    let snapshot = market(0.05, 0.02, 0.2, 100.0);
-    let greeks = [
-        Greek::Delta,
-        Greek::Gamma,
-        Greek::Speed,
-        Greek::Vega,
-        Greek::Volga,
-        Greek::Vanna,
-        Greek::Zomma,
-        Greek::Rho,
-        Greek::DividendRho,
-    ];
+    let snapshot = market(0.05, 0.02, 0.2, 100.0).replace(PricingContextChanges {
+        valuation_time: Some(put.effective_time().add_days(30)?),
+        ..Default::default()
+    })?;
     for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
         let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
             sampling: MonteCarloSettings {
@@ -45,18 +37,32 @@ fn mixed_american_greeks_replay_individual_stencils() -> Result<()> {
             },
             step_count: 50,
         })?;
-        let combined = engine.price_with_greeks(&put, &snapshot, GreeksRequest::new(greeks))?;
+        let combined = engine.price_with_greeks(&put, &snapshot, GreeksRequest::all())?;
         assert_eq!(
             combined.price().to_bits(),
             engine.price(&put, &snapshot)?.to_bits()
         );
         assert_eq!(combined.seed(), Some(42));
-        for greek in greeks {
+        for greek in Greek::ALL {
             let single = engine.price_with_greeks(&put, &snapshot, GreeksRequest::new([greek]))?;
             assert_eq!(
                 combined.require(greek)?.to_bits(),
                 single.require(greek)?.to_bits(),
                 "{greek:?}"
+            );
+        }
+        let time_greeks = [Greek::Theta, Greek::Charm, Greek::Color];
+        let scalar = numerical_greeks(
+            &engine,
+            &put,
+            &snapshot,
+            GreeksRequest::new(time_greeks),
+            Default::default(),
+        )?;
+        for greek in time_greeks {
+            assert_eq!(
+                combined.require(greek)?.to_bits(),
+                scalar.require(greek)?.to_bits()
             );
         }
     }

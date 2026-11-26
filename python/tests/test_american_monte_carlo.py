@@ -35,7 +35,9 @@ def contract(direction="put", strike=100):
 @pytest.mark.parametrize("sampling", ("pseudo_random", "sobol"))
 def test_mixed_american_greeks_replay_individual_stencils(sampling):
     put = contract()
-    context = market(rate=0.05, dividend=0.02, sigma=0.2)
+    context = market(
+        rate=0.05, dividend=0.02, sigma=0.2, valuation=START + timedelta(days=30)
+    )
     engine = MonteCarloVanillaEngine(
         path_count=4096,
         step_count=50,
@@ -44,22 +46,15 @@ def test_mixed_american_greeks_replay_individual_stencils(sampling):
         sampling=sampling,
         max_active_workers=2,
     )
-    greeks = (
-        "delta",
-        "gamma",
-        "speed",
-        "vega",
-        "volga",
-        "vanna",
-        "zomma",
-        "rho",
-        "dividend_rho",
-    )
-    combined = engine.price_with_greeks(put, context, greeks)
+    combined = engine.price_with_greeks(put, context, "all")
     assert combined.price == engine.price(put, context)
     assert combined.seed == 42
-    for greek in greeks:
+    for greek in GREEKS:
         scalar = engine.price_with_greeks(put, context, greek)
+        assert combined.require(greek) == scalar.require(greek)
+    time_greeks = ("theta", "charm", "color")
+    scalar = numerical_greeks(engine, put, context, time_greeks)
+    for greek in time_greeks:
         assert combined.require(greek) == scalar.require(greek)
 
 

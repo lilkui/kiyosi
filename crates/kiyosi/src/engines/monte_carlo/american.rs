@@ -764,25 +764,23 @@ impl MonteCarloVanillaEngine {
         Ok((price, seed))
     }
 
-    fn same_time_greek_prices(
+    fn greek_prices(
         &self,
         option: &AmericanOption,
         context: &PricingContext,
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<Vec<(PricingContext, PricingResult)>> {
-        let request = GreeksRequest::new(Greek::ALL.into_iter().filter(|greek| {
-            request.has(*greek) && !matches!(greek, Greek::Theta | Greek::Charm | Greek::Color)
-        }));
-        if Greek::ALL
-            .into_iter()
-            .filter(|&greek| request.has(greek))
-            .count()
-            < 2
+        if !request.has(Greek::Color)
+            && Greek::ALL
+                .into_iter()
+                .filter(|&greek| request.has(greek))
+                .count()
+                < 2
         {
             return Ok(Vec::new());
         }
-        let scenarios =
+        let mut scenarios =
             match crate::risk::numerical::greek_scenarios(option, context, request, shifts) {
                 Ok(scenarios) => scenarios,
                 Err(error @ Error::Io(_)) => return Err(error),
@@ -803,11 +801,14 @@ impl MonteCarloVanillaEngine {
                 return Ok(Vec::new());
             }
         }
+        scenarios.sort_by_key(PricingContext::valuation_time);
         let mut results = Vec::with_capacity(scenarios.len());
         let mut start = 0;
         while start < scenarios.len() {
-            let end = (start + 9).min(scenarios.len());
-            let pending = &scenarios[start..end];
+            let remaining = &scenarios[start..(start + 9).min(scenarios.len())];
+            let date = remaining[0].valuation_time();
+            let count = remaining.partition_point(|scenario| scenario.valuation_time() == date);
+            let pending = &remaining[..count];
             macro_rules! sample {
                 ($n:literal) => {
                     self.greek_scenario_group::<$n>(option, pending)?
@@ -1444,7 +1445,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
             ..settings
         };
         let engine = self.with_resolved_seed()?;
-        let shared = engine.same_time_greek_prices(option, context, request, settings)?;
+        let shared = engine.greek_prices(option, context, request, settings)?;
         let lookup = |scenario: &PricingContext| {
             shared
                 .iter()
