@@ -564,10 +564,9 @@ fn prepare_batch(
         additional_strikes.len() as u64
     };
     let strikes_count = additional_strikes.len() as u64 + 1;
-    let contract_bytes = if adjoint {
-        strikes_count.saturating_mul(
-            size_of::<(Payoff, ExerciseBoundaries<'_>, crate::numerics::Sum)>() as u64 + 8,
-        )
+    let batch_bytes = if adjoint {
+        // Terminal weights, hinge terms and their cumulative sums.
+        assets * 80 + strikes_count * 16
     } else {
         0
     };
@@ -575,10 +574,12 @@ fn prepare_batch(
         .saturating_mul(BYTES_PER_GRID_POINT + extra_rhs * 4 * size_of::<f64>() as u64)
         .saturating_add(padded * assets * size_of::<[f64; 3]>() as u64)
         .saturating_add((assets + rows) * BYTES_PER_AXIS_NODE)
-        .saturating_add(contract_bytes);
+        .saturating_add(batch_bytes);
     let validate_grid = |time_steps, curve_bytes| {
+        // Adjoint batches retain edge weights and two boundary hinge terms per step.
+        let time_bytes = BYTES_PER_TIME_STEP + if adjoint { 160 } else { 0 };
         if grid_bytes
-            .saturating_add(time_steps * BYTES_PER_TIME_STEP)
+            .saturating_add(time_steps * time_bytes)
             .saturating_add(curve_bytes)
             > WORKSPACE_BUDGET
         {
@@ -898,18 +899,10 @@ fn european_strike_weights(
     strikes: impl Iterator<Item = f64>,
     scale: f64,
 ) -> Result<Vec<f64>> {
-    use crate::numerics::Sum;
     let nx = op.nx;
     let length = nx * op.rows;
     let end = times.times[times.times.len() - 1];
-    let mut contracts = strikes
-        .map(|strike| {
-            let payoff = Payoff { strike, ..payoff };
-            let boundary =
-                ExerciseBoundaries::new(payoff, bounds, end, [risk, dividend], times.widths.len())?;
-            Ok((payoff, boundary, Sum::default()))
-        })
-        .collect::<Result<Vec<_>>>()?;
+    let mut edge_weights = Vec::with_capacity(times.widths.len());
     let mut weights = vec![0.0; length];
     let mut previous = vec![0.0; length];
     let mut stage = vec![0.0; length];
@@ -945,10 +938,7 @@ fn european_strike_weights(
             previous[column] -= increment;
             edges[i] += increment;
         }
-        for (_, boundary, value) in &mut contracts {
-            let [left, right] = boundary.at(a)?;
-            value.add(edges[0] * left + edges[1] * right);
-        }
+        edge_weights.push(edges);
         std::mem::swap(&mut previous, &mut weights);
     }
     let mut terminal = vec![0.0; nx];
@@ -957,10 +947,86 @@ fn european_strike_weights(
             *weight += value;
         }
     }
-    contracts
-        .into_iter()
-        .map(|(payoff, _, mut value)| {
+    let mut edge_terms = Vec::with_capacity(edge_weights.len() * 2);
+    let mut regular_edges = true;
+    for (&time, edges) in times.times.iter().zip(&edge_weights) {
+        crate::cancellation::check()?;
+        let risk_factor = risk.log_factor(time, end).exp();
+        let dividend_factor = dividend.log_factor(time, end).exp();
+        for (spot, &weight) in bounds.into_iter().zip(edges) {
+            let asset_value = spot * dividend_factor;
+            let cutoff = asset_value / risk_factor;
+            let asset_weight = weight * asset_value;
+            let cash_weight = weight * risk_factor;
+            if !risk_factor.is_normal()
+                || !dividend_factor.is_normal()
+                || !asset_value.is_normal()
+                || !cutoff.is_normal()
+                || !asset_weight.is_finite()
+                || !cash_weight.is_finite()
+            {
+                regular_edges = false;
+                break;
+            }
+            edge_terms.push([cutoff, asset_weight, cash_weight]);
+        }
+        if !regular_edges {
+            break;
+        }
+    }
+    let edges = regular_edges.then(|| StrikeMoments::new(edge_terms, payoff.sign));
+    let terminal_moments = StrikeMoments::new(
+        asset
+            .spots
+            .iter()
+            .zip(&terminal)
+            .map(|(&spot, &weight)| [spot, weight * spot, weight])
+            .collect(),
+        payoff.sign,
+    );
+    strikes
+        .map(|strike| {
             crate::cancellation::check()?;
+            let payoff = Payoff { strike, ..payoff };
+            if let Some(([boundary, boundary_scale], [mut value, terminal_scale])) = edges
+                .as_ref()
+                .and_then(|edges| edges.at(strike))
+                .zip(terminal_moments.at(strike))
+            {
+                // A strike splits at most one interior control volume.
+                let coordinate = asset.coordinate(strike);
+                let right = asset
+                    .nodes
+                    .partition_point(|&node| node < coordinate)
+                    .min(nx - 1);
+                for (i, &weight) in terminal
+                    .iter()
+                    .enumerate()
+                    .take(right + 1)
+                    .skip(right.saturating_sub(1))
+                {
+                    let payment = project_payoff(asset, &[strike], i, |spot| payoff.value(spot));
+                    value += weight * (payment - payoff.value(asset.asset(i)));
+                }
+                let price = value + boundary;
+                if price.is_finite()
+                    && (boundary_scale + terminal_scale == 0.0
+                        || price.abs() > 1e-6 * (boundary_scale + terminal_scale))
+                {
+                    return checked_with_scale(scale * price, scale);
+                }
+            }
+            // Use the original compensated evaluation for extreme scales or cancellation.
+            let mut boundary =
+                ExerciseBoundaries::new(payoff, bounds, end, [risk, dividend], times.widths.len())?;
+            let mut value = crate::numerics::Sum::default();
+            for (i, (&time, edges)) in times.times.iter().zip(&edge_weights).enumerate() {
+                if i % 1024 == 0 {
+                    crate::cancellation::check()?;
+                }
+                let [left, right] = boundary.at(time)?;
+                value.add(edges[0] * left + edges[1] * right);
+            }
             for (i, &weight) in terminal.iter().enumerate() {
                 if i % 1024 == 0 {
                     crate::cancellation::check()?;
@@ -971,6 +1037,40 @@ fn european_strike_weights(
             checked_with_scale(scale * value.total(), scale)
         })
         .collect()
+}
+
+struct StrikeMoments {
+    sign: f64,
+    prefixes: Vec<(f64, [f64; 4])>,
+}
+
+impl StrikeMoments {
+    fn new(mut terms: Vec<[f64; 3]>, sign: f64) -> Self {
+        terms.sort_unstable_by(|left, right| (sign * right[0]).total_cmp(&(sign * left[0])));
+        let mut sums: [crate::numerics::Sum; 4] = Default::default();
+        let prefixes = terms
+            .into_iter()
+            .map(|[cutoff, asset, cash]| {
+                for (sum, term) in sums.iter_mut().zip([asset, cash, asset.abs(), cash.abs()]) {
+                    sum.add(term);
+                }
+                (cutoff, std::array::from_fn(|i| sums[i].total()))
+            })
+            .collect();
+        Self { sign, prefixes }
+    }
+
+    fn at(&self, strike: f64) -> Option<[f64; 2]> {
+        let count = self
+            .prefixes
+            .partition_point(|(cutoff, _)| self.sign * (cutoff - strike) > 0.0);
+        let [asset, cash, abs_asset, abs_cash] = count
+            .checked_sub(1)
+            .map_or([0.0; 4], |i| self.prefixes[i].1);
+        let value = self.sign * (-strike).mul_add(cash, asset);
+        let scale = strike.mul_add(abs_cash, abs_asset);
+        (value.is_finite() && scale.is_finite()).then_some([value, scale])
+    }
 }
 
 #[derive(PartialEq)]
