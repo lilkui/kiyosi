@@ -4,6 +4,7 @@ use std::{cell::RefCell, marker::PhantomData, sync::Arc};
 
 const BITS: usize = 52;
 const MASK: u64 = (1 << BITS) - 1;
+pub(super) const LAZY_GROUP: usize = 16;
 pub(super) const SEQUENCE_BYTES_PER_DIMENSION: usize = (BITS + 1) * size_of::<u64>();
 
 include!("sobol_joe_kuo.rs");
@@ -147,6 +148,7 @@ impl SobolSequence {
             values,
             index,
             dimension: 0,
+            group_points: Vec::new(),
         }
     }
 }
@@ -156,6 +158,7 @@ pub(super) struct SobolCursor<'a> {
     values: Vec<u64>,
     index: usize,
     dimension: usize,
+    group_points: Vec<usize>,
 }
 
 impl SobolCursor<'_> {
@@ -164,6 +167,27 @@ impl SobolCursor<'_> {
         reason = "Sobol values contain at most 52 bits and convert exactly to f64."
     )]
     pub(super) fn normal(&mut self) -> f64 {
+        if !self.group_points.is_empty() {
+            let group = self.dimension / LAZY_GROUP;
+            let previous = self.group_points[group];
+            if previous != self.index {
+                self.group_points[group] = self.index;
+                let begin = group * LAZY_GROUP;
+                let end = (begin + LAZY_GROUP).min(self.values.len());
+                let changed = previous ^ self.index;
+                let mut gray = changed ^ (changed >> 1);
+                while gray != 0 {
+                    let offset = gray.trailing_zeros() as usize * self.values.len();
+                    for (value, direction) in self.values[begin..end]
+                        .iter_mut()
+                        .zip(&self.sequence.directions[offset + begin..offset + end])
+                    {
+                        *value ^= direction;
+                    }
+                    gray &= gray - 1;
+                }
+            }
+        }
         // Midpoints keep every point, including index zero, strictly inside (0, 1).
         let probability = (self.values[self.dimension] as f64 + 0.5) / 4_503_599_627_370_496.0;
         self.dimension += 1;
@@ -172,11 +196,22 @@ impl SobolCursor<'_> {
 
     pub(super) fn next_path(&mut self) {
         self.index += 1;
+        self.dimension = 0;
+        if !self.group_points.is_empty() {
+            return;
+        }
         let column = self.index.trailing_zeros() as usize;
         for (dimension, value) in self.values.iter_mut().enumerate() {
             *value ^= self.sequence.directions[column * self.sequence.shifts.len() + dimension];
         }
-        self.dimension = 0;
+    }
+
+    pub(super) fn enable_skips(&mut self) {
+        self.group_points = vec![self.index; self.values.len().div_ceil(LAZY_GROUP)];
+    }
+
+    pub(super) fn seek(&mut self, dimension: usize) {
+        self.dimension = dimension;
     }
 }
 

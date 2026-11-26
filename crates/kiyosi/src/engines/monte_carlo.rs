@@ -1326,6 +1326,7 @@ fn path_samples<const N: usize>(
         dimensions,
         statistics,
         dimensions,
+        false,
         |draws, normals, paired| {
             for_each_path_chunk(normals, |chunk| {
                 for normal in chunk {
@@ -1359,6 +1360,7 @@ fn path_samples_lazy<const N: usize>(
         dimensions,
         statistics,
         if settings.antithetic { dimensions } else { 0 },
+        false,
         |draws, normals, paired| {
             let mut path = LazyPath {
                 draws,
@@ -1379,6 +1381,66 @@ fn path_samples_lazy<const N: usize>(
             Ok((positive, negative))
         },
     )
+}
+
+fn path_samples_skipping<const N: usize>(
+    settings: MonteCarloSettings,
+    dimensions: usize,
+    statistics: bool,
+    payoff: impl Fn(&mut SkippingPath<'_, '_>) -> Result<[f64; N]> + Sync,
+) -> Result<([Moments; N], [Moments; N], u64)> {
+    sample_paths(
+        settings,
+        dimensions,
+        statistics,
+        0,
+        true,
+        |draws, _, paired| {
+            let (generator, spare) = (draws.generator, draws.spare);
+            let mut path = SkippingPath {
+                draws,
+                used: 0,
+                sign: 1.0,
+            };
+            let positive = payoff(&mut path)?;
+            let negative = if paired {
+                path.draws.generator = generator;
+                path.draws.spare = spare;
+                if let Some(cursor) = &mut path.draws.cursor {
+                    cursor.seek(0);
+                }
+                path.used = 0;
+                path.sign = -1.0;
+                Some(payoff(&mut path)?)
+            } else {
+                None
+            };
+            path.skip(dimensions - path.used);
+            Ok((positive, negative))
+        },
+    )
+}
+
+struct SkippingPath<'a, 'b> {
+    draws: &'a mut NormalDraws<'b>,
+    used: usize,
+    sign: f64,
+}
+
+impl SkippingPath<'_, '_> {
+    fn normal(&mut self) -> f64 {
+        self.used += 1;
+        self.sign * self.draws.normal()
+    }
+
+    fn skip(&mut self, count: usize) {
+        self.used += count;
+        if let Some(cursor) = &mut self.draws.cursor {
+            cursor.seek(self.used);
+        } else {
+            self.draws.skip_normals(count);
+        }
+    }
 }
 
 struct LazyPath<'a, 'b> {
@@ -1444,6 +1506,7 @@ fn sample_paths<const N: usize>(
     dimensions: usize,
     statistics: bool,
     buffer_len: usize,
+    skip_dimensions: bool,
     sample: impl Fn(&mut NormalDraws<'_>, &mut [f64], bool) -> Result<([f64; N], Option<[f64; N]>)>
     + Sync,
 ) -> Result<([Moments; N], [Moments; N], u64)> {
@@ -1464,12 +1527,18 @@ fn sample_paths<const N: usize>(
     // Seed and merge fixed blocks in index order so worker counts cannot change the result.
     let mut partials = vec![(empty, empty); samples.div_ceil(BLOCK_SIZE)];
     let simulate = |block: usize| -> Result<([Moments; N], [Moments; N])> {
+        let mut cursor = sobol
+            .as_ref()
+            .map(|sequence| sequence.cursor(block * BLOCK_SIZE));
+        if skip_dimensions {
+            if let Some(cursor) = &mut cursor {
+                cursor.enable_skips();
+            }
+        }
         let mut draws = NormalDraws {
             generator: Pcg32::new(seed, block as u64),
             spare: None,
-            cursor: sobol
-                .as_ref()
-                .map(|sequence| sequence.cursor(block * BLOCK_SIZE)),
+            cursor,
         };
         let mut moments = empty;
         let mut pairs = empty;
@@ -1840,6 +1909,7 @@ impl Moments {
 }
 
 // PCG-XSH-RR pseudorandom number generator.
+#[derive(Clone, Copy)]
 struct Pcg32 {
     state: u64,
     increment: u64,

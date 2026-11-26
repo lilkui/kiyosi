@@ -1,7 +1,10 @@
 use std::ops::RangeInclusive;
 
-use super::{LazyPath, Moments, MonteCarloEstimate, MonteCarloSettings};
-use super::{check_path_step, estimate, path_samples_lazy, scaled_value, transition, unstable};
+use super::{LazyPath, Moments, MonteCarloEstimate, MonteCarloSettings, SkippingPath};
+use super::{
+    check_path_step, estimate, path_samples_lazy, path_samples_skipping, scaled_value, transition,
+    unstable,
+};
 use crate::instruments::autocallable::pricing::{
     Initial, fixed_value, future_event_times, initial, validate,
 };
@@ -9,6 +12,7 @@ use crate::numerics::log_ratio;
 use crate::{
     AutocallableNote, AutocallableTerms, Error, Greek, GreeksRequest, NumericalShiftSettings,
     OptionContract, PricingContext, PricingContextChanges, PricingEngine, PricingResult, Result,
+    Timestamp,
 };
 
 /// Prices snowball variants and Phoenix notes with trading-day CPU Monte Carlo.
@@ -184,9 +188,7 @@ impl MonteCarloAutocallableEngine {
             }
             Sample::Path(plan) => {
                 let ([moments], [pairs], seed) =
-                    path_samples_lazy(self.settings, plan.steps.len(), statistics, |normals| {
-                        plan.payoff([&plan], normals)
-                    })?;
+                    plan.sample(self.settings, [&plan], statistics, false)?;
                 Ok((moments, pairs, false, Some(seed)))
             }
         }
@@ -210,9 +212,7 @@ impl MonteCarloAutocallableEngine {
             return Ok(None);
         }
         let ([base_price, high_price, low_price], _, seed) =
-            path_samples_lazy(self.settings, base.steps.len(), false, |normals| {
-                base.spot_payoffs([&base, &high, &low], normals)
-            })?;
+            base.sample(self.settings, [&base, &high, &low], false, true)?;
         let price = |moment: Moments| scaled_value(moment.scale, moment.mean, 0.0);
         Ok(Some((
             [price(base_price)?, price(high_price)?, price(low_price)?],
@@ -262,7 +262,8 @@ impl MonteCarloAutocallableEngine {
         }
         let mut steps = self.settings.scheduled_steps(dates.len())?;
         let mut next = note.events().partition_point(|r| r.time() <= valuation);
-        for date in dates {
+        let mut excursion = 0.0;
+        for &date in &dates {
             crate::cancellation::check()?;
             let (drift, diffusion, discount) = transition(
                 rate,
@@ -271,6 +272,7 @@ impl MonteCarloAutocallableEngine {
                 previous.years_until(date),
                 valuation.years_until(date),
             )?;
+            excursion += drift.abs() + 20.0 * diffusion;
             let record = note.events().get(next).filter(|r| r.time() == date);
             if record.is_some() {
                 next += 1;
@@ -298,6 +300,16 @@ impl MonteCarloAutocallableEngine {
             });
             previous = date;
         }
+        let bridge =
+            if daily && safe_returns.contains(&excursion) && safe_returns.contains(&-excursion) {
+                self.settings
+                    .validate_scheduled_workspace::<[(PathStep, BridgeInterval, [f64; 2]); N]>(
+                        steps.len(),
+                    )?;
+                BridgePlan::new(valuation, &dates, &steps, [rate, dividend, sigma])?
+            } else {
+                None
+            };
         Ok(Sample::Path(PathPlan {
             note,
             state,
@@ -306,6 +318,7 @@ impl MonteCarloAutocallableEngine {
             safe_returns,
             knock_in,
             expiry_knock_in: note.observes_knock_in(note.expiry_time()),
+            bridge,
         }))
     }
 }
@@ -323,6 +336,72 @@ struct PathPlan<'a, T: AutocallableTerms> {
     safe_returns: RangeInclusive<f64>,
     knock_in: Option<f64>,
     expiry_knock_in: bool,
+    bridge: Option<BridgePlan>,
+}
+
+struct BridgePlan {
+    intervals: Vec<BridgeInterval>,
+    daily: Vec<[f64; 2]>,
+}
+
+struct BridgeInterval {
+    end: usize,
+    drift: f64,
+    diffusion: f64,
+}
+
+impl BridgePlan {
+    fn new(
+        valuation: Timestamp,
+        dates: &[Timestamp],
+        steps: &[PathStep],
+        [rate, dividend, sigma]: [f64; 3],
+    ) -> Result<Option<Self>> {
+        let mut intervals = Vec::new();
+        let mut first = 0;
+        let mut has_gap = false;
+        for (end, step) in steps.iter().enumerate() {
+            check_path_step(end)?;
+            if step.event.is_some() || end + 1 == steps.len() {
+                has_gap |= end - first >= 8;
+                let start = if first == 0 {
+                    valuation
+                } else {
+                    dates[first - 1]
+                };
+                let (drift, diffusion, _) =
+                    transition(rate, dividend, sigma, start.years_until(dates[end]), 0.0)?;
+                intervals.push(BridgeInterval {
+                    end,
+                    drift,
+                    diffusion,
+                });
+                first = end + 1;
+            }
+        }
+        if !has_gap {
+            return Ok(None);
+        }
+        let mut daily = vec![[0.0; 2]; steps.len()];
+        let mut first = 0;
+        let mut previous = valuation;
+        for interval in &intervals {
+            let end = dates[interval.end];
+            for i in first..interval.end {
+                check_path_step(i)?;
+                let dt = previous.years_until(dates[i]);
+                let fraction = dt / previous.years_until(end);
+                if !(0.0 < fraction && fraction < 1.0) {
+                    return Ok(None);
+                }
+                daily[i] = [fraction, sigma * (dt * (1.0 - fraction)).sqrt()];
+                previous = dates[i];
+            }
+            first = interval.end + 1;
+            previous = end;
+        }
+        Ok(Some(Self { intervals, daily }))
+    }
 }
 
 struct PathStep {
@@ -352,8 +431,30 @@ impl CashEvent {
 }
 
 impl<T: AutocallableTerms> PathPlan<'_, T> {
+    fn sample<const N: usize>(
+        &self,
+        settings: MonteCarloSettings,
+        plans: [&Self; N],
+        statistics: bool,
+        spot_stencil: bool,
+    ) -> Result<([Moments; N], [Moments; N], u64)> {
+        if let Some(bridge) = &self.bridge {
+            return path_samples_skipping(settings, self.steps.len(), statistics, |normals| {
+                self.bridge_payoffs(bridge, plans, normals)
+            });
+        }
+        path_samples_lazy(settings, self.steps.len(), statistics, |normals| {
+            if spot_stencil {
+                self.spot_payoffs(plans, normals)
+            } else {
+                self.payoff(plans, normals)
+            }
+        })
+    }
+
     fn shares_transitions(&self, other: &Self) -> Result<bool> {
-        if self.steps.len() != other.steps.len() {
+        if self.steps.len() != other.steps.len() || self.bridge.is_some() != other.bridge.is_some()
+        {
             return Ok(false);
         }
         for (left, right) in self.steps.chunks(1024).zip(other.steps.chunks(1024)) {
@@ -376,6 +477,79 @@ impl<T: AutocallableTerms> PathPlan<'_, T> {
             return Err(unstable());
         }
         Ok(())
+    }
+
+    fn bridge_payoffs<const N: usize>(
+        &self,
+        bridge: &BridgePlan,
+        plans: [&Self; N],
+        normals: &mut SkippingPath<'_, '_>,
+    ) -> Result<[f64; N]> {
+        let mut cash = plans.map(|plan| plan.state.coupon);
+        let mut monitoring =
+            plans.map(|plan| (!plan.state.knocked_in).then_some(plan.knock_in).flatten());
+        let mut knocked_in = plans.map(|plan| plan.state.knocked_in);
+        let mut active = [true; N];
+        let mut start = 0;
+        let mut log_return = 0.0;
+        let mut discount = 0.0;
+        for (index, interval) in bridge.intervals.iter().enumerate() {
+            check_path_step(index)?;
+            let target = log_return + interval.diffusion.mul_add(normals.normal(), interval.drift);
+            for i in start..interval.end {
+                if monitoring.iter().all(Option::is_none) {
+                    normals.skip(interval.end - i);
+                    break;
+                }
+                check_path_step(i)?;
+                let [weight, diffusion] = bridge.daily[i];
+                log_return += weight.mul_add(target - log_return, diffusion * normals.normal());
+                for (level, hit) in monitoring.iter_mut().zip(&mut knocked_in) {
+                    if level.is_some_and(|level| log_return < level) {
+                        *level = None;
+                        *hit = true;
+                    }
+                }
+            }
+            log_return = target;
+            start = interval.end + 1;
+            discount = self.steps[interval.end].transition[2];
+            for lane in 0..N {
+                if !active[lane] {
+                    continue;
+                }
+                let step = &plans[lane].steps[interval.end];
+                if step.observe_knock_in && monitoring[lane].is_some_and(|level| log_return < level)
+                {
+                    monitoring[lane] = None;
+                    knocked_in[lane] = true;
+                }
+                if let Some(event) = step.event {
+                    let hit = event.knock_out.is_some_and(|level| log_return >= level);
+                    cash[lane] += event.discounted_payment(
+                        log_return >= event.coupon_barrier,
+                        hit,
+                        discount,
+                    )?;
+                    if hit {
+                        active[lane] = false;
+                        monitoring[lane] = None;
+                    }
+                }
+            }
+            if active.iter().all(|active| !active) {
+                return finite_payoffs(cash);
+            }
+        }
+        for (lane, plan) in plans.into_iter().enumerate() {
+            if active[lane] {
+                let hit = knocked_in[lane]
+                    || (plan.expiry_knock_in
+                        && plan.knock_in.is_some_and(|level| log_return < level));
+                cash[lane] += plan.discounted_terminal(log_return, hit, discount)?;
+            }
+        }
+        finite_payoffs(cash)
     }
 
     fn spot_payoffs<const N: usize>(
@@ -595,10 +769,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
         if !lower.shares_thresholds(&upper)? {
             return Ok(None);
         }
-        let ([low, high], _, _) =
-            path_samples_lazy(self.settings, lower.steps.len(), false, |normals| {
-                lower.payoff([&lower, &upper], normals)
-            })?;
+        let ([low, high], _, _) = lower.sample(self.settings, [&lower, &upper], false, false)?;
         Ok(Some([
             scaled_value(low.scale, low.mean, 0.0)?,
             scaled_value(high.scale, high.mean, 0.0)?,
