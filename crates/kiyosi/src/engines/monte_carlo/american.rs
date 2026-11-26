@@ -12,8 +12,10 @@ use crate::{
     PricingContextChanges,
 };
 
-const MAX_PATH_VALUES: usize = 1024 * 1024 * 1024 / size_of::<f64>();
+const WORKSPACE_BUDGET: usize = 1 << 30;
+const WORK_BUDGET: usize = 1_000_000_000;
 const MAX_CACHED_PATH_VALUES: usize = 128 * 1024 * 1024 / size_of::<f64>();
+const PATH_BLOCK_OVERHEAD: usize = size_of::<Vec<f64>>() + 2 * size_of::<usize>();
 
 #[derive(PartialEq)]
 struct PathKey {
@@ -23,6 +25,14 @@ struct PathKey {
     path_values: usize,
     drift: u64,
     diffusion: u64,
+}
+
+impl PathKey {
+    fn storage_bytes(&self) -> usize {
+        let blocks = self.settings.sample_count().div_ceil(BLOCK_SIZE);
+        self.path_values * size_of::<f64>()
+            + blocks * (PATH_BLOCK_OVERHEAD + size_of::<Arc<Vec<f64>>>())
+    }
 }
 
 type PathBlocks = Arc<Vec<Arc<Vec<f64>>>>;
@@ -87,6 +97,71 @@ struct ExerciseBlock<const N: usize> {
     checkpoints: Vec<f64>,
     cash: Vec<[f64; N]>,
     regression: [[[f64; 4]; 3]; N],
+}
+
+fn exercise_window<const N: usize>(
+    settings: MonteCarloSettings,
+    reserved_paths: usize,
+    intervals: usize,
+) -> Result<(usize, usize)> {
+    let blocks = settings.sample_count().div_ceil(BLOCK_SIZE);
+    let sobol = settings.sampling == MonteCarloSampling::Sobol;
+    let workers = if sobol {
+        sobol::validate_dimensions(intervals)?;
+        let available = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
+        let limit = settings.max_active_workers.unsigned_abs() as usize;
+        blocks.min(if limit == 0 {
+            available
+        } else {
+            available.min(limit)
+        })
+    } else {
+        0
+    };
+    let workspace = |window| {
+        let checkpoints = (intervals - 1) / window;
+        let cursor_bytes = intervals * size_of::<u64>()
+            + if checkpoints == 0 {
+                0
+            } else {
+                intervals.div_ceil(sobol::LAZY_GROUP) * size_of::<usize>()
+            };
+        let sampling = if sobol {
+            intervals * sobol::SEQUENCE_BYTES_PER_DIMENSION + workers * cursor_bytes
+        } else {
+            0
+        };
+        // Include the cache's shared block handles when a full path matrix is retained.
+        let overhead =
+            size_of::<ExerciseBlock<N>>() + PATH_BLOCK_OVERHEAD + size_of::<Arc<Vec<f64>>>();
+        reserved_paths
+            .saturating_mul((window + checkpoints) * size_of::<f64>() + size_of::<[f64; N]>())
+            .saturating_add(blocks * overhead)
+            .saturating_add(sampling)
+    };
+    let window = if (intervals >= 16
+        && reserved_paths.saturating_mul(intervals) > MAX_CACHED_PATH_VALUES)
+        || workspace(intervals) > WORKSPACE_BUDGET
+    {
+        intervals.isqrt()
+    } else {
+        intervals
+    };
+    let bytes = workspace(window);
+    if bytes > WORKSPACE_BUDGET {
+        return Err(Error::InvalidInput(
+            "American Monte Carlo workspace exceeds 1 GiB; reduce path_count or step_count".into(),
+        ));
+    }
+    let replay = (intervals - 1) / window * window;
+    // Count original and replayed path steps, then one exercise update per scenario and step.
+    let work = intervals + replay + N * (intervals - 1);
+    if reserved_paths.saturating_mul(work) > WORK_BUDGET {
+        return Err(Error::InvalidInput(
+            "American Monte Carlo exceeds one billion simulated path steps and exercise updates; reduce path_count or step_count".into(),
+        ));
+    }
+    Ok((window, bytes))
 }
 
 impl<const N: usize> Default for ExerciseBlock<N> {
@@ -355,15 +430,6 @@ impl MonteCarloVanillaEngine {
             paths
         };
         let reserved_paths = samples * if settings.antithetic { 2 } else { 1 };
-        let Some(path_values) = reserved_paths
-            .checked_mul(intervals)
-            .filter(|&count| count <= MAX_PATH_VALUES)
-        else {
-            return Err(Error::InvalidInput(
-                "American Monte Carlo path storage exceeds 1 GiB; reduce path_count or step_count"
-                    .into(),
-            ));
-        };
         let dt = time / intervals as f64;
         let sigma = model.volatility();
         let drift = (rate - dividend - 0.5 * sigma * sigma) * dt;
@@ -391,6 +457,8 @@ impl MonteCarloVanillaEngine {
         } else {
             (initial[0], [1.0; N])
         };
+        let (window, workspace_bytes) = exercise_window::<N>(settings, reserved_paths, intervals)?;
+        let path_values = reserved_paths * intervals;
         let seed = settings.resolved_seed()?;
         let key = PathKey {
             seed,
@@ -414,15 +482,14 @@ impl MonteCarloVanillaEngine {
                 cache.push(entry);
                 return (false, Some(found));
             }
-            let retain = normalized && path_values <= MAX_CACHED_PATH_VALUES;
-            let limit = if retain {
-                MAX_CACHED_PATH_VALUES
-            } else {
-                MAX_PATH_VALUES
-            };
-            let mut stored: usize = cache.iter().map(|(key, _)| key.path_values).sum();
-            while stored > limit - path_values || retain && cache.len() == 2 {
-                stored -= cache.remove(0).0.path_values;
+            let retain = normalized && window == intervals && path_values <= MAX_CACHED_PATH_VALUES;
+            let mut stored: usize = cache.iter().map(|(key, _)| key.storage_bytes()).sum();
+            let retained_limit =
+                MAX_CACHED_PATH_VALUES.saturating_sub(path_values) * size_of::<f64>();
+            while stored > WORKSPACE_BUDGET - workspace_bytes
+                || retain && (stored > retained_limit || cache.len() == 2)
+            {
+                stored -= cache.remove(0).0.storage_bytes();
             }
             (retain, None)
         });
@@ -430,11 +497,6 @@ impl MonteCarloVanillaEngine {
             Some(sobol::sequence(intervals, seed)?)
         } else {
             None
-        };
-        let window = if path_values > MAX_CACHED_PATH_VALUES && intervals >= 16 {
-            intervals.isqrt()
-        } else {
-            intervals
         };
         let exercise_paths = ExercisePaths {
             settings,

@@ -20,13 +20,13 @@ fn market(rate: f64, dividend: f64, volatility: f64, spot: f64) -> PricingContex
 }
 
 #[test]
-fn american_path_storage_limit_rejects_large_grids_before_sampling() {
+fn american_work_limit_rejects_large_grids_before_sampling() {
     let put = option(OptionType::Put, 100.0);
     let context = market(0.05, 0.0, 0.2, 100.0);
     for antithetic in [false, true] {
         let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
             sampling: MonteCarloSettings {
-                path_count: 15_001,
+                path_count: 100_001,
                 seed: Some(42),
                 antithetic,
                 ..Default::default()
@@ -77,6 +77,26 @@ fn american_path_storage_limit_rejects_large_grids_before_sampling() {
         );
         assert_eq!(engine.settings().sampling.seed, Some(42));
     }
+}
+
+#[test]
+fn checkpoint_workspace_accepts_paths_beyond_the_full_matrix_limit() -> Result<()> {
+    let put = option(OptionType::Put, 100.0);
+    let context = market(0.05, 0.02, 0.2, 100.0);
+    let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+        sampling: MonteCarloSettings {
+            path_count: 1_000_000,
+            seed: Some(42),
+            max_active_workers: 4,
+            ..Default::default()
+        },
+        step_count: 150,
+    })?;
+    let reference = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 2000 })?
+        .price(&put, &context)?;
+    let price = engine.price(&put, &context)?;
+    assert!((price - reference).abs() < 0.04, "{price} != {reference}");
+    Ok(())
 }
 
 #[test]

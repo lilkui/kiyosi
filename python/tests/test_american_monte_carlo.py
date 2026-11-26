@@ -33,11 +33,11 @@ def contract(direction="put", strike=100):
 
 
 @pytest.mark.parametrize("antithetic", (False, True))
-def test_path_storage_limit_rejects_large_grids_before_sampling(antithetic):
+def test_work_limit_rejects_large_grids_before_sampling(antithetic):
     context = market(rate=0.05, dividend=0)
     put = contract()
     engine = MonteCarloVanillaEngine(
-        path_count=15_001, step_count=10_000, seed=42, antithetic=antithetic
+        path_count=100_001, step_count=10_000, seed=42, antithetic=antithetic
     )
     assert_rejection(InvalidInputError, engine.price, put, context)
     assert_rejection(InvalidInputError, engine.price_with_greeks, put, context, "delta")
@@ -62,6 +62,16 @@ def test_path_storage_limit_rejects_large_grids_before_sampling(antithetic):
     assert expected > 0
     assert engine.price(contract("call"), context) == expected
     assert engine.seed == 42
+
+
+def test_checkpoint_workspace_accepts_paths_beyond_the_full_matrix_limit():
+    option = contract()
+    context = market(rate=0.05, dividend=0.02, sigma=0.2)
+    engine = MonteCarloVanillaEngine(
+        path_count=1_000_000, step_count=150, seed=42, max_active_workers=4
+    )
+    reference = CoxRossRubinsteinVanillaEngine(step_count=2000).price(option, context)
+    assert engine.price(option, context) == pytest.approx(reference, rel=0, abs=0.04)
 
 
 def test_nonfinite_continuation_regressions_preserve_engine_reuse(subtests):
@@ -387,7 +397,8 @@ def test_checkpointed_spot_greeks_match_scalar_price_stencils():
     )
     result = engine.price_with_greeks(option, context, ["delta", "gamma"])
     center, up, down = (
-        engine.price(option, context.replace(spot_price=spot)) for spot in (100, 108, 92)
+        engine.price(option, context.replace(spot_price=spot))
+        for spot in (100, 108, 92)
     )
     assert result.seed == 42
     assert result.price == center

@@ -905,7 +905,7 @@ impl MonteCarloVanillaEngine {
     ///
     /// European pricing samples the terminal distribution without using the grid.
     /// American exercise pricing requires at least two intervals and limits retained
-    /// path storage to 1 GiB per call; see [`Self::price`].
+    /// exercise workspace to 1 GiB per call; see [`Self::price`].
     ///
     /// # Errors
     ///
@@ -971,11 +971,12 @@ impl MonteCarloVanillaEngine {
     ///
     /// Near-strike payoffs retain small movements even when terminal spot rounds to strike.
     /// Cancellation follows [`crate::CancellationToken`].
-    /// American exercise grids retain `path_count * step_count` values of
-    /// eight bytes each, rounding odd antithetic path counts up to the next even
-    /// count for reserved capacity. Retained path storage is limited to 1 GiB per
-    /// call, excluding other buffers. Worker limits do not bound total memory:
-    /// limit concurrent American exercise-grid requests to fit the process budget.
+    /// American exercise grids use checkpoints and regenerate path windows when
+    /// full storage is large. The exercise workspace is capped at 1 GiB per
+    /// request. Each rollback allows one billion simulated path steps and
+    /// exercise updates combined, counting replayed steps and the exercise
+    /// updates of each sensitivity scenario. Concurrent requests own separate
+    /// workspaces.
     /// Expiry and terminal-only American calls
     /// (nonpositive dividends and nonnegative rates) do not allocate this grid.
     ///
@@ -989,8 +990,8 @@ impl MonteCarloVanillaEngine {
     /// in [`Error::Io`].
     /// American pricing before expiry returns [`Error::InvalidInput`]
     /// for fewer than two exercise intervals, after life validation.
-    /// Exercise-grid pricing also returns [`Error::InvalidInput`] when retained
-    /// path storage would exceed 1 GiB, before entropy, worker or path allocation.
+    /// Exercise-grid pricing also returns [`Error::InvalidInput`] when the workspace
+    /// or work limit is exceeded, before entropy, worker or path allocation.
     /// Failure to reserve the exercise-grid buffers returns [`Error::ComputationFailure`]
     /// when the allocator reports the failure.
     /// Non-finite American regression matrices, coefficients or continuation values
