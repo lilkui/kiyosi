@@ -614,7 +614,16 @@ fn prepare_batch(
         |x| x / scale,
     );
     let curve_bytes = risk.workspace_bytes() + dividend.workspace_bytes();
-    let times = TimeGrid::with_events(
+    let calendar_curve = !deterministic
+        && [model.risk_free_curve(), model.dividend_curve()]
+            .iter()
+            .any(|curve| curve.calendar_quote().is_some());
+    let time_grid = if calendar_curve {
+        TimeGrid::aligned
+    } else {
+        TimeGrid::with_events
+    };
+    let times = time_grid(
         time,
         settings.time_step_count,
         &risk,
@@ -705,6 +714,19 @@ fn prepare_batch(
         std::iter::once(payoff.strike).chain(additional_strikes.iter().map(|strike| strike / scale))
     };
     let mut op = Operator::new(&asset, variance.as_deref(), model)?;
+    if calendar_curve {
+        const MAX_CACHE_BYTES: u64 = 64 << 20;
+        let time_bytes = BYTES_PER_TIME_STEP + if adjoint { 160 } else { 0 };
+        let used = grid_bytes + curve_bytes + times.widths.len() as u64 * time_bytes;
+        let rows = rows as u64;
+        let spare_bytes = ((2 * rows + padded) * assets + 2 * rows) * size_of::<[f64; 3]>() as u64;
+        let available = MAX_CACHE_BYTES.min(WORKSPACE_BUDGET - used);
+        op.cache_limit = if spare_bytes <= available / 2 {
+            2
+        } else {
+            usize::from(spare_bytes <= available)
+        };
+    }
     if adjoint {
         let spot = context.spot_price() / scale;
         let node = asset
@@ -1260,18 +1282,41 @@ type AssetFactor = [[f64; ASSET_LANES]; 3];
 struct Operator {
     nx: usize,
     rows: usize,
-    asset: Vec<[f64; 3]>,
-    variance: Vec<[f64; 3]>,
     variance_base: Vec<[f64; 3]>,
     volatilities: Vec<f64>,
     asset_stencils: Option<Vec<super::grid::PreparedLogStencil>>,
     mixed: Vec<f64>,
     dx: Vec<[f64; 3]>,
     dv: Vec<[f64; 3]>,
+    matrices: DirectionalMatrices,
+    cached: Vec<DirectionalMatrices>,
+    cache_limit: usize,
+}
+
+struct DirectionalMatrices {
+    asset: Vec<[f64; 3]>,
+    variance: Vec<[f64; 3]>,
     asset_factors: Vec<AssetFactor>,
     variance_factors: Vec<[f64; 3]>,
     coefficients_key: Option<[u64; 3]>,
     weight: f64,
+}
+
+impl DirectionalMatrices {
+    fn new(nx: usize, rows: usize, dynamic_rows: usize) -> Self {
+        Self {
+            asset: vec![[0.0; 3]; nx * rows],
+            variance: vec![[0.0; 3]; rows],
+            asset_factors: vec![[[0.0; ASSET_LANES]; 3]; nx * dynamic_rows.div_ceil(ASSET_LANES)],
+            variance_factors: vec![[0.0; 3]; rows],
+            coefficients_key: None,
+            weight: f64::NAN,
+        }
+    }
+
+    fn matches(&self, key: [u64; 3], weight: f64) -> bool {
+        self.coefficients_key == Some(key) && self.weight.to_bits() == weight.to_bits()
+    }
 }
 
 impl Operator {
@@ -1321,18 +1366,15 @@ impl Operator {
         Ok(Self {
             nx,
             rows,
-            asset: vec![[0.0; 3]; nx * rows],
-            variance: vec![[0.0; 3]; rows],
             variance_base,
             volatilities,
             asset_stencils: asset.prepared_stencils()?,
             mixed,
             dx: derivatives(&asset.nodes),
             dv: variance.map_or_else(Vec::new, derivatives),
-            asset_factors: vec![[[0.0; ASSET_LANES]; 3]; nx * dynamic_rows.div_ceil(ASSET_LANES)],
-            variance_factors: vec![[0.0; 3]; rows],
-            coefficients_key: None,
-            weight: f64::NAN,
+            matrices: DirectionalMatrices::new(nx, rows, dynamic_rows),
+            cached: Vec::new(),
+            cache_limit: 0,
         })
     }
 
@@ -1347,14 +1389,33 @@ impl Operator {
         workers: Option<&AssetWorkers>,
     ) -> Result<()> {
         let key = [deterministic, rate, dividend].map(f64::to_bits);
-        let rebuild = self.coefficients_key != Some(key);
-        if !rebuild && self.weight.to_bits() == weight.to_bits() {
+        if self.matrices.matches(key, weight) {
             return Ok(());
         }
         let nx = self.nx;
         let rows = self.dynamic_rows();
+        if let Some(index) = self
+            .cached
+            .iter()
+            .position(|entry| entry.matches(key, weight))
+        {
+            let entry = self.cached.remove(index);
+            self.cached
+                .push(std::mem::replace(&mut self.matrices, entry));
+            return Ok(());
+        }
+        if self.cache_limit > 0 && self.matrices.coefficients_key.is_some() {
+            let entry = if self.cached.len() == self.cache_limit {
+                self.cached.remove(0)
+            } else {
+                DirectionalMatrices::new(nx, self.rows, rows)
+            };
+            self.cached
+                .push(std::mem::replace(&mut self.matrices, entry));
+        }
+        let rebuild = self.matrices.coefficients_key != Some(key);
         if rebuild {
-            for (index, (row, &base)) in self.variance[..rows]
+            for (index, (row, &base)) in self.matrices.variance[..rows]
                 .iter_mut()
                 .zip(&self.variance_base)
                 .enumerate()
@@ -1429,14 +1490,14 @@ impl Operator {
             }
             Ok(())
         };
-        let assets = &mut self.asset[..rows * nx];
+        let assets = &mut self.matrices.asset[..rows * nx];
         // Weight-only updates reuse the explicit operator and have less work per row.
         if let Some(workers) = workers.filter(|_| rebuild || rows * nx >= 128_000) {
             let tiles = workers.rows_per_task.div_ceil(ASSET_LANES);
             workers.apply(
                 assets
                     .par_chunks_mut(tiles * tile_width)
-                    .zip(self.asset_factors.par_chunks_mut(tiles * nx))
+                    .zip(self.matrices.asset_factors.par_chunks_mut(tiles * nx))
                     .enumerate(),
                 |(chunk, (assets, factors))| {
                     for (tile, (assets, factors)) in assets
@@ -1457,22 +1518,23 @@ impl Operator {
             if rebuild {
                 coefficients_for(0, assets)?;
             }
-            factor_assets(assets, &mut self.asset_factors)?;
+            factor_assets(assets, &mut self.matrices.asset_factors)?;
         }
         for (factor, &row) in self
+            .matrices
             .variance_factors
             .iter_mut()
-            .zip(&self.variance)
+            .zip(&self.matrices.variance)
             .take(rows)
         {
             *factor = implicit_row(row, weight);
         }
         if self.rows > 1 {
-            self.variance_factors[rows] = [-1.0, 1.0, 0.0];
+            self.matrices.variance_factors[rows] = [-1.0, 1.0, 0.0];
         }
-        factor(&mut self.variance_factors)?;
-        self.coefficients_key = Some(key);
-        self.weight = weight;
+        factor(&mut self.matrices.variance_factors)?;
+        self.matrices.coefficients_key = Some(key);
+        self.matrices.weight = weight;
         Ok(())
     }
 
@@ -1499,7 +1561,7 @@ impl Operator {
         let current = &values[start..start + nx];
         let previous = &values[start.saturating_sub(nx)..][..nx];
         let next = &values[if self.rows > 1 { start + nx } else { start }..][..nx];
-        let [lower, diagonal, upper] = self.variance[j];
+        let [lower, diagonal, upper] = self.matrices.variance[j];
         let [left_weight, _, right_weight] = self.dv.get(j).copied().unwrap_or([0.0; 3]);
         let has_mixed = j > 0 && self.rows > 1;
         // Reuse the two neighboring variance differences as the asset stencil moves.
@@ -1513,7 +1575,7 @@ impl Operator {
         let mut left = difference(0);
         let mut center = difference(1);
         for i in 1..nx - 1 {
-            let [a, b, c] = self.asset[start + i];
+            let [a, b, c] = self.matrices.asset[start + i];
             let asset = a * current[i - 1] + b * current[i] + c * current[i + 1];
             let mut variance = diagonal * current[i];
             if j > 0 {
@@ -1634,7 +1696,7 @@ impl Operator {
     ) -> Result<[f64; 2]> {
         let mut edges = self.take_boundary_weights(values);
         self.variance_strips(values, workers, |strip| {
-            transpose_variance_strip(strip, &self.variance_factors)
+            transpose_variance_strip(strip, &self.matrices.variance_factors)
         })?;
         let nx = self.nx;
         let active = self.dynamic_rows() * nx;
@@ -1656,12 +1718,16 @@ impl Operator {
             workers.apply(
                 values[..active]
                     .par_chunks_mut(tiles * width)
-                    .zip(self.asset_factors.par_chunks(tiles * nx))
+                    .zip(self.matrices.asset_factors.par_chunks(tiles * nx))
                     .zip(contributions.par_chunks_mut(tiles)),
                 |((values, factors), edges)| solve(values, factors, edges),
             )?;
         } else {
-            solve(&mut values[..active], &self.asset_factors, contributions)?;
+            solve(
+                &mut values[..active],
+                &self.matrices.asset_factors,
+                contributions,
+            )?;
         }
         for contribution in contributions {
             edges[0] += contribution[0];
@@ -1722,11 +1788,15 @@ impl Operator {
                 let here = &input[offset..][..nx];
                 let below = &input[low * nx..][..nx];
                 let above = &input[high * nx..][..nx];
-                let asset = &self.asset[offset..][..nx];
-                let middle = self.variance[j][1];
-                let lower = if j > 0 { self.variance[low][2] } else { 0.0 };
+                let asset = &self.matrices.asset[offset..][..nx];
+                let middle = self.matrices.variance[j][1];
+                let lower = if j > 0 {
+                    self.matrices.variance[low][2]
+                } else {
+                    0.0
+                };
                 let upper = if j + 1 < active {
-                    self.variance[high][0]
+                    self.matrices.variance[high][0]
                 } else {
                     0.0
                 };
@@ -1788,7 +1858,7 @@ impl Operator {
         let active = rows * nx;
         let tile_width = ASSET_LANES * nx;
         let factor_count = rows.div_ceil(ASSET_LANES) * nx;
-        let factor_rows = &self.asset_factors[..factor_count];
+        let factor_rows = &self.matrices.asset_factors[..factor_count];
         let solve_rows = |values: &mut [f64], factors: &[AssetFactor]| {
             for (tile, factors) in values.chunks_mut(tile_width).zip(factors.chunks_exact(nx)) {
                 crate::cancellation::check()?;
@@ -1809,7 +1879,7 @@ impl Operator {
         }
 
         self.variance_strips(values, workers, |strip| {
-            solve_variance_strip(strip, &self.variance_factors, rows)
+            solve_variance_strip(strip, &self.matrices.variance_factors, rows)
         })?;
         self.boundaries(values, edges);
         Ok(())
@@ -2024,6 +2094,7 @@ mod adjoint_tests {
         })?;
         let mut serial = Operator::new(&asset, Some(&variance), &model)?;
         let mut parallel = Operator::new(&asset, Some(&variance), &model)?;
+        parallel.cache_limit = 2;
         let workers = AssetWorkers {
             count: 2,
             tokens: Vec::new(),
@@ -2033,18 +2104,34 @@ mod adjoint_tests {
             .num_threads(2)
             .build()
             .map_err(std::io::Error::other)?;
+        let recurring = [0.0, 0.04, 0.01, 0.02];
         for key in [
-            [0.0, 0.04, 0.01, 0.02],
+            recurring,
             [0.0, 0.04, 0.01, 0.01],
             [0.0, -0.02, 0.03, 0.01],
             [0.0, -0.02, 0.03, 0.01],
+            recurring,
         ] {
+            let cached = parallel
+                .cached
+                .iter()
+                .find(|entry| entry.matches([key[0], key[1], key[2]].map(f64::to_bits), key[3]))
+                .map(|entry| entry.asset_factors.as_ptr());
             serial.prepare(&asset, key, None)?;
             pool.install(|| parallel.prepare(&asset, key, Some(&workers)))?;
-            assert_eq!(serial.asset, parallel.asset);
-            assert_eq!(serial.variance, parallel.variance);
-            assert_eq!(serial.asset_factors, parallel.asset_factors);
-            assert_eq!(serial.variance_factors, parallel.variance_factors);
+            assert_eq!(serial.matrices.asset, parallel.matrices.asset);
+            assert_eq!(serial.matrices.variance, parallel.matrices.variance);
+            assert_eq!(
+                serial.matrices.asset_factors,
+                parallel.matrices.asset_factors
+            );
+            assert_eq!(
+                serial.matrices.variance_factors,
+                parallel.matrices.variance_factors
+            );
+            if key.map(f64::to_bits) == recurring.map(f64::to_bits) && parallel.cached.len() == 2 {
+                assert_eq!(cached, Some(parallel.matrices.asset_factors.as_ptr()));
+            }
         }
         Ok(())
     }

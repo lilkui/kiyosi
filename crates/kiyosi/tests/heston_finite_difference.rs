@@ -5,7 +5,7 @@ use kiyosi::{
     AmericanOption, AnalyticHestonEuropeanEngine, Date, Error, EuropeanOption,
     FiniteDifferenceHestonVanillaEngine, Greek, GreekStatus, GreeksRequest,
     HestonFiniteDifferenceSettings, HestonParameters, OptionType, PricingContext,
-    RateTermStructure,
+    RateTermStructure, TradingCalendar,
 };
 
 fn dates() -> (Timestamp, Timestamp) {
@@ -13,6 +13,39 @@ fn dates() -> (Timestamp, Timestamp) {
         Date::new(2025, 1, 1).unwrap().start_of_day(),
         Date::new(2026, 1, 1).unwrap().start_of_day(),
     )
+}
+
+#[test]
+fn heston_finite_difference_with_recurring_calendar_rates() -> kiyosi::Result<()> {
+    let (start, _) = dates();
+    let end = start.add_days(364)?;
+    let curve = RateTermStructure::bounded_flat_with_calendar(
+        0.05,
+        start,
+        end,
+        TradingCalendar::weekdays(),
+    )?;
+    let model = HestonParameters::new(kiyosi::HestonParameterInputs {
+        risk_free_rate: curve.into(),
+        dividend_yield: 0.02.into(),
+        initial_variance: 0.04,
+        long_run_variance: 0.04,
+        mean_reversion_speed: 1.5,
+        vol_of_vol: 0.3,
+        correlation: -0.7,
+    })?;
+    let market = PricingContext::new(model, 100.0, start)?;
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let engine = FiniteDifferenceHestonVanillaEngine::new(HestonFiniteDifferenceSettings {
+        asset_step_count: 256,
+        variance_step_count: 96,
+        time_step_count: 52,
+        ..Default::default()
+    })?;
+    let value = engine.price(&option, &market)?;
+    let expected = AnalyticHestonEuropeanEngine::default().price(&option, &market)?;
+    assert!((value - expected).abs() < 0.001, "{value} vs {expected}");
+    Ok(())
 }
 
 #[test]

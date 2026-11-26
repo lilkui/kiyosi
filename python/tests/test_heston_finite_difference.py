@@ -16,6 +16,7 @@ from kiyosi.instruments import AmericanOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
     RateTermStructure,
+    weekdays_calendar,
 )
 from kiyosi.pricing import (
     AnalyticHestonEuropeanEngine,
@@ -575,3 +576,17 @@ def test_dense_fixed_heston_batch_resolves_the_full_strike_range():
     assert engine.price_strikes(template, market, strikes=strikes) == pytest.approx(
         expected, rel=0, abs=0.002
     )
+
+
+def test_heston_finite_difference_with_recurring_calendar_rates():
+    end = START + timedelta(days=364)
+    curve = RateTermStructure.bounded_flat(
+        0.05, reference_time=START, max_time=end, calendar=weekdays_calendar()
+    )
+    market = context(model(risk_free_rate=curve))
+    contract = option(expiry_time=end)
+    expected = AnalyticHestonEuropeanEngine().price(contract, market)
+    engine = FiniteDifferenceHestonVanillaEngine(
+        asset_step_count=256, variance_step_count=96, time_step_count=52
+    )
+    assert engine.price(contract, market) == pytest.approx(expected, abs=0.001, rel=0)
