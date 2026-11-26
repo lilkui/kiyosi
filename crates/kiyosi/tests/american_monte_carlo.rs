@@ -20,6 +20,50 @@ fn market(rate: f64, dividend: f64, volatility: f64, spot: f64) -> PricingContex
 }
 
 #[test]
+fn mixed_american_greeks_replay_individual_stencils() -> Result<()> {
+    let put = option(OptionType::Put, 100.0);
+    let snapshot = market(0.05, 0.02, 0.2, 100.0);
+    let greeks = [
+        Greek::Delta,
+        Greek::Gamma,
+        Greek::Speed,
+        Greek::Vega,
+        Greek::Volga,
+        Greek::Vanna,
+        Greek::Zomma,
+        Greek::Rho,
+        Greek::DividendRho,
+    ];
+    for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
+        let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+            sampling: MonteCarloSettings {
+                path_count: 4096,
+                seed: Some(42),
+                antithetic: true,
+                sampling,
+                max_active_workers: 2,
+            },
+            step_count: 50,
+        })?;
+        let combined = engine.price_with_greeks(&put, &snapshot, GreeksRequest::new(greeks))?;
+        assert_eq!(
+            combined.price().to_bits(),
+            engine.price(&put, &snapshot)?.to_bits()
+        );
+        assert_eq!(combined.seed(), Some(42));
+        for greek in greeks {
+            let single = engine.price_with_greeks(&put, &snapshot, GreeksRequest::new([greek]))?;
+            assert_eq!(
+                combined.require(greek)?.to_bits(),
+                single.require(greek)?.to_bits(),
+                "{greek:?}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn american_work_limit_rejects_large_grids_before_sampling() {
     let put = option(OptionType::Put, 100.0);
     let context = market(0.05, 0.0, 0.2, 100.0);

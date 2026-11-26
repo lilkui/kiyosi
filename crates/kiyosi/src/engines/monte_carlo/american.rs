@@ -657,6 +657,139 @@ impl MonteCarloVanillaEngine {
         Ok((price, seed))
     }
 
+    fn same_time_greek_prices(
+        &self,
+        option: &AmericanOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        shifts: NumericalShiftSettings,
+    ) -> Result<Vec<(PricingContext, PricingResult)>> {
+        let request = GreeksRequest::new(Greek::ALL.into_iter().filter(|greek| {
+            request.has(*greek) && !matches!(greek, Greek::Theta | Greek::Charm | Greek::Color)
+        }));
+        if Greek::ALL
+            .into_iter()
+            .filter(|&greek| request.has(greek))
+            .count()
+            < 2
+        {
+            return Ok(Vec::new());
+        }
+        let scenarios = std::cell::RefCell::new(vec![context.clone()]);
+        let zero = PricingResult::new(0.0)?;
+        let record = |scenario: &PricingContext| {
+            let mut scenarios = scenarios.borrow_mut();
+            if !scenarios.contains(scenario) {
+                scenarios.push(scenario.clone());
+            }
+            zero.clone()
+        };
+        // Visit the same price stencils with zero prices to collect their inputs.
+        // The subsequent evaluation uses the same stencil implementation.
+        let planned = crate::risk::numerical::complete_greeks_with_pair(
+            option,
+            context,
+            request,
+            shifts,
+            false,
+            zero.clone(),
+            |scenario, _| Ok(record(scenario)),
+            |high, low, _| Ok(Some((record(high), record(low)))),
+        );
+        match planned {
+            Err(error @ Error::Io(_)) => return Err(error),
+            Err(_) => return Ok(Vec::new()),
+            Ok(_) => {}
+        }
+        let scenarios = scenarios.into_inner();
+        if scenarios.len() <= 3 {
+            return Ok(Vec::new());
+        }
+        // Call stencils crossing the no-early-exercise shortcut keep the
+        // dedicated rate handling in the scalar Greek evaluator.
+        for scenario in &scenarios {
+            let model = scenario.natural_bsm_parameters()?;
+            if model.volatility() == 0.0
+                || (option.option_type() == OptionType::Call
+                    && model.flat_risk_free_rate()? >= 0.0
+                    && model.flat_dividend_yield()? <= 0.0)
+            {
+                return Ok(Vec::new());
+            }
+        }
+        let mut results = Vec::with_capacity(scenarios.len());
+        let mut start = 0;
+        while start < scenarios.len() {
+            let end = (start + 9).min(scenarios.len());
+            let pending = &scenarios[start..end];
+            macro_rules! sample {
+                ($n:literal) => {
+                    self.greek_scenario_group::<$n>(option, pending)?
+                };
+            }
+            let batch = if let Some(batch) = sample!(9) {
+                Some(batch)
+            } else if let Some(batch) = sample!(7) {
+                Some(batch)
+            } else if let Some(batch) = sample!(5) {
+                Some(batch)
+            } else if let Some(batch) = sample!(3) {
+                Some(batch)
+            } else if let Some(batch) = sample!(2) {
+                Some(batch)
+            } else {
+                sample!(1)
+            };
+            let Some(batch) = batch else {
+                return Ok(Vec::new());
+            };
+            start += batch.len();
+            results.extend(batch);
+        }
+        Ok(scenarios.into_iter().zip(results).collect())
+    }
+
+    fn greek_scenario_group<const N: usize>(
+        &self,
+        option: &AmericanOption,
+        pending: &[PricingContext],
+    ) -> Result<Option<Vec<PricingResult>>> {
+        let Some(contexts) = pending.first_chunk::<N>() else {
+            return Ok(None);
+        };
+        let settings = self.settings.sampling;
+        let samples = settings.sample_count();
+        let paths = samples * if settings.antithetic { 2 } else { 1 };
+        let intervals = self.settings.step_count.unsigned_abs() as usize;
+        if intervals < 2 {
+            return Ok(None);
+        }
+        let workspace =
+            if samples.saturating_mul(intervals) > PREFERRED_PATH_WORKSPACE / size_of::<f64>() {
+                reverse_workspace::<N>(settings, paths, samples, intervals, 0)
+            } else {
+                exercise_window::<N>(settings, paths, samples, intervals, 0)
+            };
+        if workspace.is_err() {
+            return Ok(None);
+        }
+        let (prices, seed) = match self.american_spots::<N>(
+            option,
+            std::array::from_fn(|i| &contexts[i]),
+            true,
+            None,
+        ) {
+            Ok(sample) => sample,
+            Err(error @ Error::Io(_)) => return Err(error),
+            Err(_) => return Ok(None),
+        };
+        prices
+            .into_iter()
+            .map(|price| Ok(PricingResult::new(price)?.with_seed(seed)))
+            .collect::<Result<Vec<_>>>()
+            .map(Some)
+    }
+
     #[expect(
         clippy::cast_precision_loss,
         clippy::cast_sign_loss,
@@ -771,6 +904,12 @@ impl MonteCarloVanillaEngine {
                 sigma * dt.sqrt(),
             ]
         });
+        let shared_growth: [usize; N] = std::array::from_fn(|i| {
+            growth[..i]
+                .iter()
+                .position(|previous| previous.map(f64::to_bits) == growth[i].map(f64::to_bits))
+                .unwrap_or(i)
+        });
         let log_discount = parameters.map(|[rate, _, _]| -rate * dt);
         let discount = log_discount.map(f64::exp);
         if growth
@@ -803,8 +942,13 @@ impl MonteCarloVanillaEngine {
                     let spot = growth[0][1].mul_add(coordinate, drifts[0]).exp();
                     initial.map(|scale| scale * spot)
                 } else {
+                    let mut factors = [0.0; N];
                     std::array::from_fn(|i| {
-                        initial[i] * growth[i][1].mul_add(coordinate, drifts[i]).exp()
+                        let source = shared_growth[i];
+                        if source == i {
+                            factors[i] = growth[i][1].mul_add(coordinate, drifts[i]).exp();
+                        }
+                        initial[i] * factors[source]
                     })
                 }
             }
@@ -1149,6 +1293,13 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
             ..settings
         };
         let engine = self.with_resolved_seed()?;
+        let shared = engine.same_time_greek_prices(option, context, request, settings)?;
+        let lookup = |scenario: &PricingContext| {
+            shared
+                .iter()
+                .find(|(key, _)| key == scenario)
+                .map(|(_, result)| result.clone())
+        };
         let spot = context.spot_price();
         let shift = symmetric_shift(spot, settings.spot_shift_at(spot));
         let speed_shift = 2.0 * shift;
@@ -1157,7 +1308,8 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
             && spot > speed_shift
             && symmetric_shift(spot, speed_shift).to_bits() == speed_shift.to_bits()
             && !option.at_spot_discontinuity(context, speed_shift);
-        let batch = if (request.has(Greek::Delta) || request.has(Greek::Gamma) || speed)
+        let batch = if shared.is_empty()
+            && (request.has(Greek::Delta) || request.has(Greek::Gamma) || speed)
             && shift > 0.0
             && spot > shift
             && !option.all_greeks_unavailable(context)
@@ -1178,7 +1330,8 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
             None
         };
         let mut volatility_batch = None;
-        if batch.is_none()
+        if shared.is_empty()
+            && batch.is_none()
             && (request.has(Greek::Vega) || request.has(Greek::Volga))
             && !option.all_greeks_unavailable(context)
         {
@@ -1211,6 +1364,9 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
             }
         }
         let native = |scenario: &PricingContext, requested: GreeksRequest| {
+            if let Some(result) = lookup(scenario) {
+                return Ok(result);
+            }
             let (price, seed) = match batch
                 .as_ref()
                 .or(volatility_batch.as_ref())
@@ -1287,6 +1443,9 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
             native(context, request)?,
             native,
             |high, low, _| {
+                if let Some(prices) = lookup(high).zip(lookup(low)) {
+                    return Ok(Some(prices));
+                }
                 if let Some((_, _, [_, up, down], seed)) = batch
                     .iter()
                     .chain(volatility_batch.iter())
