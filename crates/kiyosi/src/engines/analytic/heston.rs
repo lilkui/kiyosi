@@ -178,9 +178,10 @@ impl AnalyticHestonEuropeanEngine {
     ///
     /// Uses the template's direction and dates. The result preserves input order
     /// and duplicates. The empty batch validates the market and returns an empty
-    /// vector. Dense, evenly spaced log strikes can share one fast Fourier transform
-    /// when the estimated error fits the price tolerances. Other batches share Fourier
-    /// samples across adaptive integration panels. The evaluation budget applies per strike.
+    /// vector. Dense strike batches can share one fast Fourier transform with
+    /// interpolation when the estimated error fits the price tolerances. Other
+    /// quotes share Fourier samples across adaptive integration panels. The
+    /// evaluation budget applies per strike.
     ///
     /// # Errors
     ///
@@ -219,17 +220,19 @@ impl AnalyticHestonEuropeanEngine {
             crate::cancellation::check()?;
             crate::error::finite(strike, true, "strike")?;
         }
-        if let Some(prices) = fft::price_strikes(option, context, model, strikes, self.settings)? {
-            return Ok(prices);
-        }
+        let transformed = fft::price_strikes(option, context, model, strikes, self.settings)?;
         let mut prices = Vec::new();
         prices.try_reserve_exact(strikes.len()).map_err(|_| {
             Error::ComputationFailure("cannot reserve Heston strike batch output".into())
         })?;
         let mut geometry = PanelCache::new();
         let mut panels = BinaryHeap::new();
-        for &strike in strikes {
+        for (index, &strike) in strikes.iter().enumerate() {
             crate::cancellation::check()?;
+            if let Some(price) = transformed.as_ref().and_then(|prices| prices[index]) {
+                prices.push(price);
+                continue;
+            }
             let cache = (strikes.len() > 1).then_some(&mut geometry);
             prices.push(self.price_one(option, context, model, strike, cache, &mut panels)?);
         }

@@ -1914,10 +1914,10 @@ class AnalyticHestonEuropeanEngine(_PricingMethods[EuropeanOption]):
 
         Notes
         -----
-        Dense, evenly spaced log strikes can share a fast Fourier transform.
-        Other batches share transform samples and retain adaptive convergence
-        budgets. Pricing releases the GIL and cancellation returns no partial
-        result.
+        Dense strike batches can share one fast Fourier transform with
+        interpolation. Other quotes share transform samples and retain
+        adaptive convergence budgets. Pricing releases the GIL and
+        cancellation returns no partial result.
         """
 
     def __eq__(self, other: object) -> bool: ...

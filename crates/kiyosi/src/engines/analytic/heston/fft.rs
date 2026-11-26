@@ -25,7 +25,7 @@ pub(super) fn price_strikes(
     model: &HestonParameters,
     strikes: &[f64],
     settings: HestonIntegrationSettings,
-) -> Result<Option<Vec<f64>>> {
+) -> Result<Option<Vec<Option<f64>>>> {
     if !(256..=16_384).contains(&strikes.len())
         || model.vol_of_vol() == 0.0
         || model.initial_variance() == 0.0
@@ -47,34 +47,28 @@ pub(super) fn price_strikes(
     let dividend = model.dividend_curve().log_factor(start, end)?;
     let spot = context.spot_price();
     let moneyness = |strike| context.log_forward_moneyness(end, strike, dividend - risk);
-    let first = moneyness(strikes[0]);
-    let last = moneyness(strikes[strikes.len() - 1]);
-    let step = (last - first) / (strikes.len() - 1) as f64;
-    if !step.is_normal() {
-        return Ok(None);
-    }
     let sign = if option.option_type() == OptionType::Call {
         1.0
     } else {
         -1.0
     };
-    let max_moneyness = first.abs().max(last.abs());
-    let mut phase_error: f64 = 0.0;
+    let mut max_moneyness: f64 = 0.0;
     let mut max_weight: f64 = 0.0;
     let mut quotes = Vec::with_capacity(strikes.len());
-    for (index, &strike) in strikes.iter().enumerate() {
+    for &strike in strikes {
         crate::cancellation::check()?;
         let moneyness = moneyness(strike);
-        let error = ((index as f64).mul_add(step, first) - moneyness).abs();
-        if error > 32.0 * f64::EPSILON * max_moneyness.max(1.0) {
-            return Ok(None);
-        }
-        phase_error = phase_error.max(error);
         let weight = (spot.ln() + dividend).midpoint(strike.ln() + risk).exp() / PI;
         let scale = scaled_cash(spot, dividend).max(scaled_cash(strike, risk));
-        if !weight.is_normal() || !scale.is_normal() {
-            return Ok(None);
+        if !moneyness.is_finite()
+            || moneyness.abs() > 16.0
+            || !weight.is_normal()
+            || !scale.is_normal()
+        {
+            quotes.push(None);
+            continue;
         }
+        max_moneyness = max_moneyness.max(moneyness.abs());
         max_weight = max_weight.max(weight);
         let base = lognormal_price(
             spot,
@@ -85,12 +79,12 @@ pub(super) fn price_strikes(
             1.0,
             sign,
         )?;
-        quotes.push(Quote {
+        quotes.push(Some(Quote {
             moneyness,
             weight,
             base,
             scale,
-        });
+        }));
     }
     let target = settings.absolute_tolerance / (16.0 * max_weight);
     if !(1e-15..1.0).contains(&target) {
@@ -119,17 +113,13 @@ pub(super) fn price_strikes(
         return Ok(None);
     }
 
-    // A chirp convolution evaluates the Fourier sum at exactly the requested
-    // log-strike spacing, without tying that spacing to the frequency step.
-    let len = (count + strikes.len() - 1).next_power_of_two();
+    // Oversampling bounds the interpolation error through the highest retained
+    // frequency. The inverse FFT has the same sign as the pricing transform.
+    let len = 8 * count;
     let mut coefficients = vec![Complex64::default(); len];
-    let mut kernel = vec![Complex64::default(); len];
-    let phase = 0.5 * frequency_step * step;
-    let chirp = |index: usize, direction| {
-        let index = index as f64;
-        Complex64::from_polar(1.0, direction * phase * index * index)
-    };
     let mut absolute = 0.0;
+    let mut derivative = 0.0;
+    let grid_scale = len as f64 / period;
     for (index, coefficient) in coefficients.iter_mut().take(count).enumerate() {
         if index % 256 == 0 {
             crate::cancellation::check()?;
@@ -138,54 +128,80 @@ pub(super) fn price_strikes(
         let weight = if index == 0 { 0.5 } else { 1.0 } * frequency_step;
         let sample =
             characteristic_difference(model, time, variance, u) * (weight / (u * u + 0.25));
-        absolute += sample.norm();
-        *coefficient = sample * Complex64::from_polar(1.0, u * first) * chirp(index, 1.0);
+        let magnitude = sample.norm();
+        absolute += magnitude;
+        derivative += magnitude * (u / grid_scale).powi(16);
+        *coefficient = sample;
     }
-    for (index, value) in kernel.iter_mut().take(strikes.len()).enumerate() {
-        *value = chirp(index, -1.0);
-    }
-    for index in 1..count {
-        kernel[len - index] = chirp(index, -1.0);
-    }
-    let mut planner = FftPlanner::new();
-    let forward = planner.plan_fft_forward(len);
-    let inverse = planner.plan_fft_inverse(len);
-    let mut scratch = vec![
-        Complex64::default();
-        forward
-            .get_inplace_scratch_len()
-            .max(inverse.get_inplace_scratch_len())
-    ];
-    forward.process_with_scratch(&mut coefficients, &mut scratch);
-    forward.process_with_scratch(&mut kernel, &mut scratch);
-    for (coefficient, kernel) in coefficients.iter_mut().zip(kernel) {
-        *coefficient *= kernel;
-    }
-    inverse.process_with_scratch(&mut coefficients, &mut scratch);
+    FftPlanner::new()
+        .plan_fft_inverse(len)
+        .process(&mut coefficients);
     crate::cancellation::check()?;
     let max_u = frequency_step * (count - 1) as f64;
-    let max_chirp = phase.abs() * (count.max(strikes.len()) as f64).powi(2);
-    let roundoff = (phase_error * max_u
-        + 32.0 * f64::EPSILON * (f64::from(len.ilog2()) + max_chirp + max_u * max_moneyness))
-        * absolute;
-    let error = alias_error + tail_error + roundoff;
+    let roundoff =
+        32.0 * f64::EPSILON * (f64::from(len.ilog2()) + max_u * max_moneyness + 16.0) * absolute;
     let mut prices = Vec::with_capacity(strikes.len());
-    for (index, (quote, value)) in quotes.into_iter().zip(coefficients).enumerate() {
+    for quote in quotes {
         crate::cancellation::check()?;
-        let correction = (value * chirp(index, 1.0)).re / len as f64;
+        let Some(quote) = quote else {
+            prices.push(None);
+            continue;
+        };
+        let (correction, remainder, amplification) =
+            interpolate(&coefficients, quote.moneyness * grid_scale);
+        let error = alias_error + tail_error + roundoff * amplification + derivative * remainder;
         let price = quote.base + quote.weight * correction;
         let tolerance = settings.absolute_tolerance + settings.relative_tolerance * price.abs();
         if !error.is_finite()
             || !price.is_finite()
             || (error * quote.weight) > 0.25 * tolerance
-            || quote.moneyness.abs() > 16.0
             || price < 0.0
         {
-            return Ok(None);
+            prices.push(None);
+        } else {
+            prices.push(Some(checked_with_scale(price, quote.scale)?));
         }
-        prices.push(checked_with_scale(price, quote.scale)?);
     }
     Ok(Some(prices))
+}
+
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_precision_loss,
+    reason = "The transform limits positions and indices to fewer than 2^18 grid points."
+)]
+fn interpolate(values: &[Complex64], position: f64) -> (f64, f64, f64) {
+    // Alternating binomial coefficients give the barycentric weights for 16
+    // equally spaced nodes. The remainder is the nodal product divided by 16!.
+    const WEIGHTS: [f64; 16] = [
+        1.0, -15.0, 105.0, -455.0, 1365.0, -3003.0, 5005.0, -6435.0, 6435.0, -5005.0, 3003.0,
+        -1365.0, 455.0, -105.0, 15.0, -1.0,
+    ];
+    let center = position.floor();
+    let fraction = position - center;
+    let index = (center as isize).rem_euclid(values.len() as isize) as usize;
+    if fraction == 0.0 {
+        return (values[index].re, 0.0, 1.0);
+    }
+    let mut numerator = 0.0;
+    let mut denominator = 0.0;
+    let mut absolute = 0.0;
+    let mut product = 1.0;
+    for (i, weight) in WEIGHTS.into_iter().enumerate() {
+        let distance = fraction + (7.0 - i as f64);
+        let barycentric = weight / distance;
+        let sample = values[(index + values.len() - 7 + i) & (values.len() - 1)].re;
+        numerator += barycentric * sample;
+        denominator += barycentric;
+        absolute += barycentric.abs();
+        product *= distance;
+    }
+    (
+        numerator / denominator,
+        product.abs() / 20_922_789_888_000.0,
+        absolute / denominator.abs(),
+    )
 }
 
 fn tail_bound(model: &HestonParameters, time: f64, variance: f64, limit: f64) -> f64 {
@@ -211,7 +227,7 @@ mod tests {
     use crate::{AnalyticHestonEuropeanEngine, Date, HestonParameterInputs};
 
     #[test]
-    fn dense_log_strikes_use_fft_and_meet_scalar_tolerance() -> Result<()> {
+    fn dense_irregular_strikes_use_fft_and_isolate_outliers() -> Result<()> {
         let start = Date::new(2025, 1, 1)?.start_of_day();
         let end = start.add_days(365)?;
         let model = HestonParameters::new(HestonParameterInputs {
@@ -226,14 +242,25 @@ mod tests {
         let market = PricingContext::new(model.clone(), 100.0, start)?;
         let engine = AnalyticHestonEuropeanEngine::default();
         let settings = engine.settings();
-        let strikes: Vec<_> = (0..512)
-            .map(|index| 60.0 * ((160.0_f64 / 60.0).ln() * f64::from(index) / 511.0).exp())
+        let mut strikes: Vec<_> = (0..512)
+            .map(|index| {
+                let i = f64::from(index * 173 % 512);
+                60.0 * ((160.0_f64 / 60.0).ln() * i / 511.0).exp() + 0.012 * i.sin()
+            })
             .collect();
+        strikes.insert(30, 1e12);
+        strikes.push(strikes[0]);
         for direction in [OptionType::Call, OptionType::Put] {
             let option = EuropeanOption::new(direction, 100.0, start, end)?;
             let actual = price_strikes(&option, &market, &model, &strikes, settings)?
-                .expect("regular strikes and ordinary Heston inputs use the transform");
-            for (value, &strike) in actual.into_iter().zip(&strikes) {
+                .expect("dense strikes and ordinary Heston inputs use the transform");
+            assert!(actual[30].is_none());
+            assert_eq!(actual[0].map(f64::to_bits), actual[513].map(f64::to_bits));
+            for (index, (value, &strike)) in actual.into_iter().zip(&strikes).enumerate() {
+                if index == 30 {
+                    continue;
+                }
+                let value = value.expect("ordinary quotes meet the transform error budget");
                 let scalar = engine.price(
                     &EuropeanOption::new(direction, strike, start, end)?,
                     &market,

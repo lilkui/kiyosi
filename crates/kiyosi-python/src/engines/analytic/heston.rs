@@ -99,10 +99,10 @@ engine_methods!(
         ///
         /// Notes
         /// -----
-        /// Dense, evenly spaced log strikes can share a fast Fourier transform.
-        /// Other batches share transform samples and retain adaptive convergence
-        /// budgets. Pricing releases the GIL and cancellation returns no partial
-        /// result.
+        /// Dense strike batches can share one fast Fourier transform with
+        /// interpolation. Other quotes share transform samples and retain
+        /// adaptive convergence budgets. Pricing releases the GIL and
+        /// cancellation returns no partial result.
         #[pyo3(signature = (instrument, context, *, strikes))]
         #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns the extracted inputs before core pricing.")]
         fn price_strikes<'py>(
