@@ -43,6 +43,15 @@ def native_barrier_controls(
     )
 
 
+def heston_strike_batch(option: EuropeanOption, context: PricingContext) -> None:
+    assert_type(
+        FiniteDifferenceHestonVanillaEngine().price_strikes(
+            option, context, strikes=iter([90, 100, 110])
+        ),
+        tuple[float, ...],
+    )
+
+
 def common_controls(option: EuropeanOption, context: PricingContext) -> None:
     for engine in (
         AnalyticEuropeanEngine(),

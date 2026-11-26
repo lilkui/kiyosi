@@ -16,6 +16,41 @@ fn dates() -> (Timestamp, Timestamp) {
 }
 
 #[test]
+fn heston_strike_batches_match_independent_prices_in_input_order() -> kiyosi::Result<()> {
+    let (start, end) = dates();
+    let market = context(0.3, -0.7);
+    let engine = FiniteDifferenceHestonVanillaEngine::default();
+    let call = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let put = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let strikes = [110.0, 90.0, 100.0, 90.0];
+    let calls = engine.price_european_strikes(&call, &market, &strikes)?;
+    let puts = engine.price_american_strikes(&put, &market, &strikes)?;
+    for ((strike, actual_call), actual_put) in strikes.into_iter().zip(calls).zip(puts) {
+        let call = EuropeanOption::new(OptionType::Call, strike, start, end)?;
+        let put = AmericanOption::new(OptionType::Put, strike, start, end)?;
+        let reference = AnalyticHestonEuropeanEngine::default().price(&call, &market)?;
+        assert!(
+            (actual_call - reference).abs() < 2e-3,
+            "{strike}: {actual_call} != {reference}"
+        );
+        let reference = engine.price(&put, &market)?;
+        assert!(
+            (actual_put - reference).abs() < 2e-4,
+            "{strike}: {actual_put} != {reference}"
+        );
+    }
+    assert_eq!(
+        engine.price_european_strikes(&call, &market, &[])?,
+        Vec::<f64>::new()
+    );
+    assert!(matches!(
+        engine.price_european_strikes(&call, &market, &[90.0, 0.0]),
+        Err(Error::InvalidInput(_))
+    ));
+    Ok(())
+}
+
+#[test]
 fn absorbing_heston_preserves_quoted_forward_payoffs() -> kiyosi::Result<()> {
     use kiyosi::{FiniteDifferenceEngine, HestonParameterInputs, PricingContextChanges};
 

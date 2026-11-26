@@ -1,7 +1,7 @@
 use crate::conversions::integer;
 use crate::engines::binomial;
 use crate::error::domain;
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyTuple};
 
 /// Finite-difference prices for European and American options under Heston.
 ///
@@ -130,6 +130,58 @@ engine_methods!(
             #[pyo3(from_py_with = super::solution::spot_range)] spot_range: std::ops::RangeInclusive<f64>,
         ) -> pyo3::PyResult<super::solution::FiniteDifferenceSolution> {
             binomial::with_vanilla!(&instrument, option, super::solution::solve(py, &self.0, option, context, spot_range))
+        }
+
+        /// Price European or American vanilla options across strikes.
+        ///
+        /// Parameters
+        /// ----------
+        /// instrument : EuropeanOption or AmericanOption
+        ///     Template supplying the option type, exercise style and dates.
+        /// context : PricingContext
+        ///     Fixed Heston market and valuation time.
+        /// strikes : iterable of float
+        ///     Finite positive strikes. Empty input is valid.
+        ///
+        /// Returns
+        /// -------
+        /// tuple of float
+        ///     Prices in strike order, preserving duplicates.
+        ///
+        /// Raises
+        /// ------
+        /// KiyosiError
+        ///     If applicability, contract, strike, coverage or numerical checks fail.
+        /// TypeError, ValueError, OverflowError
+        ///     If an input representation is invalid.
+        ///
+        /// Notes
+        /// -----
+        /// The automatic asset domain shares one rollback over the full
+        /// spot-to-strike range. Explicit asset bounds apply to each scalar price.
+        /// Check mesh convergence over the full range. Pricing releases the GIL
+        /// and cancellation returns no partial result.
+        #[pyo3(signature = (instrument, context, *, strikes))]
+        #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns the extracted inputs before core pricing.")]
+        fn price_strikes<'py>(
+            &self,
+            py: Python<'py>,
+            #[pyo3(from_py_with = crate::conversions::instrument)] instrument: binomial::VanillaInstrument<'_>,
+            context: &crate::market::PricingContext,
+            #[pyo3(from_py_with = crate::conversions::reals)] strikes: Vec<f64>,
+        ) -> PyResult<Bound<'py, PyTuple>> {
+            let context = &context.0;
+            let values = match &instrument {
+                binomial::VanillaInstrument::European(option) => {
+                    let option = &option.0;
+                    crate::cancellation::run(py, || self.0.price_european_strikes(option, context, &strikes))
+                }
+                binomial::VanillaInstrument::American(option) => {
+                    let option = &option.0;
+                    crate::cancellation::run(py, || self.0.price_american_strikes(option, context, &strikes))
+                }
+            }?;
+            crate::conversions::python_tuple(py, domain(values)?, Ok)
         }
 
         #[classattr]

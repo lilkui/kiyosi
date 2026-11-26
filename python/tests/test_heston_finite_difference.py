@@ -25,6 +25,37 @@ from kiyosi.pricing import (
 from test_heston import END, START, context, model, option, reference
 
 
+def test_heston_strike_batches_match_independent_prices_in_input_order():
+    engine = FiniteDifferenceHestonVanillaEngine()
+    market = context(model())
+    strikes = (110, 90, 100, 90)
+    call = option(option_type="call")
+    put = AmericanOption(
+        option_type="put", strike=100, effective_time=START, expiry_time=END
+    )
+    for contract in (call, put):
+        prices = engine.price_strikes(contract, market, strikes=iter(strikes))
+        if isinstance(contract, AmericanOption):
+            expected = tuple(
+                engine.price(contract.replace(strike=strike), market)
+                for strike in strikes
+            )
+            tolerance = 2e-4
+        else:
+            analytic = AnalyticHestonEuropeanEngine()
+            expected = tuple(
+                analytic.price(contract.replace(strike=strike), market)
+                for strike in strikes
+            )
+            tolerance = 2e-3
+        assert prices == pytest.approx(expected, abs=tolerance, rel=0)
+    assert engine.price_strikes(call, market, strikes=[]) == ()
+    with pytest.raises(InvalidInputError):
+        engine.price_strikes(call, market, strikes=(90, 0))
+    with pytest.raises(TypeError):
+        engine.price_strikes(call, market, strikes=(90, True))
+
+
 @pytest.mark.parametrize(
     ("days", "spot", "tolerance"), [(1, 100.0, 1.5e-5), (365, 96.0, 3.5e-4)]
 )

@@ -174,6 +174,82 @@ impl FiniteDifferenceHestonVanillaEngine {
     pub fn settings(&self) -> HestonFiniteDifferenceSettings {
         self.settings
     }
+
+    /// Prices European vanilla options across strikes using the template's direction and dates.
+    ///
+    /// The result preserves input order and duplicates. The automatic domain covers
+    /// the entire spot-to-strike range in a single rollback. Explicit asset domains
+    /// use individual prices so their absolute bounds apply to every strike.
+    /// Check convergence with mesh refinement across the full range.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kiyosi::{Date, EuropeanOption, FiniteDifferenceHestonVanillaEngine,
+    ///     HestonParameterInputs, HestonParameters, OptionType, PricingContext};
+    ///
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let end = Date::new(2026, 1, 1)?.start_of_day();
+    /// let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    /// let model = HestonParameters::new(HestonParameterInputs {
+    ///     risk_free_rate: 0.05.into(),
+    ///     dividend_yield: 0.02.into(),
+    ///     initial_variance: 0.04,
+    ///     long_run_variance: 0.04,
+    ///     mean_reversion_speed: 1.5,
+    ///     vol_of_vol: 0.3,
+    ///     correlation: -0.7,
+    /// })?;
+    /// let market = PricingContext::new(model, 100.0, start)?;
+    /// let prices = FiniteDifferenceHestonVanillaEngine::default()
+    ///     .price_european_strikes(&option, &market, &[90.0, 110.0])?;
+    /// assert!(prices[0] > prices[1]);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Propagates scalar pricing errors for the supplied strikes and returns
+    /// [`crate::Error::InvalidInput`] if a strike is nonpositive or non-finite.
+    /// An error or cancellation returns no partial prices.
+    pub fn price_european_strikes(
+        &self,
+        template: &EuropeanOption,
+        context: &PricingContext,
+        strikes: &[f64],
+    ) -> Result<Vec<f64>> {
+        price_strikes(
+            template,
+            context,
+            Payoff::vanilla(template.option_type(), template.strike(), false),
+            self.settings,
+            strikes,
+        )
+    }
+
+    /// Prices American vanilla options across strikes using the template's direction and dates.
+    ///
+    /// Uses the batch semantics of [`Self::price_european_strikes`] with early exercise.
+    ///
+    /// # Errors
+    ///
+    /// Propagates the validation and pricing errors of [`Self::price_european_strikes`].
+    pub fn price_american_strikes(
+        &self,
+        template: &AmericanOption,
+        context: &PricingContext,
+        strikes: &[f64],
+    ) -> Result<Vec<f64>> {
+        price_strikes(
+            template,
+            context,
+            Payoff::vanilla(template.option_type(), template.strike(), true),
+            self.settings,
+            strikes,
+        )
+    }
 }
 
 macro_rules! pricing {
@@ -267,6 +343,55 @@ fn price(
     settings: HestonFiniteDifferenceSettings,
 ) -> Result<f64> {
     prepare(option, context, payoff, settings, context.spot_price())?.price(option, context)
+}
+
+fn price_strikes(
+    option: &impl OptionContract,
+    context: &PricingContext,
+    payoff: Payoff,
+    settings: HestonFiniteDifferenceSettings,
+    strikes: &[f64],
+) -> Result<Vec<f64>> {
+    let model = context.model_parameters().as_heston()?;
+    validate_life(option, context)?;
+    context.validate_curve_coverage(option.expiry_time())?;
+    let spot = context.spot_price();
+    let mut low = f64::INFINITY;
+    let mut high = 0.0_f64;
+    let mut share = settings.asset_upper_boundary.is_none()
+        && strikes.len() > 1
+        && context.valuation_time() < option.expiry_time()
+        && (model.initial_variance() > 0.0
+            || (model.mean_reversion_speed() > 0.0 && model.long_run_variance() > 0.0));
+    for &strike in strikes {
+        crate::cancellation::check()?;
+        crate::error::finite(strike, true, "strike")?;
+        let ratio = payoff.strike / strike;
+        let normalized = spot * ratio;
+        share &= normalized.is_normal() && ratio.is_normal() && ratio.recip().is_normal();
+        low = low.min(normalized);
+        high = high.max(normalized);
+    }
+    if !share {
+        return strikes
+            .iter()
+            .map(|&strike| {
+                crate::cancellation::check()?;
+                price(option, context, Payoff { strike, ..payoff }, settings)
+            })
+            .collect();
+    }
+    let anchor = super::solution::at_spot(context, high)?;
+    let state = prepare(option, &anchor, payoff, settings, low)?;
+    strikes
+        .iter()
+        .map(|&strike| {
+            crate::cancellation::check()?;
+            let ratio = payoff.strike / strike;
+            let query = super::solution::at_spot(context, spot * ratio)?;
+            crate::numerics::checked(state.price(option, &query)? / ratio)
+        })
+        .collect()
 }
 
 fn prepare(

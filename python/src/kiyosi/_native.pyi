@@ -3245,6 +3245,44 @@ class FiniteDifferenceHestonVanillaEngine(
     with independent state.
     """
 
+    def price_strikes(
+        self,
+        instrument: EuropeanOption | AmericanOption,
+        context: PricingContext,
+        *,
+        strikes: Iterable[_Real],
+    ) -> tuple[float, ...]:
+        """Price European or American vanilla options across strikes.
+
+        Parameters
+        ----------
+        instrument : EuropeanOption or AmericanOption
+            Template supplying the option type, exercise style and dates.
+        context : PricingContext
+            Fixed Heston market and valuation time.
+        strikes : iterable of float
+            Finite positive strikes. Empty input is valid.
+
+        Returns
+        -------
+        tuple of float
+            Prices in strike order, preserving duplicates.
+
+        Raises
+        ------
+        KiyosiError
+            If applicability, contract, strike, coverage or numerical checks fail.
+        TypeError, ValueError, OverflowError
+            If an input representation is invalid.
+
+        Notes
+        -----
+        The automatic asset domain shares one rollback over the full
+        spot-to-strike range. Explicit asset bounds apply to each scalar price.
+        Check mesh convergence over the full range. Pricing releases the GIL
+        and cancellation returns no partial result.
+        """
+
     def solve(
         self,
         instrument: EuropeanOption | AmericanOption,
