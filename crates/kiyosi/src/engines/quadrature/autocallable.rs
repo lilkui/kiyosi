@@ -1,6 +1,6 @@
 use super::gaussian::{
-    CubicInterpolation, Layer, TerminalPiece, TransitionCache, integrate_terminal,
-    integration_nodes,
+    CubicInterpolation, CubicPiece, Layer, TerminalPiece, TransitionCache, integrate_cubics,
+    integrate_terminal, integration_nodes,
 };
 use super::{QuadratureSettings, flat_rates};
 use crate::instruments::autocallable::ObservationEvent;
@@ -136,6 +136,7 @@ struct PreparedCurve<T: AutocallableTerms> {
     knocked_in: bool,
     nodes: Vec<f64>,
     curve: Layer,
+    split: Vec<CubicPiece>,
     drift: f64,
     deviation: f64,
     discount: f64,
@@ -204,49 +205,110 @@ fn terminal<T: AutocallableTerms>(
         })
         .collect()
 }
-fn apply_event<T: AutocallableTerms>(
-    note: &AutocallableNote<T>,
-    date: Timestamp,
-    nodes: &[f64],
-    alive: &mut Layer,
-    knocked: Option<&Layer>,
-) {
-    let t = note.view();
-    let anchor = t.reference_spot();
-    let record = note.event_at(date);
-    let amount = record.map_or(0.0, |_| note.period_coupon());
-    let coupon = |point: f64| {
-        record
-            .filter(|r| {
-                r.coupon_barrier_level()
-                    .is_some_and(|level| level == 0.0 || point >= log_ratio(level, anchor))
-            })
-            .map_or(0.0, |_| amount)
-    };
-    if let Some(r) = record.filter(|r| r.has_knock_out()) {
-        alive.exact[1].cash = note.knock_out_payment(r);
-    }
-    alive.exact[1].cash += coupon(f64::INFINITY);
-    if let Some(knocked) = knocked {
-        alive.exact[0].cash = knocked.exact[0].cash;
-        alive.exact[0].asset = knocked.exact[0].asset;
-    }
-    alive.exact[0].cash += coupon(f64::NEG_INFINITY);
-    for (i, cell) in alive.cells.iter_mut().enumerate() {
-        let point = nodes[i].midpoint(nodes[i + 1]);
-        if let Some(r) =
-            record.filter(|r| r.has_knock_out() && point > log_ratio(r.knock_out_level(), anchor))
-        {
-            *cell = [note.knock_out_payment(r), 0.0, 0.0, 0.0];
-        } else if let Some(knocked) = knocked.filter(|_| {
-            t.knock_in
-                .is_some_and(|ki| point < log_ratio(ki.level, anchor))
-        }) {
-            *cell = knocked.cells[i];
+struct Event {
+    knock_in: Option<f64>,
+    knock_out: Option<f64>,
+    coupon: Option<f64>,
+    redemption: f64,
+    amount: f64,
+}
+
+impl Event {
+    fn new<T: AutocallableTerms>(
+        note: &AutocallableNote<T>,
+        record: Option<&ObservationEvent>,
+        has_knock_in: bool,
+    ) -> Self {
+        let terms = note.view();
+        let anchor = terms.reference_spot();
+        let knock_out = record.filter(|r| r.has_knock_out());
+        Self {
+            knock_in: has_knock_in
+                .then_some(terms.knock_in)
+                .flatten()
+                .map(|ki| log_ratio(ki.level, anchor)),
+            knock_out: knock_out.map(|r| log_ratio(r.knock_out_level(), anchor)),
+            coupon: record
+                .and_then(ObservationEvent::coupon_barrier_level)
+                .map(|level| log_ratio(level, anchor)),
+            redemption: knock_out.map_or(0.0, |r| note.knock_out_payment(r)),
+            amount: note.period_coupon(),
         }
-        cell[0] += coupon(point);
+    }
+
+    fn breaks(&self) -> [Option<f64>; 3] {
+        [self.knock_in, self.knock_out, self.coupon]
+    }
+
+    fn coupon_at(&self, point: f64) -> f64 {
+        if self.coupon.is_some_and(|level| point >= level) {
+            self.amount
+        } else {
+            0.0
+        }
+    }
+
+    fn apply(
+        &self,
+        nodes: &[f64],
+        alive: &mut Layer,
+        knocked: Option<&Layer>,
+        pieces: &mut Vec<CubicPiece>,
+    ) {
+        pieces.clear();
+        if self.knock_out.is_some() {
+            alive.exact[1].cash = self.redemption;
+        }
+        alive.exact[1].cash += self.coupon_at(f64::INFINITY);
+        if self.knock_in.is_some() {
+            let knocked = knocked.expect("daily knock-in uses its continuation layer");
+            alive.exact[0].cash = knocked.exact[0].cash;
+            alive.exact[0].asset = knocked.exact[0].asset;
+        }
+        alive.exact[0].cash += self.coupon_at(f64::NEG_INFINITY);
+        let mut breaks = self.breaks().map(|level| level.unwrap_or(f64::INFINITY));
+        breaks.sort_unstable_by(f64::total_cmp);
+        for (i, cell) in alive.cells.iter_mut().enumerate() {
+            let [left, right] = [nodes[i], nodes[i + 1]];
+            let polynomial = |lower, upper| {
+                let mut value = if self.knock_out.is_some_and(|level| lower >= level) {
+                    [self.redemption, 0.0, 0.0, 0.0]
+                } else if self.knock_in.is_some_and(|level| upper <= level) {
+                    knocked
+                        .expect("daily knock-in uses its continuation layer")
+                        .cells[i]
+                } else {
+                    *cell
+                };
+                value[0] += self.coupon_at(lower);
+                value
+            };
+            if breaks.iter().any(|&cut| left < cut && cut < right) {
+                let mut last = left;
+                for end in breaks
+                    .into_iter()
+                    .filter(|&cut| left < cut && cut < right)
+                    .chain([right])
+                {
+                    if last < end {
+                        pieces.push(CubicPiece::restricted(
+                            [last, end],
+                            [left, right],
+                            polynomial(last, end),
+                        ));
+                        last = end;
+                    }
+                }
+                // Exclude the whole split cell from the FFT to avoid subtracting
+                // large nearly equal contributions at the price tails.
+                *cell = [0.0; 4];
+            } else {
+                *cell = polynomial(left, right);
+            }
+        }
     }
 }
+
 fn price<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
     context: &PricingContext,
@@ -277,17 +339,15 @@ fn price<T: AutocallableTerms>(
         note.view().daily_knock_in() && !state.knocked_in && note.knock_in_affects_payoff();
     let t = note.view();
     let anchor = t.reference_spot();
-    let evaluate = |nodes: &[f64], curve: &Layer, drift, deviation, discount| {
-        let value = finite_price(curve.evaluate(
-            nodes,
-            log_ratio(context.spot_price(), anchor),
-            anchor,
-            drift,
-            deviation,
-            discount,
-        ))?;
-        finite_price(state.coupon + value)
-    };
+    let evaluate =
+        |nodes: &[f64], curve: &Layer, split: &[CubicPiece], drift, deviation, discount| {
+            let current = log_ratio(context.spot_price(), anchor);
+            let value = finite_price(
+                curve.evaluate(nodes, current, anchor, drift, deviation, discount)
+                    + integrate_cubics(split, current + drift, deviation, discount),
+            )?;
+            finite_price(state.coupon + value)
+        };
     if let Some(curve) = prepared.as_deref().and_then(Option::as_ref).filter(|c| {
         c.option == *note
             && context
@@ -299,6 +359,7 @@ fn price<T: AutocallableTerms>(
         return evaluate(
             &curve.nodes,
             &curve.curve,
+            &curve.split,
             curve.drift,
             curve.deviation,
             curve.discount,
@@ -334,7 +395,30 @@ fn price<T: AutocallableTerms>(
     let horizon = context.valuation_time().years_until(note.expiry_time());
     let transition = |time| super::transition(time, drift_rate, sigma, rate);
     let expiry_event = note.event_at(note.expiry_time());
-    let terminal = terminal(note, expiry_event, &breaks, state.knocked_in);
+    let mut terminal_breaks: Vec<_> = Event::new(
+        note,
+        expiry_event,
+        note.observes_knock_in(note.expiry_time()),
+    )
+    .breaks()
+    .into_iter()
+    .flatten()
+    .filter(|level| level.is_finite())
+    .chain(t.downside().into_iter().flat_map(|downside| {
+        [downside.lower_strike, downside.upper_strike]
+            .into_iter()
+            .filter(|&strike| strike > 0.0)
+            .map(|strike| log_ratio(strike, anchor))
+    }))
+    .collect();
+    terminal_breaks.sort_unstable_by(f64::total_cmp);
+    terminal_breaks.dedup();
+    let terminal_breaks = if breaks.len() <= 16 {
+        &breaks
+    } else {
+        &terminal_breaks
+    };
+    let terminal = terminal(note, expiry_event, terminal_breaks, state.knocked_in);
     if dates.len() == 1 {
         let (drift, deviation, discount) = transition(horizon)?;
         return finite_price(
@@ -355,11 +439,17 @@ fn price<T: AutocallableTerms>(
     let lower = 0.0_f64.min(breaks[0]) - drift_extent - extent;
     let upper = 0.0_f64.max(breaks[breaks.len() - 1]) + drift_extent + extent;
     let layer_count = 1 + usize::from(layers);
+    // Retain familiar small grids. Large ladders use only per-event split cells.
+    let grid_breaks = if breaks.len() <= 16 {
+        breaks.as_slice()
+    } else {
+        &[]
+    };
     let nodes = integration_nodes(
         lower,
         upper,
         settings.asset_step_count,
-        &breaks,
+        grid_breaks,
         layer_count,
     )?;
     let mut transitions = TransitionCache::new(
@@ -368,10 +458,18 @@ fn price<T: AutocallableTerms>(
         layer_count,
         settings.asset_step_count,
     )?;
-    transitions.validate_scheduled_work(&nodes, &dates, layer_count, terminal.len(), transition)?;
+    transitions.validate_scheduled_work(
+        &nodes,
+        &dates,
+        layer_count,
+        terminal.len(),
+        // At most six pieces from one knock-in, one knock-out and one coupon.
+        dates.len().saturating_mul(6),
+        transition,
+    )?;
     let interpolation = CubicInterpolation::new(&nodes);
     let terminal_in = if layers {
-        self::terminal(note, expiry_event, &breaks, true)
+        self::terminal(note, expiry_event, terminal_breaks, true)
     } else {
         Vec::new()
     };
@@ -394,19 +492,29 @@ fn price<T: AutocallableTerms>(
     };
     let mut alive = layer(&terminal);
     let mut knocked = layer(&terminal_in);
+    let mut split_alive = Vec::with_capacity(6);
+    let mut split_knocked = Vec::with_capacity(4);
+    let mut values = vec![0.0; nodes.len()];
+    let mut values_in = vec![0.0; if layers { nodes.len() } else { 0 }];
     for index in (0..dates.len()).rev() {
         crate::cancellation::check()?;
         let final_event = index == dates.len() - 1;
         if !final_event {
-            apply_event(
-                note,
-                dates[index],
+            let record = note.event_at(dates[index]);
+            let daily_knock_in = layers && note.daily_time(dates[index], note.calendar());
+            Event::new(note, record, daily_knock_in).apply(
                 &nodes,
                 &mut alive,
-                (layers && note.daily_time(dates[index], note.calendar())).then_some(&knocked),
+                daily_knock_in.then_some(&knocked),
+                &mut split_alive,
             );
             if layers {
-                apply_event(note, dates[index], &nodes, &mut knocked, None);
+                Event::new(note, record, false).apply(
+                    &nodes,
+                    &mut knocked,
+                    None,
+                    &mut split_knocked,
+                );
             }
         }
         let time = if index == 0 {
@@ -416,7 +524,7 @@ fn price<T: AutocallableTerms>(
         };
         let (drift, deviation, discount) = transition(time)?;
         if index == 0 {
-            let value = evaluate(&nodes, &alive, drift, deviation, discount)?;
+            let value = evaluate(&nodes, &alive, &split_alive, drift, deviation, discount)?;
             if let Some(prepared) = prepared {
                 *prepared = Some(PreparedCurve {
                     option: note.clone(),
@@ -425,6 +533,7 @@ fn price<T: AutocallableTerms>(
                     knocked_in: state.knocked_in,
                     nodes,
                     curve: alive,
+                    split: split_alive,
                     drift,
                     deviation,
                     discount,
@@ -432,8 +541,6 @@ fn price<T: AutocallableTerms>(
             }
             return Ok(value);
         }
-        let mut values = vec![0.0; nodes.len()];
-        let mut values_in = vec![0.0; if layers { nodes.len() } else { 0 }];
         if final_event {
             for (i, &node) in nodes.iter().enumerate() {
                 values[i] = integrate_terminal(&terminal, node, anchor, drift, deviation, discount);
@@ -450,16 +557,18 @@ fn price<T: AutocallableTerms>(
             }
             for (i, &node) in nodes.iter().enumerate() {
                 values[i] +=
-                    integrate_terminal(&alive.exact, node, anchor, drift, deviation, discount);
+                    integrate_terminal(&alive.exact, node, anchor, drift, deviation, discount)
+                        + integrate_cubics(&split_alive, node + drift, deviation, discount);
                 if layers {
-                    values_in[i] += integrate_terminal(
-                        &knocked.exact,
-                        node,
-                        anchor,
-                        drift,
-                        deviation,
-                        discount,
-                    );
+                    values_in[i] +=
+                        integrate_terminal(
+                            &knocked.exact,
+                            node,
+                            anchor,
+                            drift,
+                            deviation,
+                            discount,
+                        ) + integrate_cubics(&split_knocked, node + drift, deviation, discount);
                 }
             }
         }

@@ -571,7 +571,7 @@ fn scheduled_price(
     let terminal_pieces = usize::from(dates.last() == Some(&option.expiry_time()));
     let mut transitions =
         TransitionCache::new(&nodes, nodes.capacity(), 1, settings.asset_step_count)?;
-    transitions.validate_scheduled_work(&nodes, &dates, 1, terminal_pieces, transition)?;
+    transitions.validate_scheduled_work(&nodes, &dates, 1, terminal_pieces, 0, transition)?;
     let interpolation = CubicInterpolation::new(&nodes);
     let mut values = vec![0.0; nodes.len()];
     for event in (0..dates.len()).rev() {

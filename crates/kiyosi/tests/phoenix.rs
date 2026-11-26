@@ -881,3 +881,47 @@ fn each_schedule_validates_order_life_calendar_and_replacement_atomically() {
         assert_eq!(note.terms(), &terms());
     }
 }
+
+#[test]
+fn dense_coupon_ladder_uses_only_current_barriers_in_quadrature() -> Result<()> {
+    let start = date(1, 1);
+    let end = start.add_days(360)?;
+    let mut input = terms();
+    input.expiry_time = end;
+    input.coupon_per_period = 0.002;
+    input.knock_in_level = 75.0;
+    input.lower_strike = 50.0;
+    input.calendar = TradingCalendar::all_days();
+    input.knock_in_observation = KnockInObservation::EveryTradingDay {
+        observation_clock_time: start.time_of_day(),
+    };
+    input.knock_out_observations = [120, 240, 360]
+        .into_iter()
+        .map(|day| KnockOutObservation::new(start.add_days(day)?, 110.0))
+        .collect::<Result<_>>()?;
+    input.coupon_observations = (1_i32..=30)
+        .map(|index| {
+            CouponObservation::new(
+                start.add_days(12 * i64::from(index))?,
+                85.25 + 0.6 * f64::from((index - 1) % 13),
+            )
+        })
+        .collect::<Result<_>>()?;
+    let note = PhoenixOption::new(input)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.04, 0.01, 0.25)?,
+        100.0,
+        start,
+    )?;
+    let engine = QuadratureAutocallableEngine::new(QuadratureSettings {
+        asset_step_count: 2560,
+        ..Default::default()
+    })?;
+    let value = engine.price(&note, &context)?;
+    let reference = FiniteDifferenceAutocallableEngine::default().price(&note, &context)?;
+    assert!(
+        (value - reference).abs() < 2e-4,
+        "quadrature {value}, finite difference {reference}"
+    );
+    Ok(())
+}

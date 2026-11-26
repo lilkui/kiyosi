@@ -247,7 +247,7 @@ fn price(
     let terminal_pieces = layers[0].exact.len().max(layers[1].exact.len());
     let mut transitions =
         TransitionCache::new(&nodes, nodes.capacity(), count, settings.asset_step_count)?;
-    transitions.validate_scheduled_work(&nodes, &dates, count, terminal_pieces, transition)?;
+    transitions.validate_scheduled_work(&nodes, &dates, count, terminal_pieces, 0, transition)?;
     let interpolation = CubicInterpolation::new(&nodes);
     let mut continuation: [Vec<Polynomial>; 2] = Default::default();
     let mut next_knock_out = None;

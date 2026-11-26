@@ -90,6 +90,51 @@ pub(super) fn integrate_terminal(
 
 pub(super) type Polynomial = [f64; 4];
 
+pub(super) struct CubicPiece {
+    pub bounds: [f64; 2],
+    pub coefficients: Polynomial,
+}
+
+impl CubicPiece {
+    pub fn restricted(
+        bounds: [f64; 2],
+        [left, right]: [f64; 2],
+        [constant, linear, quadratic, cubic]: Polynomial,
+    ) -> Self {
+        let width = right - left;
+        let offset = (bounds[0] - left) / width;
+        let ratio = (bounds[1] - bounds[0]) / width;
+        Self {
+            bounds,
+            coefficients: [
+                constant + offset * (linear + offset * (quadratic + offset * cubic)),
+                ratio * (linear + offset * (2.0 * quadratic + 3.0 * offset * cubic)),
+                ratio * ratio * (quadratic + 3.0 * offset * cubic),
+                ratio * ratio * ratio * cubic,
+            ],
+        }
+    }
+}
+
+pub(super) fn integrate_cubics(
+    pieces: &[CubicPiece],
+    mean: f64,
+    deviation: f64,
+    discount: f64,
+) -> f64 {
+    let mut total = Sum::default();
+    let radius = 56.0 * deviation;
+    for piece in pieces {
+        let [left, right] = piece.bounds;
+        if left < mean + radius && right > mean - radius {
+            let weighted =
+                cell_moments(left, right, mean, deviation).integrate(&piece.coefficients);
+            total.add(scaled_signed_cash(weighted, discount));
+        }
+    }
+    total.total()
+}
+
 #[derive(Default)]
 pub(super) struct Layer {
     pub cells: Vec<Polynomial>,
@@ -527,11 +572,13 @@ impl TransitionCache {
         dates: &[Timestamp],
         layers: usize,
         terminal_pieces: usize,
+        split_pieces: usize,
         transition: impl Fn(f64) -> Result<(f64, f64, f64)>,
     ) -> Result<()> {
         let visits = dates
             .len()
-            .saturating_add(terminal_pieces.saturating_sub(1));
+            .saturating_add(terminal_pieces.saturating_sub(1))
+            .saturating_add(split_pieces);
         let mut work = remaining_rollback_work(nodes, layers, visits)?;
         let mut last = None;
         // A terminal payoff with exact pieces does not integrate interpolated cells.

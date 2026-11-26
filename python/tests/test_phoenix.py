@@ -1152,3 +1152,29 @@ def test_each_schedule_validates_order_life_calendar_and_atomic_replacement(time
         with pytest.raises(InvalidInputError):
             note.replace(**changes)
         assert note == contract()
+
+
+def test_dense_coupon_ladder_uses_only_current_barriers_in_quadrature():
+    end = START + timedelta(days=360)
+    note = contract(
+        expiry_time=end,
+        coupon_per_period=0.002,
+        knock_in_level=75,
+        lower_strike=50,
+        calendar=all_days_calendar(),
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
+        knock_out_observations=[
+            KnockOutObservation(START + timedelta(days=day), 110)
+            for day in (120, 240, 360)
+        ],
+        coupon_observations=[
+            CouponObservation(
+                START + timedelta(days=12 * index), 85.25 + 0.6 * ((index - 1) % 13)
+            )
+            for index in range(1, 31)
+        ],
+    )
+    context = market(100, START, volatility=0.25, rate=0.04, dividend=0.01)
+    value = QuadratureAutocallableEngine(asset_step_count=2560).price(note, context)
+    reference = FiniteDifferenceAutocallableEngine().price(note, context)
+    assert value == pytest.approx(reference, abs=2e-4, rel=0)
