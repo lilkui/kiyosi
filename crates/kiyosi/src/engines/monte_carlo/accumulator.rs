@@ -200,6 +200,14 @@ impl MonteCarloAccumulatorEngine {
         let valuation = context.valuation_time();
         let sigma = model.volatility();
         let initial_spot = context.spot_price();
+        let safe_returns = super::safe_log_returns(initial_spot);
+        let spot_at = |log_return| {
+            let spot = scaled_value(initial_spot, 1.0, log_return)?;
+            if spot <= 0.0 {
+                return Err(unstable());
+            }
+            Ok(spot)
+        };
         let strike = log_ratio(option.strike(), initial_spot);
         let knock_out = log_ratio(option.knock_out_level(), initial_spot);
         let sign = if option.option_type() == OptionType::Call {
@@ -244,7 +252,6 @@ impl MonteCarloAccumulatorEngine {
         let terminal_log_discount = steps.last().ok_or_else(unstable)?.2;
         let ([moments], [pairs], seed) =
             path_samples_lazy(self.settings, steps.len(), statistics, false, |normals| {
-                let mut spot = initial_spot;
                 let mut log_return = 0.0;
                 let mut quantity = quantity;
                 for (index, (drift, diffusion, log_discount, observe, accumulate)) in
@@ -252,9 +259,8 @@ impl MonteCarloAccumulatorEngine {
                 {
                     check_path_step(index)?;
                     log_return += diffusion.mul_add(normals.normal(), *drift);
-                    spot = scaled_value(initial_spot, 1.0, log_return)?;
-                    if !spot.is_finite() || spot <= 0.0 {
-                        return Err(unstable());
+                    if !safe_returns.contains(&log_return) {
+                        spot_at(log_return)?;
                     }
                     if let Some(events) = &fixed {
                         quantity += events[index].before;
@@ -262,7 +268,7 @@ impl MonteCarloAccumulatorEngine {
                     if *observe && sign * log_return >= sign * knock_out {
                         return Ok([scaled_value(
                             quantity,
-                            unit_payoff(spot, log_return),
+                            unit_payoff(spot_at(log_return)?, log_return),
                             *log_discount,
                         )?]);
                     }
@@ -282,7 +288,7 @@ impl MonteCarloAccumulatorEngine {
                 }
                 Ok([scaled_value(
                     quantity,
-                    unit_payoff(spot, log_return),
+                    unit_payoff(spot_at(log_return)?, log_return),
                     terminal_log_discount,
                 )?])
             })?;

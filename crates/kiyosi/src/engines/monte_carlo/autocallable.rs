@@ -400,11 +400,7 @@ impl MonteCarloAutocallableEngine {
         let valuation = context.valuation_time();
         let sigma = model.volatility();
         let initial_spot = context.spot_price();
-        let log_spot = initial_spot.ln();
-        // Leave room for rounding in both the exponential and the scaled spot.
-        let low = f64::MIN_POSITIVE.ln() + 1.0;
-        let high = f64::MAX.ln() - 1.0;
-        let safe_returns = low.max(low - log_spot)..=high.min(high - log_spot);
+        let safe_returns = super::safe_log_returns(initial_spot);
         let knock_in = terms.knock_in.map(|ki| log_ratio(ki.level, initial_spot));
         let expiry_knock_in = note.observes_knock_in(note.expiry_time());
         if let Some(shared) = shared.filter(|_| daily) {

@@ -1893,6 +1893,14 @@ fn transition(
     Ok((drift, diffusion, log_discount))
 }
 
+fn safe_log_returns(spot: f64) -> std::ops::RangeInclusive<f64> {
+    let log_spot = spot.ln();
+    // Leave room for rounding in both the exponential and the scaled spot.
+    let low = f64::MIN_POSITIVE.ln() + 1.0;
+    let high = f64::MAX.ln() - 1.0;
+    low.max(low - log_spot)..=high.min(high - log_spot)
+}
+
 fn scaled_value(scale: f64, weight: f64, log_discount: f64) -> Result<f64> {
     let result = discounted_product(scale, weight, log_discount);
     if !result.is_finite() {
