@@ -3451,6 +3451,47 @@ class FiniteDifferenceHestonVanillaEngine(
         and cancellation returns no partial result.
         """
 
+    def price_american_surface(
+        self,
+        instrument: AmericanOption,
+        context: PricingContext,
+        *,
+        expiries: Iterable[datetime],
+        strikes: Iterable[_Real],
+    ) -> tuple[tuple[float, ...], ...]:
+        """Price an American strike and expiry surface.
+
+        Parameters
+        ----------
+        instrument : AmericanOption
+            Template supplying payoff direction and effective time.
+        context : PricingContext
+            Fixed Heston market and valuation within contract life.
+        expiries : iterable of datetime
+            Expiries at or after valuation and the effective time.
+        strikes : iterable of float
+            Finite positive strikes.
+
+        Returns
+        -------
+        tuple of tuple of float
+            Rows in expiry order, with prices in strike order and duplicates preserved.
+
+        Raises
+        ------
+        KiyosiError
+            If applicability, input, workspace or numerical checks fail.
+        TypeError, ValueError, OverflowError
+            If an input representation is invalid.
+
+        Notes
+        -----
+        Compatible flat-rate markets with automatic asset bounds share a
+        rollback from the payoff through all requested tenors. Other markets
+        use independent expiry rollbacks. Check convergence at the shortest
+        maturity and across strikes. Cancellation returns no partial result.
+        """
+
     def price_european_surface(
         self,
         instrument: EuropeanOption,

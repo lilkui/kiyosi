@@ -26,6 +26,35 @@ from kiyosi.pricing import (
 from test_heston import END, START, context, model, option, reference
 
 
+@pytest.mark.parametrize("asset_upper_boundary", [None, 400])
+def test_american_surface_matches_scalar_expiries_and_preserves_order(
+    asset_upper_boundary,
+):
+    engine = FiniteDifferenceHestonVanillaEngine(
+        asset_upper_boundary=asset_upper_boundary
+    )
+    market = context(model())
+    put = AmericanOption(
+        option_type="put", strike=100, effective_time=START, expiry_time=END
+    )
+    expiries = (END, START, START + timedelta(days=30), START + timedelta(days=90), END)
+    strikes = (110, 90, 100, 90)
+    rows = engine.price_american_surface(
+        put, market, expiries=iter(expiries), strikes=iter(strikes)
+    )
+    assert rows[0] == rows[4]
+    assert rows[1] == (10.0, 0.0, 0.0, 0.0)
+    for expiry, row in zip(expiries, rows, strict=True):
+        expected = engine.price_strikes(
+            put.replace(expiry_time=expiry), market, strikes=strikes
+        )
+        if asset_upper_boundary is None:
+            assert row == pytest.approx(expected, rel=0, abs=0.003)
+        else:
+            assert row == expected
+        assert row[1] == row[3]
+
+
 def test_european_surface_matches_analytic_prices_and_preserves_both_input_orders():
     engine = FiniteDifferenceHestonVanillaEngine()
     analytic = AnalyticHestonEuropeanEngine()

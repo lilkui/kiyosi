@@ -16,6 +16,8 @@ use crate::{
 
 mod edge_weights;
 use edge_weights::EdgeWeights;
+mod american_surface;
+use american_surface::AmericanSurface;
 
 /// Configures fixed Heston grids; see [`FiniteDifferenceHestonVanillaEngine::new`].
 ///
@@ -362,6 +364,7 @@ impl FiniteDifferenceHestonVanillaEngine {
                 context.spot_price().min(strike_range[0]),
                 rest,
                 &times,
+                None,
             )?
             .1
         };
@@ -580,7 +583,7 @@ fn fixed_boundary_prices(
                 strike: first,
                 ..payoff
             };
-            match prepare_batch(option, context, template, settings, low, rest, &[]) {
+            match prepare_batch(option, context, template, settings, low, rest, &[], None) {
                 Ok((state, values)) => {
                     if let Some(state) = state {
                         prices.push(state.price(option, context)?);
@@ -621,8 +624,17 @@ fn prepare(
     settings: HestonFiniteDifferenceSettings,
     minimum_spot: f64,
 ) -> Result<HestonState> {
-    prepare_batch(option, context, payoff, settings, minimum_spot, &[], &[])
-        .map(|(state, _)| state.expect("scalar preparation returns a saved state"))
+    prepare_batch(
+        option,
+        context,
+        payoff,
+        settings,
+        minimum_spot,
+        &[],
+        &[],
+        None,
+    )
+    .map(|(state, _)| state.expect("scalar preparation returns a saved state"))
 }
 
 fn adjoint_work(assets: u64, rows: u64, steps: u64, expiries: u64, strikes: u64) -> u64 {
@@ -636,6 +648,10 @@ fn adjoint_work(assets: u64, rows: u64, steps: u64, expiries: u64, strikes: u64)
         .saturating_add((expiries * assets + quotes).saturating_mul(asset_levels))
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Shares grid preparation across scalar, strike and expiry requests."
+)]
 fn prepare_batch(
     option: &impl OptionContract,
     context: &PricingContext,
@@ -644,6 +660,7 @@ fn prepare_batch(
     minimum_spot: f64,
     additional_strikes: &[f64],
     expiries: &[f64],
+    exercise_surface: Option<&mut AmericanSurface>,
 ) -> Result<(Option<HestonState>, Vec<f64>)> {
     // Live values, multiplier, ADI stage buffers, operator coefficients and factors.
     const BYTES_PER_GRID_POINT: u64 = 112;
@@ -715,12 +732,16 @@ fn prepare_batch(
     } else {
         0
     };
+    let surface_bytes = exercise_surface
+        .as_ref()
+        .map_or(0, |surface| surface.bytes());
     let grid_bytes = (assets * rows)
         .saturating_mul(BYTES_PER_GRID_POINT + (rhs - 1) * 4 * size_of::<f64>() as u64)
         .saturating_add(padded * assets * size_of::<[f64; 3]>() as u64)
         .saturating_add((assets + rows) * BYTES_PER_AXIS_NODE)
         .saturating_add(assets * (rhs - 1) * size_of::<f64>() as u64)
-        .saturating_add(batch_bytes);
+        .saturating_add(batch_bytes)
+        .saturating_add(surface_bytes);
     let validate_grid = |time_steps, curve_bytes| {
         let time_bytes = BYTES_PER_TIME_STEP
             + if adjoint {
@@ -741,7 +762,13 @@ fn prepare_batch(
             let work = adjoint_work(assets, rows, time_steps, expiry_count, strikes_count);
             validate_work(work, 1)
         } else {
-            validate_work((assets * rows).saturating_mul(rhs), time_steps)
+            let work = (assets * rows)
+                .saturating_mul(rhs)
+                .saturating_mul(time_steps);
+            let quotes = exercise_surface
+                .as_ref()
+                .map_or(0, |surface| surface.work(assets));
+            validate_work(work.saturating_add(quotes), 1)
         }
     };
     let (risk, dividend) = prepare_rate_curves(context, end, |knots, bytes| {
@@ -781,6 +808,9 @@ fn prepare_batch(
         TimeGrid::with_events
     };
     let mut events = expiries.to_vec();
+    if let Some(surface) = &exercise_surface {
+        surface.extend_grid(&mut events, time);
+    }
     if let Some(&first) = expiries
         .first()
         .filter(|&&first| first >= 24.0 / 31_536_000_000_000.0)
@@ -944,6 +974,7 @@ fn prepare_batch(
         valuation_row,
         scale,
         context.spot_price(),
+        exercise_surface,
     )?;
     Ok((
         Some(HestonState::Grid {
@@ -971,6 +1002,7 @@ fn rollback_primal<const N: usize>(
     valuation_row: usize,
     scale: f64,
     spot: f64,
+    mut exercise_surface: Option<&mut AmericanSurface>,
 ) -> Result<(Spline, Vec<f64>)> {
     let nx = op.nx;
     let length = nx * op.rows;
@@ -1093,6 +1125,18 @@ fn rollback_primal<const N: usize>(
                 }
             }
             std::mem::swap(&mut values, &mut predictor);
+            if let Some(surface) = &mut exercise_surface {
+                surface.capture(
+                    a,
+                    || {
+                        let row = &values[valuation_row * nx..][..nx];
+                        asset.spline(row.iter().map(|value| value[0]).collect())
+                    },
+                    asset,
+                    payoffs[0],
+                    scale,
+                )?;
+            }
         }
         Ok(())
     };

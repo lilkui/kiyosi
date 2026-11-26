@@ -51,6 +51,38 @@ fn european_surface_matches_analytic_prices_and_preserves_both_input_orders() ->
 }
 
 #[test]
+fn american_surface_matches_scalar_expiries_and_preserves_order() -> kiyosi::Result<()> {
+    let (start, end) = dates();
+    let market = context(0.3, -0.7);
+    let template = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let expiries = [end, start, start.add_days(30)?, start.add_days(90)?, end];
+    let strikes = [110.0, 90.0, 100.0, 90.0];
+    let engine = FiniteDifferenceHestonVanillaEngine::default();
+    let rows = engine.price_american_surface(&template, &market, &expiries, &strikes)?;
+    assert_eq!(rows.len(), expiries.len());
+    assert_eq!(rows[0], rows[4]);
+    assert_eq!(rows[1], [10.0, 0.0, 0.0, 0.0]);
+    for (&expiry, row) in expiries.iter().zip(rows) {
+        assert_eq!(row.len(), strikes.len());
+        assert_eq!(row[1].to_bits(), row[3].to_bits());
+        let option = template.replace(kiyosi::AmericanOptionChanges {
+            expiry_time: Some(expiry),
+            ..Default::default()
+        })?;
+        for (value, reference) in row
+            .into_iter()
+            .zip(engine.price_american_strikes(&option, &market, &strikes)?)
+        {
+            assert!(
+                (value - reference).abs() < 0.003,
+                "{expiry:?}: {value} vs {reference}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn heston_finite_difference_with_recurring_calendar_rates() -> kiyosi::Result<()> {
     let (start, _) = dates();
     let end = start.add_days(364)?;
