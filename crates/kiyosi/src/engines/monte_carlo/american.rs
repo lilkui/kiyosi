@@ -107,6 +107,7 @@ struct ExerciseBlock<const N: usize> {
 fn exercise_window<const N: usize>(
     settings: MonteCarloSettings,
     reserved_paths: usize,
+    stored_paths: usize,
     intervals: usize,
     extra_bytes: usize,
 ) -> Result<(usize, usize)> {
@@ -140,10 +141,9 @@ fn exercise_window<const N: usize>(
         // Include the cache's shared block handles when a full path matrix is retained.
         let overhead =
             size_of::<ExerciseBlock<N>>() + PATH_BLOCK_OVERHEAD + size_of::<Arc<Vec<f64>>>();
-        reserved_paths
-            .saturating_mul(
-                (window + checkpoints) * size_of::<f64>() + size_of::<ExerciseState<N>>(),
-            )
+        stored_paths
+            .saturating_mul((window + checkpoints) * size_of::<f64>())
+            .saturating_add(reserved_paths * size_of::<ExerciseState<N>>())
             .saturating_add(blocks * overhead)
             .saturating_add(sampling)
             .saturating_add(extra_bytes)
@@ -158,7 +158,7 @@ fn exercise_window<const N: usize>(
     // Keep a complete matrix when only its cash, block or sampler bookkeeping
     // would force another pass through the paths.
     let full = workspace(intervals);
-    let matrix = reserved_paths.saturating_mul(intervals * size_of::<f64>());
+    let matrix = stored_paths.saturating_mul(intervals * size_of::<f64>());
     let preferred = if matrix <= PREFERRED_PATH_WORKSPACE
         && full <= PREFERRED_PATH_WORKSPACE + FULL_PATH_OVERHEAD
     {
@@ -188,8 +188,10 @@ fn exercise_window<const N: usize>(
     let bytes = workspace(window);
     let replay = (intervals - 1) / window * window;
     // Count original and replayed path steps, then one exercise update per scenario and step.
-    let work = intervals + replay + N * (intervals - 1);
-    if reserved_paths.saturating_mul(work) > WORK_BUDGET {
+    let work = stored_paths
+        .saturating_mul(intervals + replay)
+        .saturating_add(reserved_paths.saturating_mul(N * (intervals - 1)));
+    if work > WORK_BUDGET {
         return Err(Error::InvalidInput(
             "American Monte Carlo exceeds one billion simulated path steps and exercise updates; reduce path_count or step_count".into(),
         ));
@@ -226,12 +228,48 @@ impl ExercisePaths<'_> {
     }
 
     fn block_path_count(&self, begin: usize, end: usize) -> usize {
-        let paired = if self.settings.antithetic {
+        end - begin + self.paired_paths(begin, end)
+    }
+
+    fn paired_paths(&self, begin: usize, end: usize) -> usize {
+        if self.settings.antithetic {
             end.min(self.paths / 2).saturating_sub(begin)
         } else {
             0
+        }
+    }
+
+    fn block_coordinate_count(&self, begin: usize, end: usize) -> usize {
+        // With no spot anchor, antithetic draws accumulate opposite Brownian
+        // coordinates. Only anchored spot evolution needs both histories.
+        if self.anchor.is_none() {
+            end - begin
+        } else {
+            self.block_path_count(begin, end)
+        }
+    }
+
+    fn visit_row(
+        &self,
+        block: usize,
+        values: &[f64],
+        mut visit: impl FnMut(f64) -> Result<()>,
+    ) -> Result<()> {
+        let begin = block * BLOCK_SIZE;
+        let paired = if self.anchor.is_none() {
+            self.paired_paths(begin, (begin + BLOCK_SIZE).min(self.samples))
+        } else {
+            0
         };
-        end - begin + paired
+        let (paired, unpaired) = values.split_at(paired);
+        for &coordinate in paired {
+            visit(coordinate)?;
+            visit(-coordinate)?;
+        }
+        for &coordinate in unpaired {
+            visit(coordinate)?;
+        }
+        Ok(())
     }
 
     fn advance(&self, value: &mut f64, normal: f64) -> Result<f64> {
@@ -272,7 +310,8 @@ impl ExercisePaths<'_> {
         let mut lane = 0;
         for sample in begin..end {
             crate::cancellation::check()?;
-            let paired = self.settings.antithetic && sample < self.paths / 2;
+            let paired =
+                self.anchor.is_some() && self.settings.antithetic && sample < self.paths / 2;
             let mut positive = initial(lane);
             let mut negative = if paired { initial(lane + 1) } else { 0.0 };
             for step in steps.clone() {
@@ -323,7 +362,8 @@ impl ExercisePaths<'_> {
             let mut positive = [0.0; TILE];
             let mut negative = [0.0; TILE];
             for i in 0..count {
-                let paired = self.settings.antithetic && first + i < self.paths / 2;
+                let paired =
+                    self.anchor.is_some() && self.settings.antithetic && first + i < self.paths / 2;
                 paths[i] = (lane, paired);
                 positive[i] = initial(lane);
                 if paired {
@@ -372,7 +412,8 @@ impl ExercisePaths<'_> {
         block: &mut ExerciseBlock<N>,
         start: usize,
     ) -> Result<()> {
-        let width = block.states.len();
+        let begin = index * BLOCK_SIZE;
+        let width = self.block_coordinate_count(begin, (begin + BLOCK_SIZE).min(self.samples));
         let coordinates =
             Arc::get_mut(&mut block.coordinates).expect("checkpointed paths are request-owned");
         coordinates.resize(width * self.window, 0.0);
@@ -392,6 +433,22 @@ impl ExercisePaths<'_> {
             },
         )
     }
+}
+#[test]
+fn antithetic_coordinates_fit_without_window_replay() -> Result<()> {
+    let paths = 262_144_usize;
+    let intervals = 160;
+    let settings = MonteCarloSettings {
+        path_count: 262_144,
+        antithetic: true,
+        ..Default::default()
+    };
+    assert!(exercise_window::<1>(settings, paths, paths, intervals, 0)?.0 < intervals);
+    assert_eq!(
+        exercise_window::<1>(settings, paths, paths / 2, intervals, 0)?.0,
+        intervals
+    );
+    Ok(())
 }
 
 fn evolve_spot(spot: &mut f64, growth: f64) -> Result<f64> {
@@ -679,12 +736,18 @@ impl MonteCarloVanillaEngine {
         } else {
             0
         };
-        let (window, workspace_bytes) =
-            match exercise_window::<N>(settings, reserved_paths, intervals, policy_bytes) {
-                Err(Error::InvalidInput(_)) if !same_growth => return scalar(),
-                result => result?,
-            };
-        let path_values = reserved_paths * intervals;
+        let stored_paths = if normalized { samples } else { reserved_paths };
+        let (window, workspace_bytes) = match exercise_window::<N>(
+            settings,
+            reserved_paths,
+            stored_paths,
+            intervals,
+            policy_bytes,
+        ) {
+            Err(Error::InvalidInput(_)) if !same_growth => return scalar(),
+            result => result?,
+        };
+        let path_values = stored_paths * intervals;
         let seed = settings.resolved_seed()?;
         let key = PathKey {
             seed,
@@ -743,25 +806,28 @@ impl MonteCarloVanillaEngine {
             let begin = block_index * BLOCK_SIZE;
             let end = ((block_index + 1) * BLOCK_SIZE).min(samples);
             let path_count = exercise_paths.block_path_count(begin, end);
+            let coordinate_count = exercise_paths.block_coordinate_count(begin, end);
             let coordinates = if let Some(cached) = &cached_paths {
                 Arc::clone(&cached[block_index])
             } else {
-                let (values, checkpoints) = exercise_paths.generate(block_index, path_count)?;
+                let (values, checkpoints) =
+                    exercise_paths.generate(block_index, coordinate_count)?;
                 block.checkpoints = checkpoints;
                 Arc::new(values)
             };
             let mut states = american_workspace(path_count)?;
-            states.extend(
-                coordinates[coordinates.len() - path_count..]
-                    .iter()
-                    .map(|&value| {
-                        let spots = terminal(value);
-                        ExerciseState {
-                            spots,
-                            cash: spots.map(payoff),
-                        }
-                    }),
-            );
+            exercise_paths.visit_row(
+                block_index,
+                &coordinates[coordinates.len() - coordinate_count..],
+                |coordinate| {
+                    let spots = terminal(coordinate);
+                    states.push(ExerciseState {
+                        spots,
+                        cash: spots.map(payoff),
+                    });
+                    Ok(())
+                },
+            )?;
             block.coordinates = coordinates;
             block.states = states;
             Ok(())
@@ -827,11 +893,17 @@ impl MonteCarloVanillaEngine {
                 let decide = coefficients.iter().any(Option::is_some);
                 // Keep the previous date's reconstructed spots beside its cash so
                 // each volatility scenario needs one exponential per path and date.
-                regression.run(&mut blocks, |_, block| {
+                regression.run(&mut blocks, |index, block| {
                     let mut matrices = [[[0.0; 4]; 3]; N];
-                    let width = block.states.len();
+                    let begin = index * BLOCK_SIZE;
+                    let width = exercise_paths
+                        .block_coordinate_count(begin, (begin + BLOCK_SIZE).min(samples));
                     let values = &block.coordinates[row * width..(row + 1) * width];
-                    for (&value, state) in values.iter().zip(&mut block.states) {
+                    let mut states = block.states.iter_mut();
+                    exercise_paths.visit_row(index, values, |value| {
+                        let state = states
+                            .next()
+                            .expect("coordinates match their exercise states");
                         if decide {
                             apply_exercise(state, &coefficients)?;
                         }
@@ -862,7 +934,8 @@ impl MonteCarloVanillaEngine {
                                 matrix[2][3] += square * target;
                             }
                         }
-                    }
+                        Ok(())
+                    })?;
                     block.regression = matrices;
                     Ok(())
                 })?;
@@ -1208,7 +1281,7 @@ mod tests {
             antithetic: false,
             ..Default::default()
         };
-        let (window, bytes) = exercise_window::<1>(settings, 340_000, 50, 0)?;
+        let (window, bytes) = exercise_window::<1>(settings, 340_000, 340_000, 50, 0)?;
         assert!(bytes > MAX_CACHED_PATH_VALUES * size_of::<f64>());
         assert_eq!(window, 50);
 
@@ -1216,7 +1289,7 @@ mod tests {
             path_count: 680_000,
             ..settings
         };
-        let (window, bytes) = exercise_window::<1>(settings, 680_000, 50, 0)?;
+        let (window, bytes) = exercise_window::<1>(settings, 680_000, 680_000, 50, 0)?;
         assert_eq!(window, 25);
         assert!(bytes <= PREFERRED_PATH_WORKSPACE);
         Ok(())
@@ -1230,7 +1303,7 @@ mod tests {
             path_count: paths,
             ..Default::default()
         };
-        let (window, bytes) = exercise_window::<3>(settings, 65_536, intervals, 0)?;
+        let (window, bytes) = exercise_window::<3>(settings, 65_536, 65_536, intervals, 0)?;
         assert_eq!(window, intervals);
         assert!((100 * 1024 * 1024..110 * 1024 * 1024).contains(&bytes));
         Ok(())
@@ -1379,7 +1452,8 @@ fn checkpoint_replay_preserves_pseudorandom_and_sobol_paths() -> Result<()> {
             let windowed = ExercisePaths { window: 6, ..full };
             for block_index in 0..samples.div_ceil(BLOCK_SIZE) {
                 let begin = block_index * BLOCK_SIZE;
-                let count = full.block_path_count(begin, (begin + BLOCK_SIZE).min(samples));
+                let end = (begin + BLOCK_SIZE).min(samples);
+                let count = full.block_coordinate_count(begin, end);
                 let (expected, _) = full.generate(block_index, count)?;
                 if sequence.is_none() {
                     let mut draws = NormalDraws {
@@ -1387,33 +1461,32 @@ fn checkpoint_replay_preserves_pseudorandom_and_sobol_paths() -> Result<()> {
                         spare: None,
                         cursor: None,
                     };
-                    let mut lane = 0;
-                    for sample in begin..(begin + BLOCK_SIZE).min(samples) {
-                        let paired = antithetic && sample < paths / 2;
-                        let [mut positive, mut negative] = [0.0_f64; 2];
-                        for row in expected.chunks_exact(count) {
+                    let mut scalar = vec![Vec::new(); intervals];
+                    for sample in begin..end {
+                        let mut accumulated = 0.0;
+                        for row in &mut scalar {
                             let normal = draws.normal();
-                            positive += normal;
-                            assert_eq!(row[lane].to_bits(), positive.to_bits());
-                            if paired {
-                                negative -= normal;
-                                assert_eq!(row[lane + 1].to_bits(), negative.to_bits());
+                            accumulated += normal;
+                            row.push(accumulated);
+                            if antithetic && sample < paths / 2 {
+                                row.push(-accumulated);
                             }
                         }
-                        lane += 1 + usize::from(paired);
+                    }
+                    for (actual, scalar) in expected.chunks_exact(count).zip(scalar) {
+                        let mut expanded = Vec::new();
+                        full.visit_row(block_index, actual, |coordinate| {
+                            expanded.push(coordinate);
+                            Ok(())
+                        })?;
+                        assert_eq!(expanded, scalar);
                     }
                 }
                 let (spots, checkpoints) = windowed.generate(block_index, count)?;
                 let mut block = ExerciseBlock {
                     coordinates: Arc::new(spots),
                     checkpoints,
-                    states: (0..count)
-                        .map(|_| ExerciseState {
-                            spots: [0.0],
-                            cash: [0.0],
-                        })
-                        .collect(),
-                    ..Default::default()
+                    ..ExerciseBlock::<1>::default()
                 };
                 let mut start = windowed.first_in_last_window();
                 assert_eq!(&block.coordinates[..], &expected[start * count..]);
