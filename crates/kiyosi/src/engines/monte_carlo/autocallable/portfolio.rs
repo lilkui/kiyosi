@@ -306,7 +306,7 @@ fn key_and_workspace<T: AutocallableTerms>(
     let bytes = schedule
         + if shared {
             // Buckets and packed events coexist while assembling the schedule.
-            6 * (events + 1) * size_of::<(usize, SharedAction)>()
+            (events + 1) * (6 * size_of::<(usize, SharedAction)>() + size_of::<EventWord>())
                 + 2 * size_of::<(f64, usize)>()
                 + (blocks + 1) * size_of::<Option<Sum>>()
                 + blocks * size_of::<usize>()
@@ -625,9 +625,22 @@ struct Portfolio<'a, 'b, T: AutocallableTerms> {
 
 struct SharedEvents {
     events: Vec<(usize, SharedAction)>,
+    words: Vec<EventWord>,
     intervals: Vec<SharedInterval>,
     daily: Vec<[f64; 2]>,
     barriers: Vec<(f64, usize)>,
+}
+
+struct EventWord {
+    index: usize,
+    start: usize,
+    lanes: usize,
+    second: usize,
+}
+
+fn lane_bit(index: usize) -> (usize, usize) {
+    let width = usize::BITS as usize;
+    (index / width, 1 << (index % width))
 }
 
 enum SharedAction {
@@ -638,6 +651,7 @@ enum SharedAction {
 struct SharedInterval {
     step: usize,
     end: usize,
+    word_end: usize,
     drift: f64,
     diffusion: f64,
 }
@@ -716,10 +730,32 @@ impl SharedEvents {
             let maturity = note.steps.len() - 1;
             buckets[maturity].push((lane, SharedAction::Maturity(steps[maturity].transition[2])));
         }
+        let mut words: Vec<EventWord> = Vec::new();
         for (step, mut bucket) in buckets.into_iter().enumerate() {
             check_path_step(step)?;
+            if bucket.len() >= 16 {
+                let start = events.len();
+                for (offset, &(lane, _)) in bucket.iter().enumerate() {
+                    check_path_step(offset)?;
+                    let (index, bit) = lane_bit(lane);
+                    if let Some(last) = words
+                        .last_mut()
+                        .filter(|word| word.start >= start && word.index == index)
+                    {
+                        last.second |= last.lanes & bit;
+                        last.lanes |= bit;
+                    } else {
+                        words.push(EventWord {
+                            index,
+                            start: start + offset,
+                            lanes: bit,
+                            second: 0,
+                        });
+                    }
+                }
+            }
             events.append(&mut bucket);
-            ends.push(events.len());
+            ends.push((events.len(), words.len()));
         }
         let mut excursion = 0.0;
         for (index, step) in steps.iter().enumerate() {
@@ -731,8 +767,8 @@ impl SharedEvents {
         let mut intervals = Vec::new();
         let mut daily = Vec::new();
         let mut first = 0;
-        let mut previous = 0;
-        for (step, end) in ends.into_iter().enumerate() {
+        let (mut previous, mut previous_word) = (0, 0);
+        for (step, (end, word_end)) in ends.into_iter().enumerate() {
             check_path_step(step)?;
             if end == previous && step + 1 < steps.len() {
                 continue;
@@ -761,11 +797,13 @@ impl SharedEvents {
                     intervals.push(SharedInterval {
                         step,
                         end,
+                        word_end,
                         drift,
                         diffusion,
                     });
                     first = step + 1;
                     previous = end;
+                    previous_word = word_end;
                     continue;
                 }
             }
@@ -775,17 +813,24 @@ impl SharedEvents {
                 intervals.push(SharedInterval {
                     step: index,
                     end: if index == step { end } else { previous },
+                    word_end: if index == step {
+                        word_end
+                    } else {
+                        previous_word
+                    },
                     drift,
                     diffusion,
                 });
             }
             first = step + 1;
             previous = end;
+            previous_word = word_end;
         }
         barriers.sort_unstable_by(|a, b| a.0.total_cmp(&b.0));
         crate::cancellation::check()?;
         Ok(Self {
             events,
+            words,
             intervals,
             daily,
             barriers,
@@ -927,7 +972,7 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
                     |draws, paired| {
                         skipped_sample_pair(draws, dimensions, paired, |path, _| {
                             if let Some(events) = &self.shared {
-                                self.shared_payoffs(path, states, events, strips, sums)?;
+                                self.shared_payoffs(path, states, live, events, strips, sums)?;
                             } else {
                                 self.payoffs(path, states, live)?;
                             }
@@ -994,6 +1039,7 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
         &self,
         normals: &mut SkippingPath<'_, '_>,
         states: &mut Vec<Lane>,
+        live: &mut Vec<usize>,
         schedule: &SharedEvents,
         strips: &[Option<ThresholdStrip>],
         sums: &mut ThresholdSums,
@@ -1003,12 +1049,16 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
         let mut log_return = 0.0;
         let mut minimum = f64::INFINITY;
         let mut first = 0;
+        let mut first_word = 0;
         let mut first_step = 0;
+        live.clear();
+        live.resize(states.len().div_ceil(usize::BITS as usize), usize::MAX);
         let mut remaining = states.len();
         let mut barriers = schedule.barriers.as_slice();
         for &SharedInterval {
             step,
             end,
+            word_end,
             drift,
             diffusion,
         } in &schedule.intervals
@@ -1035,11 +1085,10 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
             if base.steps[step].observe_knock_in {
                 minimum = minimum.min(log_return);
             }
-            for (event_index, (index, action)) in schedule.events[first..end].iter().enumerate() {
-                check_path_step(event_index)?;
+            let mut apply = |(index, action): &(usize, SharedAction), live: &mut [usize]| {
                 let lane = &mut states[*index];
                 if lane.terminated {
-                    continue;
+                    return Ok(());
                 }
                 let strip = strips.get(*index).and_then(Option::as_ref);
                 let terminated = match action {
@@ -1104,13 +1153,49 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
                 };
                 if terminated {
                     lane.terminated = true;
+                    let (word, bit) = lane_bit(*index);
+                    live[word] &= !bit;
                     remaining -= 1;
+                }
+                Ok(())
+            };
+            if first_word == word_end {
+                for (i, event) in schedule.events[first..end].iter().enumerate() {
+                    check_path_step(i)?;
+                    apply(event, live)?;
+                }
+            } else {
+                for (i, word) in schedule.words[first_word..word_end].iter().enumerate() {
+                    check_path_step(i)?;
+                    let mut active = live[word.index] & word.lanes;
+                    if active == word.lanes {
+                        let count = (word.lanes.count_ones() + word.second.count_ones()) as usize;
+                        for event in &schedule.events[word.start..word.start + count] {
+                            apply(event, live)?;
+                        }
+                    } else {
+                        while active != 0 {
+                            let bit = 1 << active.trailing_zeros();
+                            active &= active - 1;
+                            let below = bit - 1;
+                            // Each lane has one cash or maturity record, or both in that order.
+                            let position = word.start
+                                + ((word.lanes & below).count_ones()
+                                    + (word.second & below).count_ones())
+                                    as usize;
+                            apply(&schedule.events[position], live)?;
+                            if word.second & bit != 0 {
+                                apply(&schedule.events[position + 1], live)?;
+                            }
+                        }
+                    }
                 }
             }
             if remaining == 0 {
                 return Ok(());
             }
             first = end;
+            first_word = word_end;
             first_step = step + 1;
         }
         Err(unstable())

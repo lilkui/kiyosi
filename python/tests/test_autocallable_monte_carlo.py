@@ -677,3 +677,29 @@ def test_mixed_knock_out_strips_match_individual_first_passages(sampling):
     assert actual == engine.replace(max_active_workers=1).price_many(
         notes, snapshot, shared_grid=True
     )
+
+
+@pytest.mark.parametrize("sampling", ("pseudo_random", "sobol"))
+def test_dense_phoenix_events_skip_called_notes_and_preserve_live_cash_flows(sampling):
+    first, later = datetime(2025, 1, 2), datetime(2025, 2, 3)
+
+    def note(index, compact):
+        survives = index % 3 == 0
+        dates = (first,) if compact and not survives else (first, later, END)
+        return phoenix(
+            knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
+            knock_out_observations=[
+                KnockOutObservation(first, 500 if survives else 50)
+            ],
+            coupon_observations=[
+                CouponObservation(date, 70 + index / 2) for date in dates
+            ],
+        )
+
+    full = tuple(note(i, False) for i in range(70))
+    compact = tuple(note(i, True) for i in range(70))
+    engine = MC(path_count=2048, seed=42, sampling=sampling, antithetic=True)
+    context = market()
+    prices = engine.price_many(full, context, shared_grid=True)
+    assert prices == engine.price_many(compact, context, shared_grid=True)
+    assert prices[:2] == engine.price_many(full[:2], context, shared_grid=True)

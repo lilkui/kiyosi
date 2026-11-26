@@ -1064,3 +1064,54 @@ fn mixed_knock_out_strips_match_individual_first_passages() -> Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn dense_phoenix_events_skip_called_notes_and_preserve_live_cash_flows() -> Result<()> {
+    let first = date(1, 2);
+    let later = date(2, 3);
+    let end = date(4, 1);
+    let (_, _, terms) =
+        autocallable_support::multi_event_terms(KnockInObservation::EveryTradingDay {
+            observation_clock_time: date(1, 1).time_of_day(),
+        });
+    let make = |index: i32, compact: bool| -> Result<PhoenixOption> {
+        let survives = index % 3 == 0;
+        let dates = if compact && !survives {
+            &[first][..]
+        } else {
+            &[first, later, end]
+        };
+        PhoenixOption::new(PhoenixTerms {
+            knock_out_observations: vec![KnockOutObservation::new(
+                first,
+                if survives { 500.0 } else { 50.0 },
+            )?],
+            coupon_observations: dates
+                .iter()
+                .map(|&date| CouponObservation::new(date, 70.0 + f64::from(index) / 2.0))
+                .collect::<Result<_>>()?,
+            ..terms.clone()
+        })
+    };
+    let full = (0..70)
+        .map(|i| make(i, false))
+        .collect::<Result<Vec<_>>>()?;
+    let compact = (0..70).map(|i| make(i, true)).collect::<Result<Vec<_>>>()?;
+    let context = market(100.0, date(1, 1));
+    for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
+        let engine = MonteCarloAutocallableEngine::new(MonteCarloSettings {
+            path_count: 2048,
+            seed: Some(42),
+            sampling,
+            antithetic: true,
+            max_active_workers: 2,
+        })?;
+        let price = |book: &[PhoenixOption]| {
+            engine.price_many_on_shared_grid(&book.iter().collect::<Vec<_>>(), &context)
+        };
+        assert_eq!(price(&full)?, price(&compact)?);
+        // Two notes take the sparse-event path on the same union of dates.
+        assert_eq!(price(&full)?[0].to_bits(), price(&full[..2])?[0].to_bits());
+    }
+    Ok(())
+}
