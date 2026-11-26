@@ -43,7 +43,6 @@ impl FiniteDifferenceVanillaEngine {
             || self.settings.asset_step_count < 128
             || self.settings.scheme != FiniteDifferenceScheme::Rannacher
             || context.valuation_time() == option.expiry_time()
-            || diffusion::uses_business_time(context)
         {
             return strikes.iter().copied().map(scalar).collect();
         }
@@ -51,8 +50,9 @@ impl FiniteDifferenceVanillaEngine {
         let expiry = option.expiry_time();
         let valuation = context.valuation_time();
         let root_time = valuation.years_until(expiry).sqrt();
+        let business_time = diffusion::uses_business_time(context);
         let mut strip = None;
-        if let Some(local) = local_volatility::local_model(context) {
+        if let Some(local) = local_volatility::local_model(context).filter(|_| !business_time) {
             let surface = local.surface();
             let width = surface.volatility(valuation, spot)? * root_time;
             if width >= 0.04
@@ -66,10 +66,19 @@ impl FiniteDifferenceVanillaEngine {
         let mut normalized = false;
         if let crate::ModelParameters::BlackScholesMerton(model) = context.model_parameters() {
             let sigma = model.volatility();
-            let width = sigma * root_time;
+            let root_variance_time =
+                if business_time && self.settings.asset_upper_boundary.is_none() {
+                    model
+                        .variance_time_convention()
+                        .year_fraction(valuation, expiry)?
+                        .sqrt()
+                } else {
+                    root_time
+                };
+            let width = sigma * root_variance_time;
             if width >= 0.04 {
                 normalized = self.settings.asset_upper_boundary.is_none();
-                if !normalized {
+                if !normalized && !business_time {
                     strip = Some((StripModel::Constant(sigma), width));
                 }
             }

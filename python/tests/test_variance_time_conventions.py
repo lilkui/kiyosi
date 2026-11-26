@@ -321,6 +321,28 @@ def test_business_clock_each_supported_contract(subtests):
                 )
 
 
+def test_weekday_strike_batch_uses_one_rescaled_solution():
+    end = FRIDAY + timedelta(days=365)
+    option = european(end=end)
+    market = context(
+        bsm(variance_time_convention="business", calendar=weekdays_calendar())
+    )
+    engine = fd(asset_step_count=400, time_step_count=400)
+    strikes = (110, 80, 100, 95, 85, 110)
+    spots = tuple(100 * (100 / strike) for strike in strikes)
+    saved = engine.solve(option, market, spot_range=(min(spots), max(spots)))
+    values = engine.price_strikes(option, market, strikes=strikes)
+    assert values == tuple(
+        price * (strike / 100)
+        for price, strike in zip(saved.price_many(spots), strikes, strict=True)
+    )
+    assert values == pytest.approx(
+        [engine.price(option.replace(strike=strike), market) for strike in strikes],
+        abs=1e-4,
+        rel=0,
+    )
+
+
 def test_unsupported_engines_reject_business_time_before_shortcuts(subtests):
     for contract, names, _ in terminal_cases():
         for name in names:

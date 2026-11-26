@@ -1269,3 +1269,36 @@ fn bsm_strike_batch_matches_analytic_prices_in_input_order() -> Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn weekday_strike_batch_uses_one_rescaled_solution() -> Result<()> {
+    let (start, end) = dates();
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?.replace(
+            BlackScholesMertonParameterChanges {
+                variance_time_convention: Some(VarianceTimeConvention::Business(
+                    TradingCalendar::weekdays(),
+                )),
+                ..Default::default()
+            },
+        )?,
+        100.0,
+        start,
+    )?;
+    let instrument = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let strikes = [110.0, 80.0, 100.0, 95.0, 85.0, 110.0];
+    let spots = strikes.map(|strike| 100.0 * (100.0 / strike));
+    let engine = FiniteDifferenceVanillaEngine::default();
+    let saved = engine.solve(&instrument, &context, spots[0]..=spots[1])?;
+    let prices = engine.price_strikes(&instrument, &context, &strikes)?;
+    for ((price, normalized), strike) in prices
+        .into_iter()
+        .zip(saved.price_many(&spots)?)
+        .zip(strikes)
+    {
+        assert_eq!(price.to_bits(), (normalized * (strike / 100.0)).to_bits());
+        let contract = EuropeanOption::new(OptionType::Call, strike, start, end)?;
+        assert!((price - engine.price(&contract, &context)?).abs() < 1e-4);
+    }
+    Ok(())
+}
