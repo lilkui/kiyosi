@@ -1,5 +1,8 @@
 use rayon::prelude::*;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::{
+    OnceLock,
+    atomic::{AtomicU32, Ordering},
+};
 
 use super::grid::{SpatialGrid, Spline, TimeGrid, concentrate, project_payoff, spot_floor};
 use super::{Payoff, WORKSPACE_BUDGET, invalid_grid, prepare_rate_curves, unstable, validate_work};
@@ -577,7 +580,19 @@ fn prepare(
         times.widths.len(),
     )?;
     let mut op = Operator::new(&asset, variance.as_deref());
-    let workers = AssetWorkers::new(nx, op.dynamic_rows(), times.widths.len());
+    let rows = op.dynamic_rows();
+    let cells = nx * rows;
+    let work = cells.saturating_mul(times.widths.len());
+    let pool = (cells >= 24_000 && work >= 1_000_000 && rows >= 16)
+        .then(heston_pool)
+        .flatten();
+    let workers = pool
+        .filter(|_| cells >= 64_000 && work >= 8_000_000)
+        .map(|(_, workers)| AssetWorkers {
+            count: workers,
+            tokens: crate::cancellation::current(),
+            rows_per_task: rows.div_ceil(workers).max(4),
+        });
     let mut rollback = || {
         for step in (0..times.widths.len()).rev() {
             crate::cancellation::check()?;
@@ -638,10 +653,9 @@ fn prepare(
         }
         Ok(())
     };
-    if let Some(workers) = &workers {
-        workers
-            .pool
-            .install(|| crate::cancellation::with_tokens(workers.tokens.clone(), rollback))?;
+    if let Some((pool, _)) = pool {
+        let tokens = crate::cancellation::current();
+        pool.install(|| crate::cancellation::with_tokens(tokens, rollback))?;
     } else {
         rollback()?;
     }
@@ -784,58 +798,42 @@ fn derivative(nodes: &[f64], i: usize) -> [f64; 3] {
     ]
 }
 
-static ASSET_WORKERS_OWNER: AtomicU32 = AtomicU32::new(0);
+static HESTON_POOL_PROCESS: AtomicU32 = AtomicU32::new(0);
+static HESTON_POOL: OnceLock<Option<rayon::ThreadPool>> = OnceLock::new();
 
 struct AssetWorkers {
-    pool: rayon::ThreadPool,
+    count: usize,
     tokens: Vec<crate::CancellationToken>,
     rows_per_task: usize,
-    _permit: AssetWorkerPermit,
 }
 
-struct AssetWorkerPermit;
-
-impl Drop for AssetWorkerPermit {
-    fn drop(&mut self) {
-        ASSET_WORKERS_OWNER.store(0, Ordering::Release);
+fn heston_pool() -> Option<(&'static rayon::ThreadPool, usize)> {
+    let available = std::thread::available_parallelism().ok()?.get().min(4);
+    if available < 2 {
+        return None;
     }
+    let pid = std::process::id();
+    if HESTON_POOL_PROCESS
+        .compare_exchange(0, pid, Ordering::Relaxed, Ordering::Relaxed)
+        .is_err_and(|owner| owner != pid)
+    {
+        // A forked child can price serially, including while the parent was
+        // initializing its pool.
+        return None;
+    }
+    let pool = HESTON_POOL
+        .get_or_init(|| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(available)
+                .thread_name(|index| format!("kiyosi-heston-{index}"))
+                .build()
+                .ok()
+        })
+        .as_ref()?;
+    Some((pool, available.min(pool.current_num_threads())))
 }
 
 impl AssetWorkers {
-    fn new(columns: usize, rows: usize, steps: usize) -> Option<Self> {
-        let cells = columns * rows;
-        if cells < 24_000 || cells.saturating_mul(steps) < 1_000_000 || rows < 16 {
-            return None;
-        }
-        let workers = std::thread::available_parallelism().ok()?.get().min(4);
-        if workers < 2 {
-            return None;
-        }
-        let pid = std::process::id();
-        let owner = ASSET_WORKERS_OWNER.load(Ordering::Acquire);
-        // Concurrent rollbacks use the calling thread while one request holds the workers.
-        // A child may take over a permit inherited from its parent.
-        if owner == pid
-            || ASSET_WORKERS_OWNER
-                .compare_exchange(owner, pid, Ordering::AcqRel, Ordering::Acquire)
-                .is_err()
-        {
-            return None;
-        }
-        let permit = AssetWorkerPermit;
-        let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(workers)
-            .thread_name(|index| format!("kiyosi-heston-{index}"))
-            .build()
-            .ok()?;
-        Some(Self {
-            pool,
-            tokens: crate::cancellation::current(),
-            rows_per_task: rows.div_ceil(workers).max(4),
-            _permit: permit,
-        })
-    }
-
     fn apply<T: Send>(
         &self,
         work: impl ParallelIterator<Item = T>,
@@ -1152,9 +1150,7 @@ impl Operator {
         // Each strip owns a cache-sized group of complete variance lines.
         let interior = nx - 2;
         let columns = workers.map_or(interior, |workers| {
-            interior
-                .div_ceil(workers.pool.current_num_threads())
-                .next_multiple_of(8)
+            interior.div_ceil(workers.count).next_multiple_of(8)
         });
         let mut strips: Vec<_> = (0..interior.div_ceil(columns))
             .map(|_| Vec::with_capacity(self.rows))

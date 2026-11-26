@@ -392,9 +392,14 @@ def test_coarse_wide_asset_grid_keeps_heston_price_within_payoff_bounds():
     assert 0 < engine.price(option(), context()) <= 100 * math.exp(-0.02)
 
 
-def test_shared_engine_concurrency_and_price_scaling(subtests):
+@pytest.mark.parametrize(
+    ("assets", "variances", "steps"), [(400, 100, 80), (640, 100, 150)]
+)
+def test_shared_engine_concurrency_and_price_scaling(
+    assets, variances, steps, subtests
+):
     engine = FiniteDifferenceHestonVanillaEngine(
-        asset_step_count=100, variance_step_count=25, time_step_count=50
+        asset_step_count=assets, variance_step_count=variances, time_step_count=steps
     )
     expected = engine.price(option(), context())
     with ThreadPoolExecutor(max_workers=4) as pool:
