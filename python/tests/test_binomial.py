@@ -81,7 +81,13 @@ def test_american_batch_matches_scalar_for_full_and_banded_trees(tolerance):
     snapshot = market()
     put = contract(AmericanOption, "put")
     puts = tuple(put.replace(strike=strike) for strike in (115, 90, 100, 115))
-    options = (*puts, contract(AmericanOption), contract(EuropeanOption), put)
+    short = tuple(
+        option.replace(expiry_time=START + timedelta(days=180)) for option in puts
+    )
+    interleaved = tuple(
+        option for pair in zip(puts, short, strict=True) for option in pair
+    )
+    options = (*interleaved, contract(AmericanOption), contract(EuropeanOption), put)
     assert engine.price_many(options, snapshot) == tuple(
         engine.price(option, snapshot) for option in options
     )

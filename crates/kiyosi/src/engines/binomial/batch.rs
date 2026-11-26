@@ -43,9 +43,9 @@ impl CoxRossRubinsteinVanillaEngine {
     ///
     /// Propagates the first pricing error in input order or a cancellation error.
     /// A failed request returns no partial prices.
-    pub fn price_many<'a>(
+    pub fn price_many(
         &self,
-        options: &[BinomialVanilla<'a>],
+        options: &[BinomialVanilla<'_>],
         context: &PricingContext,
     ) -> Result<Vec<f64>> {
         const LANES: usize = 4;
@@ -66,65 +66,105 @@ impl CoxRossRubinsteinVanillaEngine {
                 })
                 .collect();
         }
-        let evaluate = |options: &[BinomialVanilla<'a>]| -> Result<[f64; LANES]> {
-            crate::cancellation::check()?;
-            if let Some(
-                [
-                    BinomialVanilla::American(a),
-                    BinomialVanilla::American(b),
-                    BinomialVanilla::American(c),
-                    BinomialVanilla::American(d),
-                ],
-            ) = self.rollback_tolerance.is_none().then_some(options)
+        let can_tile = self
+            .rollback_tolerance
+            .is_none()
+            .then(|| flat_rates(context).ok())
+            .flatten();
+        let expiry = |index: usize| match (can_tile, options[index]) {
+            (Some((rate, dividend)), BinomialVanilla::American(option))
+                if option.option_type() != crate::OptionType::Call
+                    || dividend > 0.0
+                    || rate < 0.0 =>
             {
-                match self.price_american_lanes([a, b, c, d], context) {
-                    Ok(Some(prices)) => return Ok(prices),
-                    Err(error @ crate::Error::Io(_)) => return Err(error),
-                    _ => {}
+                Some(option.expiry_time())
+            }
+            _ => None,
+        };
+        let mut ordered: Vec<_> = (0..options.len()).collect();
+        ordered.sort_unstable_by_key(|&index| (expiry(index), index));
+        crate::cancellation::check()?;
+        let mut jobs: Vec<_> = ordered
+            .chunk_by(|&a, &b| expiry(a) == expiry(b))
+            .flat_map(|group| group.chunks(LANES))
+            .collect();
+        jobs.sort_unstable_by_key(|job| job[0]);
+
+        let first_error = AtomicUsize::new(usize::MAX);
+        let evaluate =
+            |indices: &[usize]| -> std::result::Result<[f64; LANES], (usize, crate::Error)> {
+                crate::cancellation::check().map_err(|error| (indices[0], error))?;
+                if let &[a, b, c, d] = indices {
+                    if let [
+                        BinomialVanilla::American(a),
+                        BinomialVanilla::American(b),
+                        BinomialVanilla::American(c),
+                        BinomialVanilla::American(d),
+                    ] = [options[a], options[b], options[c], options[d]]
+                    {
+                        if expiry(indices[0]).is_some() {
+                            match self.price_american_lanes([a, b, c, d], context) {
+                                Ok(Some(prices)) => return Ok(prices),
+                                Err(error @ crate::Error::Io(_)) => {
+                                    return Err((indices[0], error));
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
                 }
-            }
-            let mut prices = [0.0; LANES];
-            for (price, &option) in prices.iter_mut().zip(options) {
-                crate::cancellation::check()?;
-                *price = scalar(option)?;
-            }
-            Ok(prices)
+                let mut prices = [0.0; LANES];
+                for (price, &index) in prices.iter_mut().zip(indices) {
+                    crate::cancellation::check().map_err(|error| (index, error))?;
+                    *price = scalar(options[index]).map_err(|error| (index, error))?;
+                }
+                Ok(prices)
+            };
+        let evaluate = |indices: &[usize]| {
+            (indices[0] <= first_error.load(Ordering::Relaxed)).then(|| {
+                evaluate(indices).inspect_err(|(index, _)| {
+                    first_error.fetch_min(*index, Ordering::Relaxed);
+                })
+            })
         };
         let mut prices = Vec::new();
         prices
             .try_reserve_exact(options.len())
             .map_err(|_| unstable())?;
-        if let Some((pool, _)) = (options.len() > LANES)
-            .then(super::super::rollback_pool)
-            .flatten()
-        {
+        prices.resize(options.len(), 0.0);
+        let mut error = None;
+        let mut collect = |indices: &[usize], batch| match batch {
+            Some(Ok(batch)) => {
+                for (&index, price) in indices.iter().zip(batch) {
+                    prices[index] = price;
+                }
+            }
+            Some(Err((index, cause)))
+                if error.as_ref().is_none_or(|(current, _)| index < *current) =>
+            {
+                error = Some((index, cause));
+            }
+            _ => {}
+        };
+        if let Some((pool, _)) = (jobs.len() > 1).then(super::super::rollback_pool).flatten() {
             let tokens = crate::cancellation::current();
-            let first_error = AtomicUsize::new(usize::MAX);
-            let batches = pool.install(|| {
-                options
-                    .par_chunks(LANES)
-                    .enumerate()
-                    .map(|(index, options)| {
-                        if index > first_error.load(Ordering::Relaxed) {
-                            return None;
-                        }
-                        Some(
-                            crate::cancellation::with_tokens(tokens.clone(), || evaluate(options))
-                                .inspect_err(|_| {
-                                    first_error.fetch_min(index, Ordering::Relaxed);
-                                }),
-                        )
+            let batches: Vec<_> = pool.install(|| {
+                jobs.par_iter()
+                    .map(|indices| {
+                        crate::cancellation::with_tokens(tokens.clone(), || Ok(evaluate(indices)))
                     })
-                    .collect::<Vec<_>>()
+                    .collect()
             });
-            for (options, batch) in options.chunks(LANES).zip(batches) {
-                let batch = batch.ok_or_else(unstable)??;
-                prices.extend_from_slice(&batch[..options.len()]);
+            for (indices, batch) in jobs.into_iter().zip(batches) {
+                collect(indices, batch?);
             }
         } else {
-            for options in options.chunks(LANES) {
-                prices.extend_from_slice(&evaluate(options)?[..options.len()]);
+            for indices in jobs {
+                collect(indices, evaluate(indices));
             }
+        }
+        if let Some((_, error)) = error {
+            return Err(error);
         }
         Ok(prices)
     }

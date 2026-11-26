@@ -8,9 +8,24 @@ fn american_batch_matches_scalar_for_full_and_banded_trees() -> Result<()> {
         .map(|strike| AmericanOption::new(OptionType::Put, strike, start, end).unwrap());
     let early = AmericanOption::new(OptionType::Call, 85.0, start, end)?;
     let call = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let short = puts
+        .iter()
+        .map(|put| {
+            put.replace(AmericanOptionChanges {
+                expiry_time: Some(start.add_days(180)?),
+                ..Default::default()
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
     let mut options = puts
         .iter()
-        .map(BinomialVanilla::American)
+        .zip(&short)
+        .flat_map(|(long, short)| {
+            [
+                BinomialVanilla::American(long),
+                BinomialVanilla::American(short),
+            ]
+        })
         .collect::<Vec<_>>();
     options.extend([
         BinomialVanilla::American(&early),
