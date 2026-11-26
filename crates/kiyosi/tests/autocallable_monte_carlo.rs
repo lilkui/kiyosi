@@ -55,6 +55,60 @@ fn portfolio_prices_replay_scalar_paths() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn shared_portfolio_coupon_strips_match_two_lane_quotes() -> Result<()> {
+    fn check<T: AutocallableTerms>(
+        engine: &MonteCarloAutocallableEngine,
+        notes: &[AutocallableNote<T>],
+        context: &PricingContext,
+    ) -> Result<()> {
+        let batch = notes.iter().collect::<Vec<_>>();
+        let prices = engine.price_many_on_shared_grid(&batch, context)?;
+        for (&actual, &note) in prices.iter().zip(&batch) {
+            let expected = engine.price_many_on_shared_grid(&[note, note], context)?[0];
+            assert!((actual - expected).abs() < 2e-14, "{actual} vs {expected}");
+        }
+        assert_eq!(prices[0].to_bits(), prices[3].to_bits());
+        assert!((prices[1] - prices[2]).abs() > 1e-4);
+        let serial = MonteCarloAutocallableEngine::new(MonteCarloSettings {
+            max_active_workers: 1,
+            ..engine.sampling_settings()
+        })?;
+        assert_eq!(prices, serial.price_many_on_shared_grid(&batch, context)?);
+        Ok(())
+    }
+    let clock = date(1, 1).time_of_day();
+    let (snow, _, phoenix) =
+        autocallable_support::multi_event_terms(KnockInObservation::EveryTradingDay {
+            observation_clock_time: clock,
+        });
+    let mut snows = Vec::new();
+    let mut phoenixes = Vec::new();
+    for coupon in [0.02, 0.08, -0.01, 0.02, 0.04] {
+        snows.push(SnowballOption::new(SnowballTerms {
+            maturity_coupon_rate: coupon,
+            ..snow.clone()
+        })?);
+        phoenixes.push(PhoenixOption::new(PhoenixTerms {
+            coupon_per_period: coupon,
+            ..phoenix.clone()
+        })?);
+    }
+    let context = market(100.0, date(1, 1));
+    for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
+        let engine = MonteCarloAutocallableEngine::new(MonteCarloSettings {
+            path_count: 4096,
+            seed: Some(42),
+            antithetic: true,
+            sampling,
+            max_active_workers: 2,
+        })?;
+        check(&engine, &snows, &context)?;
+        check(&engine, &phoenixes, &context)?;
+    }
+    Ok(())
+}
+
 fn date(month: u32, day: u32) -> Timestamp {
     Date::new(2025, month, day).unwrap().start_of_day()
 }

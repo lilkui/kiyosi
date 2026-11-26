@@ -33,6 +33,40 @@ from test_snowball import END, START, contract, market
 
 
 @pytest.mark.parametrize("sampling", ("pseudo_random", "sobol"))
+def test_shared_portfolio_coupon_strips_match_two_lane_quotes(sampling):
+    daily = KnockInObservation.every_trading_day(clock_time())
+    snow = contract(knock_in_observation=daily)
+    phoenix_note = phoenix(knock_in_observation=daily)
+    snapshot = market()
+    engine = MC(
+        path_count=4096,
+        seed=42,
+        antithetic=True,
+        sampling=sampling,
+        max_active_workers=2,
+    )
+    for base, field in (
+        (snow, "maturity_coupon_rate"),
+        (phoenix_note, "coupon_per_period"),
+    ):
+        notes = tuple(
+            base.replace(**{field: coupon})
+            for coupon in (0.02, 0.08, -0.01, 0.02, 0.04)
+        )
+        actual = engine.price_many(notes, snapshot, shared_grid=True)
+        expected = tuple(
+            engine.price_many((note, note), snapshot, shared_grid=True)[0]
+            for note in notes
+        )
+        assert actual == pytest.approx(expected, rel=0, abs=2e-14)
+        assert actual[0] == actual[3]
+        assert abs(actual[1] - actual[2]) > 1e-4
+        assert actual == engine.replace(max_active_workers=1).price_many(
+            notes, snapshot, shared_grid=True
+        )
+
+
+@pytest.mark.parametrize("sampling", ("pseudo_random", "sobol"))
 def test_portfolio_prices_replay_scalar_paths(sampling):
     note = contract(
         knock_in_observation=KnockInObservation.every_trading_day(clock_time()),

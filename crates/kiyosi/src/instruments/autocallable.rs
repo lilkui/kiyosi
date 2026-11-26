@@ -712,18 +712,18 @@ mod sealed {
             convention: crate::CouponQuoteConvention,
         ) -> crate::Result<Self>;
     }
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, PartialEq)]
     pub struct Downside {
         pub initial_spot: f64,
         pub upper_strike: f64,
         pub lower_strike: f64,
     }
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, PartialEq)]
     pub enum Redemption {
         Downside(Downside),
         FixedCoupon(f64),
     }
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, PartialEq)]
     pub struct KnockIn {
         pub level: f64,
         pub observation: KnockInObservation,
@@ -1154,6 +1154,41 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
             Coupon::Snowball(_) => 0.0,
             Coupon::Phoenix(coupon) => coupon,
         }
+    }
+
+    pub(crate) fn portfolio_coupon(&self) -> f64 {
+        match self.view().coupon {
+            Coupon::Snowball(rate) | Coupon::Phoenix(rate) => rate,
+        }
+    }
+
+    #[expect(
+        clippy::float_cmp,
+        reason = "Exact payout terms are required for coupon interpolation."
+    )]
+    pub(crate) fn shares_coupon_terms(&self, other: &Self) -> Result<bool> {
+        let a = self.view();
+        let b = other.view();
+        if a.effective_time != b.effective_time
+            || a.expiry_time != b.expiry_time
+            || a.calendar != b.calendar
+            || a.barrier_state != b.barrier_state
+            || a.knock_in != b.knock_in
+            || self.knock_in_affects_payoff() != other.knock_in_affects_payoff()
+            || a.principal_redemption_ratio != b.principal_redemption_ratio
+            || a.rebate_rate != b.rebate_rate
+            || a.annual_rebate_rate != b.annual_rebate_rate
+            || self.events().len() != other.events().len()
+        {
+            return Ok(false);
+        }
+        for (left, right) in self.events().chunks(1024).zip(other.events().chunks(1024)) {
+            crate::cancellation::check()?;
+            if left != right {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
     #[expect(
         clippy::float_cmp,

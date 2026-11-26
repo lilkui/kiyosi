@@ -335,17 +335,75 @@ fn price_groups<T: AutocallableTerms>(
     prices: &mut [f64],
     share_daily_grid: bool,
 ) -> Result<()> {
-    for group in groups.drain(..) {
+    for mut group in groups.drain(..) {
         crate::cancellation::check()?;
         let (index, base) = &group[0];
         if group.len() == 1 {
             prices[*index] = scalar(base, engine, context)?;
         } else {
-            Portfolio::new(&group, share_daily_grid && base.shared_daily_grid())?
-                .price(engine.settings, prices)?;
+            let shared = share_daily_grid && base.shared_daily_grid();
+            if !shared || !price_coupon_group(&mut group, engine.settings, prices)? {
+                Portfolio::new(&group, shared)?.price(engine.settings, prices)?;
+            }
         }
     }
     Ok(())
+}
+
+fn price_coupon_group<T: AutocallableTerms>(
+    group: &mut [IndexedPlan<'_, T>],
+    settings: MonteCarloSettings,
+    prices: &mut [f64],
+) -> Result<bool> {
+    if group.len() < 3 {
+        return Ok(false);
+    }
+    let first = group[0].1.note;
+    let mut low = (0, first.portfolio_coupon());
+    let mut high = low;
+    for (index, (_, plan)) in group.iter().enumerate().skip(1) {
+        crate::cancellation::check()?;
+        if !first.shares_coupon_terms(plan.note)? {
+            return Ok(false);
+        }
+        let coupon = plan.note.portfolio_coupon();
+        if coupon < low.1 {
+            low = (index, coupon);
+        }
+        if coupon > high.1 {
+            high = (index, coupon);
+        }
+    }
+    let width = high.1 - low.1;
+    if !width.is_finite() {
+        return Ok(false);
+    }
+    // Equal event dates and thresholds preserve the union grid and its draws.
+    // Keep two endpoint lanes and interpolate the coupon cash flows afterward.
+    group.swap(0, low.0);
+    let high_index = if high.0 == 0 { low.0.max(1) } else { high.0 };
+    group.swap(1, high_index);
+    Portfolio::new(&group[..2], true)?.price(settings, prices)?;
+    let [lower_price, upper_price] = [prices[group[0].0], prices[group[1].0]];
+    // Restore the original lane order for a numerical fallback.
+    group.swap(1, high_index);
+    group.swap(0, low.0);
+    for (index, plan) in group {
+        crate::cancellation::check()?;
+        let fraction = if width > 0.0 {
+            (plan.note.portfolio_coupon() - low.1) / width
+        } else {
+            0.0
+        };
+        let value = [lower_price * (1.0 - fraction), upper_price * fraction];
+        let price = value[0] + value[1];
+        let magnitude = value[0].abs() + value[1].abs();
+        if !price.is_finite() || price.abs() < 1e-12 * magnitude {
+            return Ok(false);
+        }
+        prices[*index] = price;
+    }
+    Ok(true)
 }
 
 struct Portfolio<'a, 'b, T: AutocallableTerms> {
