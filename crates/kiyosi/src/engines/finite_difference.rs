@@ -141,6 +141,23 @@ impl FiniteDifferenceSettings {
 
 const WORKSPACE_BUDGET: u64 = 1 << 30;
 
+/// Checks the surface workspace budget before collecting or pricing its inputs.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidInput`] when the requested dimensions exceed the budget.
+#[doc(hidden)]
+pub fn validate_finite_difference_surface_size(expiries: usize, strikes: usize) -> Result<()> {
+    let row_bytes = 64_u64.saturating_add((strikes as u64).saturating_mul(16));
+    // Even an empty expiry axis must bound the strike inputs.
+    if (expiries.max(1) as u64).saturating_mul(row_bytes) > WORKSPACE_BUDGET / 4 {
+        return Err(invalid_grid(
+            "finite-difference surface output exceeds workspace budget",
+        ));
+    }
+    Ok(())
+}
+
 fn validate_workspace(
     scheme: FiniteDifferenceScheme,
     asset_nodes: u64,
@@ -1739,6 +1756,22 @@ impl PricingEngine<DigitalOption> for FiniteDifferenceDigitalEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn surface_size_bounds_both_axes_and_empty_surfaces() {
+        assert!(validate_finite_difference_surface_size(1000, 16_773).is_ok());
+        assert!(matches!(
+            validate_finite_difference_surface_size(1000, 16_774),
+            Err(Error::InvalidInput(_))
+        ));
+        for (expiries, strikes) in [(usize::MAX, 0), (0, usize::MAX), (usize::MAX, usize::MAX)] {
+            assert!(matches!(
+                validate_finite_difference_surface_size(expiries, strikes),
+                Err(Error::InvalidInput(_))
+            ));
+        }
+        assert!(validate_finite_difference_surface_size(0, 0).is_ok());
+    }
     use crate::{CancellationToken, Date, LocalVolatilityParameters, LocalVolatilitySurface};
 
     #[test]

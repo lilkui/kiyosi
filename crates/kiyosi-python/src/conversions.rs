@@ -150,11 +150,20 @@ pub(crate) fn collect_values<T>(
     value: &Bound<'_, PyAny>,
     convert: impl Fn(&Bound<'_, PyAny>) -> PyResult<T>,
 ) -> PyResult<Vec<T>> {
+    collect_values_checked(value, convert, |_| Ok(()))
+}
+
+fn collect_values_checked<T>(
+    value: &Bound<'_, PyAny>,
+    convert: impl Fn(&Bound<'_, PyAny>) -> PyResult<T>,
+    check_count: impl Fn(usize) -> PyResult<()>,
+) -> PyResult<Vec<T>> {
     value
         .try_iter()?
         .enumerate()
         .map(|(index, item)| {
             let item = item?;
+            check_count(index + 1)?;
             if index % 1024 == 0 {
                 value.py().check_signals()?;
             }
@@ -263,10 +272,34 @@ pub(crate) fn optional_timestamps(
 }
 
 pub(crate) fn timestamps(value: &Bound<'_, PyAny>) -> PyResult<Vec<kiyosi::Timestamp>> {
+    collect_timestamps_checked(value, |_| Ok(()))
+}
+
+fn collect_timestamps_checked(
+    value: &Bound<'_, PyAny>,
+    check_count: impl Fn(usize) -> PyResult<()>,
+) -> PyResult<Vec<kiyosi::Timestamp>> {
     if let Ok(schedule) = value.extract::<PyRef<'_, crate::schedule::ObservationSchedule>>() {
+        check_count(schedule.0.len())?;
         return Ok(schedule.0.times().to_vec());
     }
-    collect_values(value, timestamp)
+    collect_values_checked(value, timestamp, check_count)
+}
+
+pub(crate) fn surface_inputs(
+    expiries: &Bound<'_, PyAny>,
+    strikes: &Bound<'_, PyAny>,
+) -> PyResult<(Vec<kiyosi::Timestamp>, Vec<f64>)> {
+    let expiries = collect_timestamps_checked(expiries, |count| {
+        domain(kiyosi::validate_finite_difference_surface_size(count, 0))
+    })?;
+    let strikes = collect_values_checked(strikes, real, |count| {
+        domain(kiyosi::validate_finite_difference_surface_size(
+            expiries.len(),
+            count,
+        ))
+    })?;
+    Ok((expiries, strikes))
 }
 
 pub(crate) fn clock_time(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::TimeOfDay> {

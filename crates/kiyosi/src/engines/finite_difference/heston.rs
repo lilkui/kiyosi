@@ -286,6 +286,7 @@ impl FiniteDifferenceHestonVanillaEngine {
     ) -> Result<Vec<Vec<f64>>> {
         let model = context.model_parameters().as_heston()?;
         let valuation = context.valuation_time();
+        super::validate_finite_difference_surface_size(expiries.len(), strikes.len())?;
         let mut strike_range = [f64::INFINITY, 0.0_f64];
         for &strike in strikes {
             crate::cancellation::check()?;
@@ -293,13 +294,6 @@ impl FiniteDifferenceHestonVanillaEngine {
             strike_range = [strike_range[0].min(strike), strike_range[1].max(strike)];
         }
         let mut ordered = Vec::new();
-        if (expiries.len() as u64).saturating_mul(64 + (strikes.len() as u64).saturating_mul(16))
-            > WORKSPACE_BUDGET / 4
-        {
-            return Err(invalid_grid(
-                "Heston surface output exceeds workspace budget",
-            ));
-        }
         for &expiry in expiries {
             crate::cancellation::check()?;
             if expiry < template.effective_time() || expiry < valuation {

@@ -5,9 +5,8 @@ use super::{
     validate_work, validate_workspace,
 };
 use crate::engines::finite_difference::{
-    WORKSPACE_BUDGET,
     edge_weights::{BYTES_PER_STEP, EdgeWeights},
-    unstable,
+    unstable, validate_finite_difference_surface_size,
 };
 use crate::{Error, ModelParameters, Timestamp};
 
@@ -53,13 +52,7 @@ impl FiniteDifferenceVanillaEngine {
     ) -> Result<Vec<Vec<f64>>> {
         local_volatility::validate_model(context)?;
         let valuation = context.valuation_time();
-        if (expiries.len() as u64).saturating_mul(64 + (strikes.len() as u64).saturating_mul(16))
-            > WORKSPACE_BUDGET / 4
-        {
-            return Err(invalid_grid(
-                "finite-difference surface output exceeds workspace budget",
-            ));
-        }
+        validate_finite_difference_surface_size(expiries.len(), strikes.len())?;
         let mut limits = [f64::INFINITY, 0.0_f64];
         for &strike in strikes {
             crate::cancellation::check()?;

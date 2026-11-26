@@ -222,9 +222,10 @@ engine_methods!(
             py: Python<'py>,
             #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, crate::instruments::vanilla::EuropeanOption>,
             context: &crate::market::PricingContext,
-            #[pyo3(from_py_with = crate::conversions::timestamps)] expiries: Vec<kiyosi::Timestamp>,
-            #[pyo3(from_py_with = crate::conversions::reals)] strikes: Vec<f64>,
+            expiries: &Bound<'_, PyAny>,
+            strikes: &Bound<'_, PyAny>,
         ) -> PyResult<Bound<'py, PyTuple>> {
+            let (expiries, strikes) = crate::conversions::surface_inputs(expiries, strikes)?;
             let instrument = &instrument.0;
             let values = crate::cancellation::run(py, || {
                 self.0.price_european_surface(instrument, &context.0, &expiries, &strikes)
@@ -273,9 +274,10 @@ engine_methods!(
             py: Python<'py>,
             #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, crate::instruments::american::AmericanOption>,
             context: &crate::market::PricingContext,
-            #[pyo3(from_py_with = crate::conversions::timestamps)] expiries: Vec<kiyosi::Timestamp>,
-            #[pyo3(from_py_with = crate::conversions::reals)] strikes: Vec<f64>,
+            expiries: &Bound<'_, PyAny>,
+            strikes: &Bound<'_, PyAny>,
         ) -> PyResult<Bound<'py, PyTuple>> {
+            let (expiries, strikes) = crate::conversions::surface_inputs(expiries, strikes)?;
             let instrument = &instrument.0;
             let values = crate::cancellation::run(py, || {
                 self.0.price_american_surface(instrument, &context.0, &expiries, &strikes)

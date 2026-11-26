@@ -30,6 +30,7 @@ from kiyosi.pricing import (
     FiniteDifferenceBarrierEngine,
     FiniteDifferenceDigitalEngine,
     FiniteDifferenceDoubleBarrierEngine,
+    FiniteDifferenceHestonVanillaEngine,
     FiniteDifferenceScheme,
     FiniteDifferenceVanillaEngine,
     implied_volatility,
@@ -47,6 +48,41 @@ FACTORIES = (
     FiniteDifferenceDoubleBarrierEngine,
 )
 SCHEMES = ("explicit_euler", "implicit_euler", "crank_nicolson", "rannacher")
+
+
+@pytest.mark.parametrize("american", (False, True), ids=("european", "american"))
+@pytest.mark.parametrize("heston", (False, True), ids=("bsm", "heston"))
+def test_surface_stops_reading_strikes_at_workspace_limit(american, heston):
+    from test_heston import context as heston_context
+
+    engine = (
+        FiniteDifferenceHestonVanillaEngine()
+        if heston
+        else FiniteDifferenceVanillaEngine()
+    )
+    context = heston_context() if heston else market()
+    if american:
+        price_surface, instrument = (
+            engine.price_american_surface,
+            contract(AmericanOption),
+        )
+    else:
+        price_surface, instrument = (
+            engine.price_european_surface,
+            contract(EuropeanOption),
+        )
+
+    def strikes():
+        for _ in range(16_774):
+            yield 100.0
+        pytest.fail(
+            "read beyond the first strike exceeding the surface workspace limit"
+        )
+
+    with pytest.raises(
+        InvalidInputError, match="surface output exceeds workspace budget"
+    ):
+        price_surface(instrument, context, expiries=[END] * 1000, strikes=strikes())
 
 
 @pytest.mark.parametrize("micros", [1, 1_000_000])

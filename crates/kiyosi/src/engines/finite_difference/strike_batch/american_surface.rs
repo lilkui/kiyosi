@@ -44,14 +44,7 @@ impl FiniteDifferenceVanillaEngine {
     ) -> Result<Vec<Vec<f64>>> {
         local_volatility::validate_model(context)?;
         let valuation = context.valuation_time();
-        let budget = super::super::WORKSPACE_BUDGET;
-        if (expiries.len() as u64).saturating_mul(64 + (strikes.len() as u64).saturating_mul(16))
-            > budget / 4
-        {
-            return Err(invalid_grid(
-                "American surface output exceeds workspace budget",
-            ));
-        }
+        super::super::validate_finite_difference_surface_size(expiries.len(), strikes.len())?;
         for &strike in strikes {
             crate::cancellation::check()?;
             crate::error::finite(strike, true, "strike")?;
