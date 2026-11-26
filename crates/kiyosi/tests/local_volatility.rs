@@ -32,6 +32,37 @@ fn close(a: f64, b: f64, tol: f64) {
 }
 
 #[test]
+fn stationary_skew_is_reused_across_scheme_weights_and_rate_knots() -> Result<()> {
+    let (start, end) = dates();
+    let middle = start.add_days(182)?;
+    let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let risk = RateTermStructure::new(start, vec![middle, end], vec![0.98, 0.95])?;
+    let settings = FiniteDifferenceSettings {
+        asset_step_count: 400,
+        time_step_count: 160,
+        ..Default::default()
+    };
+    let engine = FiniteDifferenceVanillaEngine::new(settings)?;
+    let price = |row: Vec<f64>| -> Result<f64> {
+        let surface = LocalVolatilitySurface::new(
+            vec![start, end],
+            vec![80.0, 120.0],
+            vec![vec![0.23, 0.17], row],
+        )?;
+        let context = PricingContext::new(
+            LocalVolatilityParameters::new(risk.clone(), 0.02, surface)?,
+            100.0,
+            start,
+        )?;
+        engine.price(&option, &context)
+    };
+    let stationary = price(vec![0.23, 0.17])?;
+    let changing = price(vec![0.23 + 1e-10, 0.17 + 1e-10])?;
+    close(stationary, changing, 1e-7);
+    Ok(())
+}
+
+#[test]
 fn surface_interpolates_sigma_and_flat_price_tails_without_time_extrapolation() {
     let s = surface(vec![vec![0.2, 0.4], vec![0.4, 0.8]]);
     let (a, b) = dates();

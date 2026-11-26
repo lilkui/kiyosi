@@ -28,6 +28,7 @@ pub struct LocalVolatilitySurface {
     years: Arc<[f64]>,
     spots: Arc<[f64]>,
     values: Arc<[f64]>,
+    row_groups: Arc<[usize]>,
     maximum: f64,
     minimum: f64,
 }
@@ -87,8 +88,10 @@ impl LocalVolatilitySurface {
         }
         let mut maximum: f64 = 0.0;
         let mut minimum = f64::INFINITY;
-        for (row, values) in values.iter().enumerate() {
-            for (column, &value) in values.iter().enumerate() {
+        let mut row_groups = Vec::with_capacity(times.len());
+        for (row, current) in values.iter().enumerate() {
+            let mut shared = row > 0;
+            for (column, &value) in current.iter().enumerate() {
                 if column % 1024 == 0 {
                     cancellation::check()?;
                 }
@@ -99,7 +102,9 @@ impl LocalVolatilitySurface {
                 }
                 maximum = maximum.max(value);
                 minimum = minimum.min(value);
+                shared &= row > 0 && value.to_bits() == values[row - 1][column].to_bits();
             }
+            row_groups.push(if shared { row_groups[row - 1] } else { row });
         }
         let mut years = Vec::with_capacity(times.len());
         for chunk in times.chunks(1024) {
@@ -123,6 +128,7 @@ impl LocalVolatilitySurface {
             years: years.into(),
             spots: spots.into(),
             values: table.into(),
+            row_groups: row_groups.into(),
             maximum,
             minimum,
         })
@@ -213,6 +219,11 @@ impl LocalVolatilitySurface {
             self.at_spot(row + 1, location),
             time_weight,
         )
+    }
+
+    pub(crate) fn stationary_row(&self, time: f64) -> Option<usize> {
+        let (row, _) = bracket(&self.years, time);
+        (self.row_groups[row] == self.row_groups[row + 1]).then_some(self.row_groups[row])
     }
 
     fn at_spot(&self, row: usize, (column, weight): (usize, f64)) -> f64 {

@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import pytest
 import QuantLib as ql
 from kiyosi import InvalidInputError, UnsupportedOperationError, pricing
-from kiyosi.instruments import EuropeanOption
+from kiyosi.instruments import AmericanOption, EuropeanOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
     LocalVolatilityParameters,
@@ -21,6 +21,35 @@ from support.terminal import assert_terminal_greeks
 from test_support_matrix import HESTON_ENGINES, terminal_cases, terminal_delta
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
+
+
+def test_stationary_skew_is_reused_across_scheme_weights_and_rate_knots():
+    risk = RateTermStructure(
+        reference_time=START,
+        times=[START + timedelta(days=182), END],
+        factors=[0.98, 0.95],
+    )
+    put = AmericanOption(
+        option_type="put", strike=100, effective_time=START, expiry_time=END
+    )
+    pricer = pricing.FiniteDifferenceVanillaEngine(
+        asset_step_count=400, time_step_count=160
+    )
+
+    def price(row):
+        model = LocalVolatilityParameters(
+            risk_free_rate=risk,
+            dividend_yield=0.02,
+            surface=surface(((0.23, 0.17), row)),
+        )
+        snapshot = PricingContext(
+            model_parameters=model, spot_price=100, valuation_time=START
+        )
+        return pricer.price(put, snapshot)
+
+    assert price((0.23, 0.17)) == pytest.approx(
+        price((0.23 + 1e-10, 0.17 + 1e-10)), abs=1e-7, rel=0
+    )
 
 
 def surface(values=((0.2, 0.2), (0.2, 0.2))):

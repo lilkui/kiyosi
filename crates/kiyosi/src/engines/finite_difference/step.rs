@@ -193,6 +193,7 @@ pub(super) struct Stepper {
     rhs: Vec<f64>,
     active: usize,
     local: Option<crate::market::LocalVolatilityProjection>,
+    local_operator: Option<(usize, [u64; 3])>,
 }
 
 impl Stepper {
@@ -209,6 +210,7 @@ impl Stepper {
             rhs: vec![0.0; count - 1],
             active: 0,
             local: None,
+            local_operator: None,
         }
     }
 
@@ -226,6 +228,7 @@ impl Stepper {
             rhs: vec![0.0; size],
             active: 0,
             local: None,
+            local_operator: None,
         }
     }
 
@@ -249,28 +252,41 @@ impl Stepper {
                 &space.spots,
             )?);
         }
-        {
-            let volatility = self
+        let operator = surface
+            .stationary_row(time)
+            .map(|row| (row, [scale, rate, dividend].map(f64::to_bits)));
+        let same_operator = operator.is_some() && self.local_operator == operator;
+        let factors = &mut self.factors[0];
+        let key = [dt, theta, rate, dividend, scale];
+        let same_factors = same_operator && factors.key.map(f64::to_bits) == key.map(f64::to_bits);
+        if !same_factors {
+            let projection = self
                 .local
                 .as_mut()
-                .expect("local surface projection is initialized")
-                .at_year(surface, time)?;
-            let factors = &mut self.factors[0];
-            let size = factors.coefficients.len();
-            for i in 0..size {
-                let [a, b, c] =
-                    space.coefficients(i + 1, rate, dividend, volatility(i + 1) * scale);
-                if [a, b, c].iter().any(|v| !v.is_finite()) {
-                    return Err(unstable());
+                .expect("local projection is initialized");
+            let volatility = (!same_operator)
+                .then(|| projection.at_year(surface, time))
+                .transpose()?;
+            for i in 0..factors.coefficients.len() {
+                if i % 1024 == 0 {
+                    crate::cancellation::check()?;
                 }
-                if theta == 0.0 && -dt * b > 1.0 {
+                if let Some(volatility) = &volatility {
+                    let row = space.coefficients(i + 1, rate, dividend, volatility(i + 1) * scale);
+                    if row.iter().any(|v| !v.is_finite()) {
+                        return Err(unstable());
+                    }
+                    factors.coefficients[i] = row;
+                }
+                if theta == 0.0 && -dt * factors.coefficients[i][1] > 1.0 {
                     return Err(invalid_grid("explicit finite-difference grid is unstable"));
                 }
-                factors.coefficients[i] = [a, b, c];
                 if theta != 0.0 {
                     factors.factor_row(i, dt, theta)?;
                 }
             }
+            self.local_operator = operator;
+            factors.key = key;
         }
         for ((old, next), &boundaries) in old.iter().zip(next).zip(boundaries) {
             self.apply(old, next, dt, theta, boundaries, 0)?;
