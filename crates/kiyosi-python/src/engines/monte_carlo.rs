@@ -525,10 +525,10 @@ sampling_settings!(
         /// Accumulator : Supported contract.
     ],
     [
-        /// Simulation uses future observation dates and expiry. With an explicit
-        /// knock-out schedule and fixed purchase quantities, only knock-out
-        /// dates and expiry require simulation. A current knock-out settles
-        /// before any purchase.
+        /// Simulation uses future observation dates and expiry. When an explicit
+        /// knock-out schedule groups multiple fixed purchase dates, only knock-out
+        /// dates and expiry require simulation. A current knock-out settles before
+        /// any purchase.
         /// Scheduled transition and sampling workspace is capped at 1 GiB per request.
     ]
 );

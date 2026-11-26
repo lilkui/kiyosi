@@ -133,8 +133,8 @@ impl MonteCarloAccumulatorEngine {
     ///
     /// Uncertainty follows [`MonteCarloEstimate`]; known pseudorandom settlements
     /// have zero uncertainty. Sobol uses one dimension per simulated date.
-    /// An explicit knock-out schedule with fixed purchase quantities simulates
-    /// only future knock-out dates and expiry.
+    /// When an explicit knock-out schedule groups multiple fixed purchase dates,
+    /// only future knock-out dates and expiry require simulation.
     /// Cancellation follows [`crate::CancellationToken`]. See [`Self::new`].
     ///
     /// # Errors

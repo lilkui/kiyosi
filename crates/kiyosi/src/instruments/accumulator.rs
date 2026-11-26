@@ -409,10 +409,12 @@ impl Accumulator {
         let expiry_only = (future.last() != Some(&expiry)).then_some(expiry);
         let mut events = Vec::with_capacity(future.len() + usize::from(expiry_only.is_some()));
         let mut previous = 0;
+        let mut grouped = 0;
         for time in future.iter().copied().chain(expiry_only) {
             crate::cancellation::check()?;
             let before = previous + fixings[previous..].partition_point(|&fixing| fixing < time);
             let at = fixings.get(before) == Some(&time);
+            grouped += before - previous;
             let count = u32::try_from(before - previous).expect("fixing count is bounded above");
             events.push(FixedPurchaseEvent {
                 time,
@@ -421,7 +423,8 @@ impl Accumulator {
             });
             previous = before + usize::from(at);
         }
-        Ok(Some(events))
+        // Keep the existing sampling coordinates when grouping saves at most one fixing.
+        Ok((grouped >= 2 || self.daily_quantity() == 0.0).then_some(events))
     }
 
     pub(crate) fn accrues(&self, context: &PricingContext) -> bool {
