@@ -69,8 +69,7 @@ def test_engine_defaults_and_representation_errors(subtests):
     for fields in ({"scheme": 1}, {"asset_upper_boundary": True}, {"unknown": 1}):
         with pytest.raises(TypeError):
             FD(**fields)
-    with pytest.raises(ValueError):
-        FD(scheme="unknown")
+    assert_rejection(ValueError, FD, scheme="unknown")
     for fields in (
         {"time_step_count": 0},
         {"asset_step_count": 2},
@@ -189,10 +188,7 @@ def test_event_greeks_node_curves_and_failed_replacement():
     assert result.vega is not None
     assert result.rho is not None
     snapshot = note.knock_out_observations
-    with pytest.raises(ValueError):
-        note.replace(
-            barrier_state="invalid",
-        )
+    assert_rejection(ValueError, note.replace, barrier_state="invalid")
     assert note.knock_out_observations == tuple(snapshot)
     context = market()
     curve = RateTermStructure(

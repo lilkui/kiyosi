@@ -193,8 +193,7 @@ def test_construction_protocols_validation_order_and_ownership(base_option, base
     ):
         with pytest.raises(TypeError):
             AmericanOption(**dict(base_terms, **fields))
-    with pytest.raises(ValueError):
-        AmericanOption(**dict(base_terms, option_type="CALL"))
+    assert_rejection(ValueError, AmericanOption, **dict(base_terms, option_type="CALL"))
     with pytest.raises(OverflowError):
         AmericanOption(**dict(base_terms, strike=10**1000))
     assert AmericanOption(**dict(base_terms, strike=Fraction(201, 2))).strike == 100.5

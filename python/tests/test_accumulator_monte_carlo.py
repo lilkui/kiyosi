@@ -118,8 +118,7 @@ def test_strict_settings_protocols_defaults_and_ownership(subtests):
     for fields in ({"antithetic": 1}, {"sampling": 1}, {"unknown": 1}):
         with pytest.raises(TypeError):
             MC(**fields)
-    with pytest.raises(ValueError):
-        MC(sampling="invalid")
+    assert_rejection(ValueError, MC, sampling="invalid")
     for fields in (
         {"path_count": 0},
         {"path_count": 10000001},

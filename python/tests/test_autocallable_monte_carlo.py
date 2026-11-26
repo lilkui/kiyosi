@@ -172,8 +172,7 @@ def test_defaults_strict_representations_and_validation(subtests):
     for fields in ({"antithetic": 1}, {"sampling": 1}, {"unknown": 1}):
         with pytest.raises(TypeError):
             MC(**fields)
-    with pytest.raises(ValueError):
-        MC(sampling="invalid")
+    assert_rejection(ValueError, MC, sampling="invalid")
     for fields in (
         {"path_count": 0},
         {"max_active_workers": -1},

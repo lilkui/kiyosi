@@ -361,8 +361,10 @@ def test_owned_defaults_replacement_and_strict_representations(subtests):
     assert note.principal_redemption_ratio == 1
     assert note.barrier_state is None
     assert note.coupon_barrier_levels == ((90, 90))
-    records = list(note.knock_out_observations)
-    records.clear()
+    assert note.knock_out_observations == (
+        KnockOutObservation(MIDDLE, 110),
+        KnockOutObservation(END, 110),
+    )
     assert note.knock_out_times == ((MIDDLE, END))
     assert (
         note.replace(
@@ -384,9 +386,7 @@ def test_owned_defaults_replacement_and_strict_representations(subtests):
     ):
         with subtests.test(fields=fields), pytest.raises(TypeError):
             contract(**fields)
-    for fields in ({"barrier_state": "unknown"},):
-        with pytest.raises(ValueError):
-            contract(**fields)
+    assert_rejection(ValueError, contract, barrier_state="unknown")
     for replacement in (
         note.replace(),
         note.replace(

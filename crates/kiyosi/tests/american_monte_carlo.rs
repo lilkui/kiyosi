@@ -623,9 +623,7 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
         assert_eq!(result.get(greek), None);
     }
     for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
-        if result.supported().has(greek) {
-            assert_eq!(result.require(greek).unwrap(), 0.0);
-        }
+        assert_eq!(result.get(greek), Some(0.0), "{greek:?} at expiry");
     }
     assert!(matches!(
         implied_volatility(

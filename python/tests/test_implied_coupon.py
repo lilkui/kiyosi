@@ -300,8 +300,7 @@ def test_coupon_replacements_apply_solved_quotes_without_changing_notes(subtests
                     note.with_coupon(math.nan, quote_convention=convention)
                 with pytest.raises(TypeError):
                     note.with_coupon(True, quote_convention=convention)
-        with pytest.raises(ValueError):
-            note.with_coupon(0.1, quote_convention="unknown")
+        assert_rejection(ValueError, note.with_coupon, 0.1, quote_convention="unknown")
         assert note.knock_out_coupon_rates == ((0.08, 0.12))
         assert note.maturity_coupon_rate == 0.06
 
@@ -341,46 +340,47 @@ def test_quoted_phoenix_coupons_preserve_units_and_validate_inputs(subtests):
         )
     )
     engine = QuadratureAutocallableEngine()
-    for field, note in (("coupon_per_period", phoenix(coupon_per_period=0.01)),):
-        for coupon in (-0.02, 0, 0.02):
-            with subtests.test(field=field, coupon=coupon):
-                changed = note.with_coupon(**{field: coupon})
-                assert changed == note.replace(**{field: coupon})
-                quote = engine.price(changed, context)
-                solved = implied_phoenix_coupon(
-                    engine,
-                    note,
-                    context,
-                    quote,
-                    lower_bound=-1,
-                )
-                assert set(solved) == {field}
-                assert solved[field] == pytest.approx(coupon, rel=0, abs=1e-12)
-                with pytest.raises(TypeError):
-                    note.replace(coupon_per_period=solved)
-                assert engine.price(
-                    note.replace(**solved),
-                    context,
-                ) == pytest.approx(quote, rel=0, abs=1e-12)
-        for value, error in (
-            (math.nan, InvalidInputError),
-            (math.inf, InvalidInputError),
-            (-math.inf, InvalidInputError),
-            (True, TypeError),
-            (None, TypeError),
-        ):
-            with subtests.test(field=field, value=value), pytest.raises(error):
-                note.with_coupon(**{field: value})
-        for keyword in ("coupon_per_period",):
-            quoted = note.with_coupon(**{keyword: 0.12})
-            assert getattr(quoted, keyword) == 0.12
-            assert quoted.barrier_state == note.barrier_state
-        for choices in ({}, {"coupon_rate": 0.12, "coupon_per_period": 0.01}):
+    note = phoenix(coupon_per_period=0.01)
+    for coupon in (-0.02, 0, 0.02):
+        with subtests.test(coupon=coupon):
+            changed = note.with_coupon(coupon_per_period=coupon)
+            assert changed == note.replace(coupon_per_period=coupon)
+            quote = engine.price(changed, context)
+            solved = implied_phoenix_coupon(
+                engine,
+                note,
+                context,
+                quote,
+                lower_bound=-1,
+            )
+            assert set(solved) == {"coupon_per_period"}
+            assert solved["coupon_per_period"] == pytest.approx(
+                coupon, rel=0, abs=1e-12
+            )
             with pytest.raises(TypeError):
-                note.with_coupon(**choices)
+                note.replace(coupon_per_period=solved)
+            assert engine.price(
+                note.replace(**solved),
+                context,
+            ) == pytest.approx(quote, rel=0, abs=1e-12)
+    for value, error in (
+        (math.nan, InvalidInputError),
+        (math.inf, InvalidInputError),
+        (-math.inf, InvalidInputError),
+        (True, TypeError),
+        (None, TypeError),
+    ):
+        with subtests.test(value=value), pytest.raises(error):
+            note.with_coupon(coupon_per_period=value)
+    quoted = note.with_coupon(coupon_per_period=0.12)
+    assert quoted.coupon_per_period == 0.12
+    assert quoted.barrier_state == note.barrier_state
+    for choices in ({}, {"coupon_rate": 0.12, "coupon_per_period": 0.01}):
         with pytest.raises(TypeError):
-            note.with_coupon(0.12)
-        assert getattr(note, field) == 0.01
+            note.with_coupon(**choices)
+    with pytest.raises(TypeError):
+        note.with_coupon(0.12)
+    assert note.coupon_per_period == 0.01
 
 
 def test_coupon_signatures_express_product_requirements():
@@ -933,8 +933,7 @@ def test_strict_protocols_and_concurrent_solves():
     ):
         with pytest.raises(TypeError):
             solve(**kwargs)
-    with pytest.raises(ValueError):
-        solve(quote_convention="unknown")
+    assert_rejection(ValueError, solve, quote_convention="unknown")
     with pytest.raises(TypeError):
         implied_phoenix_coupon(
             engine,

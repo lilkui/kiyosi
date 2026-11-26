@@ -167,38 +167,34 @@ def test_mc_threads_steps_selections_and_concurrency_share_samples(
 
 def test_requests_lifetimes_tiny_volatility_and_greek_overflow():
     for option, asset in options():
-        for engine in (
-            pricing.MonteCarloDigitalEngine(path_count=2, seed=42, antithetic=True),
-        ):
-            deterministic = market(spot=95, volatility=0, rate=0, dividend=0)
-            result = engine.price_with_greeks(
-                option, deterministic, "rho", rate_shift=1000
-            )
-            assert result.price == engine.price(option, deterministic)
-            assert result.status("rho") == "unsupported"
-            controlled = numerical_greeks(
-                engine,
-                option,
-                market(),
-                "rho",
-                spot_shift=0.1,
-                volatility_shift=0.001,
-                rate_shift=0.001,
-                time_shift=timedelta(days=2),
-            )
-            assert controlled.price == engine.price(option, market())
-            assert controlled.status("rho") == "available"
-            result = engine.price_with_greeks(option, market(), "rho")
-            assert result.price == controlled.price
-            assert result.status("rho") == "unsupported"
-            with pytest.raises(TypeError):
-                numerical_greeks(engine, option, market(), "delta", spot_shift=True)
-            assert_rejection(
-                InvalidInputError,
-                engine.price,
-                option,
-                market(valuation=END + timedelta(days=1)),
-            )
+        engine = pricing.MonteCarloDigitalEngine(path_count=2, seed=42, antithetic=True)
+        deterministic = market(spot=95, volatility=0, rate=0, dividend=0)
+        result = engine.price_with_greeks(option, deterministic, "rho", rate_shift=1000)
+        assert result.price == engine.price(option, deterministic)
+        assert result.status("rho") == "unsupported"
+        controlled = numerical_greeks(
+            engine,
+            option,
+            market(),
+            "rho",
+            spot_shift=0.1,
+            volatility_shift=0.001,
+            rate_shift=0.001,
+            time_shift=timedelta(days=2),
+        )
+        assert controlled.price == engine.price(option, market())
+        assert controlled.status("rho") == "available"
+        result = engine.price_with_greeks(option, market(), "rho")
+        assert result.price == controlled.price
+        assert result.status("rho") == "unsupported"
+        with pytest.raises(TypeError):
+            numerical_greeks(engine, option, market(), "delta", spot_shift=True)
+        assert_rejection(
+            InvalidInputError,
+            engine.price,
+            option,
+            market(valuation=END + timedelta(days=1)),
+        )
         for sigma in (1e-200, math.ulp(0.0)):
             context = market(
                 volatility=sigma,
@@ -242,11 +238,9 @@ def test_defaults_representations_and_validation_order():
                 pricing.MonteCarloDigitalEngine(**{field: value})
         with pytest.raises(OverflowError):
             pricing.MonteCarloDigitalEngine(**{field: 1 << 100})
-    for field in ("sampling",):
-        with pytest.raises(TypeError):
-            pricing.MonteCarloDigitalEngine(**{field: True})
-        with pytest.raises(ValueError):
-            pricing.MonteCarloDigitalEngine(**{field: "unknown"})
+    with pytest.raises(TypeError):
+        pricing.MonteCarloDigitalEngine(sampling=True)
+    assert_rejection(ValueError, pricing.MonteCarloDigitalEngine, sampling="unknown")
     for fields in ({"antithetic": 1}, {"unknown": 1}):
         with pytest.raises(TypeError):
             pricing.MonteCarloDigitalEngine(**fields)

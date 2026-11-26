@@ -428,8 +428,7 @@ def test_defaults_and_strict_representations():
     ):
         with pytest.raises(TypeError):
             factory(**fields)
-    with pytest.raises(ValueError):
-        factory(sampling="unknown")
+    assert_rejection(ValueError, factory, sampling="unknown")
     for fields in (
         {"path_count": 0},
         {"path_count": 10000001},

@@ -369,8 +369,7 @@ def test_settings_defaults_representation_validation_and_immutability():
         for bad in (None, 0, True):
             with pytest.raises(TypeError):
                 factory(scheme=bad)
-        with pytest.raises(ValueError):
-            factory(scheme="CrankNicolson")
+        assert_rejection(ValueError, factory, scheme="CrankNicolson")
         for choice in SCHEMES:
             assert factory(scheme=choice).scheme == choice
         with pytest.raises(TypeError):
@@ -489,8 +488,7 @@ def test_analysis_requests_shifts_failures_and_input_ownership(kind):
         engine.price_with_greeks(option, context)
     with pytest.raises(TypeError):
         engine.price_with_greeks(option, context, "delta", greeks="all")
-    with pytest.raises(ValueError):
-        engine.price_with_greeks(option, context, "unknown")
+    assert_rejection(ValueError, engine.price_with_greeks, option, context, "unknown")
     other = contract(CashOrNothingOption if kind in VANILLA else EuropeanOption)
     with pytest.raises(UnsupportedOperationError):
         engine.price(other, context)

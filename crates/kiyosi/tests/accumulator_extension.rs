@@ -36,6 +36,15 @@ fn market(spot: f64, at: Timestamp, volatility: f64) -> PricingContext {
 }
 
 fn engines() -> [Box<dyn PricingEngine<Accumulator>>; 3] {
+    let [quadrature, finite_difference] = deterministic_engines();
+    [
+        quadrature,
+        finite_difference,
+        Box::new(monte_carlo_engine()),
+    ]
+}
+
+fn deterministic_engines() -> [Box<dyn PricingEngine<Accumulator>>; 2] {
     [
         Box::new(QuadratureAccumulatorEngine::default()),
         Box::new(
@@ -47,16 +56,17 @@ fn engines() -> [Box<dyn PricingEngine<Accumulator>>; 3] {
             })
             .unwrap(),
         ),
-        Box::new(
-            MonteCarloAccumulatorEngine::new(MonteCarloSettings {
-                path_count: 32768,
-                seed: Some(42),
-                max_active_workers: 1,
-                ..Default::default()
-            })
-            .unwrap(),
-        ),
     ]
+}
+
+fn monte_carlo_engine() -> MonteCarloAccumulatorEngine {
+    MonteCarloAccumulatorEngine::new(MonteCarloSettings {
+        path_count: 32768,
+        seed: Some(42),
+        max_active_workers: 1,
+        ..Default::default()
+    })
+    .unwrap()
 }
 
 fn terminal_reference(option: &Accumulator, context: &PricingContext) -> f64 {
@@ -136,18 +146,25 @@ fn fixed_purchases_before_terminal_knockout_match_analytic_settlement() -> Resul
     })?;
     // January 2 through 5 contribute four purchases before the January 6 test.
     let expected = terminal_reference(&before_expiry, &context);
-    for engine in engines() {
+    let numerical_tolerance = 0.01;
+    for engine in deterministic_engines() {
         let actual = engine.price(&option, &context)?;
-        let tolerance = engine
-            .price_with_statistics(&option, &context)
-            .ok()
-            .and_then(|estimate| estimate.standard_error())
-            .map_or(0.01, |error| 0.01 + 4.0 * error);
         assert!(
-            (actual - expected).abs() <= tolerance,
+            (actual - expected).abs() <= numerical_tolerance,
             "{actual} != {expected}"
         );
     }
+    let engine = monte_carlo_engine();
+    let actual = engine.price(&option, &context)?;
+    let estimate = engine.price_with_statistics(&option, &context)?;
+    assert_eq!(estimate.price(), actual);
+    let standard_error = estimate
+        .standard_error()
+        .expect("seeded stochastic settlement has a sampling error estimate");
+    assert!(
+        (actual - expected).abs() <= numerical_tolerance + 4.0 * standard_error,
+        "Monte Carlo price {actual} vs {expected} with standard error {standard_error}"
+    );
     Ok(())
 }
 

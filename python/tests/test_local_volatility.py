@@ -439,8 +439,7 @@ def test_existing_schemes_and_explicit_stability():
 
 
 def test_skew_prices_and_greeks_match_converged_quantlib_reference(subtests):
-    previous_date = ql.Settings.instance().evaluationDate
-    try:
+    with ql.SavedSettings():
         for direction in ["call", "put"]:
             for spot in [70.0, 100.0, 140.0]:
                 with subtests.test(direction=direction, spot=spot):
@@ -472,8 +471,6 @@ def test_skew_prices_and_greeks_match_converged_quantlib_reference(subtests):
                         strict=True,
                     ):
                         assert value == pytest.approx(ref, rel=0, abs=budget)
-    finally:
-        ql.Settings.instance().evaluationDate = previous_date
 
 
 def test_product_engine_matrix_including_terminal_shortcuts(subtests):

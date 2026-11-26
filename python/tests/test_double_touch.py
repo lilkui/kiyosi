@@ -394,8 +394,6 @@ def test_constructor_defaults_owning_schedules_and_history():
     dates = [FIRST, END]
     scheduled = contract("knock_out", observation_times=dates)
     dates.clear()
-    copy = list(scheduled.observation_times)
-    copy.clear()
     assert scheduled.observation_times == ((FIRST, END))
     assert not (scheduled.is_one_touch)
     assert scheduled.settlement_timing == "at_expiry"
@@ -443,8 +441,7 @@ def test_protocols_domain_errors_and_failed_replace_preserve_inputs(subtests):
             )
     with pytest.raises(InvalidInputError):
         contract("knock_out", settlement_timing="at_hit")
-    with pytest.raises(ValueError):
-        contract(settlement_timing="later")
+    assert_rejection(ValueError, contract, settlement_timing="later")
     option = contract()
     with pytest.raises(TypeError):
         option.replace(

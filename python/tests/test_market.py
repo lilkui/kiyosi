@@ -66,7 +66,7 @@ def test_deterministic_vanilla_uses_exact_width_between_curve_knots():
     curve = RateTermStructure(
         reference_time=REFERENCE, times=[MATURITY, expiry], factors=[1.0, 0.5]
     )
-    expected = 100.0 - 100.0 * curve.factor(REFERENCE, expiry)
+    expected = 100.0 - 100.0 * 0.5
     option = vanilla(strike=100).replace(expiry_time=expiry)
     context = market(rate=curve, dividend=0.0, volatility=0.0)
     for engine in (
@@ -94,9 +94,6 @@ def test_public_curve_parts_reconstruct_extreme_shifts_without_loss(subtests):
             assert restored.log_factor(REFERENCE, MATURITY) == curve.log_factor(
                 REFERENCE, MATURITY
             )
-            copied = list(curve.base_factors)
-            copied.clear()
-            assert curve.base_factors == base.factors
     assert base.shifted(1000).factors[-1] == 0.0
     for curve in (
         RateTermStructure.flat(0.05),
@@ -487,12 +484,6 @@ def test_timezone_free_timestamps_and_owned_nodes():
     times.clear()
     factors[0] = 9
     assert curve.reference_time == REFERENCE
-    assert curve.nodes == ((MIDDLE, MATURITY))
-    assert curve.factors == ((0.98, 0.94))
-    copied_nodes = list(curve.nodes)
-    copied_factors = list(curve.factors)
-    copied_nodes.clear()
-    copied_factors[0] = 7
     assert curve.nodes == ((MIDDLE, MATURITY))
     assert curve.factors == ((0.98, 0.94))
     with pytest.raises(AttributeError):

@@ -23,6 +23,7 @@ from kiyosi.market import (
     RateTermStructure,
 )
 from kiyosi.pricing import AnalyticEuropeanEngine, implied_volatility, numerical_greeks
+from support.assertions import assert_rejection
 
 
 @pytest.fixture
@@ -147,8 +148,14 @@ def test_all_selection_matches_explicit_greek_names(
             with subtests.test(greek=name):
                 assert selected.require(name) == explicit.require(name)
     for request in ("All", ["all"], ["delta", "all"]):
-        with subtests.test(request=request), pytest.raises(ValueError):
-            base_engine.price_with_greeks(base_option, base_context, request)
+        with subtests.test(request=request):
+            assert_rejection(
+                ValueError,
+                base_engine.price_with_greeks,
+                base_option,
+                base_context,
+                request,
+            )
 
 
 @pytest.mark.parametrize("budget", (100, 101))
@@ -196,9 +203,13 @@ def test_greek_iterables_deduplicate_and_validate_through_exhaustion(
         yield value
 
     for invalid, exception in (("unknown", ValueError), (True, TypeError)):
-        with subtests.test(invalid=invalid), pytest.raises(exception):
-            base_engine.price_with_greeks(
-                base_option, base_context, invalid_tail(invalid)
+        with subtests.test(invalid=invalid):
+            assert_rejection(
+                exception,
+                base_engine.price_with_greeks,
+                base_option,
+                base_context,
+                invalid_tail(invalid),
             )
 
     def failing_iterator():
@@ -332,11 +343,15 @@ def test_requests_availability_and_expiry(
         with subtests.test(changes=changes), pytest.raises(TypeError):
             numerical_greeks(base_engine, base_option, base_context, **changes)
     for request in ("Delta", "unknown"):
-        with pytest.raises(ValueError):
-            base_engine.price_with_greeks(base_option, base_context, request)
+        assert_rejection(
+            ValueError,
+            base_engine.price_with_greeks,
+            base_option,
+            base_context,
+            request,
+        )
     for value in (1, "unknown"):
-        with pytest.raises(TypeError if value == 1 else ValueError):
-            full.require(value)
+        assert_rejection(TypeError if value == 1 else ValueError, full.require, value)
     with pytest.raises(AttributeError):
         full.delta = 0
     del base_context

@@ -625,9 +625,11 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
                 assert_eq!(result.get(greek), None);
             }
             for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
-                if result.supported().has(greek) {
-                    assert_eq!(result.require(greek).unwrap(), 0.0);
-                }
+                assert_eq!(
+                    result.status(greek),
+                    GreekStatus::Unsupported,
+                    "{greek:?} at expiry"
+                );
             }
         }
         assert!(matches!(

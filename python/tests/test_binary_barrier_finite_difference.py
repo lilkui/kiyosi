@@ -383,8 +383,7 @@ def test_settings_protocols_defaults_and_errors():
         FiniteDifferenceBinaryBarrierEngine(asset_upper_boundary=True)
     with pytest.raises(TypeError):
         FiniteDifferenceBinaryBarrierEngine(unexpected=1)
-    with pytest.raises(ValueError):
-        FiniteDifferenceBinaryBarrierEngine(scheme="unknown")
+    assert_rejection(ValueError, FiniteDifferenceBinaryBarrierEngine, scheme="unknown")
     for fields in (
         {"asset_step_count": 2},
         {"time_step_count": 0},

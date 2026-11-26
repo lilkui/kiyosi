@@ -16,6 +16,7 @@ from kiyosi.market import (
     sse_calendar,
     weekdays_calendar,
 )
+from support.assertions import assert_rejection
 
 
 def test_schedules_retain_calendars_for_contract_composition(subtests):
@@ -113,14 +114,14 @@ def test_schedules_retain_calendars_for_contract_composition(subtests):
 
 def test_explicit_schedules_own_times_and_preserve_order():
     start, end = datetime(2025, 1, 2, 15), datetime(2025, 1, 10, 15)
-    times = [start, datetime(2025, 1, 6, 14, 30, 0, 123456), end]
+    expected = (start, datetime(2025, 1, 6, 14, 30, 0, 123456), end)
+    times = list(expected)
     schedule = ObservationSchedule(times=iter(times), start_time=start, end_time=end)
-    assert list(schedule) == times
-    assert schedule[-1] == end
     times.clear()
-    copied = list(schedule.times)
-    copied.clear()
-    assert len(schedule) == 3
+
+    assert tuple(schedule) == expected
+    assert schedule.times == expected
+    assert schedule[-1] == end
 
 
 def test_explicit_schedules_validate_calendar_order_and_life(subtests):
@@ -329,7 +330,7 @@ def test_closures_merge_candidates_and_stop_at_end():
     ).times == (())
 
 
-def test_schedule_iteration_indexing_and_owning_copies():
+def test_schedule_iteration_and_indexing_survive_owner_deletion():
     schedule = fixed_interval_schedule(
         observation_clock_time=clock_time(),
         start_time=datetime(2025, 1, 1),
@@ -359,8 +360,6 @@ def test_schedule_iteration_indexing_and_owning_copies():
     with pytest.raises(OverflowError) as error:
         _ = schedule[BrokenIndex()]
     assert error.value is failure
-    copied = list(schedule.times)
-    copied.clear()
     assert schedule.times == tuple(expected)
     with pytest.raises(AttributeError):
         schedule.times = []
@@ -466,7 +465,7 @@ def test_schedule_slices_preserve_order_calendar_and_ownership(subtests):
     assert list(schedule[:: -(10**100)]) == expected[:: -(10**100)]
     with pytest.raises(InvalidInputError):
         _ = schedule[::-1]
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="slice step cannot be zero"):
         _ = schedule[::0]
     for selection in (
         slice(True),
@@ -588,8 +587,9 @@ def test_representations_use_native_errors_and_integer_protocol():
                     end_time=end,
                     **{field: 1},
                 )
-    with pytest.raises(ValueError):
-        weekdays_calendar().adjust(start.date(), "modified_following")
+    assert_rejection(
+        ValueError, weekdays_calendar().adjust, start.date(), "modified_following"
+    )
     with pytest.raises(TypeError):
         weekdays_calendar().adjust(start.date(), True)
 
@@ -612,8 +612,7 @@ def test_shared_and_distinct_calendars_support_concurrent_reads():
 def test_date_conversion_boundaries_and_protocol_failures():
     for boundary, convention in ((date.min, "preceding"), (date.max, "following")):
         calendar = custom_calendar(base=weekdays_calendar(), closed_dates=[boundary])
-        with pytest.raises(ValueError):
-            calendar.adjust(boundary, convention)
+        assert_rejection(ValueError, calendar.adjust, boundary, convention)
         assert not (calendar.is_trading_day(boundary))
 
     class ConversionFailure(Exception):

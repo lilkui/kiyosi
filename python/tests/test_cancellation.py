@@ -51,12 +51,9 @@ def test_surface_value_export_polls_signals_before_returning_the_tuple():
         values=[(0.2,) * size] * size,
     )
 
-    exported = None
-    with cpu_interrupt() as arm:
+    with cpu_interrupt() as arm, pytest.raises(RequestInterrupted):
         arm()
-        with pytest.raises(RequestInterrupted):
-            exported = surface.values
-    assert exported is None
+        _ = surface.values
     assert surface.volatility(start, 1) == 0.2
 
 
@@ -75,12 +72,9 @@ def test_timestamp_export_polls_signals_before_returning_the_tuple():
         calendar=all_days_calendar(),
     )
 
-    exported = None
-    with cpu_interrupt() as arm:
+    with cpu_interrupt() as arm, pytest.raises(RequestInterrupted):
         arm()
-        with pytest.raises(RequestInterrupted):
-            exported = schedule.times
-    assert exported is None
+        _ = schedule.times
     assert schedule[:2].times == (start + timedelta(days=1), start + timedelta(days=2))
 
 
@@ -120,7 +114,7 @@ def test_greek_iterable_polls_signals_before_consuming_duplicates():
     expected = engine.price_with_greeks(contract, market, "delta")
     with cpu_interrupt() as arm, pytest.raises(RequestInterrupted):
         engine.price_with_greeks(contract, market, Names())
-    assert length_hint(names) > 0
+    assert 0 < length_hint(names) < count
     assert engine.price_with_greeks(contract, market, ["delta", "delta"]) == expected
 
 
@@ -140,7 +134,8 @@ def test_autocallable_observation_iterable_polls_signals_before_consuming_record
     start = datetime(2025, 1, 1)
     end = datetime(2026, 1, 1)
     record = AutocallableObservation.snowball(end, 110, coupon_rate=0.08)
-    records = repeat(record, 2_000_000)
+    count = 2_000_000
+    records = repeat(record, count)
 
     class Observations:
         def __iter__(self):
@@ -161,7 +156,7 @@ def test_autocallable_observation_iterable_polls_signals_before_consuming_record
     )
     with cpu_interrupt() as arm, pytest.raises(RequestInterrupted):
         note.replace(autocall_observations=Observations())
-    assert length_hint(records) > 0
+    assert 0 < length_hint(records) < count
     assert note.autocall_observations == (record,)
 
 
@@ -218,9 +213,7 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                             option = i.AmericanOption(option_type="put", strike=100,
                                 effective_time=start, expiry_time=end)
                             engine = p.CoxRossRubinsteinVanillaEngine(step_count=16_000)
-                        elif case == "fd":
-                            engine = p.FiniteDifferenceVanillaEngine(asset_step_count=4000, time_step_count=100_000)
-                        elif case == "fd_solution_solve":
+                        elif case in ("fd", "fd_solution_solve"):
                             engine = p.FiniteDifferenceVanillaEngine(asset_step_count=4000, time_step_count=100_000)
                         elif case == "fd_solution_batch":
                             engine = p.FiniteDifferenceVanillaEngine()
@@ -239,13 +232,15 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                             option = i.GeometricAveragePriceOption(option_type="call", strike=100,
                                 effective_time=start, averaging_start_time=start, expiry_time=end)
                             engine = p.AnalyticGeometricAveragePriceEngine()
-                        else:
+                        elif case == "heston_fd":
                             context = context.replace(model_parameters=m.HestonParameters(
                                 risk_free_rate=0.05, dividend_yield=0.02, initial_variance=0.04,
                                 long_run_variance=0.04, mean_reversion_speed=1.5,
                                 vol_of_vol=0.3, correlation=-0.7))
                             engine = p.FiniteDifferenceHestonVanillaEngine(asset_step_count=1000,
                                 variance_step_count=200, time_step_count=2_000)
+                        else:
+                            raise AssertionError(f"unknown cancellation case {case!r}")
                         class StopCalculation(Exception):
                             pass
                         if case == "custom_handler":

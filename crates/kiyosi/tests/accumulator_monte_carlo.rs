@@ -521,9 +521,7 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
         assert_eq!(result.get(greek), None);
     }
     for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
-        if result.supported().has(greek) {
-            assert_eq!(result.require(greek).unwrap(), 0.0);
-        }
+        assert_eq!(result.get(greek), Some(0.0), "{greek:?} at expiry");
     }
     let fixed = Accumulator::new(AccumulatorTerms {
         knock_out_settled: Some(false),

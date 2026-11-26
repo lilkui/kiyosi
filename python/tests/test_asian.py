@@ -107,8 +107,7 @@ def test_owned_history_replacement_and_native_representation_errors(subtests):
             for invalid in (True, "2025-01-01", datetime(2025, 1, 1).date()):
                 with pytest.raises(TypeError):
                     kind(**terms(**{name: invalid}))
-        with pytest.raises(ValueError):
-            kind(**terms(option_type="CALL"))
+        assert_rejection(ValueError, kind, **terms(option_type="CALL"))
         with pytest.raises(TypeError):
             kind("call", 100, START, START, END)
         for invalid in (True, "100"):
@@ -265,8 +264,9 @@ def test_greek_requests_stencils_and_solver_controls(kind, engine_type):
         ({"greeks": "delta", "time_shift": 1.5}, TypeError),
         ({"greeks": "delta", "time_shift": 2**40}, TypeError),
     ):
-        with pytest.raises(exception):
-            numerical_greeks(engine, option, context, **settings)
+        assert_rejection(
+            exception, numerical_greeks, engine, option, context, **settings
+        )
     assert_rejection(
         InvalidInputError,
         partial(numerical_greeks, engine),

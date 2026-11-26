@@ -188,10 +188,7 @@ def test_strict_history_current_and_paid_cash_and_asset_settlement():
             )
             assert known.replace(touch_state=None) == option
             assert option.replace() == option
-            with pytest.raises(ValueError):
-                option.replace(
-                    touch_state="unknown",
-                )
+            assert_rejection(ValueError, option.replace, touch_state="unknown")
             with pytest.raises(TypeError):
                 option.replace(
                     touch_state=True,
@@ -247,9 +244,13 @@ def test_representation_domain_validation_and_failure_state(subtests):
                 ins.BinaryBarrierOption(
                     **(make_terms(payoff_type=payoff_type) | extra | {field: True})
                 )
-            with subtests.test(field=field), pytest.raises(ValueError):
-                ins.BinaryBarrierOption(
-                    **(make_terms(payoff_type=payoff_type) | extra | {field: "unknown"})
+            with subtests.test(field=field):
+                assert_rejection(
+                    ValueError,
+                    ins.BinaryBarrierOption,
+                    **(
+                        make_terms(payoff_type=payoff_type) | extra | {field: "unknown"}
+                    ),
                 )
         for fields, expected_error in (
             ({"strike": 0, "barrier_level": 0}, InvalidInputError),
@@ -309,8 +310,8 @@ def test_representation_domain_validation_and_failure_state(subtests):
         "settlement_timing",
         "touch_state",
     ):
-        with subtests.test(field=field), pytest.raises(ValueError):
-            make_touch(**{field: "unknown"})
+        with subtests.test(field=field):
+            assert_rejection(ValueError, make_touch, **{field: "unknown"})
     with pytest.raises(InvalidInputError):
         make_touch(barrier_type="up_and_out", settlement_timing="at_hit")
     with pytest.raises(TypeError):
@@ -430,8 +431,6 @@ def test_scheduled_boundaries_history_and_owned_dates():
             known,
             make_context(130, datetime(2025, 1, 3)),
         ) == pytest.approx(expected, rel=0, abs=1e-12)
-        dates = list(known.observation_times)
-        dates.clear()
         assert known.observation_schedule.times == ((fixing,))
         assert known.observation_times == ((fixing,))
         assert_decimal_equal(known.mean_observation_year_fraction, 1 / 365)

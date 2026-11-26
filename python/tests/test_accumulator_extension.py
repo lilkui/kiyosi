@@ -8,6 +8,7 @@ import QuantLib as ql
 from kiyosi import InvalidInputError, UnsupportedOperationError, pricing
 from kiyosi.instruments import Accumulator
 from kiyosi.market import all_days_calendar, monthly_schedule, weekdays_calendar
+from support.assertions import assert_rejection
 from test_accumulator import START, market
 
 END = datetime(2025, 1, 6)
@@ -132,9 +133,6 @@ def test_direction_dates_defaults_history_replacement_and_ownership(subtests):
     option = contract(option_type="put", knock_out_observation_times=source)
     source.clear()
     assert option.knock_out_observation_times == ((START, END))
-    returned = list(option.knock_out_observation_times)
-    returned.clear()
-    assert option.knock_out_observation_times == ((START, END))
     updated = option.replace(
         accumulated_quantity=0.25,
     )
@@ -191,8 +189,8 @@ def test_representation_and_explicit_schedule_validation(subtests):
         with subtests.test(direction=value), pytest.raises(TypeError):
             contract(option_type=value)
     for value in ("Call", "PUT", "decumulator", ""):
-        with subtests.test(direction=value), pytest.raises(ValueError):
-            contract(option_type=value)
+        with subtests.test(direction=value):
+            assert_rejection(ValueError, contract, option_type=value)
     for value in (
         True,
         1,

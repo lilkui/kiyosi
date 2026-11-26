@@ -630,9 +630,11 @@ fn resolved_states_expiry_and_original_fixing_times_match_analytic_settlement() 
                     assert_eq!(result.get(greek), None);
                 }
                 for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
-                    if result.supported().has(greek) {
-                        assert_eq!(result.require(greek).unwrap(), 0.0);
-                    }
+                    assert_eq!(
+                        result.status(greek),
+                        GreekStatus::Unsupported,
+                        "{greek:?} at expiry"
+                    );
                 }
                 let reference = AnalyticBarrierEngine
                     .price_with_greeks(&option, &context, GreeksRequest::all())

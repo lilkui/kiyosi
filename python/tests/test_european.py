@@ -15,7 +15,7 @@ from kiyosi.market import (
     RateTermStructure,
 )
 from kiyosi.pricing import AnalyticEuropeanEngine, FiniteDifferenceVanillaEngine
-from support.assertions import assert_decimal_equal
+from support.assertions import assert_decimal_equal, assert_rejection
 
 
 @pytest.fixture
@@ -172,8 +172,7 @@ def test_strict_numeric_protocol_and_native_conversion_failures(make_context, su
         make_option(strike=BrokenReal())
     with pytest.raises(TypeError):
         make_option(option_type=1)
-    with pytest.raises(ValueError):
-        make_option(option_type="Call")
+    assert_rejection(ValueError, make_option, option_type="Call")
     with pytest.raises(TypeError):
         EuropeanOption("call", 100, datetime(2025, 1, 1), datetime(2026, 1, 1))
 

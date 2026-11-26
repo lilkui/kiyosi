@@ -48,15 +48,22 @@ fn european_surface_matches_independent_strips_and_preserves_order() -> Result<(
     ];
     let strikes = [110.0, 90.0, 100.0, 90.0, 95.0];
     let rows = engine.price_european_surface(&option, &market, &expiries, &strikes)?;
+    assert_eq!(rows.len(), expiries.len(), "expiry row count");
     assert_eq!(rows[0], rows[5]);
     assert_eq!(rows[1], [0.0, 10.0, 0.0, 10.0, 5.0]);
     for (&expiry, row) in expiries.iter().zip(rows) {
+        assert_eq!(row.len(), strikes.len(), "strike quote count");
         assert_eq!(row[1].to_bits(), row[3].to_bits());
         let option = option.replace(EuropeanOptionChanges {
             expiry_time: Some(expiry),
             ..Default::default()
         })?;
         let expected = engine.price_strikes(&option, &market, &strikes)?;
+        assert_eq!(
+            expected.len(),
+            strikes.len(),
+            "independent strike quote count"
+        );
         if expiry == short {
             assert_eq!(row, expected);
         }
@@ -555,10 +562,24 @@ fn american_and_digital_constant_surfaces_match_bsm_and_expiry() {
             ] {
                 close(actual, expected, 1e-7);
             }
-            for option in [
-                DigitalOption::cash_or_nothing(direction, 100.0, 10.0, dates().0, dates().1)
+            let cash_payout = 10.0;
+            for (option, payout) in [
+                (
+                    DigitalOption::cash_or_nothing(
+                        direction,
+                        100.0,
+                        cash_payout,
+                        dates().0,
+                        dates().1,
+                    )
                     .unwrap(),
-                DigitalOption::asset_or_nothing(direction, 100.0, dates().0, dates().1).unwrap(),
+                    Some(cash_payout),
+                ),
+                (
+                    DigitalOption::asset_or_nothing(direction, 100.0, dates().0, dates().1)
+                        .unwrap(),
+                    None,
+                ),
             ] {
                 let a = digital.price_with_greeks(&option, &local, request).unwrap();
                 let b = digital.price_with_greeks(&option, &bsm, request).unwrap();
@@ -584,14 +605,14 @@ fn american_and_digital_constant_surfaces_match_bsm_and_expiry() {
                     .price_with_greeks(&option, &terminal, request)
                     .unwrap();
                 let expected = if direction == OptionType::Call {
-                    option.payout().unwrap_or(110.0)
+                    payout.unwrap_or(110.0)
                 } else {
                     0.0
                 };
                 assert_eq!(result.price(), expected);
                 assert!(
                     (result.require(Greek::Delta).unwrap()
-                        - f64::from(direction == OptionType::Call && option.payout().is_none()))
+                        - f64::from(direction == OptionType::Call && payout.is_none()))
                     .abs()
                         < 1e-10
                 );
@@ -1082,6 +1103,7 @@ fn european_strike_strip_matches_refined_local_volatility_prices() -> Result<()>
         for direction in [OptionType::Call, OptionType::Put] {
             let template = EuropeanOption::new(direction, 100.0, start, end)?;
             let prices = batch.price_strikes(&template, &context, &strikes)?;
+            assert_eq!(prices.len(), strikes.len(), "strike quote count");
             assert_eq!(
                 prices[..5],
                 batch.price_strikes(&template, &context, &strikes[..5])?
@@ -1105,6 +1127,7 @@ fn american_local_volatility_strips_match_refined_scalar_pricing() -> Result<()>
     let batch = engine(800, 400, 400.0);
     let reference = engine(1600, 800, 400.0);
     let prices = batch.price_american_strikes(&option, &market, &strikes)?;
+    assert_eq!(prices.len(), strikes.len(), "strike quote count");
     assert_eq!(prices[2].to_bits(), prices[5].to_bits());
     for (strike, price) in strikes.into_iter().zip(prices) {
         let contract = option.replace(AmericanOptionChanges {
@@ -1132,11 +1155,18 @@ fn american_local_surface_matches_separate_expiry_strips() -> Result<()> {
     ];
     let strikes = [105.0, 90.0, 100.0, 95.0, 110.0, 95.0];
     let rows = engine.price_american_surface(&put, &snapshot, &expiries, &strikes)?;
+    assert_eq!(rows.len(), expiries.len(), "expiry row count");
     assert_eq!(rows[0], rows[5]);
     assert_eq!(rows[2], [5.0, 0.0, 0.0, 0.0, 10.0, 0.0]);
     for (expiry, row) in expiries.into_iter().zip(rows) {
         let option = AmericanOption::new(OptionType::Put, 100.0, start, expiry)?;
         let reference = engine.price_american_strikes(&option, &snapshot, &strikes)?;
+        assert_eq!(row.len(), strikes.len(), "strike quote count");
+        assert_eq!(
+            reference.len(),
+            strikes.len(),
+            "independent strike quote count"
+        );
         assert_eq!(row[3].to_bits(), row[5].to_bits());
         for (actual, expected) in row.into_iter().zip(reference) {
             close(actual, expected, 0.002);

@@ -548,9 +548,17 @@ fn expiry_boundaries_settle_strictly_and_life_errors_precede_trees() {
                     assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 1e-10);
                 }
             }
-            for option in [
-                DigitalOption::cash_or_nothing(direction, 100.0, 10.0, start, end).unwrap(),
-                DigitalOption::asset_or_nothing(direction, 100.0, start, end).unwrap(),
+            let cash_payout = 10.0;
+            for (option, payout) in [
+                (
+                    DigitalOption::cash_or_nothing(direction, 100.0, cash_payout, start, end)
+                        .unwrap(),
+                    Some(cash_payout),
+                ),
+                (
+                    DigitalOption::asset_or_nothing(direction, 100.0, start, end).unwrap(),
+                    None,
+                ),
             ] {
                 let result = digital
                     .price_with_greeks(&option, &context, GreeksRequest::all())
@@ -558,7 +566,7 @@ fn expiry_boundaries_settle_strictly_and_life_errors_precede_trees() {
                 assert_eq!(
                     result.price(),
                     if intrinsic > 0.0 {
-                        option.payout().unwrap_or(spot)
+                        payout.unwrap_or(spot)
                     } else {
                         0.0
                     }
@@ -567,7 +575,7 @@ fn expiry_boundaries_settle_strictly_and_life_errors_precede_trees() {
                 if (spot - 100.0).abs() <= 0.01 {
                     assert_eq!(result.get(Greek::Delta), None);
                 } else {
-                    let delta = f64::from(intrinsic > 0.0 && option.payout().is_none());
+                    let delta = f64::from(intrinsic > 0.0 && payout.is_none());
                     assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 1e-10);
                 }
                 assert!(matches!(

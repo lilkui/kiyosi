@@ -217,35 +217,35 @@ def test_irrelevant_knock_in_events_preserve_spot_and_time_greeks(subtests):
             [end], [110], knock_out_coupon_rates=[0]
         ),
     )
-    for engine in (pricing.MonteCarloAutocallableEngine(path_count=64, seed=42),):
-        for time in (
-            datetime(2025, 1, 1),
-            datetime(2025, 1, 2, 12),
-        ):
-            with subtests.test(engine=type(engine).__name__, time=time):
-                context = PricingContext(
-                    model_parameters=BlackScholesMertonParameters(
-                        risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
-                    ),
-                    spot_price=75,
-                    valuation_time=time,
-                )
-                result = engine.price_with_greeks(
-                    note,
-                    context,
-                    ["delta", "gamma", "theta", "charm", "color"],
-                )
-                years = (datetime(2026, 1, 1) - time).total_seconds() / (365 * 86400)
-                assert result.price == pytest.approx(
-                    math.exp(-0.04 * years), rel=0, abs=1e-12
-                )
-                assert ((result.delta, result.gamma, result.charm, result.color)) == (
-                    (0, 0, 0, 0)
-                )
-                assert result.theta is not None
-                assert result.theta == pytest.approx(
-                    0.04 * result.price, rel=0, abs=0.00000365
-                )
+    engine = pricing.MonteCarloAutocallableEngine(path_count=64, seed=42)
+    for time in (
+        datetime(2025, 1, 1),
+        datetime(2025, 1, 2, 12),
+    ):
+        with subtests.test(engine=type(engine).__name__, time=time):
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+                ),
+                spot_price=75,
+                valuation_time=time,
+            )
+            result = engine.price_with_greeks(
+                note,
+                context,
+                ["delta", "gamma", "theta", "charm", "color"],
+            )
+            years = (datetime(2026, 1, 1) - time).total_seconds() / (365 * 86400)
+            assert result.price == pytest.approx(
+                math.exp(-0.04 * years), rel=0, abs=1e-12
+            )
+            assert ((result.delta, result.gamma, result.charm, result.color)) == (
+                (0, 0, 0, 0)
+            )
+            assert result.theta is not None
+            assert result.theta == pytest.approx(
+                0.04 * result.price, rel=0, abs=0.00000365
+            )
 
 
 @pytest.mark.parametrize(
@@ -391,11 +391,9 @@ def test_contract_calendar_controls_daily_monte_carlo_observations(subtests):
 
 
 def check_autocallable(subtests, note, context, expected):
-    for engine in (pricing.MonteCarloAutocallableEngine(path_count=32, seed=7),):
-        with subtests.test(engine=type(engine).__name__, product=type(note).__name__):
-            assert engine.price(note, context) == pytest.approx(
-                expected, rel=0, abs=1e-12
-            )
+    engine = pricing.MonteCarloAutocallableEngine(path_count=32, seed=7)
+    with subtests.test(engine=type(engine).__name__, product=type(note).__name__):
+        assert engine.price(note, context) == pytest.approx(expected, rel=0, abs=1e-12)
 
 
 def test_current_knockouts_pay_only_contractual_coupon(subtests):

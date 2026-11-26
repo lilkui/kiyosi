@@ -141,8 +141,12 @@ fn greeks_and_implied_volatility_use_shared_contracts() {
 fn expiry_is_strict_and_life_validation_preserves_state() {
     let engine = QuadratureDigitalEngine::default();
     let (_, end) = dates();
+    let cash_payout = 10.0;
     for direction in [OptionType::Call, OptionType::Put] {
-        for option in options(direction, 100.0, 10.0, end) {
+        for (option, payout) in options(direction, 100.0, cash_payout, end)
+            .into_iter()
+            .zip([Some(cash_payout), None])
+        {
             let original = market(100.0, 0.05, 0.02, 0.2);
             let baseline = engine.price(&option, &original).unwrap();
             for spot in [80.0, 100.0, 120.0] {
@@ -155,7 +159,7 @@ fn expiry_is_strict_and_life_validation_preserves_state() {
                 let expected = if (direction == OptionType::Call && spot > 100.0)
                     || (direction == OptionType::Put && spot < 100.0)
                 {
-                    option.payout().unwrap_or(spot)
+                    payout.unwrap_or(spot)
                 } else {
                     0.0
                 };
@@ -167,9 +171,7 @@ fn expiry_is_strict_and_life_validation_preserves_state() {
                     assert_eq!(result.get(greek), None);
                 }
                 for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
-                    if result.supported().has(greek) {
-                        assert_eq!(result.require(greek).unwrap(), 0.0);
-                    }
+                    assert_eq!(result.get(greek), Some(0.0), "{greek:?} at expiry");
                 }
             }
             let invalid = original

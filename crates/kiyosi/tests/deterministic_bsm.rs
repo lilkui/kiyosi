@@ -276,7 +276,8 @@ fn verify<I: OptionContract>(
             Default::default(),
         )?;
         assert!((result.price() - expected).abs() < 1e-10);
-        if result.supported().has(Greek::Delta) && !option.at_spot_discontinuity(context, 0.01) {
+        assert!(result.supported().has(Greek::Delta));
+        if !option.at_spot_discontinuity(context, 0.01) {
             assert!(result.get(Greek::Delta).is_some());
         }
         for value in result.values().iter().flatten() {

@@ -98,6 +98,7 @@ fn shared_portfolio_coupon_strips_match_two_lane_quotes() -> Result<()> {
     ) -> Result<()> {
         let batch = notes.iter().collect::<Vec<_>>();
         let prices = engine.price_many_on_shared_grid(&batch, context)?;
+        assert_eq!(prices.len(), batch.len(), "shared note quote count");
         for (&actual, &note) in prices.iter().zip(&batch) {
             let expected = engine.price_many_on_shared_grid(&[note, note], context)?[0];
             assert!((actual - expected).abs() < 2e-14, "{actual} vs {expected}");
@@ -151,6 +152,7 @@ fn shared_portfolio_coupon_strips_match_two_lane_quotes() -> Result<()> {
     })?;
     let notes = [&snows[0], &snows[1], &outlier, &snows[2], &snows[4]];
     let mixed = engine.price_many_on_shared_grid(&notes, &context)?;
+    assert_eq!(mixed.len(), notes.len(), "mixed note quote count");
     for (&note, value) in notes.iter().zip(mixed) {
         let expected = if note == &outlier {
             engine.price_many_on_shared_grid(&[note, &snows[0]], &context)?[0]
@@ -628,9 +630,7 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
             assert_eq!(result.get(greek), None);
         }
         for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
-            if result.supported().has(greek) {
-                assert_eq!(result.require(greek).unwrap(), 0.0);
-            }
+            assert_eq!(result.get(greek), Some(0.0), "{greek:?} at expiry");
         }
     }
     let context = market(100.0, date(1, 1));
@@ -851,7 +851,9 @@ fn shared_daily_grid_prices_staggered_cash_flows() -> Result<()> {
     };
     let engine = MonteCarloAutocallableEngine::new(settings)?;
     let actual = engine.price_many_on_shared_grid(&notes, &context)?;
+    assert_eq!(actual.len(), notes.len(), "shared note quote count");
     let unshared = engine.price_many(&notes, &context)?;
+    assert_eq!(unshared.len(), notes.len(), "independent note quote count");
     assert_ne!(
         actual, unshared,
         "the common grid uses a distinct path ordering"
@@ -934,6 +936,7 @@ fn shared_daily_grid_settles_notes_at_their_own_maturities() -> Result<()> {
         settings.sampling = sampling;
         let engine = MonteCarloAutocallableEngine::new(settings)?;
         let shared = engine.price_many_on_shared_grid(&notes, &context)?;
+        assert_eq!(shared.len(), notes.len(), "shared note quote count");
         assert_ne!(
             [shared[1], shared[0]],
             engine.price_many(&[&long, &short], &context)?[..],
@@ -994,6 +997,7 @@ fn shared_knock_in_strip_matches_individual_thresholds_in_a_mixed_book() -> Resu
         let engine = MonteCarloAutocallableEngine::new(settings)?;
         let batch = notes.iter().collect::<Vec<_>>();
         let prices = engine.price_many_on_shared_grid(&batch, &context)?;
+        assert_eq!(prices.len(), notes.len(), "shared note quote count");
         assert_eq!(prices[0].to_bits(), prices[5].to_bits());
         for (&actual, note) in prices.iter().zip(&notes) {
             let expected = engine.price_many_on_shared_grid(&[note, note], &context)?[0];
@@ -1049,6 +1053,7 @@ fn mixed_knock_out_strips_match_individual_first_passages() -> Result<()> {
         };
         let engine = MonteCarloAutocallableEngine::new(settings)?;
         let prices = engine.price_many_on_shared_grid(&batch, &context)?;
+        assert_eq!(prices.len(), notes.len(), "shared note quote count");
         assert_eq!(prices[0].to_bits(), prices[5].to_bits());
         for (&actual, note) in prices.iter().zip(&notes) {
             let expected = engine.price_many_on_shared_grid(&[note, note], &context)?[0];

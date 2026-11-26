@@ -721,8 +721,9 @@ def test_sampling_choices_and_exact_representations(subtests):
         with subtests.test(value=value), pytest.raises(TypeError):
             MonteCarloVanillaEngine(path_count=1024, sampling=value)
     for value in ("Sobol", "", "pseudo-random"):
-        with pytest.raises(ValueError):
-            MonteCarloVanillaEngine(path_count=1024, sampling=value)
+        assert_rejection(
+            ValueError, MonteCarloVanillaEngine, path_count=1024, sampling=value
+        )
     for value in (0, 1, 1.0, "true", None, [], object()):
         with subtests.test(value=value), pytest.raises(TypeError):
             MonteCarloVanillaEngine(antithetic=value)

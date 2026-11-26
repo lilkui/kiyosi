@@ -42,7 +42,13 @@ fn saved_accumulator_matches_scalar_deterministic_fixings() -> Result<()> {
             )?;
             let solution = engine.solve(&option, &context, 75.0..=125.0)?;
             let spots = [125.0, 75.0, 85.0, 100.0, 115.0, 100.0, 93.0, 108.0];
-            for (&spot, actual) in spots.iter().zip(solution.price_many(&spots)?) {
+            let prices = solution.price_many(&spots)?;
+            assert_eq!(
+                prices.len(),
+                spots.len(),
+                "saved accumulator spot quote count"
+            );
+            for (&spot, actual) in spots.iter().zip(prices) {
                 let scenario = context.replace(PricingContextChanges {
                     spot_price: Some(spot),
                     ..Default::default()

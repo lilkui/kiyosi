@@ -646,9 +646,7 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
         assert_eq!(result.get(greek), None);
     }
     for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
-        if result.supported().has(greek) {
-            assert_eq!(result.require(greek).unwrap(), 0.0);
-        }
+        assert_eq!(result.get(greek), Some(0.0), "{greek:?} at expiry");
     }
     assert!(matches!(
         implied_volatility(

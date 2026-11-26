@@ -581,8 +581,9 @@ def test_analysis_protocols_solver_failures_and_owned_results(subtests):
             ({"greeks": "delta", "time_shift": 1.5}, TypeError),
             ({"greeks": "delta", "time_shift": 2**40}, TypeError),
         ):
-            with pytest.raises(exception):
-                numerical_greeks(engine, instrument, context, **settings)
+            assert_rejection(
+                exception, numerical_greeks, engine, instrument, context, **settings
+            )
         for observed, settings, expected_error in (
             (-1, {}, RootNotBracketedError),
             (math.nan, {}, InvalidInputError),
@@ -668,8 +669,8 @@ def test_analysis_protocols_solver_failures_and_owned_results(subtests):
         ({"sampling": "Sobol"}, ValueError),
         ({"sampling": None}, TypeError),
     ):
-        with subtests.test(settings=settings), pytest.raises(exception):
-            pricing.MonteCarloAsianEngine(**settings)
+        with subtests.test(settings=settings):
+            assert_rejection(exception, pricing.MonteCarloAsianEngine, **settings)
 
 
 def test_extreme_volatility_uses_arithmetic_interval_validation():

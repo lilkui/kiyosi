@@ -151,8 +151,10 @@ def test_construction_representation_and_replacement_failures_preserve_owner(sub
         "rebate_timing",
         "touch_state",
     ):
-        with subtests.test(field=field), pytest.raises(ValueError):
-            BarrierOption(**make_terms(**{field: "unknown"}))
+        with subtests.test(field=field):
+            assert_rejection(
+                ValueError, BarrierOption, **make_terms(**{field: "unknown"})
+            )
         with subtests.test(field=field), pytest.raises(TypeError):
             BarrierOption(**make_terms(**{field: True}))
     for values, expected_error in (
@@ -190,8 +192,7 @@ def test_construction_representation_and_replacement_failures_preserve_owner(sub
         ({"touch_state": 1}, TypeError),
         ({"strike": True}, TypeError),
     ):
-        with pytest.raises(error):
-            option.replace(**fields)
+        assert_rejection(error, option.replace, **fields)
         assert option == BarrierOption(**make_terms())
     with pytest.raises(AttributeError):
         option.touch_state = "touched"
@@ -313,8 +314,6 @@ def test_scheduled_fixing_occurs_only_at_midnight_and_history_is_strict():
         untouched,
         make_context(150, noon),
     ) == AnalyticEuropeanEngine().price(vanilla, make_context(150, noon))
-    dates = list(untouched.observation_times)
-    dates.clear()
     assert untouched.observation_times == ((fixing,))
     assert untouched.observation_schedule.times == ((fixing,))
     assert_decimal_equal(untouched.mean_observation_year_fraction, 1 / 365)

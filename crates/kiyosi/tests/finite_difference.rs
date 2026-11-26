@@ -1250,6 +1250,7 @@ fn bsm_strike_batch_matches_analytic_prices_in_input_order() -> Result<()> {
         for direction in [OptionType::Call, OptionType::Put] {
             let template = EuropeanOption::new(direction, 130.0, start, end)?;
             let prices = engine.price_strikes(&template, &context, strikes)?;
+            assert_eq!(prices.len(), strikes.len(), "strike quote count");
             assert_eq!(prices[0].to_bits(), prices[4].to_bits());
             for (price, &strike) in prices.into_iter().zip(strikes) {
                 let contract = EuropeanOption::new(direction, strike, start, end)?;
@@ -1291,11 +1292,10 @@ fn weekday_strike_batch_uses_one_rescaled_solution() -> Result<()> {
     let engine = FiniteDifferenceVanillaEngine::default();
     let saved = engine.solve(&instrument, &context, spots[0]..=spots[1])?;
     let prices = engine.price_strikes(&instrument, &context, &strikes)?;
-    for ((price, normalized), strike) in prices
-        .into_iter()
-        .zip(saved.price_many(&spots)?)
-        .zip(strikes)
-    {
+    let normalized = saved.price_many(&spots)?;
+    assert_eq!(prices.len(), strikes.len(), "strike quote count");
+    assert_eq!(normalized.len(), spots.len(), "saved spot quote count");
+    for ((price, normalized), strike) in prices.into_iter().zip(normalized).zip(strikes) {
         assert_eq!(price.to_bits(), (normalized * (strike / 100.0)).to_bits());
         let contract = EuropeanOption::new(OptionType::Call, strike, start, end)?;
         assert!((price - engine.price(&contract, &context)?).abs() < 1e-4);
@@ -1311,6 +1311,7 @@ fn american_strike_batch_matches_scalar_prices_in_input_order() -> Result<()> {
     let engine = FiniteDifferenceVanillaEngine::default();
     let strikes = [110.0, 90.0, 100.0, 95.0, 105.0, 90.0];
     let prices = engine.price_american_strikes(&option, &context, &strikes)?;
+    assert_eq!(prices.len(), strikes.len(), "strike quote count");
     assert_eq!(prices[1], prices[5]);
     for (&strike, price) in strikes.iter().zip(prices) {
         let scalar = option.replace(AmericanOptionChanges {
@@ -1340,8 +1341,10 @@ fn bsm_european_surface_matches_analytic_across_dated_rates() -> Result<()> {
     let strikes = [110.0, 90.0, 100.0, 95.0, 90.0];
     let engine = FiniteDifferenceVanillaEngine::default();
     let rows = engine.price_european_surface(&template, &context, &expiries, &strikes)?;
+    assert_eq!(rows.len(), expiries.len(), "expiry row count");
     assert_eq!(rows[0], rows[4]);
     for (&expiry, row) in expiries.iter().zip(rows) {
+        assert_eq!(row.len(), strikes.len(), "strike quote count");
         assert_eq!(row[1].to_bits(), row[4].to_bits());
         for (&strike, value) in strikes.iter().zip(row) {
             let option = EuropeanOption::new(OptionType::Call, strike, start, expiry)?;
@@ -1448,15 +1451,22 @@ fn american_bsm_surface_matches_independent_strips_and_preserves_order() -> Resu
     ];
     let strikes = [110.0, 90.0, 100.0, 95.0, 90.0];
     let rows = engine.price_american_surface(&template, &context, &expiries, &strikes)?;
+    assert_eq!(rows.len(), expiries.len(), "expiry row count");
     assert_eq!(rows[0], rows[5]);
     assert_eq!(rows[1], [10.0, 0.0, 0.0, 0.0, 0.0]);
     for (expiry, row) in expiries.into_iter().zip(rows) {
+        assert_eq!(row.len(), strikes.len(), "strike quote count");
         assert_eq!(row[1].to_bits(), row[4].to_bits());
         let option = template.replace(AmericanOptionChanges {
             expiry_time: Some(expiry),
             ..Default::default()
         })?;
         let expected = engine.price_american_strikes(&option, &context, &strikes)?;
+        assert_eq!(
+            expected.len(),
+            strikes.len(),
+            "independent strike quote count"
+        );
         if expiry == short {
             assert_eq!(row, expected);
         }
@@ -1486,7 +1496,10 @@ fn american_surface_keeps_the_shared_grid_with_outliers_and_duplicates() -> Resu
         &expiries,
         &[110.0, 220.0, 90.0, 100.0, 90.0],
     )?;
+    assert_eq!(shared.len(), expiries.len(), "shared expiry row count");
+    assert_eq!(mixed.len(), expiries.len(), "expiry row count with outlier");
     for ((&expiry, shared), row) in expiries.iter().zip(shared).zip(mixed) {
+        assert_eq!(shared.len(), 3, "shared strike quote count at {expiry:?}");
         let outlier = AmericanOption::new(OptionType::Put, 220.0, start, expiry)?;
         assert_eq!(
             row,

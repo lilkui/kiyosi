@@ -146,9 +146,7 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
         assert_eq!(result.get(greek), None);
     }
     for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
-        if result.supported().has(greek) {
-            assert_eq!(result.require(greek).unwrap(), 0.0);
-        }
+        assert_eq!(result.get(greek), Some(0.0), "{greek:?} at expiry");
     }
     t.observation_times = Some(vec![t.expiry_time]);
     assert!(matches!(

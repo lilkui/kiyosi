@@ -294,8 +294,9 @@ def test_constructor_domains_and_native_representation_errors(base_terms, subtes
         for value in (True, 1, None):
             with pytest.raises(TypeError):
                 cls(**dict(base_terms, option_type=value), **extra)
-        with pytest.raises(ValueError):
-            cls(**dict(base_terms, option_type="Call"), **extra)
+        assert_rejection(
+            ValueError, cls, **dict(base_terms, option_type="Call"), **extra
+        )
         for field in ("effective_time", "expiry_time"):
             for value in ("2025-01-01", None, datetime(2025, 1, 1).date()):
                 with pytest.raises(TypeError):
@@ -337,8 +338,9 @@ def test_requests_settings_solver_errors_and_failure_state(
         ):
             with pytest.raises(TypeError):
                 numerical_greeks(base_engine, option, base_context, **changes)
-        with pytest.raises(ValueError):
-            base_engine.price_with_greeks(option, base_context, "Delta")
+        assert_rejection(
+            ValueError, base_engine.price_with_greeks, option, base_context, "Delta"
+        )
         for field in (
             "spot_shift",
             "volatility_shift",

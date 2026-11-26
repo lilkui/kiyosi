@@ -12,7 +12,7 @@ from kiyosi import InvalidInputError, UnsupportedOperationError, market, pricing
 from kiyosi import instruments as ins
 from kiyosi.instruments import KnockInObservation
 from kiyosi.pricing import numerical_greeks
-from support.assertions import assert_decimal_equal
+from support.assertions import assert_decimal_equal, assert_rejection
 
 
 def test_greek_requests_report_disjoint_support_and_preserve_partial_results(subtests):
@@ -1285,10 +1285,8 @@ def test_exact_numbers_reject_implicit_rounding(subtests):
         Decimal(2**53 + 1),
     ):
         with subtests.test(value=value):
-            with pytest.raises(ValueError):
-                ins.EuropeanOption(strike=value, **fields)
-            with pytest.raises(ValueError):
-                original.replace(strike=value)
+            assert_rejection(ValueError, ins.EuropeanOption, strike=value, **fields)
+            assert_rejection(ValueError, original.replace, strike=value)
             assert original.strike == 100
             assert original.replace(strike=float(value)).strike == float(value)
     for value in (
@@ -1388,8 +1386,7 @@ def test_decimal_conversion_preserves_context_and_error_categories():
             with pytest.raises(InvalidInputError):
                 option.replace(strike=invalid)
         for invalid in (Decimal("0.1"), Decimal("1e-400")):
-            with pytest.raises(ValueError):
-                option.replace(strike=invalid)
+            assert_rejection(ValueError, option.replace, strike=invalid)
         assert (
             model.replace(risk_free_rate=float(Decimal("1e-400"))).flat_risk_free_rate
             == 0
@@ -1741,8 +1738,7 @@ def test_greek_status_distinguishes_requests_support_and_stencils():
     assert partial.status("delta") == "available"
     assert partial.status("vega") == "unsupported"
     assert partial.requested == (("delta", "vega"))
-    with pytest.raises(ValueError):
-        result.status("unknown")
+    assert_rejection(ValueError, result.status, "unknown")
 
 
 def test_flat_rate_query_is_independent_of_reference_time():

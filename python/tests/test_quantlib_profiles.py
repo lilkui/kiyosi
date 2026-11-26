@@ -79,12 +79,14 @@ def test_loader_rejects_invalid_budgets(subtests):
                 invalid = copy.deepcopy(profile)
                 if value is None:
                     del invalid[field]["price"]
+                    diagnostic = f"all measure {field} required"
                 else:
                     invalid[field]["price"] = value
+                    diagnostic = f"invalid {field}"
                 path.write_text(json.dumps({"profiles": [invalid]}), encoding="utf-8")
                 with (
                     subtests.test(field=field, value=value),
-                    pytest.raises(ValueError),
+                    pytest.raises(ValueError, match=f"^{diagnostic}$"),
                 ):
                     oracle.load_fixture(path)
 
@@ -92,7 +94,16 @@ def test_loader_rejects_invalid_budgets(subtests):
 def test_loader_rejects_empty_or_duplicate_scenarios(subtests):
     with TemporaryDirectory() as directory:
         path = Path(directory) / "scenarios.json"
-        for rows in ([], [{"case_id": "same"}, {"case_id": "same"}]):
+        for rows, diagnostic in (
+            ([], "no scenarios"),
+            (
+                [{"case_id": "same"}, {"case_id": "same"}],
+                "duplicate scenario identifier",
+            ),
+        ):
             path.write_text(json.dumps({"scenarios": rows}), encoding="utf-8")
-            with subtests.test(rows=rows), pytest.raises(ValueError):
+            with (
+                subtests.test(case=diagnostic),
+                pytest.raises(ValueError, match=f"^{diagnostic}$"),
+            ):
                 oracle.load_fixture(path)

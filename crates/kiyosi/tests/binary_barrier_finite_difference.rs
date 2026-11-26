@@ -286,9 +286,7 @@ fn history_current_expiry_and_prior_payments_use_core_rules() {
                     assert_eq!(result.get(greek), None);
                 }
                 for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
-                    if result.supported().has(greek) {
-                        assert_eq!(result.require(greek).unwrap(), 0.0);
-                    }
+                    assert_eq!(result.get(greek), Some(0.0), "{greek:?} at expiry");
                 }
             }
             assert_eq!(option.touch_state(), None);

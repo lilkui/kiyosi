@@ -94,8 +94,9 @@ def test_core_defaults_ownership_and_native_protocol_errors(subtests):
     )
     note = contract(autocall_observations=iter(observations))
     observations.clear()
-    copy = list(note.autocall_observations)
-    copy.clear()
+    assert note.autocall_observations == (
+        AutocallableObservation.snowball(END, 110, coupon_rate=0),
+    )
     assert note.autocall_times == ((END,))
     assert note.knock_out_levels == ((110,))
     assert note.knock_out_coupon_rates == ((0,))
@@ -120,8 +121,8 @@ def test_core_defaults_ownership_and_native_protocol_errors(subtests):
         ({"barrier_state": "none"}, ValueError),
         ({"autocall_observations": []}, InvalidInputError),
     ):
-        with subtests.test(changes=changes), pytest.raises(exception):
-            note.replace(**changes)
+        with subtests.test(changes=changes):
+            assert_rejection(exception, note.replace, **changes)
     assert note == contract(
         autocall_observations=[
             AutocallableObservation.snowball(END, 110, coupon_rate=0)
@@ -466,9 +467,9 @@ def test_current_events_history_and_unavailable_sensitivities():
     daily = daily.replace(
         barrier_state="no_event",
     )
-    for when, has_theta in ((datetime(2025, 1, 2, 12), True),):
-        result = engine.price_with_greeks(daily, market(80, when), "theta")
-        assert (result.theta is not None) == has_theta
+    snapshot = market(80, datetime(2025, 1, 2, 12))
+    result = engine.price_with_greeks(daily, snapshot, "theta")
+    assert result.status("theta") == "available"
 
 
 def test_settings_errors_and_fixed_cashflows():

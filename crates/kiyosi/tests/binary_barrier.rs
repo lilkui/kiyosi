@@ -427,9 +427,7 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
             assert_eq!(result.get(greek), None);
         }
         for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
-            if result.supported().has(greek) {
-                assert_eq!(result.require(greek).unwrap(), 0.0);
-            }
+            assert_eq!(result.get(greek), Some(0.0), "{greek:?} at expiry");
         }
     }
     let boundary = engine

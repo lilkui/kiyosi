@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import calibrate_local_vol
+from benchmark_test_support import write_python_adapter
 from calibrate_fd import domain_probes
 from compare_fd_accuracy import main as compare_fd_accuracy
 from run import load_entries
@@ -158,7 +159,7 @@ class CoverageTests(unittest.TestCase):
                     ],
                 ),
                 patch("run.native", side_effect=native),
-                self.assertRaises(SystemExit),
+                self.assertRaisesRegex(SystemExit, "FD accuracy/latency target failed"),
             ):
                 compare_fd_accuracy(
                     [
@@ -177,7 +178,9 @@ class CoverageTests(unittest.TestCase):
             if row["id"] == "fd-bsm-european-call"
         )
         self.assertTrue(comparisons["call_policy"]["accuracy_improved"])
-        self.assertEqual(comparisons["core_explicit"]["failure"]["status"], "unsupported")
+        self.assertEqual(
+            comparisons["core_explicit"]["failure"]["status"], "unsupported"
+        )
 
     def run_suite(
         self, *, remove=(), patch=None, missing_family=None, missing_reference=None
@@ -200,15 +203,15 @@ class CoverageTests(unittest.TestCase):
                 supported = [
                     family for family in families if (backend, family) != missing_family
                 ]
-                binary.write_text(
-                    f"#!{sys.executable}\nimport json,sys\n"
+                write_python_adapter(
+                    binary,
+                    "import json,sys\n"
                     "if sys.argv[1:] == ['--info']:\n"
                     f" print(json.dumps({{'version':'1.44','families':{supported!r}}}))\n"
                     "else:\n"
                     # Deliberately inaccurate: this coverage test never runs ensembles/timing.
-                    " print(json.dumps({'price':-10000,'elapsed_ns':1,'iterations':1,'warmup_iterations':3}))\n"
+                    " print(json.dumps({'price':-10000,'elapsed_ns':1,'iterations':1,'warmup_iterations':3}))\n",
                 )
-                binary.chmod(0o755)
                 binaries.append(binary)
             manifest = root / "cases.json"
             manifest.write_text(json.dumps({"schema_version": 1, "cases": cases}))

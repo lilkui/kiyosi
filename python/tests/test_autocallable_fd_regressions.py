@@ -733,19 +733,9 @@ def test_autocallable_requests_revalidate_contracts_and_calendars(subtests):
                 ) / (2 * rate_shift)
                 with pytest.raises(InvalidInputError):
                     note.replace(calendar=weekdays_calendar())
-                for option, shifted, expected_error in (
-                    (missing_history, base, MissingHistoryError),
-                ):
-                    with pytest.raises(expected_error) as error:
-                        engine.price_with_greeks(
-                            option,
-                            shifted,
-                            [
-                                "vega",
-                                "rho",
-                            ],
-                        )
-                    assert type(error.value) is expected_error
+                with pytest.raises(MissingHistoryError) as error:
+                    engine.price_with_greeks(missing_history, base, ["vega", "rho"])
+                assert type(error.value) is MissingHistoryError
                 with ThreadPoolExecutor(max_workers=2) as pool:
                     results = list(
                         pool.map(
@@ -799,35 +789,35 @@ def test_irrelevant_knock_in_events_preserve_spot_and_time_greeks(subtests):
             [end], [110], knock_out_coupon_rates=[0]
         ),
     )
-    for engine in (pricing.FiniteDifferenceAutocallableEngine(),):
-        for time in (
-            datetime(2025, 1, 1),
-            datetime(2025, 1, 2, 12),
-        ):
-            with subtests.test(engine=type(engine).__name__, time=time):
-                context = PricingContext(
-                    model_parameters=BlackScholesMertonParameters(
-                        risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
-                    ),
-                    spot_price=75,
-                    valuation_time=time,
-                )
-                result = engine.price_with_greeks(
-                    note,
-                    context,
-                    ["delta", "gamma", "theta", "charm", "color"],
-                )
-                years = (datetime(2026, 1, 1) - time).total_seconds() / (365 * 86400)
-                assert result.price == pytest.approx(
-                    math.exp(-0.04 * years), rel=0, abs=1e-12
-                )
-                assert ((result.delta, result.gamma, result.charm, result.color)) == (
-                    (0, 0, 0, 0)
-                )
-                assert result.theta is not None
-                assert result.theta == pytest.approx(
-                    0.04 * result.price, rel=0, abs=0.00000365
-                )
+    engine = pricing.FiniteDifferenceAutocallableEngine()
+    for time in (
+        datetime(2025, 1, 1),
+        datetime(2025, 1, 2, 12),
+    ):
+        with subtests.test(engine=type(engine).__name__, time=time):
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+                ),
+                spot_price=75,
+                valuation_time=time,
+            )
+            result = engine.price_with_greeks(
+                note,
+                context,
+                ["delta", "gamma", "theta", "charm", "color"],
+            )
+            years = (datetime(2026, 1, 1) - time).total_seconds() / (365 * 86400)
+            assert result.price == pytest.approx(
+                math.exp(-0.04 * years), rel=0, abs=1e-12
+            )
+            assert ((result.delta, result.gamma, result.charm, result.color)) == (
+                (0, 0, 0, 0)
+            )
+            assert result.theta is not None
+            assert result.theta == pytest.approx(
+                0.04 * result.price, rel=0, abs=0.00000365
+            )
 
 
 @pytest.mark.parametrize(

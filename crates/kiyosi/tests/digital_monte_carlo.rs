@@ -1,5 +1,7 @@
 use kiyosi::*;
 
+const CASH_PAYOUT: f64 = 10.0;
+
 fn market(spot: f64, rate: f64, dividend: f64, sigma: f64) -> PricingContext {
     PricingContext::new(
         BlackScholesMertonParameters::new(rate, dividend, sigma).unwrap(),
@@ -13,7 +15,7 @@ fn options(direction: OptionType) -> [DigitalOption; 2] {
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     [
-        DigitalOption::cash_or_nothing(direction, 100.0, 10.0, start, end).unwrap(),
+        DigitalOption::cash_or_nothing(direction, 100.0, CASH_PAYOUT, start, end).unwrap(),
         DigitalOption::asset_or_nothing(direction, 100.0, start, end).unwrap(),
     ]
 }
@@ -31,7 +33,10 @@ fn terminal_prices_and_likelihood_greeks_match_analytic_and_share_draws() {
             };
             let engine = MonteCarloDigitalEngine::new(settings).unwrap();
             for direction in [OptionType::Call, OptionType::Put] {
-                for option in options(direction) {
+                for (option, payout) in options(direction)
+                    .into_iter()
+                    .zip([Some(CASH_PAYOUT), None])
+                {
                     let context = market(100.0, 0.05, 0.02, 0.2);
                     let expected = AnalyticDigitalEngine
                         .price_with_greeks(&option, &context, GreeksRequest::all())
@@ -39,7 +44,7 @@ fn terminal_prices_and_likelihood_greeks_match_analytic_and_share_draws() {
                     let actual = engine
                         .price_with_greeks(&option, &context, GreeksRequest::all())
                         .unwrap();
-                    let scale = option.payout().unwrap_or(100.0);
+                    let scale = payout.unwrap_or(100.0);
                     for (got, want, tolerance) in [
                         (actual.price(), expected.price(), 0.015 * scale),
                         (
@@ -88,7 +93,10 @@ fn tiny_volatility_preserves_exercise_and_only_checks_requested_greeks() {
     })
     .unwrap();
     for direction in [OptionType::Call, OptionType::Put] {
-        for option in options(direction) {
+        for (option, payout) in options(direction)
+            .into_iter()
+            .zip([Some(CASH_PAYOUT), None])
+        {
             let context = market(95.0, 0.0, 0.0, 0.0);
             let result = engine
                 .price_with_greeks_with_settings(
@@ -115,7 +123,7 @@ fn tiny_volatility_preserves_exercise_and_only_checks_requested_greeks() {
                     .unwrap();
                 assert_eq!(
                     engine.price(&option, &context).unwrap(),
-                    option.payout().unwrap_or(100.0) / 2.0
+                    payout.unwrap_or(100.0) / 2.0
                 );
                 let result = engine
                     .price_with_greeks(&option, &context, GreeksRequest::new([Greek::Rho]))
@@ -143,7 +151,10 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
     .unwrap();
     let base = market(100.0, 0.05, 0.02, 0.2);
     for direction in [OptionType::Call, OptionType::Put] {
-        for option in options(direction) {
+        for (option, payout) in options(direction)
+            .into_iter()
+            .zip([Some(CASH_PAYOUT), None])
+        {
             for spot in [
                 99.0,
                 f64::from_bits(100.0_f64.to_bits() - 1),
@@ -168,24 +179,22 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
                     .unwrap();
                 assert_eq!(
                     result.price(),
-                    if pays {
-                        option.payout().unwrap_or(spot)
-                    } else {
-                        0.0
-                    }
+                    if pays { payout.unwrap_or(spot) } else { 0.0 }
                 );
                 for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
                     assert_eq!(result.get(greek), None);
                 }
                 for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
-                    if result.supported().has(greek) {
-                        assert_eq!(result.require(greek).unwrap(), 0.0);
-                    }
+                    assert_eq!(
+                        result.status(greek),
+                        GreekStatus::Unsupported,
+                        "{greek:?} at expiry"
+                    );
                 }
                 if (spot - 100.0).abs() <= 0.01 {
                     assert_eq!(result.get(Greek::Delta), None);
                 } else {
-                    let delta = f64::from(pays && option.payout().is_none());
+                    let delta = f64::from(pays && payout.is_none());
                     assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 1e-10);
                     assert_eq!(result.require(Greek::Gamma).unwrap(), 0.0);
                 }

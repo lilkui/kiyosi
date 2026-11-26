@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import calibrate_numerical
+from benchmark_test_support import write_python_adapter
 from run import (
     build,
     build_evidence_path,
@@ -192,13 +193,14 @@ class CommandTests(unittest.TestCase):
     def test_missing_native_executable_writes_failed_report(self):
         with tempfile.TemporaryDirectory() as directory:
             report = Path(directory) / "report.json"
+            missing = Path(directory) / "absent"
             result = subprocess.run(
                 [
                     sys.executable,
                     str(RUNNER),
                     "--no-build",
                     "--rust-executable",
-                    str(Path(directory) / "absent"),
+                    str(missing),
                     "--report",
                     str(report),
                 ],
@@ -210,7 +212,7 @@ class CommandTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1, result.stderr)
             data = json.loads(report.read_text())
             self.assertEqual(data["status"], "failed")
-            self.assertIn("executable", data["error"])
+            self.assertEqual(data["error"], f"missing executable: {missing.resolve()}")
             self.assertEqual(len(data["cases"]), 59)
             self.assertTrue(
                 all(row["status"] == "prerequisite_failed" for row in data["cases"])
@@ -412,12 +414,12 @@ class ReportTests(unittest.TestCase):
         rust_from_build=False,
         rebuild_rust=False,
     ):
-        with tempfile.TemporaryDirectory() as directory:
+        prefix = "benchmark fixture " if relative_executables else "kiyosi-benchmark-"
+        with tempfile.TemporaryDirectory(prefix=prefix) as directory:
             root = Path(directory)
             native = root / "native"
             families = ["european_bsm"] if families is None else families
-            native.write_text(
-                f"#!{sys.executable}\n"
+            adapter = (
                 "import json,sys\n"
                 "if sys.argv[1:] == ['--info']:\n"
                 f" print(json.dumps({{'library':'fixture','version':{version!r},'families':{families!r}}}))\n"
@@ -431,13 +433,12 @@ class ReportTests(unittest.TestCase):
                 " latency=max(1,(count-3)//2)*100000000\n"
                 f" print(json.dumps({batch!r} if {batch is not None!r} else {{'price':10,'elapsed_ns':n*latency,'iterations':n,'warmup_iterations':3}}))\n"
             )
-            native.chmod(0o755)
+            write_python_adapter(native, adapter)
             rust = native
             if rust_from_build:
                 rust = root / "x86_64-unknown-linux-gnu/release/quantlib_bench"
                 rust.parent.mkdir(parents=True)
-                rust.write_bytes(native.read_bytes())
-                rust.chmod(0o755)
+                write_python_adapter(rust, adapter)
             case = {
                 "id": "fixture",
                 "family": "european_bsm",
@@ -473,10 +474,9 @@ class ReportTests(unittest.TestCase):
                 library = root / runtime_name
                 library.touch()
                 loader = root / "ldd"
-                loader.write_text(
-                    f"#!{sys.executable}\nprint('libQuantLib.so.1 => {library} (0x1)')\n"
+                write_python_adapter(
+                    loader, f"print('libQuantLib.so.1 => {library} (0x1)')\n"
                 )
-                loader.chmod(0o755)
                 environment = {
                     **os.environ,
                     "PATH": str(root) + os.pathsep + os.environ["PATH"],

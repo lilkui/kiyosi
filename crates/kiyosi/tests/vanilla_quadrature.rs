@@ -302,9 +302,7 @@ fn settings_and_life_validation_preserve_expiry_and_failure_state() {
         assert_eq!(result.get(greek), None);
     }
     for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
-        if result.supported().has(greek) {
-            assert_eq!(result.require(greek).unwrap(), 0.0);
-        }
+        assert_eq!(result.get(greek), Some(0.0), "{greek:?} at expiry");
     }
     assert!((result.require(Greek::Delta).unwrap() + 1.0).abs() < 1e-10);
     let invalid = context
@@ -346,6 +344,7 @@ fn american_quadrature_strike_batch_matches_scalar_continuation() -> Result<()> 
     for kind in [OptionType::Call, OptionType::Put] {
         let option = AmericanOption::new(kind, 100.0, start, end)?;
         let prices = engine.price_american_strikes(&option, &context, &strikes)?;
+        assert_eq!(prices.len(), strikes.len(), "strike quote count");
         assert_eq!(prices[1].to_bits(), prices[4].to_bits());
         for (strike, price) in strikes.into_iter().zip(prices) {
             let quote = AmericanOption::new(kind, strike, start, end)?;

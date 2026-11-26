@@ -123,8 +123,9 @@ def test_settings_protocols_defaults_exports_and_ownership(subtests):
             pricing.FiniteDifferenceAccumulatorEngine,
             **fields,
         )
-    with pytest.raises(ValueError):
-        pricing.FiniteDifferenceAccumulatorEngine(scheme="unknown")
+    assert_rejection(
+        ValueError, pricing.FiniteDifferenceAccumulatorEngine, scheme="unknown"
+    )
     with pytest.raises(TypeError):
         pricing.FiniteDifferenceAccumulatorEngine(scheme=True)
     with pytest.raises(TypeError):

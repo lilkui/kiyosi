@@ -6,6 +6,7 @@ from datetime import datetime
 import pytest
 from kiyosi import InvalidInputError, market, pricing
 from kiyosi import instruments as ins
+from support.assertions import assert_rejection
 
 
 @pytest.mark.parametrize("payoff_type", ("cash", "asset"))
@@ -37,16 +38,17 @@ def test_touch_construction_inherits_schedule_calendar_and_honors_overrides(
 
 
 def test_touch_construction_preserves_payoff_and_monitoring_conversion_order():
-    with pytest.raises(ValueError):
-        ins.TouchOption(
-            payoff_type="cash",
-            effective_time=datetime(2025, 1, 3),
-            expiry_time=datetime(2025, 1, 6),
-            barrier_level=120,
-            barrier_type="up_and_in",
-            payout=2**53 + 1,
-            observation_times=[object()],
-        )
+    assert_rejection(
+        ValueError,
+        ins.TouchOption,
+        payoff_type="cash",
+        effective_time=datetime(2025, 1, 3),
+        expiry_time=datetime(2025, 1, 6),
+        barrier_level=120,
+        barrier_type="up_and_in",
+        payout=2**53 + 1,
+        observation_times=[object()],
+    )
 
 
 @pytest.mark.parametrize("direction,level", (("up", 120), ("down", 80)))
@@ -106,8 +108,7 @@ def test_payoff_kind_is_explicit_and_null_amount_cannot_change_cash_settlement(
         ({"payoff_type": "unknown"}, ValueError),
         ({"payoff_type": True}, TypeError),
     ):
-        with pytest.raises(error):
-            cls(**common, **extra, **fields)
+        assert_rejection(error, cls, **common, **extra, **fields)
     with pytest.raises(TypeError):
         cash.replace(payout=None)
     assert ((cash.payoff_type, cash.payout)) == (("cash", 10))
@@ -237,11 +238,8 @@ def test_constructors_validate_representations_and_domain_inputs(subtests):
                 InvalidInputError,
             ),
         ):
-            with (
-                subtests.test(contract=cls.__name__, changes=changes),
-                pytest.raises(error),
-            ):
-                cls(**(fields | changes))
+            with subtests.test(contract=cls.__name__, changes=changes):
+                assert_rejection(error, cls, **(fields | changes))
         without_payout = fields.copy()
         without_payout.pop("payout")
         with pytest.raises(TypeError):

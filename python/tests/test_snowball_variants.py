@@ -455,9 +455,9 @@ def test_native_representations_validation_timing_and_ownership():
             )
             == note
         )
-        records = list(note.autocall_observations)
-        records.clear()
-        assert len(note.autocall_observations) == 1
+        assert note.autocall_observations == (
+            instruments.AutocallableObservation.snowball(END, 110, coupon_rate=0.08),
+        )
         for field in ("maturity_coupon_rate", "principal_redemption_ratio"):
             for value in (True, "0.1", object()):
                 with pytest.raises(TypeError):
@@ -488,10 +488,7 @@ def test_native_representations_validation_timing_and_ownership():
             autocall_observations=[],
             maturity_coupon_rate=math.nan,
         )
-        with pytest.raises(ValueError):
-            note.replace(
-                barrier_state="unknown",
-            )
+        assert_rejection(ValueError, note.replace, barrier_state="unknown")
         with pytest.raises(TypeError):
             note.replace(
                 barrier_state=True,

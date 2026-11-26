@@ -196,8 +196,8 @@ def test_defaults_representations_core_validation_and_owned_replacement(subtests
         "rebate_timing",
         "touch_state",
     ):
-        with subtests.test(field=field), pytest.raises(ValueError):
-            contract(**{field: "unknown"})
+        with subtests.test(field=field):
+            assert_rejection(ValueError, contract, **{field: "unknown"})
         with pytest.raises(TypeError):
             contract(**{field: True})
     for field in ("effective_time", "expiry_time"):
@@ -240,8 +240,7 @@ def test_defaults_representations_core_validation_and_owned_replacement(subtests
         ({"touch_state": False}, TypeError),
         ({"strike": True}, TypeError),
     ]:
-        with pytest.raises(error):
-            option.replace(**changes)
+        assert_rejection(error, option.replace, **changes)
         assert option == contract()
     known = option.replace(
         touch_state="untouched",
@@ -250,8 +249,6 @@ def test_defaults_representations_core_validation_and_owned_replacement(subtests
     assert known.replace(touch_state=None) == option
     assert option.touch_state is None
     scheduled = contract(observation_times=(d for d in [START, END]))
-    dates = list(scheduled.observation_times)
-    dates.clear()
     assert scheduled.observation_times == ((START, END))
     assert scheduled.observation_schedule.times == ((START, END))
     with pytest.raises(AttributeError):

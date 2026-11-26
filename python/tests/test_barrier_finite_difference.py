@@ -309,21 +309,21 @@ def test_selective_mixed_requests_stencils_and_failure_state():
         assert getattr(selected, greek) == getattr(all_values, greek)
         assert selected.delta is None
         assert selected.gamma is None
-    for h in (0.01,):
-        actual = engine.price_with_greeks(contract, context, "speed")
-        high = engine.price_with_greeks(
-            contract,
-            context.replace(spot_price=100 + h),
-            "gamma",
-        )
-        low = engine.price_with_greeks(
-            contract,
-            context.replace(spot_price=100 - h),
-            "gamma",
-        )
-        assert actual.speed == pytest.approx(
-            (high.gamma - low.gamma) / (2 * h), rel=0, abs=1e-12
-        )
+    h = 0.01
+    actual = engine.price_with_greeks(contract, context, "speed")
+    high = engine.price_with_greeks(
+        contract,
+        context.replace(spot_price=100 + h),
+        "gamma",
+    )
+    low = engine.price_with_greeks(
+        contract,
+        context.replace(spot_price=100 - h),
+        "gamma",
+    )
+    assert actual.speed == pytest.approx(
+        (high.gamma - low.gamma) / (2 * h), rel=0, abs=1e-12
+    )
     collapsed = numerical_greeks(
         engine,
         contract,

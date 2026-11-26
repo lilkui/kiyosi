@@ -543,9 +543,7 @@ fn analytic_history_current_boundaries_and_expiry_preserve_cashflows() {
             assert_eq!(terminal.get(greek), None);
         }
         for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
-            if terminal.supported().has(greek) {
-                assert_eq!(terminal.require(greek).unwrap(), 0.0);
-            }
+            assert_eq!(terminal.get(greek), Some(0.0), "{greek:?} at expiry");
         }
         assert!(matches!(
             implied_volatility(
@@ -1012,9 +1010,7 @@ fn current_prior_and_expiry_payments_resolve_before_grid_validation() {
                 assert_eq!(result.get(greek), None);
             }
             for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
-                if result.supported().has(greek) {
-                    assert_eq!(result.require(greek).unwrap(), 0.0);
-                }
+                assert_eq!(result.get(greek), Some(0.0), "{greek:?} at expiry");
             }
         }
     }

@@ -265,20 +265,24 @@ fn expiry_is_strict_and_valuation_life_is_inclusive_to_the_microsecond() {
                     ..Default::default()
                 })
                 .unwrap();
-            for option in [
-                DigitalOption::cash_or_nothing(direction, 100.0, 7.0, start, end).unwrap(),
-                DigitalOption::asset_or_nothing(direction, 100.0, start, end).unwrap(),
+            let cash_payout = 7.0;
+            for (option, payout) in [
+                (
+                    DigitalOption::cash_or_nothing(direction, 100.0, cash_payout, start, end)
+                        .unwrap(),
+                    Some(cash_payout),
+                ),
+                (
+                    DigitalOption::asset_or_nothing(direction, 100.0, start, end).unwrap(),
+                    None,
+                ),
             ] {
                 let pays = if direction == OptionType::Call {
                     spot > 100.0
                 } else {
                     spot < 100.0
                 };
-                let expected = if pays {
-                    option.payout().unwrap_or(spot)
-                } else {
-                    0.0
-                };
+                let expected = if pays { payout.unwrap_or(spot) } else { 0.0 };
                 for result in [
                     AnalyticDigitalEngine
                         .price_with_greeks(&option, &context, GreeksRequest::all())
@@ -298,7 +302,7 @@ fn expiry_is_strict_and_valuation_life_is_inclusive_to_the_microsecond() {
                     if (spot - 100.0).abs() <= 0.01 {
                         assert_eq!(result.get(Greek::Delta), None);
                     } else {
-                        let delta = f64::from(pays && option.payout().is_none());
+                        let delta = f64::from(pays && payout.is_none());
                         assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 1e-10);
                     }
                 }

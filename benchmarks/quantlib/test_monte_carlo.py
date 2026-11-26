@@ -8,6 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from benchmark_test_support import write_python_adapter
+
 HERE = Path(__file__).resolve().parent
 
 
@@ -16,8 +18,8 @@ class MonteCarloReportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             executable = root / "native"
-            executable.write_text(
-                "#!/usr/bin/env python3\n"
+            write_python_adapter(
+                executable,
                 "import json,sys\n"
                 "if sys.argv[1:] == ['--info']:\n"
                 " print(json.dumps({'version':'1.44','families':['mc_european_bsm']}))\n"
@@ -25,9 +27,8 @@ class MonteCarloReportTests(unittest.TestCase):
                 " p=dict(x.split('=',1) for x in sys.argv[1:])\n"
                 " seed=int(p['seed'])\n"
                 f" price=10 if seed==1729 else 10+{bias}+({noise} if seed%2 else -{noise})\n"
-                " print(json.dumps({'price':price,'elapsed_ns':100000000,'iterations':int(p['iterations']),'warmup_iterations':3}))\n"
+                " print(json.dumps({'price':price,'elapsed_ns':100000000,'iterations':int(p['iterations']),'warmup_iterations':3}))\n",
             )
-            executable.chmod(0o755)
             case = {
                 "id": "mc-fixture",
                 "family": "mc_european_bsm",

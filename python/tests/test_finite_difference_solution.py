@@ -19,6 +19,7 @@ from kiyosi.market import (
     RateTermStructure,
     all_days_calendar,
 )
+from support.assertions import assert_rejection
 from test_heston import context as heston_context
 from test_local_volatility import option
 from test_phoenix import MIDDLE
@@ -331,13 +332,13 @@ def test_conversion_empty_batches_iterator_errors_and_failure_state():
         with pytest.raises(TypeError):
             engine.solve(option(), context(), spot_range=bounds)
     for bounds in ((), (80,), (80, 100, 120)):
-        with pytest.raises(ValueError):
-            engine.solve(option(), context(), spot_range=bounds)
+        assert_rejection(
+            ValueError, engine.solve, option(), context(), spot_range=bounds
+        )
     assert solution.price_many([]) == ()
     assert solution.price_many_with_greeks([], []) == ()
     assert solution.price_with_greeks(100, []).requested == ()
-    with pytest.raises(ValueError):
-        solution.price_many_with_greeks([], "unknown")
+    assert_rejection(ValueError, solution.price_many_with_greeks, [], "unknown")
     for shift in (0, -1, math.inf, math.nan):
         with pytest.raises(InvalidInputError):
             solution.price_many_with_greeks([], [], spot_shift=shift)

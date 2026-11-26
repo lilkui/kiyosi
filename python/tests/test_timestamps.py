@@ -261,9 +261,7 @@ def test_contract_schedules_expose_effective_observations(subtests):
                 knock_in_observation=KnockInObservation.at_expiry(),
             )
             assert list(expiry_only.knock_in_observation_schedule) == [expiry]
-            exported = list(note.knock_in_observation_schedule.times)
-            exported.clear()
-            assert list(note.knock_in_observation_schedule) == [start, last]
+            assert note.knock_in_observation_schedule.times == (start, last)
     binary = BinarySnowballOption(
         maturity_coupon_rate=0.1, autocall_observations=observations, **life
     )
