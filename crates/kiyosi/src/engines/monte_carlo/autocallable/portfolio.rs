@@ -290,6 +290,7 @@ fn key_and_workspace<T: AutocallableTerms>(
         + if shared {
             // Buckets and packed events coexist while assembling the schedule.
             6 * events * size_of::<(usize, Event)>()
+                + size_of::<(f64, usize)>()
                 + if plan.shared_events.is_none() {
                     plan.steps.len() * SHARED_STEP_BYTES
                 } else {
@@ -347,6 +348,7 @@ struct SharedEvents {
     events: Vec<(usize, Event)>,
     intervals: Vec<SharedInterval>,
     daily: Vec<[f64; 2]>,
+    barriers: Vec<(f64, usize)>,
 }
 
 struct SharedInterval {
@@ -388,9 +390,13 @@ impl SharedEvents {
         let mut ends = Vec::with_capacity(steps.len());
         let mut events = Vec::new();
         let mut buckets = Vec::with_capacity(steps.len());
+        let mut barriers = Vec::with_capacity(notes.len());
         buckets.resize_with(steps.len(), Vec::new);
         for (lane, (_, note)) in notes.iter().enumerate() {
             check_path_step(lane)?;
+            if let Some(level) = note.knock_in.filter(|_| !note.state.knocked_in) {
+                barriers.push((level, lane));
+            }
             if let Some(sparse) = &note.shared_events {
                 for (i, &(step, event)) in sparse.events.iter().enumerate() {
                     check_path_step(i)?;
@@ -471,10 +477,13 @@ impl SharedEvents {
             first = step + 1;
             previous = end;
         }
+        barriers.sort_unstable_by(|a, b| a.0.total_cmp(&b.0));
+        crate::cancellation::check()?;
         Ok(Self {
             events,
             intervals,
             daily,
+            barriers,
         })
     }
 }
@@ -633,6 +642,7 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
         let mut first = 0;
         let mut first_step = 0;
         let mut remaining = states.len();
+        let mut barriers = schedule.barriers.as_slice();
         for &SharedInterval {
             step,
             end,
@@ -643,15 +653,7 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
             check_path_step(step)?;
             let target = log_return + diffusion.mul_add(normals.normal(), drift);
             if first_step < step {
-                let mut floor = f64::INFINITY;
-                for (index, lane) in states.iter().enumerate() {
-                    check_path_step(index)?;
-                    if !lane.terminated {
-                        if let Some(level) = lane.monitoring {
-                            floor = floor.min(level);
-                        }
-                    }
-                }
+                let floor = live_floor(&mut barriers, states)?;
                 for i in first_step..step {
                     if minimum < floor || floor == f64::INFINITY {
                         normals.skip(step - i);
@@ -804,6 +806,19 @@ fn knock_in(lane: &mut Lane, minimum: f64) {
     }
 }
 
+fn live_floor(barriers: &mut &[(f64, usize)], states: &[Lane]) -> Result<f64> {
+    let mut skipped = 0;
+    while let Some((&(level, lane), rest)) = barriers.split_first() {
+        if !states[lane].terminated {
+            return Ok(level);
+        }
+        check_path_step(skipped)?;
+        skipped += 1;
+        *barriers = rest;
+    }
+    Ok(f64::INFINITY)
+}
+
 fn observe(
     states: &mut [Lane],
     live: &mut Vec<usize>,
@@ -827,4 +842,39 @@ fn observe(
     }
     live.truncate(survivors);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn live_barrier_cursor_advances_when_lowest_note_terminates() -> Result<()> {
+        let barriers = [(-0.4, 2), (-0.3, 0), (-0.2, 1)];
+        let mut remaining = barriers.as_slice();
+        let mut states = std::array::from_fn::<_, 3, _>(|_| Lane {
+            cash: 0.0,
+            monitoring: None,
+            knocked_in: false,
+            terminated: false,
+        });
+        states[1].terminated = true;
+        assert_eq!(
+            live_floor(&mut remaining, &states)?.to_bits(),
+            (-0.4_f64).to_bits()
+        );
+        states[2].terminated = true;
+        assert_eq!(
+            live_floor(&mut remaining, &states)?.to_bits(),
+            (-0.3_f64).to_bits()
+        );
+        assert_eq!(remaining.len(), 2);
+        states[0].terminated = true;
+        assert_eq!(
+            live_floor(&mut remaining, &states)?.to_bits(),
+            f64::INFINITY.to_bits()
+        );
+        assert_eq!(remaining, []);
+        Ok(())
+    }
 }
