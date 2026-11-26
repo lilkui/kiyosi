@@ -181,8 +181,10 @@ impl FiniteDifferenceHestonVanillaEngine {
     /// Prices European vanilla options across strikes using the template's direction and dates.
     ///
     /// The result preserves input order and duplicates. The automatic domain covers
-    /// the entire spot-to-strike range in a single rollback. Explicit asset domains
-    /// use individual prices so their absolute bounds apply to every strike.
+    /// the entire spot-to-strike range in a single rollback. Compatible strikes
+    /// with an explicit asset boundary share an absolute grid and its factors.
+    /// A European batch with the spot on a grid node can value all payoffs
+    /// using weights from one transposed rollback.
     /// Check convergence with mesh refinement across the full range.
     ///
     /// # Examples
@@ -361,11 +363,10 @@ fn price_strikes(
     let spot = context.spot_price();
     let mut low = f64::INFINITY;
     let mut high = 0.0_f64;
-    let mut share = settings.asset_upper_boundary.is_none()
-        && strikes.len() > 1
-        && context.valuation_time() < option.expiry_time()
+    let active = context.valuation_time() < option.expiry_time()
         && (model.initial_variance() > 0.0
             || (model.mean_reversion_speed() > 0.0 && model.long_run_variance() > 0.0));
+    let mut share = settings.asset_upper_boundary.is_none() && strikes.len() > 1 && active;
     for &strike in strikes {
         crate::cancellation::check()?;
         crate::error::finite(strike, true, "strike")?;
@@ -376,6 +377,12 @@ fn price_strikes(
         high = high.max(normalized);
     }
     if !share {
+        if let Some(upper) = settings
+            .asset_upper_boundary
+            .filter(|_| active && strikes.len() > 1)
+        {
+            return fixed_boundary_prices(option, context, payoff, settings, upper, strikes);
+        }
         return strikes
             .iter()
             .map(|&strike| {
@@ -397,13 +404,98 @@ fn price_strikes(
         .collect()
 }
 
+fn fixed_boundary_prices(
+    option: &impl OptionContract,
+    context: &PricingContext,
+    payoff: Payoff,
+    settings: HestonFiniteDifferenceSettings,
+    upper: f64,
+    strikes: &[f64],
+) -> Result<Vec<f64>> {
+    let mut ordered = strikes.to_vec();
+    ordered.sort_unstable_by(f64::total_cmp);
+    ordered.dedup();
+    let spot = context.spot_price();
+    if spot.max(ordered[ordered.len() - 1]) >= upper {
+        return Err(invalid_grid(
+            "Heston asset boundary must exceed spot and strike",
+        ));
+    }
+    let mut prices = Vec::with_capacity(ordered.len());
+    let batch_size = if payoff.is_american() { 8 } else { 16 };
+    for chunk in ordered.chunks(batch_size) {
+        crate::cancellation::check()?;
+        let [first, rest @ ..] = chunk else { continue };
+        let low = spot.min(*first);
+        let high = spot.max(chunk[chunk.len() - 1]);
+        if !rest.is_empty() && low >= 0.5 * high && settings.asset_step_count >= 128 {
+            let template = Payoff {
+                strike: *first,
+                ..payoff
+            };
+            match prepare_batch(option, context, template, settings, low, rest) {
+                Ok((state, values)) => {
+                    if let Some(state) = state {
+                        prices.push(state.price(option, context)?);
+                    }
+                    prices.extend(values);
+                    continue;
+                }
+                Err(error @ crate::Error::Io(_)) => return Err(error),
+                Err(_) => {}
+            }
+        }
+        for &strike in chunk {
+            crate::cancellation::check()?;
+            prices.push(price(
+                option,
+                context,
+                Payoff { strike, ..payoff },
+                settings,
+            )?);
+        }
+    }
+    strikes
+        .iter()
+        .map(|strike| {
+            crate::cancellation::check()?;
+            let index = ordered
+                .binary_search_by(|k| k.total_cmp(strike))
+                .expect("validated strikes are present");
+            Ok(prices[index])
+        })
+        .collect()
+}
+
 fn prepare(
+    option: &impl OptionContract,
+    context: &PricingContext,
+    payoff: Payoff,
+    settings: HestonFiniteDifferenceSettings,
+    minimum_spot: f64,
+) -> Result<HestonState> {
+    prepare_batch(option, context, payoff, settings, minimum_spot, &[])
+        .map(|(state, _)| state.expect("scalar preparation returns a saved state"))
+}
+
+struct RollbackLane<'a> {
+    payoff: Payoff,
+    values: Vec<f64>,
+    intrinsic: Vec<f64>,
+    multiplier: Vec<f64>,
+    predictor: Vec<f64>,
+    stage: Vec<f64>,
+    boundaries: ExerciseBoundaries<'a>,
+}
+
+fn prepare_batch(
     option: &impl OptionContract,
     context: &PricingContext,
     mut payoff: Payoff,
     settings: HestonFiniteDifferenceSettings,
     minimum_spot: f64,
-) -> Result<HestonState> {
+    additional_strikes: &[f64],
+) -> Result<(Option<HestonState>, Vec<f64>)> {
     // Live values, multiplier, ADI stage buffers, operator coefficients and factors.
     const BYTES_PER_GRID_POINT: u64 = 112;
     // Axis coordinates, derivative coefficients, and terminal and intrinsic payoffs.
@@ -415,18 +507,21 @@ fn prepare(
     let time = context.valuation_time().years_until(end);
     context.validate_curve_coverage(end)?;
     if time == 0.0 {
-        return Ok(HestonState::Expiry(payoff));
+        return Ok((Some(HestonState::Expiry(payoff)), Vec::new()));
     }
     let absorbing = model.initial_variance() == 0.0
         && (model.mean_reversion_speed() == 0.0 || model.long_run_variance() == 0.0);
     if absorbing {
         if payoff.is_american() {
-            return Ok(HestonState::Exercise(AmericanExercise::new(
-                payoff, context, end,
-            )?));
+            return Ok((
+                Some(HestonState::Exercise(AmericanExercise::new(
+                    payoff, context, end,
+                )?)),
+                Vec::new(),
+            ));
         }
         context.validate_curve_horizon(end)?;
-        return Ok(HestonState::Direct(payoff));
+        return Ok((Some(HestonState::Direct(payoff)), Vec::new()));
     }
     let scale = payoff.strike.max(context.spot_price());
     let minimum_spot = minimum_spot / scale;
@@ -453,8 +548,9 @@ fn prepare(
     let steps = u64::try_from(settings.time_step_count).map_err(|_| unstable())?;
     let factor_rows = if deterministic { rows } else { rows - 1 };
     let padded = factor_rows.next_multiple_of(ASSET_LANES as u64) - factor_rows;
+    let extra_rhs = additional_strikes.len() as u64;
     let grid_bytes = (assets * rows)
-        .saturating_mul(BYTES_PER_GRID_POINT)
+        .saturating_mul(BYTES_PER_GRID_POINT + extra_rhs * 4 * size_of::<f64>() as u64)
         .saturating_add(padded * assets * size_of::<[f64; 3]>() as u64)
         .saturating_add((assets + rows) * BYTES_PER_AXIS_NODE);
     let validate_grid = |time_steps, curve_bytes| {
@@ -467,7 +563,7 @@ fn prepare(
                 "Heston finite-difference workspace exceeds 1 GiB; reduce grid step counts",
             ));
         }
-        validate_work(assets * rows, time_steps)
+        validate_work((assets * rows).saturating_mul(1 + extra_rhs), time_steps)
     };
     let (risk, dividend) = prepare_rate_curves(context, end, |knots, bytes| {
         validate_grid(steps.max(knots), bytes)
@@ -510,7 +606,12 @@ fn prepare(
         } else {
             0.06
         };
-        concentrate(&mut asset, vec![payoff.strike], asset_scale)?;
+        let mut levels = vec![payoff.strike];
+        if !additional_strikes.is_empty() {
+            levels.push(context.spot_price() / scale);
+            levels.extend(additional_strikes.iter().map(|strike| strike / scale));
+        }
+        concentrate(&mut asset, levels, asset_scale)?;
     }
     let mut valuation_row = 0;
     let variance = if deterministic {
@@ -560,37 +661,75 @@ fn prepare(
         .checked_mul(rows)
         .filter(|&n| n <= isize::MAX as usize / size_of::<[f64; 3]>())
         .ok_or_else(unstable)?;
-    let terminal: Vec<_> = (0..nx)
-        .map(|i| project_payoff(&asset, &[payoff.strike], i, |s| payoff.value(s)))
-        .collect();
-    let mut values: Vec<_> = (0..length).map(|k| terminal[k % nx]).collect();
-    let intrinsic: Vec<_> = (0..nx).map(|i| payoff.value(asset.asset(i))).collect();
-    let mut multiplier = if payoff.is_american() {
-        vec![0.0; length]
-    } else {
-        Vec::new()
+    let strikes = || {
+        std::iter::once(payoff.strike).chain(additional_strikes.iter().map(|strike| strike / scale))
     };
-    let mut predictor = vec![0.0; length];
-    let mut stage = vec![0.0; length];
-    let mut boundaries = ExerciseBoundaries::new(
-        payoff,
-        [lower, upper],
-        time,
-        [&risk, &dividend],
-        times.widths.len(),
-    )?;
     let mut op = Operator::new(&asset, variance.as_deref());
+    if !payoff.is_american() && !additional_strikes.is_empty() {
+        let spot = context.spot_price() / scale;
+        if let Ok(node) = asset.spots.binary_search_by(|s| s.total_cmp(&spot)) {
+            return european_strike_weights(
+                &asset,
+                variance.as_deref(),
+                &times,
+                [&risk, &dividend],
+                model,
+                &mut op,
+                [lower, upper],
+                valuation_row * nx + node,
+                payoff,
+                strikes(),
+                scale,
+            )
+            .map(|prices| (None, prices));
+        }
+    }
+    let mut lanes = Vec::with_capacity(additional_strikes.len() + 1);
+    for strike in strikes() {
+        crate::cancellation::check()?;
+        let payoff = Payoff { strike, ..payoff };
+        let terminal: Vec<_> = (0..nx)
+            .map(|i| project_payoff(&asset, &[strike], i, |s| payoff.value(s)))
+            .collect();
+        let values: Vec<_> = (0..length).map(|k| terminal[k % nx]).collect();
+        let intrinsic: Vec<_> = (0..nx).map(|i| payoff.value(asset.asset(i))).collect();
+        let multiplier = if payoff.is_american() {
+            vec![0.0; length]
+        } else {
+            Vec::new()
+        };
+        let boundaries = ExerciseBoundaries::new(
+            payoff,
+            [lower, upper],
+            time,
+            [&risk, &dividend],
+            times.widths.len(),
+        )?;
+        lanes.push(RollbackLane {
+            payoff,
+            values,
+            intrinsic,
+            multiplier,
+            predictor: vec![0.0; length],
+            stage: vec![0.0; length],
+            boundaries,
+        });
+    }
     let rows = op.dynamic_rows();
     let cells = nx * rows;
     let work = cells.saturating_mul(times.widths.len());
-    let pool = (cells >= 24_000 && work >= 1_000_000 && rows >= 16)
+    let batched = lanes.len() > 1;
+    let pool = ((cells >= 24_000 && work >= 1_000_000 && rows >= 16)
+        || (batched && work.saturating_mul(lanes.len()) >= 1_000_000))
         .then(heston_pool)
         .flatten();
+    let lane_workers = batched && pool.is_some();
+    let tokens = crate::cancellation::current();
     let workers = pool
-        .filter(|_| cells >= 64_000 && work >= 8_000_000)
+        .filter(|_| !batched && cells >= 64_000 && work >= 8_000_000)
         .map(|(_, workers)| AssetWorkers {
             count: workers,
-            tokens: crate::cancellation::current(),
+            tokens: tokens.clone(),
             rows_per_task: rows.div_ceil(workers).max(4),
         });
     let mut rollback = || {
@@ -602,74 +741,197 @@ fn prepare(
             let middle = a.midpoint(b);
             let rate = risk.rate(middle);
             let q = dividend.rate(middle);
-            let edges = boundaries.at(a)?;
-            if edges.iter().any(|x| !x.is_finite()) {
-                return Err(unstable());
-            }
             let var = if deterministic {
                 variance_at(model, middle)
             } else {
                 0.0
             };
             op.prepare(&asset, variance.as_deref(), model, [var, rate, q, dt / 3.0])?;
-            // Subtract the old solution from both ADI stages. Each directional
-            // solve then has the same homogeneous operator and needs no saved
-            // explicit directional terms for the old solution.
-            let increment_edges = [edges[0] - values[0], edges[1] - values[nx - 1]];
-            op.predict(
-                &values,
-                &multiplier,
-                [&mut predictor, &mut stage],
-                dt,
-                workers.as_ref(),
-            )?;
-            op.solve(&mut stage, increment_edges, workers.as_ref())?;
-            op.correct(&stage, &mut predictor, dt, workers.as_ref())?;
-            op.solve(&mut predictor, increment_edges, workers.as_ref())?;
-            if payoff.is_american() {
-                for ((row, old), correction) in predictor
-                    .chunks_exact_mut(nx)
-                    .zip(values.chunks_exact(nx))
-                    .zip(multiplier.chunks_exact_mut(nx))
-                {
-                    for (((value, &old), multiplier), &intrinsic) in
-                        row.iter_mut().zip(old).zip(correction).zip(&intrinsic)
+            let advance = |lane: &mut RollbackLane<'_>| -> Result<()> {
+                let RollbackLane {
+                    values,
+                    intrinsic,
+                    multiplier,
+                    predictor,
+                    stage,
+                    boundaries,
+                    ..
+                } = lane;
+                let edges = boundaries.at(a)?;
+                if edges.iter().any(|x| !x.is_finite()) {
+                    return Err(unstable());
+                }
+                // Both ADI stages solve for increments with the same directional factors.
+                let increment_edges = [edges[0] - values[0], edges[1] - values[nx - 1]];
+                op.predict(values, multiplier, [predictor, stage], dt, workers.as_ref())?;
+                op.solve(stage, increment_edges, workers.as_ref())?;
+                op.correct(stage, predictor, dt, workers.as_ref())?;
+                op.solve(predictor, increment_edges, workers.as_ref())?;
+                if payoff.is_american() {
+                    for ((row, old), correction) in predictor
+                        .chunks_exact_mut(nx)
+                        .zip(values.chunks_exact(nx))
+                        .zip(multiplier.chunks_exact_mut(nx))
                     {
-                        let raw = old + *value;
-                        *value = (raw - dt * *multiplier).max(intrinsic);
-                        *multiplier = (*multiplier + (intrinsic - raw) / dt).max(0.0);
+                        for (((value, &old), multiplier), &intrinsic) in row
+                            .iter_mut()
+                            .zip(old)
+                            .zip(correction)
+                            .zip(intrinsic.iter())
+                        {
+                            let raw = old + *value;
+                            *value = (raw - dt * *multiplier).max(intrinsic);
+                            *multiplier = (*multiplier + (intrinsic - raw) / dt).max(0.0);
+                        }
+                    }
+                } else {
+                    for (value, old) in predictor.iter_mut().zip(values.iter()) {
+                        *value += old;
                     }
                 }
+                op.boundaries(predictor, edges);
+                if predictor
+                    .iter()
+                    .chain(multiplier.iter())
+                    .any(|x| !x.is_finite())
+                {
+                    return Err(unstable());
+                }
+                std::mem::swap(values, predictor);
+                Ok(())
+            };
+            if lane_workers {
+                lanes.par_iter_mut().try_for_each(|lane| {
+                    crate::cancellation::with_tokens(tokens.clone(), || advance(lane))
+                })?;
             } else {
-                for (value, old) in predictor.iter_mut().zip(&values) {
-                    *value += old;
+                for lane in &mut lanes {
+                    advance(lane)?;
                 }
             }
-            op.boundaries(&mut predictor, edges);
-            if predictor.iter().chain(&multiplier).any(|x| !x.is_finite()) {
-                return Err(unstable());
-            }
-            std::mem::swap(&mut values, &mut predictor);
         }
         Ok(())
     };
     if let Some((pool, _)) = pool {
-        let tokens = crate::cancellation::current();
-        pool.install(|| crate::cancellation::with_tokens(tokens, rollback))?;
+        pool.install(|| crate::cancellation::with_tokens(tokens.clone(), rollback))?;
     } else {
         rollback()?;
     }
-    let spline = asset.spline(if variance.is_some() {
-        values[valuation_row * nx..][..nx].to_vec()
-    } else {
-        values
-    });
-    Ok(HestonState::Grid {
-        scale,
-        asset,
-        payoff,
-        spline,
-    })
+    let mut results = lanes
+        .into_iter()
+        .map(|RollbackLane { payoff, values, .. }| {
+            let spline = asset.spline(if variance.is_some() {
+                values[valuation_row * nx..][..nx].to_vec()
+            } else {
+                values
+            });
+            (payoff, spline)
+        });
+    let (payoff, spline) = results.next().expect("the template has a payoff");
+    let prices = results
+        .map(|(payoff, spline)| grid_price(&asset, &spline, payoff, scale, context.spot_price()))
+        .collect::<Result<Vec<_>>>()?;
+    Ok((
+        Some(HestonState::Grid {
+            scale,
+            asset,
+            payoff,
+            spline,
+        }),
+        prices,
+    ))
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Reuses the primal grid, curves, and factored operators."
+)]
+fn european_strike_weights(
+    asset: &SpatialGrid,
+    variance: Option<&[f64]>,
+    times: &TimeGrid,
+    [risk, dividend]: [&super::Curve; 2],
+    model: &HestonParameters,
+    op: &mut Operator,
+    bounds: [f64; 2],
+    valuation_node: usize,
+    payoff: Payoff,
+    strikes: impl Iterator<Item = f64>,
+    scale: f64,
+) -> Result<Vec<f64>> {
+    use crate::numerics::Sum;
+    let nx = op.nx;
+    let length = nx * op.rows;
+    let end = times.times[times.times.len() - 1];
+    let mut contracts = strikes
+        .map(|strike| {
+            let payoff = Payoff { strike, ..payoff };
+            let boundary =
+                ExerciseBoundaries::new(payoff, bounds, end, [risk, dividend], times.widths.len())?;
+            Ok((payoff, boundary, Sum::default()))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let mut weights = vec![0.0; length];
+    let mut previous = vec![0.0; length];
+    let mut stage = vec![0.0; length];
+    weights[valuation_node] = 1.0;
+    // Reverse each linear rollback stage, carrying weights from valuation to expiry.
+    for (step, &dt) in times.widths.iter().enumerate() {
+        crate::cancellation::check()?;
+        let a = times.times[step];
+        let middle = a.midpoint(times.times[step + 1]);
+        let var = if variance.is_none() {
+            variance_at(model, middle)
+        } else {
+            0.0
+        };
+        op.prepare(
+            asset,
+            variance,
+            model,
+            [var, risk.rate(middle), dividend.rate(middle), dt / 3.0],
+        )?;
+        let mut edges = op.take_boundary_weights(&mut weights);
+        previous.copy_from_slice(&weights);
+        let inc1 = op.transpose_solve(&mut weights)?;
+        stage.fill(0.0);
+        op.transpose_explicit(&weights, &mut stage, dt / 6.0, dt * 0.5)?;
+        let inc2 = op.transpose_solve(&mut stage)?;
+        for (value, correction) in weights.iter_mut().zip(&stage) {
+            *value += correction;
+        }
+        op.transpose_explicit(&weights, &mut previous, dt, dt)?;
+        for (i, column) in [0, nx - 1].into_iter().enumerate() {
+            let increment = inc1[i] + inc2[i];
+            previous[column] -= increment;
+            edges[i] += increment;
+        }
+        for (_, boundary, value) in &mut contracts {
+            let [left, right] = boundary.at(a)?;
+            value.add(edges[0] * left + edges[1] * right);
+        }
+        std::mem::swap(&mut previous, &mut weights);
+    }
+    let mut terminal = vec![0.0; nx];
+    for row in weights.chunks_exact(nx) {
+        for (weight, &value) in terminal.iter_mut().zip(row) {
+            *weight += value;
+        }
+    }
+    contracts
+        .into_iter()
+        .map(|(payoff, _, mut value)| {
+            crate::cancellation::check()?;
+            for (i, &weight) in terminal.iter().enumerate() {
+                if i % 1024 == 0 {
+                    crate::cancellation::check()?;
+                }
+                let payment = project_payoff(asset, &[payoff.strike], i, |spot| payoff.value(spot));
+                value.add(weight * payment);
+            }
+            checked_with_scale(scale * value.total(), scale)
+        })
+        .collect()
 }
 
 #[derive(PartialEq)]
@@ -696,25 +958,33 @@ impl HestonState {
                 asset,
                 payoff,
                 spline,
-            } => {
-                let spot = spot / scale;
-                if spot == 0.0 {
-                    return Err(unstable());
-                }
-                let mut price = asset.sample(spline, spot)[0];
-                if payoff.is_american() {
-                    let exercise = payoff.value(spot);
-                    price = if asset.exercise_cell(spline, spot, |s| payoff.value(s)) {
-                        exercise
-                    } else {
-                        price.max(exercise)
-                    };
-                }
-                checked_with_scale(scale * price, *scale)
-            }
+            } => grid_price(asset, spline, *payoff, *scale, spot),
         }
     }
 }
+fn grid_price(
+    asset: &SpatialGrid,
+    spline: &Spline,
+    payoff: Payoff,
+    scale: f64,
+    spot: f64,
+) -> Result<f64> {
+    let spot = spot / scale;
+    if spot == 0.0 {
+        return Err(unstable());
+    }
+    let mut price = asset.sample(spline, spot)[0];
+    if payoff.is_american() {
+        let exercise = payoff.value(spot);
+        price = if asset.exercise_cell(spline, spot, |s| payoff.value(s)) {
+            exercise
+        } else {
+            price.max(exercise)
+        };
+    }
+    checked_with_scale(scale * price, scale)
+}
+
 impl<I: OptionContract> super::solution::Backend<I> for HestonState {
     fn query_work(&self, _: &I, _: &PricingContext) -> usize {
         if let Self::Exercise(exercise) = self {
@@ -1116,6 +1386,104 @@ impl Operator {
         }
     }
 
+    fn take_boundary_weights(&self, values: &mut [f64]) -> [f64; 2] {
+        let nx = self.nx;
+        if self.rows > 1 {
+            let top = (self.rows - 1) * nx;
+            let (below, last) = values.split_at_mut(top);
+            for (value, other) in below[top - nx..].iter_mut().zip(last) {
+                *value += std::mem::take(other);
+            }
+        }
+        let mut edges = [0.0; 2];
+        for row in values.chunks_exact_mut(nx) {
+            edges[0] += std::mem::take(&mut row[0]);
+            edges[1] += std::mem::take(&mut row[nx - 1]);
+        }
+        edges
+    }
+
+    fn transpose_solve(&self, values: &mut [f64]) -> Result<[f64; 2]> {
+        let nx = self.nx;
+        let mut edges = self.take_boundary_weights(values);
+        // U^T and L^T use the existing LU factors in the opposite order.
+        for (j, &[_, diagonal, _]) in self.variance_factors.iter().enumerate() {
+            crate::cancellation::check()?;
+            let upper = if j == 0 {
+                0.0
+            } else {
+                self.variance_factors[j - 1][2]
+            };
+            for i in 1..nx - 1 {
+                let k = j * nx + i;
+                let previous = if j == 0 { 0.0 } else { values[k - nx] };
+                values[k] = (values[k] - upper * previous) / diagonal;
+            }
+        }
+        for j in (0..self.rows - 1).rev() {
+            let multiplier = self.variance_factors[j + 1][0];
+            for i in 1..nx - 1 {
+                let k = j * nx + i;
+                values[k] -= multiplier * values[k + nx];
+            }
+        }
+        values[self.dynamic_rows() * nx..].fill(0.0);
+        for (j, row) in values
+            .chunks_exact_mut(nx)
+            .take(self.dynamic_rows())
+            .enumerate()
+        {
+            crate::cancellation::check()?;
+            let lane = j % ASSET_LANES;
+            let start = j / ASSET_LANES * nx;
+            let factors = &self.asset_factors[start..start + nx];
+            for i in 1..nx - 1 {
+                row[i] = (row[i] - factors[i - 1][2][lane] * row[i - 1]) / factors[i][1][lane];
+            }
+            for i in (1..nx - 2).rev() {
+                row[i] -= factors[i + 1][0][lane] * row[i + 1];
+            }
+            edges[0] -= factors[1][0][lane] * row[1];
+            edges[1] -= factors[nx - 2][2][lane] * row[nx - 2];
+        }
+        Ok(edges)
+    }
+
+    fn transpose_explicit(
+        &self,
+        input: &[f64],
+        output: &mut [f64],
+        directional_weight: f64,
+        mixed_weight: f64,
+    ) -> Result<()> {
+        let nx = self.nx;
+        for j in 0..self.dynamic_rows() {
+            crate::cancellation::check()?;
+            let [lower, middle, upper] = self.variance[j];
+            for i in 1..nx - 1 {
+                let k = j * nx + i;
+                let weight = input[k] * directional_weight;
+                for (value, coefficient) in output[k - 1..=k + 1].iter_mut().zip(self.asset[k]) {
+                    *value += weight * coefficient;
+                }
+                output[k] += weight * middle;
+                if j > 0 {
+                    output[k - nx] += weight * lower;
+                    let weight = input[k] * self.mixed[j] * mixed_weight;
+                    for (dx, x) in self.dx[i].iter().zip(i - 1..=i + 1) {
+                        for (dv, v) in self.dv[j].iter().zip(j - 1..=j + 1) {
+                            output[v * nx + x] += weight * dx * dv;
+                        }
+                    }
+                }
+                if self.rows > 1 {
+                    output[k + nx] += weight * upper;
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn solve(
         &self,
         values: &mut [f64],
@@ -1271,4 +1639,53 @@ fn factor(rows: &mut [[f64; 3]]) -> Result<()> {
         previous = Some((*diagonal, *upper));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod adjoint_tests {
+    use super::*;
+
+    #[test]
+    fn heston_transpose_matches_primal_directional_solve_and_boundaries() -> Result<()> {
+        let asset = SpatialGrid::new(5, [0.25, 4.0], 1.0)?;
+        let variance = [0.0, 0.025, 0.07, 0.2];
+        let model = HestonParameters::new(crate::HestonParameterInputs {
+            risk_free_rate: 0.04.into(),
+            dividend_yield: 0.01.into(),
+            initial_variance: 0.04,
+            long_run_variance: 0.04,
+            mean_reversion_speed: 1.2,
+            vol_of_vol: 0.3,
+            correlation: -0.7,
+        })?;
+        let mut op = Operator::new(&asset, Some(&variance));
+        op.prepare(&asset, Some(&variance), &model, [0.0, 0.04, 0.01, 0.02])?;
+        let nx = asset.nodes.len();
+        let input: Vec<_> = (0..24).map(|i| f64::from(i % 5 - 2)).collect();
+        let weights: Vec<_> = (0..24).map(|i| 0.25 * f64::from(i % 7 - 3)).collect();
+        let dot = |a: &[f64], b: &[f64]| a.iter().zip(b).map(|(a, b)| a * b).sum::<f64>();
+        let edges = [0.8, -0.25];
+        let mut values = input.clone();
+        op.solve(&mut values, edges, None)?;
+        let mut weights_at_input = weights.clone();
+        let edge_weights = op.transpose_solve(&mut weights_at_input)?;
+        let expected = dot(&values, &weights);
+        let actual = dot(&input, &weights_at_input) + dot(&edges, &edge_weights);
+        assert!((actual - expected).abs() < 1e-12);
+
+        let mut values = vec![0.0; input.len()];
+        for (j, row) in values
+            .chunks_exact_mut(nx)
+            .take(op.dynamic_rows())
+            .enumerate()
+        {
+            op.for_each_component(&input, j, |i, [mixed, along_asset, along_variance]| {
+                row[i] = 0.5 * mixed + (along_asset + along_variance) / 6.0;
+            });
+        }
+        weights_at_input.fill(0.0);
+        op.transpose_explicit(&weights, &mut weights_at_input, 1.0 / 6.0, 0.5)?;
+        assert!((dot(&values, &weights) - dot(&input, &weights_at_input)).abs() < 1e-12);
+        Ok(())
+    }
 }

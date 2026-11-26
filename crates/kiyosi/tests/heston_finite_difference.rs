@@ -613,3 +613,40 @@ fn american_heston_dense_curves_preserve_price_and_bound_boundary_work() -> kiyo
     ));
     Ok(())
 }
+
+#[test]
+fn fixed_heston_strike_batches_preserve_boundary_and_payoff_order() -> kiyosi::Result<()> {
+    let (start, end) = dates();
+    let strikes = [110.0, 90.0, 100.0, 90.0];
+    let call = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let put = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let engine = FiniteDifferenceHestonVanillaEngine::new(HestonFiniteDifferenceSettings {
+        asset_upper_boundary: Some(400.0),
+        ..Default::default()
+    })?;
+    for market in [context(0.3, -0.7), context(0.0, 0.0)] {
+        let calls = engine.price_european_strikes(&call, &market, &strikes)?;
+        let puts = engine.price_american_strikes(&put, &market, &strikes)?;
+        assert_eq!(calls[1], calls[3]);
+        assert_eq!(puts[1], puts[3]);
+        for ((strike, c), p) in strikes.into_iter().zip(calls).zip(puts) {
+            let call = EuropeanOption::new(OptionType::Call, strike, start, end)?;
+            let put = AmericanOption::new(OptionType::Put, strike, start, end)?;
+            let scalar_call = engine.price(&call, &market)?;
+            let scalar_put = engine.price(&put, &market)?;
+            assert!(
+                (c - scalar_call).abs() < 0.002,
+                "{strike}: {c} vs {scalar_call}"
+            );
+            assert!(
+                (p - scalar_put).abs() < 0.002,
+                "{strike}: {p} vs {scalar_put}"
+            );
+        }
+        assert!(matches!(
+            engine.price_european_strikes(&call, &market, &[90.0, 400.0]),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    Ok(())
+}

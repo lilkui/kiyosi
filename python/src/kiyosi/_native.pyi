@@ -3389,7 +3389,8 @@ class FiniteDifferenceHestonVanillaEngine(
         Notes
         -----
         The automatic asset domain shares one rollback over the full
-        spot-to-strike range. Explicit asset bounds apply to each scalar price.
+        spot-to-strike range. Compatible strikes with an explicit asset bound share
+        an absolute grid. European batches can reuse one set of payoff weights.
         Check mesh convergence over the full range. Pricing releases the GIL
         and cancellation returns no partial result.
         """
