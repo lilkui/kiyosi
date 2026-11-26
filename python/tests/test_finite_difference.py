@@ -798,3 +798,20 @@ def test_american_long_expiry_domain_matches_live_quantlib():
     assert refined == pytest.approx(reference, rel=0, abs=0.03)
     assert abs(refined - reference) < abs(coarse - reference)
     assert engine.price_with_greeks(option, context, "vega").price == refined
+
+
+def test_bsm_strike_batch_matches_analytic_prices_in_input_order():
+    snapshot = market()
+    engine = FiniteDifferenceVanillaEngine(asset_step_count=800, time_step_count=200)
+    strikes = (121, 77, 101, 89, 121, 200)
+    for direction in ("call", "put"):
+        template = EuropeanOption(
+            option_type=direction, strike=130, effective_time=START, expiry_time=END
+        )
+        prices = engine.price_strikes(template, snapshot, strikes=iter(strikes))
+        expected = [
+            AnalyticEuropeanEngine().price(template.replace(strike=strike), snapshot)
+            for strike in strikes
+        ]
+        assert prices == pytest.approx(expected, abs=0.0003, rel=0)
+        assert prices[0] == prices[4]

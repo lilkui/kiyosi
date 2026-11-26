@@ -576,7 +576,7 @@ def test_european_strike_strip_matches_refined_local_volatility_prices():
     )
     batch = pricing.FiniteDifferenceVanillaEngine(asset_upper_boundary=400)
     refined = batch.replace(asset_step_count=1600, time_step_count=800)
-    strikes = (115, 85, 100, 105, 85)
+    strikes = (115, 85, 100, 105, 85, 180)
     for direction in ("call", "put"):
         template = EuropeanOption(
             option_type=direction, strike=100, effective_time=START, expiry_time=END
@@ -587,4 +587,7 @@ def test_european_strike_strip_matches_refined_local_volatility_prices():
             for strike in strikes
         )
         assert actual == pytest.approx(expected, abs=0.001, rel=0)
+        assert actual[:5] == batch.price_strikes(
+            template, snapshot, strikes=strikes[:5]
+        )
         assert actual[1] == actual[4]

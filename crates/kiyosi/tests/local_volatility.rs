@@ -1026,10 +1026,14 @@ fn european_strike_strip_matches_refined_local_volatility_prices() -> Result<()>
     let context = context(surface(vec![vec![0.25, 0.18], vec![0.27, 0.20]]));
     let batch = engine(800, 400, 400.0);
     let refined = engine(1600, 800, 400.0);
-    let strikes = [115.0, 85.0, 100.0, 105.0, 85.0];
+    let strikes = [115.0, 85.0, 100.0, 105.0, 85.0, 180.0];
     for direction in [OptionType::Call, OptionType::Put] {
         let template = EuropeanOption::new(direction, 100.0, start, end)?;
         let prices = batch.price_strikes(&template, &context, &strikes)?;
+        assert_eq!(
+            prices[..5],
+            batch.price_strikes(&template, &context, &strikes[..5])?
+        );
         assert_eq!(prices[1].to_bits(), prices[4].to_bits());
         for (price, strike) in prices.into_iter().zip(strikes) {
             let scalar = EuropeanOption::new(direction, strike, start, end)?;

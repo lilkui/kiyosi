@@ -1,16 +1,18 @@
 use super::grid::{StrikeMoments, concentrate, project_payoff, spot_floor};
 use super::{
-    EuropeanOption, FiniteDifferenceScheme, FiniteDifferenceVanillaEngine, Payoff, PricingContext,
-    PricingEngine, Result, SpatialGrid, Stepper, diffusion, diffusion_log_width, invalid_grid,
-    local_volatility, payoff, validate_life, validate_work, validate_workspace,
+    EuropeanOption, FiniteDifferenceEngine, FiniteDifferenceScheme, FiniteDifferenceVanillaEngine,
+    Payoff, PricingContext, PricingEngine, Result, SpatialGrid, Stepper, diffusion,
+    diffusion_log_width, invalid_grid, local_volatility, payoff, validate_life, validate_work,
+    validate_workspace,
 };
 
 impl FiniteDifferenceVanillaEngine {
     /// Prices European vanilla options across strikes in input order.
     ///
-    /// Uses the template's direction and dates. Compatible calendar-time local-volatility
-    /// requests propagate pricing weights on a common absolute-spot mesh. Other requests
-    /// use scalar pricing. Check spatial and temporal convergence over the full strike range.
+    /// Uses the template's direction and dates. Compatible BSM strikes share a
+    /// rescaled solution with automatic boundaries. Compatible calendar-time
+    /// local-volatility strikes share an absolute-spot mesh. Outliers can use
+    /// individual solves. Check convergence over the full strike range.
     ///
     /// # Errors
     ///
@@ -28,56 +30,118 @@ impl FiniteDifferenceVanillaEngine {
             crate::cancellation::check()?;
             crate::error::finite(strike, true, "strike")?;
         }
-        let mut prices = Vec::new();
-        prices
-            .try_reserve_exact(strikes.len())
-            .map_err(|_| super::unstable())?;
-        if let Some(local) = local_volatility::local_model(context).filter(|_| {
-            strikes.len() >= 4
-                && self.settings.asset_step_count >= 128
-                && self.settings.scheme == FiniteDifferenceScheme::Rannacher
-                && context.valuation_time() < option.expiry_time()
-                && !diffusion::uses_business_time(context)
-        }) {
-            let surface = local.surface();
-            let spot = context.spot_price();
-            let (low, high) = strikes.iter().fold((spot, spot), |(low, high), &strike| {
-                (low.min(strike), high.max(strike))
-            });
-            let expiry = option.expiry_time();
-            let width = surface.volatility(context.valuation_time(), spot)?
-                * context.valuation_time().years_until(expiry).sqrt();
-            if high * 0.5 <= low
-                && width >= 0.04
-                && surface
-                    .constant_volatility_between(context.valuation_time(), expiry)?
-                    .is_none()
-            {
-                let solve = MarketStrip::new(self, option, context, surface, [low, high], width)
-                    .and_then(|batch| {
-                        for &strike in strikes {
-                            crate::cancellation::check()?;
-                            let payoff = Payoff::vanilla(option.option_type(), strike, false);
-                            prices.push(batch.price(payoff, spot)?);
-                        }
-                        Ok(())
-                    });
-                match solve {
-                    Ok(()) => return Ok(prices),
-                    Err(crate::Error::ComputationFailure(_)) => prices.clear(),
-                    Err(error) => return Err(error),
-                }
-            }
-        }
-        for &strike in strikes {
+        let scalar = |strike| {
             crate::cancellation::check()?;
             let contract = option.replace(crate::EuropeanOptionChanges {
                 strike: Some(strike),
                 ..Default::default()
             })?;
-            prices.push(self.price(&contract, context)?);
+            self.price(&contract, context)
+        };
+        if strikes.len() < 4
+            || self.settings.asset_step_count < 128
+            || self.settings.scheme != FiniteDifferenceScheme::Rannacher
+            || context.valuation_time() == option.expiry_time()
+            || diffusion::uses_business_time(context)
+        {
+            return strikes.iter().copied().map(scalar).collect();
+        }
+        let spot = context.spot_price();
+        let expiry = option.expiry_time();
+        let mut local_strip = None;
+        if let Some(local) = local_volatility::local_model(context) {
+            let surface = local.surface();
+            let at = context.valuation_time();
+            let width = surface.volatility(at, spot)? * at.years_until(expiry).sqrt();
+            if width >= 0.04 && surface.constant_volatility_between(at, expiry)?.is_none() {
+                local_strip = Some((surface, width));
+            }
+        }
+        let normalized = self.settings.asset_upper_boundary.is_none()
+            && matches!(context.model_parameters(), crate::ModelParameters::BlackScholesMerton(model)
+                if model.volatility() * context.valuation_time().years_until(expiry).sqrt() >= 0.04);
+        if !normalized && local_strip.is_none() {
+            return strikes.iter().copied().map(scalar).collect();
+        }
+
+        let mut ordered = Vec::new();
+        ordered
+            .try_reserve_exact(strikes.len())
+            .map_err(|_| super::unstable())?;
+        ordered.extend(strikes.iter().copied().enumerate());
+        ordered.sort_unstable_by(|a, b| a.1.total_cmp(&b.1));
+        crate::cancellation::check()?;
+        let mut prices = Vec::new();
+        prices
+            .try_reserve_exact(strikes.len())
+            .map_err(|_| super::unstable())?;
+        prices.resize(strikes.len(), 0.0);
+        let mut remaining = ordered.as_slice();
+        while let Some(&(_, first)) = remaining.first() {
+            crate::cancellation::check()?;
+            let low = spot.min(first);
+            let count = if low >= 0.5 * spot {
+                remaining
+                    .partition_point(|&(_, strike)| 0.5 * strike <= low)
+                    .max(1)
+            } else {
+                1
+            };
+            let (group, tail) = remaining.split_at(count);
+            remaining = tail;
+            let last = group[count - 1].1;
+            if count >= 4 && first < last {
+                let fast = if let Some((surface, width)) = local_strip {
+                    MarketStrip::new(self, option, context, surface, [low, spot.max(last)], width)
+                        .and_then(|batch| {
+                            for &(i, strike) in group {
+                                crate::cancellation::check()?;
+                                let payoff = Payoff::vanilla(option.option_type(), strike, false);
+                                prices[i] = batch.price(payoff, spot)?;
+                            }
+                            Ok(())
+                        })
+                } else {
+                    self.normalized_strikes(option, context, group, &mut prices)
+                };
+                match fast {
+                    Ok(()) => continue,
+                    Err(error @ crate::Error::Io(_)) => return Err(error),
+                    // A shared grid can fail even when individual grids are representable.
+                    Err(_) => {}
+                }
+            }
+            for &(i, strike) in group {
+                prices[i] = scalar(strike)?;
+            }
         }
         Ok(prices)
+    }
+
+    fn normalized_strikes(
+        &self,
+        template: &EuropeanOption,
+        context: &PricingContext,
+        group: &[(usize, f64)],
+        prices: &mut [f64],
+    ) -> Result<()> {
+        let spot = context.spot_price();
+        let option = template.replace(crate::EuropeanOptionChanges {
+            strike: Some(spot),
+            ..Default::default()
+        })?;
+        let normalized_spot = |strike| spot * (spot / strike);
+        let low = normalized_spot(group[group.len() - 1].1);
+        let high = normalized_spot(group[0].1);
+        if !low.is_normal() || !high.is_normal() || low >= high {
+            return Err(super::unstable());
+        }
+        let solved = self.solve(&option, context, low..=high)?;
+        for &(i, strike) in group {
+            prices[i] =
+                crate::numerics::checked(solved.price(normalized_spot(strike))? * (strike / spot))?;
+        }
+        Ok(())
     }
 }
 

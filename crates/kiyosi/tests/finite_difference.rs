@@ -1233,3 +1233,29 @@ fn scaled_digital_discounts_and_strict_expiry_payments_remain_representable() {
         }
     }
 }
+
+#[test]
+fn bsm_strike_batch_matches_analytic_prices_in_input_order() -> Result<()> {
+    let (start, end) = dates();
+    let context = market(100.0, 0.05, 0.02, 0.2);
+    let engine = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 800,
+        time_step_count: 200,
+        ..Default::default()
+    })?;
+    let strikes = [121.0, 77.0, 101.0, 89.0, 121.0, 200.0];
+    for direction in [OptionType::Call, OptionType::Put] {
+        let template = EuropeanOption::new(direction, 130.0, start, end)?;
+        let prices = engine.price_strikes(&template, &context, &strikes)?;
+        assert_eq!(prices[0].to_bits(), prices[4].to_bits());
+        for (price, strike) in prices.into_iter().zip(strikes) {
+            let contract = EuropeanOption::new(direction, strike, start, end)?;
+            let expected = AnalyticEuropeanEngine.price(&contract, &context)?;
+            assert!(
+                (price - expected).abs() < 0.0003,
+                "{strike}: {price} vs {expected}"
+            );
+        }
+    }
+    Ok(())
+}
