@@ -1395,3 +1395,42 @@ fn american_bsm_surface_matches_independent_strips_and_preserves_order() -> Resu
     }
     Ok(())
 }
+
+#[test]
+fn american_surface_keeps_the_shared_grid_with_outliers_and_duplicates() -> Result<()> {
+    let (start, end) = dates();
+    let template = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.25)?,
+        100.0,
+        start,
+    )?;
+    let engine = FiniteDifferenceVanillaEngine::default();
+    let expiries = [end, start.add_days(145)?, start.add_days(260)?];
+    let shared =
+        engine.price_american_surface(&template, &context, &expiries, &[90.0, 100.0, 110.0])?;
+    let mixed = engine.price_american_surface(
+        &template,
+        &context,
+        &expiries,
+        &[110.0, 220.0, 90.0, 100.0, 90.0],
+    )?;
+    for ((&expiry, shared), row) in expiries.iter().zip(shared).zip(mixed) {
+        let outlier = AmericanOption::new(OptionType::Put, 220.0, start, expiry)?;
+        assert_eq!(
+            row,
+            [
+                shared[2],
+                engine.price(&outlier, &context)?,
+                shared[0],
+                shared[1],
+                shared[0]
+            ]
+        );
+    }
+    assert_eq!(
+        engine.price_american_strikes(&template, &context, &[100.0; 8])?,
+        vec![engine.price(&template, &context)?; 8]
+    );
+    Ok(())
+}

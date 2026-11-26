@@ -896,3 +896,27 @@ def test_american_bsm_surface_matches_independent_strips_and_preserves_order():
         if expiry == short:
             assert row == expected
         assert row == pytest.approx(expected, abs=0.002, rel=0)
+
+
+def test_american_surface_keeps_the_shared_grid_with_outliers_and_duplicates():
+    template = AmericanOption(
+        option_type="put", strike=100, effective_time=START, expiry_time=END
+    )
+    snapshot = market(spot=100, rate=0.05, dividend=0.02, sigma=0.25)
+    engine = FiniteDifferenceVanillaEngine()
+    expiries = (END, START + timedelta(days=145), START + timedelta(days=260))
+    shared = engine.price_american_surface(
+        template, snapshot, expiries=expiries, strikes=(90, 100, 110)
+    )
+    mixed = engine.price_american_surface(
+        template, snapshot, expiries=expiries, strikes=(110, 220, 90, 100, 90)
+    )
+    for expiry, (low, mid, high), row in zip(expiries, shared, mixed, strict=True):
+        outlier = engine.price(
+            template.replace(strike=220, expiry_time=expiry), snapshot
+        )
+        assert row == (high, outlier, low, mid, low)
+    assert (
+        engine.price_strikes(template, snapshot, strikes=(100,) * 8)
+        == (engine.price(template, snapshot),) * 8
+    )

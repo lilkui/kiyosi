@@ -1,13 +1,14 @@
 use super::{
     AmericanOption, AmericanOptionChanges, FiniteDifferenceScheme, FiniteDifferenceVanillaEngine,
     Payoff, PricingContext, Result, SpatialGrid, diffusion, invalid_grid, local_volatility, payoff,
+    strike_group_len,
 };
 
 impl FiniteDifferenceVanillaEngine {
     /// Prices an American strike and expiry surface in input order.
     ///
-    /// Compatible flat-rate calendar-time BSM tenors share one rollback on
-    /// a normalized log-spot grid. Short tenors and other markets use
+    /// Compatible flat-rate calendar-time BSM strikes and tenors share a
+    /// rollback per strike group on a normalized log-spot grid. Short tenors and other markets use
     /// [`Self::price_american_strikes`]. Check convergence over the surface.
     ///
     /// # Examples
@@ -79,7 +80,19 @@ impl FiniteDifferenceVanillaEngine {
                 ..Default::default()
             })
         };
-        let scalar = |dates: &[crate::Timestamp]| {
+        let mut unique = strikes.to_vec();
+        unique.sort_unstable_by(f64::total_cmp);
+        unique.dedup_by(|a, b| a.to_bits() == b.to_bits());
+        let columns = strikes
+            .iter()
+            .map(|strike| {
+                crate::cancellation::check()?;
+                unique
+                    .binary_search_by(|candidate| candidate.total_cmp(strike))
+                    .map_err(|_| super::super::unstable())
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let scalar = |dates: &[crate::Timestamp], strikes: &[f64]| {
             dates
                 .iter()
                 .map(|&expiry| {
@@ -88,16 +101,22 @@ impl FiniteDifferenceVanillaEngine {
                 })
                 .collect::<Result<Vec<_>>>()
         };
-        let shared = |sigma: f64| -> Result<Vec<Vec<f64>>> {
+        let shared = |sigma: f64, strikes: &[f64]| -> Result<Vec<Vec<f64>>> {
             let spot = context.spot_price();
+            // A singleton can roll back its own payoff on the original spot grid.
+            let reference = if let [strike] = strikes {
+                *strike
+            } else {
+                spot
+            };
             let mut low = f64::INFINITY;
             let mut high = 0.0_f64;
             let queries = strikes
                 .iter()
                 .map(|&strike| {
                     crate::cancellation::check()?;
-                    let normalized = spot * (spot / strike);
-                    let scale = strike / spot;
+                    let normalized = spot * (reference / strike);
+                    let scale = strike / reference;
                     if !normalized.is_normal() || !scale.is_normal() {
                         return Err(super::super::unstable());
                     }
@@ -107,7 +126,7 @@ impl FiniteDifferenceVanillaEngine {
                 })
                 .collect::<Result<Vec<_>>>()?;
             if low.min(spot) < 0.5 * high.max(spot) {
-                return scalar(&ordered);
+                return scalar(&ordered, strikes);
             }
             let longest = valuation.years_until(end);
             let first = ordered.partition_point(|&date| {
@@ -116,7 +135,7 @@ impl FiniteDifferenceVanillaEngine {
             });
             let (short, live) = ordered.split_at(first);
             if live.len() < 2 {
-                return scalar(&ordered);
+                return scalar(&ordered, strikes);
             }
             let mut surface = AmericanSurface {
                 times: live.iter().map(|&expiry| expiry.years_until(end)).collect(),
@@ -126,10 +145,10 @@ impl FiniteDifferenceVanillaEngine {
             if surface.times.windows(2).any(|pair| pair[0] <= pair[1])
                 || surface.times[0] >= longest
             {
-                return scalar(&ordered);
+                return scalar(&ordered, strikes);
             }
             let anchor = super::super::solution::at_spot(context, high)?;
-            let payoff = Payoff::vanilla(template.option_type(), spot, true);
+            let payoff = Payoff::vanilla(template.option_type(), reference, true);
             super::super::solve_model(
                 end,
                 payoff,
@@ -144,7 +163,7 @@ impl FiniteDifferenceVanillaEngine {
             if surface.rows.len() != live.len() {
                 return Err(super::super::unstable());
             }
-            let mut rows = scalar(short)?;
+            let mut rows = scalar(short, strikes)?;
             rows.extend(surface.rows);
             Ok(rows)
         };
@@ -158,13 +177,28 @@ impl FiniteDifferenceVanillaEngine {
                 && model.dividend_curve().exact_flat_rate().is_some()
         });
         let rows = if let Some(model) = model {
-            match shared(model.volatility()) {
-                Ok(rows) => rows,
-                Err(error @ crate::Error::Io(_)) => return Err(error),
-                Err(_) => scalar(&ordered)?,
+            let mut rows: Vec<_> = ordered
+                .iter()
+                .map(|_| Vec::with_capacity(unique.len()))
+                .collect();
+            let mut remaining = unique.as_slice();
+            while !remaining.is_empty() {
+                crate::cancellation::check()?;
+                let (group, tail) =
+                    remaining.split_at(strike_group_len(context.spot_price(), remaining, |&k| k));
+                let prices = match shared(model.volatility(), group) {
+                    Ok(prices) => prices,
+                    Err(error @ crate::Error::Io(_)) => return Err(error),
+                    Err(_) => scalar(&ordered, group)?,
+                };
+                for (row, prices) in rows.iter_mut().zip(prices) {
+                    row.extend(prices);
+                }
+                remaining = tail;
             }
+            rows
         } else {
-            scalar(&ordered)?
+            scalar(&ordered, &unique)?
         };
         expiries
             .iter()
@@ -173,12 +207,13 @@ impl FiniteDifferenceVanillaEngine {
                 let index = ordered
                     .binary_search(expiry)
                     .map_err(|_| super::super::unstable())?;
-                let mut output = Vec::with_capacity(strikes.len());
-                for chunk in rows[index].chunks(1024) {
-                    crate::cancellation::check()?;
-                    output.extend_from_slice(chunk);
-                }
-                Ok(output)
+                columns
+                    .iter()
+                    .map(|&column| {
+                        crate::cancellation::check()?;
+                        Ok(rows[index][column])
+                    })
+                    .collect()
             })
             .collect()
     }

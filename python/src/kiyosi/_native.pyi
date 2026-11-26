@@ -3852,9 +3852,9 @@ class FiniteDifferenceVanillaEngine(
 
         Notes
         -----
-        Compatible flat-rate calendar-time BSM tenors share one rollback on a
-        normalized log-spot grid. Short tenors and other markets use
-        price_strikes. Check convergence across the surface.
+        Compatible flat-rate calendar-time BSM strikes and tenors share a
+        rollback per strike group on a normalized log-spot grid. Short tenors
+        and other markets use price_strikes. Check convergence across the surface.
         Cancellation returns no partial result.
         """
 

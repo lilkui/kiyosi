@@ -4,6 +4,7 @@ mod surface;
 
 pub(super) use american_surface::AmericanSurface;
 
+use std::collections::HashMap;
 use std::ops::RangeInclusive;
 
 use crate::{AmericanOption, AmericanOptionChanges, FiniteDifferenceSolution};
@@ -55,7 +56,7 @@ impl FiniteDifferenceVanillaEngine {
             || self.settings.scheme != FiniteDifferenceScheme::Rannacher
             || context.valuation_time() == option.expiry_time()
         {
-            return strikes.iter().copied().map(scalar).collect();
+            return scalar_strikes(strikes, scalar);
         }
         let spot = context.spot_price();
         let expiry = option.expiry_time();
@@ -104,7 +105,7 @@ impl FiniteDifferenceVanillaEngine {
             }
         }
         if !normalized && strip.is_none() {
-            return strikes.iter().copied().map(scalar).collect();
+            return scalar_strikes(strikes, scalar);
         }
 
         batch_strikes(spot, strikes, scalar, |group, prices| {
@@ -185,7 +186,7 @@ impl FiniteDifferenceVanillaEngine {
             || self.settings.scheme != FiniteDifferenceScheme::Rannacher
             || context.valuation_time() == option.expiry_time()
         {
-            return strikes.iter().copied().map(scalar).collect();
+            return scalar_strikes(strikes, scalar);
         }
         let spot = context.spot_price();
         if local_volatility::local_model(context).is_some() {
@@ -194,22 +195,49 @@ impl FiniteDifferenceVanillaEngine {
             });
         }
         if self.settings.asset_upper_boundary.is_some() {
-            return strikes.iter().copied().map(scalar).collect();
+            return scalar_strikes(strikes, scalar);
         }
         let crate::ModelParameters::BlackScholesMerton(model) = context.model_parameters() else {
-            return strikes.iter().copied().map(scalar).collect();
+            return scalar_strikes(strikes, scalar);
         };
         let time = model
             .variance_time_convention()
             .year_fraction(context.valuation_time(), option.expiry_time())?;
         if model.volatility() * time.sqrt() < 0.04 {
-            return strikes.iter().copied().map(scalar).collect();
+            return scalar_strikes(strikes, scalar);
         }
         batch_strikes(spot, strikes, scalar, |group, prices| {
             normalized_strikes(spot, group, prices, |range| {
                 self.solve(&at_strike(spot)?, context, range)
             })
         })
+    }
+}
+
+fn scalar_strikes(strikes: &[f64], scalar: impl Fn(f64) -> Result<f64>) -> Result<Vec<f64>> {
+    let mut quoted = HashMap::new();
+    strikes
+        .iter()
+        .map(|&strike| {
+            crate::cancellation::check()?;
+            match quoted.entry(strike.to_bits()) {
+                std::collections::hash_map::Entry::Occupied(entry) => Ok(*entry.get()),
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    Ok(*entry.insert(scalar(strike)?))
+                }
+            }
+        })
+        .collect()
+}
+
+// A grid is sized for this strike group and the quoted spot.
+fn strike_group_len<T>(spot: f64, remaining: &[T], strike: impl Fn(&T) -> f64) -> usize {
+    let first = strike(&remaining[0]);
+    let low = spot.min(first);
+    if low >= 0.5 * spot && first <= 2.0 * low {
+        remaining.partition_point(|item| 0.5 * strike(item) <= low)
+    } else {
+        remaining.partition_point(|item| strike(item).to_bits() == first.to_bits())
     }
 }
 
@@ -234,14 +262,7 @@ fn batch_strikes(
     let mut remaining = ordered.as_slice();
     while let Some(&(_, first)) = remaining.first() {
         crate::cancellation::check()?;
-        let low = spot.min(first);
-        let count = if low >= 0.5 * spot {
-            remaining
-                .partition_point(|&(_, strike)| 0.5 * strike <= low)
-                .max(1)
-        } else {
-            1
-        };
+        let count = strike_group_len(spot, remaining, |&(_, strike)| strike);
         let (group, tail) = remaining.split_at(count);
         remaining = tail;
         let last = group[count - 1].1;
@@ -253,8 +274,12 @@ fn batch_strikes(
                 Err(_) => {}
             }
         }
-        for &(i, strike) in group {
-            prices[i] = scalar(strike)?;
+        for same in group.chunk_by(|a, b| a.1.to_bits() == b.1.to_bits()) {
+            crate::cancellation::check()?;
+            let price = scalar(same[0].1)?;
+            for &(i, _) in same {
+                prices[i] = price;
+            }
         }
     }
     Ok(prices)
