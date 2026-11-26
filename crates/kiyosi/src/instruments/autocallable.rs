@@ -1226,7 +1226,12 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         clippy::float_cmp,
         reason = "Portfolio reductions require exactly matching fixed terms."
     )]
-    pub(crate) fn shares_portfolio_terms(&self, other: &Self, vary_knock_in: bool) -> Result<bool> {
+    pub(crate) fn shares_portfolio_terms(
+        &self,
+        other: &Self,
+        vary_knock_in: bool,
+        vary_knock_out: bool,
+    ) -> Result<bool> {
         let a = self.view();
         let b = other.view();
         let compare_knock_in = |mut terms: KnockIn| {
@@ -1240,7 +1245,8 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
             || a.calendar != b.calendar
             || a.barrier_state != b.barrier_state
             || a.knock_in.map(compare_knock_in) != b.knock_in.map(compare_knock_in)
-            || vary_knock_in && self.portfolio_coupon() != other.portfolio_coupon()
+            || (vary_knock_in || vary_knock_out)
+                && self.portfolio_coupon() != other.portfolio_coupon()
             || self.knock_in_affects_payoff() != other.knock_in_affects_payoff()
             || a.principal_redemption_ratio != b.principal_redemption_ratio
             || a.rebate_rate != b.rebate_rate
@@ -1251,7 +1257,16 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         }
         for (left, right) in self.events().chunks(1024).zip(other.events().chunks(1024)) {
             crate::cancellation::check()?;
-            if left != right {
+            if left.iter().zip(right).any(|(a, b)| {
+                if vary_knock_out {
+                    a.time != b.time
+                        || a.has_knock_out() != b.has_knock_out()
+                        || a.coupon != b.coupon
+                        || a.coupon_rate != b.coupon_rate
+                } else {
+                    a != b
+                }
+            }) {
                 return Ok(false);
             }
         }

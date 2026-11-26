@@ -641,3 +641,29 @@ def test_shared_knock_in_strip_matches_individual_thresholds_in_a_mixed_book(sam
     assert actual == engine.replace(max_active_workers=1).price_many(
         notes, snapshot, shared_grid=True
     )
+
+
+@pytest.mark.parametrize("sampling", ("pseudo_random", "sobol"))
+def test_shared_knock_out_strip_matches_individual_first_passages(sampling):
+    dates = (datetime(2025, 2, 3), datetime(2025, 3, 3), END)
+    daily = KnockInObservation.every_trading_day(clock_time())
+    notes = [
+        contract(
+            knock_in_observation=daily,
+            autocall_observations=autocallable_observations(
+                dates, [level] * 3, knock_out_coupon_rates=(0.08, 0.09, 0.1)
+            ),
+        )
+        for level in (110, 70, 135, 93, 110)
+    ]
+    engine = MC(path_count=8192, seed=42, antithetic=True, sampling=sampling)
+    snapshot = market()
+    actual = engine.price_many(notes, snapshot, shared_grid=True)
+    assert actual[0] == actual[4]
+    expected = [
+        engine.price_many((note, note), snapshot, shared_grid=True)[0] for note in notes
+    ]
+    assert actual == pytest.approx(expected, abs=2e-14, rel=0)
+    assert actual == engine.replace(max_active_workers=1).price_many(
+        notes, snapshot, shared_grid=True
+    )

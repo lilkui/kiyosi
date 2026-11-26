@@ -375,10 +375,11 @@ fn price_coupon_families<T: AutocallableTerms>(
             .or_default();
         let mut family = None;
         for &candidate in &*candidates {
-            if plan
-                .note
-                .shares_portfolio_terms(group[families[candidate][0]].1.note, false)?
-            {
+            if plan.note.shares_portfolio_terms(
+                group[families[candidate][0]].1.note,
+                false,
+                false,
+            )? {
                 family = Some(candidate);
                 break;
             }
@@ -462,6 +463,7 @@ fn price_coupon_families<T: AutocallableTerms>(
 struct ThresholdStrip {
     levels: Vec<(f64, usize)>,
     offset: usize,
+    knock_out: bool,
 }
 
 #[derive(Default)]
@@ -500,6 +502,18 @@ fn price_shared<T: AutocallableTerms>(
     if notes.len() < 3 {
         return scalar_lanes(prices);
     }
+    if let Some(strip) = knock_out_strip(notes)? {
+        let representative = [notes[0]];
+        match Portfolio::new(&representative, true)?.price_with_strips(
+            settings,
+            prices,
+            &[Some(strip)],
+            notes.len(),
+        ) {
+            Err(Error::ComputationFailure(_)) => return scalar_lanes(prices),
+            result => return result,
+        }
+    }
     let mut by_key = HashMap::<_, Vec<usize>>::new();
     let mut families: Vec<Vec<(f64, usize)>> = Vec::new();
     let mut compressed = Vec::with_capacity(notes.len());
@@ -520,7 +534,9 @@ fn price_shared<T: AutocallableTerms>(
         for &candidate in &*candidates {
             let reference = &notes[families[candidate][0].1].1;
             if Arc::ptr_eq(&plan.steps, &reference.steps)
-                && plan.note.shares_portfolio_terms(reference.note, true)?
+                && plan
+                    .note
+                    .shares_portfolio_terms(reference.note, true, false)?
             {
                 family = Some(candidate);
                 break;
@@ -553,6 +569,7 @@ fn price_shared<T: AutocallableTerms>(
         strips.push(Some(ThresholdStrip {
             levels: family,
             offset,
+            knock_out: false,
         }));
         offset += len;
     }
@@ -565,6 +582,58 @@ fn price_shared<T: AutocallableTerms>(
         Err(Error::ComputationFailure(_)) => scalar_lanes(prices),
         result => result,
     }
+}
+
+// A constant knock-out schedule turns first passages into ranges of quotes.
+// Restrict the reduction to pure redemption events on a common daily grid.
+#[expect(
+    clippy::float_cmp,
+    reason = "The strip requires exactly matching cash flows and thresholds."
+)]
+fn knock_out_strip<T: AutocallableTerms>(
+    notes: &[&IndexedPlan<'_, T>],
+) -> Result<Option<ThresholdStrip>> {
+    let reference = &notes[0].1;
+    let mut levels = Vec::new();
+    for &(index, plan) in notes {
+        crate::cancellation::check()?;
+        let Some(schedule) = &plan.shared_events else {
+            return Ok(None);
+        };
+        let Some(level) = schedule
+            .events
+            .first()
+            .and_then(|(_, event)| event.knock_out)
+        else {
+            return Ok(None);
+        };
+        if !level.is_finite()
+            || !Arc::ptr_eq(&reference.steps, &plan.steps)
+            || reference.state.coupon != plan.state.coupon
+            || reference.state.knocked_in != plan.state.knocked_in
+            || !plan
+                .note
+                .shares_portfolio_terms(reference.note, false, true)?
+        {
+            return Ok(None);
+        }
+        for (i, (_, event)) in schedule.events.iter().enumerate() {
+            check_path_step(i)?;
+            if event.knock_out != Some(level) || event.period_coupon != 0.0 {
+                return Ok(None);
+            }
+        }
+        levels.push((level, *index));
+    }
+    levels.sort_unstable_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+    if levels[0].0 == levels[levels.len() - 1].0 {
+        return Ok(None);
+    }
+    Ok(Some(ThresholdStrip {
+        levels,
+        offset: 0,
+        knock_out: true,
+    }))
 }
 
 struct Portfolio<'a, 'b, T: AutocallableTerms> {
@@ -784,6 +853,7 @@ struct Lane {
     monitoring: Option<f64>,
     knocked_in: bool,
     terminated: bool,
+    next_threshold: usize,
 }
 
 impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
@@ -904,7 +974,11 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
         }
         let path_count = f64::from(settings.path_count);
         for strip in strips.iter().flatten() {
-            let base = prices[strip.levels[0].1];
+            let base = if strip.knock_out {
+                0.0
+            } else {
+                prices[strip.levels[0].1]
+            };
             let mut prefix = Sum::default();
             for (i, &(_, index)) in strip.levels.iter().enumerate() {
                 check_path_step(i)?;
@@ -931,6 +1005,7 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
                 monitoring: (!plan.state.knocked_in).then_some(plan.knock_in).flatten(),
                 knocked_in: plan.state.knocked_in,
                 terminated: false,
+                next_threshold: 0,
             });
         }
         Ok(())
@@ -987,8 +1062,29 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
                 if lane.terminated {
                     continue;
                 }
+                let strip = strips.get(*index).and_then(Option::as_ref);
                 let terminated = match action {
-                    SharedAction::Cash(event) => event.pay(lane, log_return)?,
+                    SharedAction::Cash(event) => {
+                        if let Some(strip) = strip.filter(|strip| strip.knock_out) {
+                            let crossed = lane.next_threshold
+                                + strip.levels[lane.next_threshold..]
+                                    .partition_point(|&(level, _)| level <= log_return);
+                            if crossed > lane.next_threshold {
+                                let cash = lane.cash + event.payments[1][0];
+                                if !cash.is_finite() {
+                                    return Err(unstable());
+                                }
+                                sums.add(lane.next_threshold, cash);
+                                if crossed < strip.levels.len() {
+                                    sums.add(crossed, -cash);
+                                }
+                                lane.next_threshold = crossed;
+                            }
+                            crossed == strip.levels.len()
+                        } else {
+                            event.pay(lane, log_return)?
+                        }
+                    }
                     SharedAction::Maturity(discount) => {
                         let plan = &self.notes[*index].1;
                         let floor = if plan.expiry_knock_in {
@@ -1002,8 +1098,10 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
                         if !cash.is_finite() {
                             return Err(unstable());
                         }
-                        if !lane.knocked_in {
-                            if let Some(Some(strip)) = strips.get(*index) {
+                        if strip.is_some_and(|strip| strip.knock_out) {
+                            sums.add(lane.next_threshold, cash);
+                        } else {
+                            if let Some(strip) = strip.filter(|_| !lane.knocked_in) {
                                 let start =
                                     strip.levels.partition_point(|&(level, _)| level <= floor);
                                 if start < strip.levels.len() {
@@ -1016,8 +1114,8 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
                                     sums.add(strip.offset + start, difference);
                                 }
                             }
+                            lane.cash = cash;
                         }
-                        lane.cash = cash;
                         true
                     }
                 };
@@ -1187,6 +1285,7 @@ mod tests {
             monitoring: None,
             knocked_in: false,
             terminated: false,
+            next_threshold: 0,
         });
         states[1].terminated = true;
         assert_eq!(
