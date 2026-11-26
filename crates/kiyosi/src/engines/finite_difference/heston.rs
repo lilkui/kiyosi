@@ -990,43 +990,86 @@ impl Operator {
             solve_rows(&mut values[..active], &first[..active], factor_rows)?;
         }
 
-        // Previous and next variance rows are contiguous across the independent asset solves.
-        for (j, &[multiplier, _, _]) in self.variance_factors.iter().enumerate() {
-            crate::cancellation::check()?;
-            let (previous, rest) = values.split_at_mut(j * nx);
-            let row = &mut rest[1..nx - 1];
-            if j < rows {
-                let explicit = &second[j * nx + 1..(j + 1) * nx - 1];
-                for (value, term) in row.iter_mut().zip(explicit) {
-                    *value -= self.weight * term;
-                }
-            } else {
-                row.fill(0.0);
-            }
-            if j > 0 {
-                for (value, prior) in row.iter_mut().zip(&previous[(j - 1) * nx + 1..j * nx - 1]) {
-                    *value -= multiplier * prior;
-                }
+        // Each strip owns a cache-sized group of complete variance lines.
+        let interior = nx - 2;
+        let columns = workers.map_or(interior, |workers| {
+            interior
+                .div_ceil(workers.pool.current_num_threads())
+                .next_multiple_of(8)
+        });
+        let mut strips: Vec<_> = (0..interior.div_ceil(columns))
+            .map(|_| Vec::with_capacity(self.rows))
+            .collect();
+        for (values, explicit) in values.chunks_exact_mut(nx).zip(second.chunks_exact(nx)) {
+            for ((strip, values), explicit) in strips
+                .iter_mut()
+                .zip(values[1..nx - 1].chunks_mut(columns))
+                .zip(explicit[1..nx - 1].chunks(columns))
+            {
+                strip.push((values, explicit));
             }
         }
-        for (j, &[_, diagonal, upper]) in self.variance_factors.iter().enumerate().rev() {
-            let (current, next) = values[j * nx..].split_at_mut(nx);
-            let row = &mut current[1..nx - 1];
-            if j + 1 < self.rows {
-                for (value, next) in row.iter_mut().zip(&next[1..nx - 1]) {
-                    *value -= upper * next;
-                }
-            }
-            for value in row.iter_mut() {
-                *value /= diagonal;
-            }
-            if row.iter().any(|value| !value.is_finite()) {
-                return Err(unstable());
+        let solve = |strip: &mut Vec<_>| {
+            solve_variance_strip(strip, &self.variance_factors, rows, self.weight)
+        };
+        if let Some(workers) = workers {
+            workers.apply(strips.par_iter_mut(), solve)?;
+        } else {
+            for strip in &mut strips {
+                solve(strip)?;
             }
         }
         self.boundaries(values, edges);
         Ok(())
     }
+}
+
+fn solve_variance_strip(
+    strip: &mut [(&mut [f64], &[f64])],
+    factors: &[[f64; 3]],
+    dynamic_rows: usize,
+    weight: f64,
+) -> Result<()> {
+    for (j, &[multiplier, _, _]) in factors.iter().enumerate() {
+        crate::cancellation::check()?;
+        let (previous, current) = strip.split_at_mut(j);
+        let (row, explicit) = &mut current[0];
+        match (previous.last(), j < dynamic_rows) {
+            (Some((prior, _)), true) => {
+                for ((value, term), prior) in row.iter_mut().zip(*explicit).zip(prior.iter()) {
+                    *value = (*value - weight * term) - multiplier * prior;
+                }
+            }
+            (None, true) => {
+                for (value, term) in row.iter_mut().zip(*explicit) {
+                    *value -= weight * term;
+                }
+            }
+            (Some((prior, _)), false) => {
+                for (value, prior) in row.iter_mut().zip(prior.iter()) {
+                    *value = 0.0 - multiplier * prior;
+                }
+            }
+            (None, false) => unreachable!("every variance grid has a dynamic row"),
+        }
+    }
+    for (j, &[_, diagonal, upper]) in factors.iter().enumerate().rev() {
+        let (current, next) = strip.split_at_mut(j + 1);
+        let (row, _) = &mut current[j];
+        if let Some((next, _)) = next.first() {
+            for (value, next) in row.iter_mut().zip(next.iter()) {
+                *value = (*value - upper * next) / diagonal;
+            }
+        } else {
+            for value in row.iter_mut() {
+                *value /= diagonal;
+            }
+        }
+        if row.iter().any(|value| !value.is_finite()) {
+            return Err(unstable());
+        }
+    }
+    Ok(())
 }
 
 fn implicit_row([lower, diagonal, upper]: [f64; 3], weight: f64) -> [f64; 3] {
