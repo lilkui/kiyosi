@@ -42,6 +42,10 @@ impl FiniteDifferenceAutocallableEngine {
     ///
     /// Computes spline spot Greeks and completes other sensitivities with core bump defaults.
     ///
+    /// For a single valuation layer with flat BSM rates, the default first-order
+    /// market sensitivities reuse the price rollback and its matrix factors.
+    /// Nondefault bumps use separate repricing.
+    ///
     /// Native delta/gamma do not require feasible spot bumps; speed requires a symmetric
     /// in-domain stencil. Fixes the central upper domain for bumps. At expiry Greeks
     /// follow terminal payoffs, with time Greeks absent. Event-crossing stencils
@@ -157,7 +161,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
         let (rolled, _, discount) = continuation_context(context, start)?;
         let rolled = rolled.as_ref();
         let spot = rolled.spot_price();
-        let (space, [[lower_values, _], [upper_values, _]]) =
+        let (space, [[lower_values, _], [upper_values, _]], _) =
             diffusion::with_diffusion!(rolled, |diffusion| solve_layers(
                 [lower, upper],
                 rolled,
@@ -165,6 +169,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
                 diffusion,
                 low.knocked_in,
                 spot,
+                [None; 3],
             ))?;
         Ok(Some(Box::new(move |note, fraction| {
             let Some(state) = continuing(note)? else {
@@ -223,6 +228,54 @@ fn event<'a, T: AutocallableTerms>(
         .map(|index| &observations[index])
 }
 
+// Keep the derivative order aligned with the three operator parameters.
+const MARKET_GREEKS: [Greek; 3] = [Greek::Rho, Greek::DividendRho, Greek::Vega];
+
+fn market_bumps(
+    context: &PricingContext,
+    request: GreeksRequest,
+    shifts: NumericalShiftSettings,
+) -> [Option<f64>; 3] {
+    if !MARKET_GREEKS.into_iter().any(|greek| request.has(greek)) {
+        return [None; 3];
+    }
+    let Ok(model) = context.natural_bsm_parameters() else {
+        return [None; 3];
+    };
+    let [risk, yield_curve] = [model.risk_free_curve(), model.dividend_curve()];
+    if [risk, yield_curve]
+        .into_iter()
+        .any(|curve| curve.calendar_quote().is_some())
+    {
+        return [None; 3];
+    }
+    let (Some(rate), Some(dividend)) = (risk.exact_flat_rate(), yield_curve.exact_flat_rate())
+    else {
+        return [None; 3];
+    };
+    let vol = model.volatility();
+    if rate.abs() > 2.0 || dividend.abs() > 2.0 || !(1e-3..=2.0).contains(&vol) {
+        return [None; 3];
+    }
+    let automatic_rates =
+        shifts.rate_shift.to_bits() == NumericalShiftSettings::default().rate_shift.to_bits();
+    let simple_vega = shifts.volatility_shift.is_none()
+        && ![Greek::Volga, Greek::Vanna, Greek::Zomma]
+            .into_iter()
+            .any(|g| request.has(g));
+    let requested = [automatic_rates, automatic_rates, simple_vega];
+    let widths = [
+        shifts.rate_shift,
+        shifts.rate_shift,
+        shifts.volatility_shift_at(vol),
+    ];
+    let parameters = [rate, dividend, vol];
+    std::array::from_fn(|i| {
+        let bump = crate::risk::numerical::symmetric_shift(parameters[i], widths[i]);
+        (requested[i] && request.has(MARKET_GREEKS[i]) && bump > 0.0).then_some(bump)
+    })
+}
+
 fn native<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
     context: &PricingContext,
@@ -249,14 +302,28 @@ fn native<T: AutocallableTerms>(
     let grid = if fixed.is_none() {
         let (rolled, _, _) = continuation_context(context, start)?;
         let rolled = rolled.as_ref();
-        Some(diffusion::with_diffusion!(rolled, |diffusion| solve_grid(
-            note,
-            rolled,
-            settings,
-            diffusion,
-            state.knocked_in,
-            rolled.spot_price()
-        ))?)
+        let bumps = if start == context.valuation_time() && !note.all_greeks_unavailable(context) {
+            market_bumps(context, request, shifts)
+        } else {
+            [None; 3]
+        };
+        let solve = |bumps| {
+            diffusion::with_diffusion!(rolled, |diffusion| solve_grid(
+                note,
+                rolled,
+                settings,
+                diffusion,
+                state.knocked_in,
+                rolled.spot_price(),
+                bumps
+            ))
+        };
+        Some(match solve(bumps) {
+            Err(crate::Error::ComputationFailure(_)) if bumps.iter().any(Option::is_some) => {
+                solve([None; 3])?
+            }
+            result => result?,
+        })
     } else {
         None
     };
@@ -277,19 +344,23 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
     diffusion: D,
     starting_knocked: bool,
     minimum_spot: f64,
+    bumps: [Option<f64>; 3],
 ) -> Result<AutocallableGrid> {
-    let (space, [[alive, knocked]]) = solve_layers(
+    let (space, [[alive, knocked]], market) = solve_layers(
         [note],
         context,
         settings,
         diffusion,
         starting_knocked,
         minimum_spot,
+        bumps,
     )?;
     let alive = space.spline(alive);
     let knocked = (!knocked.is_empty()).then(|| space.spline(knocked));
+    let market = market.map(|values| (!values.is_empty()).then(|| space.spline(values)));
     Ok(AutocallableGrid {
         space,
+        market,
         alive,
         knocked,
         starting_knocked,
@@ -303,6 +374,8 @@ enum RollbackLayer {
     Exposure,
 }
 
+type Layers<const N: usize> = (SpatialGrid, [[Vec<f64>; 2]; N], [Vec<f64>; 3]);
+
 #[expect(
     clippy::cast_precision_loss,
     reason = "Validated grid step counts fit exactly in f64."
@@ -314,7 +387,8 @@ fn solve_layers<T: AutocallableTerms, D: Diffusion, const N: usize>(
     diffusion: D,
     starting_knocked: bool,
     minimum_spot: f64,
-) -> Result<(SpatialGrid, [[Vec<f64>; 2]; N])> {
+    bumps: [Option<f64>; 3],
+) -> Result<Layers<N>> {
     let note = notes[0];
     let t = note.view();
     let daily = t.daily_knock_in();
@@ -546,6 +620,44 @@ fn solve_layers<T: AutocallableTerms, D: Diffusion, const N: usize>(
     let size = space.count + 1;
     let knock_in_size = if layered { size } else { 0 };
     let buffers = || std::array::from_fn(|_| [vec![0.0; size], vec![0.0; knock_in_size]]);
+    let bumps = if bumps.iter().any(Option::is_some)
+        && N == 1
+        && !layered
+        && !D::LOCAL
+        && settings.scheme != FiniteDifferenceScheme::ExplicitEuler
+        && validate_work(
+            u64::from(settings.asset_step_count.unsigned_abs())
+                * (1 + bumps.iter().flatten().count() as u64),
+            rollback_steps,
+        )
+        .is_ok()
+        && validate_workspace(
+            settings.scheme,
+            (u64::from(settings.asset_step_count.unsigned_abs()) + 1) * 4,
+            grid.widths.len() as u64,
+            risk.workspace_bytes() + dividend.workspace_bytes(),
+        )
+        .is_ok()
+    {
+        bumps
+    } else {
+        [None; 3]
+    };
+    let mut tangent = bumps.map(|bump| {
+        if bump.is_some() {
+            vec![0.0; size]
+        } else {
+            Vec::new()
+        }
+    });
+    let mut tangent_next = tangent.clone();
+    let sigma = if bumps.iter().any(Option::is_some) {
+        diffusion.sigma(0.0, 0.0)
+    } else {
+        0.0
+    };
+    let parameters = [risk.rate(0.0), dividend.rate(0.0), sigma];
+    let coefficients = tangent_coefficients(&space, parameters, bumps)?;
     let mut values = buffers();
     let mut next = buffers();
     let mut breaks = Vec::new();
@@ -636,6 +748,32 @@ fn solve_layers<T: AutocallableTerms, D: Diffusion, const N: usize>(
                     key,
                     &edges.as_flattened()[..count],
                 )?;
+                for (lane, derivative) in coefficients
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, derivative)| !derivative.is_empty())
+                {
+                    let [before, after] = [&values[0][0], &next[0][0]];
+                    let [dr, dq] = [
+                        if lane == 0 { -dt * discount } else { 0.0 },
+                        if lane == 1 {
+                            -dt * dividend_discount
+                        } else {
+                            0.0
+                        },
+                    ];
+                    let edge =
+                        space.discount_affine_edges(&tangent[lane], discount, dividend_discount);
+                    let source = space.discount_affine_edges(before, dr, dq);
+                    stepper.advance_tangent(
+                        [&tangent[lane], before, after],
+                        &mut tangent_next[lane],
+                        [dt, weight, rate, q, sigma],
+                        [edge[0] + source[0], edge[1] + source[1]],
+                        derivative,
+                    )?;
+                }
+                std::mem::swap(&mut tangent, &mut tangent_next);
                 swap_layers(&mut values, &mut next, layer);
             }
             let time = grid.times[step];
@@ -709,6 +847,25 @@ fn solve_layers<T: AutocallableTerms, D: Diffusion, const N: usize>(
                         }
                     }
                 }
+                if let Some(record) = record.filter(|r| r.has_knock_out()) {
+                    for (values, next) in tangent.iter().zip(&mut tangent_next) {
+                        for (i, output) in next.iter_mut().enumerate() {
+                            let [correction] =
+                                project_grid_node(&space, &breaks, i, |asset, node| {
+                                    [if asset >= record.knock_out_level() {
+                                        -node.map_or_else(
+                                            || space.linear(values, asset),
+                                            |index| values[index],
+                                        )
+                                    } else {
+                                        0.0
+                                    }]
+                                });
+                            *output = values[i] + correction;
+                        }
+                    }
+                    std::mem::swap(&mut tangent, &mut tangent_next);
+                }
                 swap_layers(&mut values, &mut next, layer);
                 damping = 2;
             }
@@ -721,7 +878,32 @@ fn solve_layers<T: AutocallableTerms, D: Diffusion, const N: usize>(
             }
         }
     }
-    Ok((space, values))
+    Ok((space, values, tangent))
+}
+
+fn tangent_coefficients(
+    space: &SpatialGrid,
+    parameters: [f64; 3],
+    bumps: [Option<f64>; 3],
+) -> Result<[Vec<[f64; 3]>; 3]> {
+    let mut derivatives = std::array::from_fn(|_| Vec::new());
+    for (lane, bump) in bumps.into_iter().enumerate() {
+        let Some(bump) = bump else { continue };
+        let mut low = parameters;
+        let mut high = parameters;
+        low[lane] -= bump;
+        high[lane] += bump;
+        derivatives[lane].reserve_exact(space.count - 1);
+        for i in 1..space.count {
+            if i % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
+            let a = space.coefficients(i, low[0], low[1], low[2]);
+            let b = space.coefficients(i, high[0], high[1], high[2]);
+            derivatives[lane].push(std::array::from_fn(|j| (b[j] - a[j]) / (2.0 * bump)));
+        }
+    }
+    Ok(derivatives)
 }
 
 fn swap_layers<const N: usize>(
@@ -743,6 +925,7 @@ fn swap_layers<const N: usize>(
 #[derive(PartialEq)]
 struct AutocallableGrid {
     space: SpatialGrid,
+    market: [Option<Spline>; 3],
     alive: Spline,
     knocked: Option<Spline>,
     starting_knocked: bool,
@@ -794,6 +977,14 @@ impl AutocallableState {
         let spot = rolled.spot_price();
         let [price, delta, gamma] = space.sample(layer, spot);
         let mut result = PricingResult::new(state.coupon + scaled_signed_cash(price, discount))?;
+        for (greek, values) in MARKET_GREEKS.into_iter().zip(&grid.market) {
+            if let Some(values) = values {
+                let derivative = space.sample(values, spot)[0];
+                if derivative.is_finite() {
+                    result.set(request, greek, derivative)?;
+                }
+            }
+        }
         for (greek, value, powers) in [(Greek::Delta, delta, 1.0), (Greek::Gamma, gamma, 2.0)] {
             if spot_greeks && request.has(greek) {
                 result.set(
@@ -922,7 +1113,8 @@ impl<T: AutocallableTerms> super::FiniteDifferenceEngine<AutocallableNote<T>>
                 self.settings,
                 diffusion,
                 starting_knocked,
-                super::scaled(*range.start(), carry)
+                super::scaled(*range.start(), carry),
+                [None; 3],
             ))?)
         } else {
             None

@@ -296,3 +296,19 @@ def test_terminal_portfolios_and_separate_grid_convergence(subtests):
                         assert FD(**configuration).price(
                             note, context
                         ) == pytest.approx(refined, rel=0, abs=budget)
+
+
+def test_flat_bsm_market_tangents_match_autocallable_price_bumps():
+    note = snowball()
+    context = market()
+    engine = FD(asset_step_count=800, time_step_count=1200, asset_upper_boundary=400)
+    greeks = ("rho", "dividend_rho", "vega")
+    actual = engine.price_with_greeks(note, context, greeks)
+    bumped = engine.price_with_greeks(
+        note, context, greeks, rate_shift=0.0002, volatility_shift=0.0002
+    )
+    assert actual.price == engine.price(note, context)
+    for greek in greeks:
+        assert getattr(actual, greek) == pytest.approx(
+            getattr(bumped, greek), rel=0, abs=0.0002
+        )

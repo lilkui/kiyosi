@@ -350,10 +350,29 @@ impl Stepper {
         self.apply(old, next, dt, theta, boundaries, active)
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "Theta equal to one selects the exact implicit Euler scheme."
-    )]
+    pub fn advance_tangent(
+        &mut self,
+        [old, before, after]: [&[f64]; 3],
+        next: &mut [f64],
+        [dt, theta, rate, dividend, sigma]: [f64; 5],
+        boundaries: [f64; 2],
+        derivative: &[[f64; 3]],
+    ) -> Result<()> {
+        let key = [dt, theta, rate, dividend, sigma].map(f64::to_bits);
+        let active = self
+            .factors
+            .iter()
+            .position(|f| f.key.map(f64::to_bits) == key)
+            .ok_or_else(unstable)?;
+        self.apply_with_source::<true>(old, next, dt, theta, boundaries, active, |i| {
+            let apply = |values: &[f64]| {
+                let [a, b, c] = derivative[i];
+                a * values[i] + b * values[i + 1] + c * values[i + 2]
+            };
+            dt * ((1.0 - theta) * apply(before) + theta * apply(after))
+        })
+    }
+
     fn apply(
         &mut self,
         old: &[f64],
@@ -362,6 +381,24 @@ impl Stepper {
         theta: f64,
         boundaries: [f64; 2],
         active: usize,
+    ) -> Result<()> {
+        self.apply_with_source::<false>(old, next, dt, theta, boundaries, active, |_| 0.0)
+    }
+
+    #[expect(
+        clippy::float_cmp,
+        clippy::too_many_arguments,
+        reason = "Theta selects an exact scheme and tangents add a source to the same solve."
+    )]
+    fn apply_with_source<const TANGENT: bool>(
+        &mut self,
+        old: &[f64],
+        next: &mut [f64],
+        dt: f64,
+        theta: f64,
+        boundaries: [f64; 2],
+        active: usize,
+        source: impl Fn(usize) -> f64,
     ) -> Result<()> {
         let count = next.len() - 1;
         let size = count - 1;
@@ -376,6 +413,9 @@ impl Stepper {
             } else {
                 old[i + 1] + (1.0 - theta) * dt * (a * old[i] + b * old[i + 1] + c * old[i + 2])
             };
+            if TANGENT {
+                self.rhs[i] += source(i);
+            }
             if i == 0 {
                 self.rhs[i] += theta * dt * a * boundaries[0];
             }

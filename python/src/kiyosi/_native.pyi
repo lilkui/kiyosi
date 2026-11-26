@@ -3202,7 +3202,11 @@ class FiniteDifferenceAutocallableEngine(
     domains require convergence checks.
 
     When daily knock-in is active, implicit schemes subdivide the gaps between
-    mandatory dates to place the base time intervals.
+    mandatory dates to place the base time intervals. With calendar-time BSM,
+    the common cash-flow layer can use a separate grid.
+
+    With flat BSM rates and one valuation layer, default first-order market
+    Greeks can reuse the pricing rollback. Nondefault shifts use repricing.
     """
 
 class FiniteDifferenceDoubleTouchEngine(_FiniteDifferenceMethods[DoubleTouchOption]):
