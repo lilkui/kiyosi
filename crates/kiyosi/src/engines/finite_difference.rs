@@ -227,36 +227,8 @@ fn diffusion_log_width(
             ));
         }
         crate::ModelParameters::BlackScholesMerton(m) => m.volatility(),
-        crate::ModelParameters::LocalVolatility(m)
-            if m.surface().times().first() == Some(&start)
-                && m.surface().times().last() == Some(&horizon) =>
-        {
-            m.surface().maximum_volatility()
-        }
         crate::ModelParameters::LocalVolatility(m) => {
-            let surface = m.surface();
-            let offset = surface.times()[0].years_until(start);
-            let mut maximum: f64 = 0.0;
-            // Bilinear sigma peaks at a spot/time node or a clipped time endpoint.
-            for spots in surface.spots().chunks(1024) {
-                crate::cancellation::check()?;
-                for &spot in spots {
-                    maximum = maximum
-                        .max(surface.at_year(offset, spot))
-                        .max(surface.at_year(offset + time, spot));
-                }
-            }
-            for (&node, row) in surface.times().iter().zip(surface.values()) {
-                crate::cancellation::check()?;
-                let elapsed = start.years_until(node);
-                if elapsed > 0.0 && elapsed < time {
-                    for values in row.chunks(1024) {
-                        crate::cancellation::check()?;
-                        maximum = values.iter().copied().fold(maximum, f64::max);
-                    }
-                }
-            }
-            maximum
+            m.surface().maximum_between(start, horizon)?
         }
     };
     let sigma = sigma

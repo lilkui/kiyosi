@@ -29,8 +29,7 @@ pub struct LocalVolatilitySurface {
     spots: Arc<[f64]>,
     values: Arc<[f64]>,
     row_groups: Arc<[usize]>,
-    maximum: f64,
-    minimum: f64,
+    extrema: Arc<[[f64; 2]]>,
 }
 
 impl LocalVolatilitySurface {
@@ -86,11 +85,13 @@ impl LocalVolatilitySurface {
                 ));
             }
         }
-        let mut maximum: f64 = 0.0;
-        let mut minimum = f64::INFINITY;
+        let rows = times.len();
+        // The leaves hold rows in time order and the interior holds range extrema.
+        let mut extrema = vec![[f64::INFINITY, 0.0_f64]; 2 * rows];
         let mut row_groups = Vec::with_capacity(times.len());
         for (row, current) in values.iter().enumerate() {
             let mut shared = row > 0;
+            let [minimum, maximum] = &mut extrema[rows + row];
             for (column, &value) in current.iter().enumerate() {
                 if column % 1024 == 0 {
                     cancellation::check()?;
@@ -100,11 +101,19 @@ impl LocalVolatilitySurface {
                         format!("values[{row}][{column}] must be finite and positive").into(),
                     ));
                 }
-                maximum = maximum.max(value);
-                minimum = minimum.min(value);
+                *maximum = maximum.max(value);
+                *minimum = minimum.min(value);
                 shared &= row > 0 && value.to_bits() == values[row - 1][column].to_bits();
             }
             row_groups.push(if shared { row_groups[row - 1] } else { row });
+        }
+        for i in (1..rows).rev() {
+            if i % 1024 == 0 {
+                cancellation::check()?;
+            }
+            let [left_min, left_max] = extrema[2 * i];
+            let [right_min, right_max] = extrema[2 * i + 1];
+            extrema[i] = [left_min.min(right_min), left_max.max(right_max)];
         }
         let mut years = Vec::with_capacity(times.len());
         for chunk in times.chunks(1024) {
@@ -129,8 +138,7 @@ impl LocalVolatilitySurface {
             spots: spots.into(),
             values: table.into(),
             row_groups: row_groups.into(),
-            maximum,
-            minimum,
+            extrema: extrema.into(),
         })
     }
 
@@ -151,11 +159,12 @@ impl LocalVolatilitySurface {
 
     /// Returns the largest supplied volatility; see [`Self::new`] for units.
     pub fn maximum_volatility(&self) -> f64 {
-        self.maximum
+        self.extrema[1][1]
     }
 
     pub(crate) fn constant_volatility(&self) -> Option<f64> {
-        (self.minimum.to_bits() == self.maximum.to_bits()).then_some(self.maximum)
+        let [minimum, maximum] = self.extrema[1];
+        (minimum.to_bits() == maximum.to_bits()).then_some(maximum)
     }
 
     pub(crate) fn constant_volatility_between(
@@ -172,19 +181,63 @@ impl LocalVolatilitySurface {
         // Include the rows that interpolate either edge of the requested interval.
         let first = self.times.partition_point(|&time| time <= start) - 1;
         let last = self.times.partition_point(|&time| time < end);
+        cancellation::check()?;
+        let [minimum, maximum] = self.extrema[self.times.len() + first];
+        Ok((self.row_groups[first] == self.row_groups[last]
+            && minimum.to_bits() == maximum.to_bits())
+        .then_some(maximum))
+    }
+
+    pub(crate) fn maximum_between(&self, start: Timestamp, end: Timestamp) -> Result<f64> {
+        if self.times.first() == Some(&start) && self.times.last() == Some(&end) {
+            return Ok(self.maximum_volatility());
+        }
+        let offset = self.times[0].years_until(start);
+        let duration = start.years_until(end);
+        let rows = self.times.len();
+        let mut left = rows + self.times.partition_point(|&node| node <= start);
+        let mut right = rows
+            + self
+                .times
+                .partition_point(|&node| start.years_until(node) < duration);
+        let mut maximum = self
+            .row_maximum(offset)?
+            .max(self.row_maximum(offset + duration)?);
+        while left < right {
+            if left % 2 != 0 {
+                maximum = maximum.max(self.extrema[left][1]);
+                left += 1;
+            }
+            if right % 2 != 0 {
+                right -= 1;
+                maximum = maximum.max(self.extrema[right][1]);
+            }
+            left /= 2;
+            right /= 2;
+        }
+        Ok(maximum)
+    }
+
+    fn row_maximum(&self, time: f64) -> Result<f64> {
+        let (row, weight) = bracket(&self.years, time);
+        let rows = self.times.len();
+        if weight <= 0.0 || self.row_groups[row] == self.row_groups[row + 1] {
+            return Ok(self.extrema[rows + row][1]);
+        }
+        if weight >= 1.0 {
+            return Ok(self.extrema[rows + row + 1][1]);
+        }
         let columns = self.spots.len();
-        let rows = &self.values[first * columns..(last + 1) * columns];
-        let volatility = rows[0];
-        for chunk in rows.chunks(1024) {
+        let pair = &self.values[row * columns..(row + 2) * columns];
+        let (left, right) = pair.split_at(columns);
+        let mut maximum = 0.0_f64;
+        for (left, right) in left.chunks(1024).zip(right.chunks(1024)) {
             cancellation::check()?;
-            if chunk
-                .iter()
-                .any(|value| value.to_bits() != volatility.to_bits())
-            {
-                return Ok(None);
+            for (&left, &right) in left.iter().zip(right) {
+                maximum = maximum.max(interpolate(left, right, weight));
             }
         }
-        Ok(Some(volatility))
+        Ok(maximum)
     }
 
     /// Interpolates sigma at an absolute time and positive spot.
@@ -454,5 +507,64 @@ impl LocalVolatilityParameters {
     /// Borrows the fixed surface; see [`Self::new`] for construction.
     pub fn surface(&self) -> &LocalVolatilitySurface {
         &self.surface
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn horizon_extrema_match_bilinear_values_at_knots_and_clipped_edges() -> Result<()> {
+        let start = crate::Date::new(2025, 1, 1)?.start_of_day();
+        let times = (0..5)
+            .map(|i| start.add_days(2 * i))
+            .collect::<Result<Vec<_>>>()?;
+        let surface = LocalVolatilitySurface::new(
+            times.clone(),
+            vec![80.0, 100.0, 110.0],
+            vec![
+                vec![0.2, 0.2, 0.2],
+                vec![0.2, 0.2, 0.2],
+                vec![0.4, 0.9, 0.3],
+                vec![0.8, 0.2, 0.3],
+                vec![0.3, 0.2, 1.0],
+            ],
+        )?;
+        for first in 0..8 {
+            for last in first + 1..=8 {
+                let from = start.add_days(first)?;
+                let to = start.add_days(last)?;
+                let offset = start.years_until(from);
+                let duration = from.years_until(to);
+                let mut expected = 0.0_f64;
+                for time in [offset, offset + duration].into_iter().chain(
+                    times
+                        .iter()
+                        .filter(|&&time| from < time && time < to)
+                        .map(|&time| start.years_until(time)),
+                ) {
+                    for &spot in surface.spots() {
+                        expected = expected.max(surface.at_year(time, spot));
+                    }
+                }
+                assert_eq!(
+                    surface.maximum_between(from, to)?.to_bits(),
+                    expected.to_bits()
+                );
+            }
+        }
+        assert_eq!(
+            surface
+                .constant_volatility_between(start, times[1])?
+                .map(f64::to_bits),
+            Some(0.2_f64.to_bits())
+        );
+        assert!(
+            surface
+                .constant_volatility_between(start, start.add_days(3)?)?
+                .is_none()
+        );
+        Ok(())
     }
 }
