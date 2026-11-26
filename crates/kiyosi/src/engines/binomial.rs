@@ -1,4 +1,4 @@
-use super::{Payoff, flat_rates};
+use super::{Payoff, RollbackWork, flat_rates};
 use crate::numerics::{log_ratio, scaled_cash as scaled};
 
 mod barrier;
@@ -232,6 +232,7 @@ impl CoxRossRubinsteinVanillaEngine {
                 context,
                 absolute_tolerance,
                 GreeksRequest::new([]),
+                None,
             )?
             .price())
     }
@@ -299,7 +300,7 @@ impl CoxRossRubinsteinVanillaEngine {
     ) -> Result<PricingResult> {
         let tolerance = stencil_tolerance(option, context, request, shifts, absolute_tolerance)?;
         let evaluate = |context: &PricingContext, stencil| {
-            self.banded_native(option, payoff, context, tolerance, stencil)
+            self.banded_native(option, payoff, context, tolerance, stencil, None)
         };
         crate::risk::numerical::complete_greeks(
             option,
@@ -319,8 +320,9 @@ impl CoxRossRubinsteinVanillaEngine {
         context: &PricingContext,
         tolerance: f64,
         request: GreeksRequest,
+        budget: Option<&RollbackWork>,
     ) -> Result<PricingResult> {
-        let exact = || native(option, payoff, context, self.settings, request);
+        let exact = || native(option, payoff, context, self.settings, request, budget);
         let dt = time_step(option, context, self.settings)?;
         let (rate, dividend) = flat_rates(context)?;
         if dt == 0.0
@@ -363,7 +365,7 @@ impl CoxRossRubinsteinVanillaEngine {
             first,
             second,
             exercised,
-        }) = banded_american(steps, payoff, [spot, width, up, p], discount, band)?
+        }) = banded_american(steps, payoff, [spot, width, up, p], discount, band, budget)?
         else {
             return exact();
         };
@@ -382,6 +384,24 @@ impl CoxRossRubinsteinVanillaEngine {
             request,
             steps,
         )
+    }
+
+    fn price_vanilla(
+        &self,
+        option: &impl OptionContract,
+        payoff: Payoff,
+        context: &PricingContext,
+        budget: Option<&RollbackWork>,
+    ) -> Result<f64> {
+        let request = GreeksRequest::new([]);
+        let result =
+            if let Some(tolerance) = self.rollback_tolerance.filter(|_| payoff.is_american()) {
+                flat_rates(context)?;
+                self.banded_native(option, payoff, context, tolerance, request, budget)?
+            } else {
+                native(option, payoff, context, self.settings, request, budget)?
+            };
+        Ok(result.price())
     }
 }
 
@@ -456,6 +476,7 @@ fn banded_american(
     [spot, width, up, p]: [f64; 4],
     discount: StepDiscount,
     [center, log_bound]: [f64; 2],
+    budget: Option<&RollbackWork>,
 ) -> Result<Option<BandedValues>> {
     // Each side of the centered walk has a maximal Hoeffding bound of
     // exp(-2*r²/steps). Two extra nodes cover the first two Greek levels.
@@ -481,6 +502,9 @@ fn banded_american(
     let mut node_spot = asset(steps, later.start);
     if !step_up.is_normal() || !node_spot.is_normal() {
         return Ok(None);
+    }
+    if let Some(budget) = budget {
+        budget.charge(steps as u64 * capacity as u64)?;
     }
     for value in &mut values[..later.len()] {
         *value = payoff.value(node_spot);
@@ -824,6 +848,7 @@ fn native(
     context: &PricingContext,
     settings: BinomialSettings,
     request: GreeksRequest,
+    budget: Option<&RollbackWork>,
 ) -> Result<PricingResult> {
     let (rate, dividend) = flat_rates(context)?;
     let dt = time_step(option, context, settings)?;
@@ -942,6 +967,9 @@ fn native(
         });
     } else {
         settings.validate_rollback()?;
+        if let Some(budget) = budget {
+            budget.charge(rollback_nodes(steps))?;
+        }
         node_spot = spot * down.powi(settings.step_count - 1);
         for level in (0..steps).rev() {
             crate::cancellation::check()?;
@@ -987,6 +1015,11 @@ fn native(
         request,
         steps,
     )
+}
+
+fn rollback_nodes(steps: usize) -> u64 {
+    let steps = steps as u64;
+    steps * (steps + 1) / 2
 }
 
 fn tree_result(
@@ -1045,27 +1078,12 @@ macro_rules! vanilla_pricing {
             }
 
             fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
-                context.natural_bsm_parameters()?;
-                if let Some(tolerance) = self.rollback_tolerance.filter(|_| $american) {
-                    flat_rates(context)?;
-                    return Ok(self
-                        .banded_native(
-                            option,
-                            Payoff::vanilla(option.option_type(), option.strike(), true),
-                            context,
-                            tolerance,
-                            GreeksRequest::new([]),
-                        )?
-                        .price());
-                }
-                Ok(native(
+                self.price_vanilla(
                     option,
                     Payoff::vanilla(option.option_type(), option.strike(), $american),
                     context,
-                    self.settings,
-                    GreeksRequest::new([]),
-                )?
-                .price())
+                    None,
+                )
             }
 
             fn price_with_greeks_with_settings(
@@ -1096,6 +1114,7 @@ macro_rules! vanilla_pricing {
                         context,
                         self.settings,
                         request,
+                        None,
                     )
                 };
                 crate::risk::numerical::complete_greeks(
@@ -1226,6 +1245,7 @@ impl CoxRossRubinsteinDigitalEngine {
             context,
             self.settings,
             request,
+            None,
         )
     }
 }

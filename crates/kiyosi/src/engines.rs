@@ -1,10 +1,10 @@
 use crate::{
-    BinaryPayoff, DigitalOption, Greek, GreeksRequest, NumericalShiftSettings, OptionContract,
-    OptionType, PricingContext, PricingEngine, PricingResult, Result,
+    BinaryPayoff, DigitalOption, Error, Greek, GreeksRequest, NumericalShiftSettings,
+    OptionContract, OptionType, PricingContext, PricingEngine, PricingResult, Result,
 };
 use std::sync::{
     OnceLock,
-    atomic::{AtomicU32, Ordering},
+    atomic::{AtomicU32, AtomicU64, Ordering},
 };
 
 pub(crate) mod analytic;
@@ -14,6 +14,35 @@ pub(crate) mod deterministic;
 pub(crate) mod finite_difference;
 pub(crate) mod monte_carlo;
 pub(crate) mod quadrature;
+
+fn validate_rollback_work(spatial_steps: u64, time_steps: u64) -> Result<()> {
+    if spatial_steps.saturating_mul(time_steps) > 1_000_000_000 {
+        return Err(Error::InvalidInput(
+            "rollback exceeds one billion grid updates; reduce grid step counts".into(),
+        ));
+    }
+    Ok(())
+}
+
+#[derive(Default)]
+struct RollbackWork(AtomicU64);
+
+impl RollbackWork {
+    fn charge(&self, work: u64) -> Result<()> {
+        let mut used = self.0.load(Ordering::Relaxed);
+        loop {
+            let total = used.saturating_add(work);
+            validate_rollback_work(1, total)?;
+            match self
+                .0
+                .compare_exchange_weak(used, total, Ordering::Relaxed, Ordering::Relaxed)
+            {
+                Ok(_) => return Ok(()),
+                Err(current) => used = current,
+            }
+        }
+    }
+}
 
 fn rollback_pool() -> Option<(&'static rayon::ThreadPool, usize)> {
     static PROCESS: AtomicU32 = AtomicU32::new(0);

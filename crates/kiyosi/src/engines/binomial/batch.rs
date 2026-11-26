@@ -1,9 +1,10 @@
 use rayon::prelude::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use super::super::validate_rollback_work;
 use super::{
     AmericanOption, CoxRossRubinsteinVanillaEngine, EuropeanOption, Payoff, PricingContext, Result,
-    flat_rates, parameters, time_step, unstable,
+    RollbackWork, flat_rates, parameters, rollback_nodes, time_step, unstable,
 };
 
 /// Borrows a contract for [`CoxRossRubinsteinVanillaEngine::price_many`].
@@ -41,7 +42,8 @@ impl CoxRossRubinsteinVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Propagates the first pricing error in input order or a cancellation error.
+    /// Returns [`crate::Error::InvalidInput`] for excessive combined rollback work.
+    /// Propagates the first contract pricing error in input order or a cancellation error.
     /// A failed request returns no partial prices.
     pub fn price_many(
         &self,
@@ -49,9 +51,20 @@ impl CoxRossRubinsteinVanillaEngine {
         context: &PricingContext,
     ) -> Result<Vec<f64>> {
         const LANES: usize = 4;
+        let budget = RollbackWork::default();
         let scalar = |option| match option {
-            BinomialVanilla::European(option) => self.price(option, context),
-            BinomialVanilla::American(option) => self.price(option, context),
+            BinomialVanilla::European(option) => self.price_vanilla(
+                option,
+                Payoff::vanilla(option.option_type(), option.strike(), false),
+                context,
+                Some(&budget),
+            ),
+            BinomialVanilla::American(option) => self.price_vanilla(
+                option,
+                Payoff::vanilla(option.option_type(), option.strike(), true),
+                context,
+                Some(&budget),
+            ),
         };
         let eligible = self.settings.step_count >= 256
             && options
@@ -71,16 +84,36 @@ impl CoxRossRubinsteinVanillaEngine {
             .is_none()
             .then(|| flat_rates(context).ok())
             .flatten();
-        let expiry = |index: usize| match (can_tile, options[index]) {
+        let exercise_option = |option| match (can_tile, option) {
             (Some((rate, dividend)), BinomialVanilla::American(option))
                 if option.option_type() != crate::OptionType::Call
                     || dividend > 0.0
                     || rate < 0.0 =>
             {
-                Some(option.expiry_time())
+                Some(option)
             }
             _ => None,
         };
+        let full_work = rollback_nodes(self.settings.step_count.unsigned_abs() as usize);
+        if can_tile.is_some()
+            && self.settings.validate_rollback().is_ok()
+            && !super::super::deterministic::enabled(context)
+            && validate_rollback_work(full_work, options.len() as u64).is_err()
+        {
+            let mut live = 0;
+            for &option in options {
+                crate::cancellation::check()?;
+                if let Some(option) = exercise_option(option) {
+                    let Ok(dt) = time_step(option, context, self.settings) else {
+                        break;
+                    };
+                    live += u64::from(dt > 0.0);
+                    validate_rollback_work(full_work, live)?;
+                }
+            }
+        }
+        let expiry =
+            |index: usize| exercise_option(options[index]).map(AmericanOption::expiry_time);
         let mut ordered: Vec<_> = (0..options.len()).collect();
         ordered.sort_unstable_by_key(|&index| (expiry(index), index));
         crate::cancellation::check()?;
@@ -103,7 +136,7 @@ impl CoxRossRubinsteinVanillaEngine {
                     ] = [options[a], options[b], options[c], options[d]]
                     {
                         if expiry(indices[0]).is_some() {
-                            match self.price_american_lanes([a, b, c, d], context) {
+                            match self.price_american_lanes([a, b, c, d], context, &budget) {
                                 Ok(Some(prices)) => return Ok(prices),
                                 Err(error @ crate::Error::Io(_)) => {
                                     return Err((indices[0], error));
@@ -173,6 +206,7 @@ impl CoxRossRubinsteinVanillaEngine {
         &self,
         options: [&AmericanOption; N],
         context: &PricingContext,
+        budget: &RollbackWork,
     ) -> Result<Option<[f64; N]>> {
         let (rate, dividend) = flat_rates(context)?;
         let expiry = options[0].expiry_time();
@@ -203,6 +237,7 @@ impl CoxRossRubinsteinVanillaEngine {
         if !discount.factor.is_normal() || !asset.is_normal() || !up_squared.is_finite() {
             return Ok(None);
         }
+        budget.charge(rollback_nodes(steps) * N as u64)?;
         let payoff =
             options.map(|option| Payoff::vanilla(option.option_type(), option.strike(), true));
         let exercise =

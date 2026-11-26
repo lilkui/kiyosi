@@ -1,6 +1,25 @@
 use kiyosi::*;
 
 #[test]
+fn american_binomial_batch_caps_combined_rollback_work() -> Result<()> {
+    let (start, end) = dates();
+    let put = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 16_000 })?;
+    let snapshot = market(100.0, 0.05, 0.02, 0.2);
+    let instruments = [BinomialVanilla::American(&put); 8];
+    assert!(matches!(
+        engine.price_many(&instruments, &snapshot),
+        Err(Error::InvalidInput(message)) if message.contains("one billion grid updates")
+    ));
+    let expired = snapshot.replace(PricingContextChanges {
+        valuation_time: Some(end),
+        ..Default::default()
+    })?;
+    assert_eq!(engine.price_many(&instruments, &expired)?, vec![0.0; 8]);
+    Ok(())
+}
+
+#[test]
 fn american_batch_matches_scalar_for_full_and_banded_trees() -> Result<()> {
     let (start, end) = dates();
     let snapshot = market(100.0, 0.05, 0.02, 0.2);

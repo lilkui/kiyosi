@@ -59,6 +59,17 @@ VANILLA = (EuropeanOption, AmericanOption)
 DIGITAL = (CashOrNothingOption, AssetOrNothingOption)
 
 
+def test_american_binomial_batch_caps_combined_rollback_work():
+    engine = CoxRossRubinsteinVanillaEngine(step_count=16_000)
+    put = contract(AmericanOption, "put")
+    snapshot = market()
+    with pytest.raises(InvalidInputError, match="one billion grid updates"):
+        engine.price_many((put,) * 8, snapshot)
+    assert (
+        engine.price_many((put,) * 8, snapshot.replace(valuation_time=END)) == (0,) * 8
+    )
+
+
 def test_vanilla_batch_matches_scalar_prices_and_preserves_input_order():
     engine = CoxRossRubinsteinVanillaEngine(step_count=192)
     snapshot = market()
