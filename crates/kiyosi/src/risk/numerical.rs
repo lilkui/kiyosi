@@ -210,7 +210,7 @@ pub fn numerical_greeks<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     .map(|result| result.with_seed(seed.get()))
 }
 
-fn time_stencil(
+pub(crate) fn time_stencil(
     option: &impl OptionContract,
     context: &PricingContext,
     settings: NumericalShiftSettings,

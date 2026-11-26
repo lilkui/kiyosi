@@ -314,12 +314,26 @@ fn native(
             concentrate,
             context.spot_price(),
             diffusion,
+            None,
         )?;
         let result = saved.evaluate(context, request, shifts)?;
         Ok((result, Some(saved.grid.space.upper)))
     })
 }
 
+struct TimeSlices {
+    before_at: Timestamp,
+    before: f64,
+    after: f64,
+    before_values: Option<Vec<f64>>,
+    after_values: Option<Vec<f64>>,
+    remove_carry: bool,
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "The optional snapshots use the same rollback and grid."
+)]
 fn solve_model<D: Diffusion>(
     expiry: Timestamp,
     payoff: Payoff,
@@ -328,6 +342,7 @@ fn solve_model<D: Diffusion>(
     concentrate: bool,
     minimum_spot: f64,
     diffusion: D,
+    mut slices: Option<&mut TimeSlices>,
 ) -> Result<VanillaGrid> {
     let time = context.valuation_time().years_until(expiry);
     let spot = context.spot_price();
@@ -346,6 +361,9 @@ fn solve_model<D: Diffusion>(
         && concentrate
         && settings.scheme == FiniteDifferenceScheme::Rannacher
         && adjusted_strike.is_normal();
+    if let Some(slices) = slices.as_deref_mut() {
+        slices.remove_carry = remove_carry;
+    }
     if remove_carry {
         rollback_payoff.strike = adjusted_strike;
     }
@@ -407,6 +425,16 @@ fn solve_model<D: Diffusion>(
     }
     let time_grid = diffusion::time_grid(context, expiry, settings, &risk, &dividend, &startup)?;
     let rollback_steps = time_grid.rollback_steps(settings.scheme, &[])?;
+    if slices.is_some() {
+        // Bound up to sixteen added substeps and two copied value slices.
+        validate_work(space.count as u64, rollback_steps + 17)?;
+        validate_workspace(
+            settings.scheme,
+            2 * (space.count as u64 + 1),
+            time_grid.widths.len() as u64,
+            risk.workspace_bytes() + dividend.workspace_bytes(),
+        )?;
+    }
     validate_work(space.count as u64, rollback_steps)?;
     let can_exercise = payoff.is_american()
         && (model.risk_free_curve().exact_flat_rate().is_none()
@@ -447,10 +475,31 @@ fn solve_model<D: Diffusion>(
     };
     let mut next = vec![0.0; old.len()];
     let mut stepper = diffusion.stepper(space.count);
-    let mut damping = 2;
-    for step in (0..time_grid.widths.len()).rev() {
-        crate::cancellation::check()?;
-        for (current, dt, weight) in time_grid.substeps(step, settings.scheme, &mut damping) {
+    let before = slices.as_ref().map_or(0.0, |slices| slices.before);
+    let earlier_curves = slices
+        .as_ref()
+        .filter(|slices| slices.before < 0.0 && can_exercise)
+        .map(|slices| {
+            Ok::<_, Error>([
+                Curve::new(model.risk_free_curve(), slices.before_at, expiry)?,
+                Curve::new(model.dividend_curve(), slices.before_at, expiry)?,
+            ])
+        })
+        .transpose()?;
+    let mut earlier_boundaries = earlier_curves
+        .as_ref()
+        .map(|[risk, dividend]| {
+            crate::engines::deterministic::ExerciseBoundaries::new(
+                payoff,
+                [lower, upper],
+                time - before,
+                [risk, dividend],
+                16,
+            )
+        })
+        .transpose()?;
+    let mut advance =
+        |old: &[f64], next: &mut [f64], current: f64, dt: f64, weight: f64| -> Result<()> {
             let tau = time - current;
             let middle = current + 0.5 * dt;
             let [rate, q, risk_log, dividend_log] = if remove_carry {
@@ -458,8 +507,16 @@ fn solve_model<D: Diffusion>(
             } else {
                 let rate = risk.rate(middle);
                 let q = dividend.rate(middle);
-                let risk_log = risk.log_factor(current, time);
-                let dividend_log = dividend.log_factor(current, time);
+                let risk_log = if current < 0.0 {
+                    -rate * tau
+                } else {
+                    risk.log_factor(current, time)
+                };
+                let dividend_log = if current < 0.0 {
+                    -q * tau
+                } else {
+                    dividend.log_factor(current, time)
+                };
                 // Factor out the discount so time stepping preserves the digital payout cap.
                 if is_cash_digital {
                     [0.0, q - rate, 0.0, dividend_log - risk_log]
@@ -478,15 +535,20 @@ fn solve_model<D: Diffusion>(
                     tau,
                 )
             });
-            if let Some(boundaries) = &mut exercise_boundaries {
-                for (edge, floor) in edges.iter_mut().zip(boundaries.at(current)?) {
+            let (boundaries, date) = if current < 0.0 {
+                (&mut earlier_boundaries, current - before)
+            } else {
+                (&mut exercise_boundaries, current)
+            };
+            if let Some(boundaries) = boundaries {
+                for (edge, floor) in edges.iter_mut().zip(boundaries.at(date)?) {
                     *edge = edge.max(floor);
                 }
             }
             diffusion.advance(
                 &mut stepper,
-                &old,
-                &mut next,
+                old,
+                next,
                 &space,
                 middle,
                 [dt, weight, rate, q],
@@ -497,8 +559,47 @@ fn solve_model<D: Diffusion>(
                     next[i] = next[i].max(exercise[i]);
                 }
             }
+            Ok(())
+        };
+    let mut damping = 2;
+    for step in (0..time_grid.widths.len()).rev() {
+        crate::cancellation::check()?;
+        for (current, dt, weight) in time_grid.substeps(step, settings.scheme, &mut damping) {
+            if let Some(slices) = slices.as_deref_mut().filter(|slices| {
+                slices.after > 0.0 && slices.after >= current && slices.after_values.is_none()
+            }) {
+                // Use the same next time slice and split off only the extra query.
+                let width = current + dt - slices.after;
+                if width > 16.0 * f64::EPSILON * time {
+                    let mut sampled = vec![0.0; old.len()];
+                    advance(&old, &mut sampled, slices.after, width, weight)?;
+                    slices.after_values = Some(sampled);
+                } else {
+                    slices.after_values = Some(old.clone());
+                }
+            }
+            advance(&old, &mut next, current, dt, weight)?;
             std::mem::swap(&mut old, &mut next);
         }
+    }
+    if let Some(slices) = slices.filter(|slices| slices.before < 0.0) {
+        let mut previous = old.clone();
+        let width = time / f64::from(settings.time_step_count);
+        let mut current = 0.0;
+        while current > slices.before {
+            crate::cancellation::check()?;
+            let at = (current - width).max(slices.before);
+            advance(
+                &previous,
+                &mut next,
+                at,
+                current - at,
+                settings.scheme.theta(),
+            )?;
+            std::mem::swap(&mut previous, &mut next);
+            current = at;
+        }
+        slices.before_values = Some(previous);
     }
     if is_asset_digital {
         for (i, value) in old.iter_mut().enumerate() {
@@ -632,6 +733,7 @@ fn prepare_vanilla_state(
                     concentrate,
                     minimum_spot,
                     diffusion,
+                    None,
                 )
             }
         )?)
@@ -836,6 +938,153 @@ fn complete_greeks(
     } else {
         result.with_unavailable_stencils(request)
     })
+}
+
+fn vanilla_time_analysis(
+    option: &impl OptionContract,
+    payoff: Payoff,
+    context: &PricingContext,
+    settings: FiniteDifferenceSettings,
+    request: GreeksRequest,
+    shifts: NumericalShiftSettings,
+) -> Result<Option<PricingResult>> {
+    if diffusion::uses_business_time(context)
+        || settings.scheme == FiniteDifferenceScheme::ExplicitEuler
+        || ![Greek::Theta, Greek::Charm, Greek::Color]
+            .into_iter()
+            .any(|g| request.has(g))
+    {
+        return Ok(None);
+    }
+    let Ok(model) = context.bsm_parameters() else {
+        return Ok(None);
+    };
+    if [model.risk_free_curve(), model.dividend_curve()]
+        .into_iter()
+        .any(|curve| !curve.nodes().is_empty())
+    {
+        return Ok(None);
+    }
+    let (Some(rate), Some(dividend)) = (
+        model.risk_free_curve().exact_flat_rate(),
+        model.dividend_curve().exact_flat_rate(),
+    ) else {
+        return Ok(None);
+    };
+    if model.volatility() == 0.0 {
+        return Ok(None);
+    }
+    shifts.validate()?;
+    validate_life(option, context)?;
+    let Some((before, after)) = crate::risk::numerical::time_stencil(option, context, shifts)?
+    else {
+        return Ok(None);
+    };
+    let valuation = context.valuation_time();
+    let expiry = option.expiry_time();
+    let time = valuation.years_until(expiry);
+    let mut slices = TimeSlices {
+        before_at: before,
+        before: valuation.years_until(before),
+        after: valuation.years_until(after),
+        before_values: None,
+        after_values: None,
+        remove_carry: false,
+    };
+    let dt = time / f64::from(settings.time_step_count);
+    if slices.after >= time - 2.0 * dt || -slices.before > 15.0 * dt || slices.after > time / 8.0 {
+        return Ok(None);
+    }
+    let concentrate = settings.asset_upper_boundary.is_none();
+    let saved = match solve_model(
+        expiry,
+        payoff,
+        context,
+        settings,
+        concentrate,
+        context.spot_price(),
+        model.volatility(),
+        Some(&mut slices),
+    ) {
+        Ok(grid) => grid,
+        Err(error @ Error::Io(_)) => return Err(error),
+        Err(_) => return Ok(None),
+    };
+    let mut result = saved.evaluate(context, request, shifts)?;
+    let stencil = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
+    let sample = |values: Option<Vec<f64>>, at: Timestamp| -> Result<[f64; 3]> {
+        let (result, log_spot_scale) = if let Some(values) = values {
+            let horizon = at.years_until(expiry);
+            let elapsed = valuation.years_until(at);
+            let (scenario, log_scale, log_spot) = if slices.remove_carry {
+                let log_spot = (dividend - rate) * elapsed;
+                let scenario = solution::at_spot(context, scaled(context.spot_price(), log_spot))?;
+                (Some(scenario), rate * elapsed - dividend * time, log_spot)
+            } else {
+                (None, 0.0, 0.0)
+            };
+            let result = VanillaGrid {
+                grid: solution::Grid::new(saved.grid.space.clone(), values),
+                payoff,
+                discount: [-rate * horizon, -dividend * horizon],
+                value_log_discount: log_scale,
+                relative_upper_error: saved.relative_upper_error,
+            }
+            .evaluate(scenario.as_ref().unwrap_or(context), stencil, shifts)?;
+            (result, log_spot)
+        } else if at == valuation {
+            (saved.evaluate(context, stencil, shifts)?, 0.0)
+        } else {
+            return Err(unstable());
+        };
+        Ok([
+            result.price(),
+            crate::numerics::scaled_signed_cash(result.require(Greek::Delta)?, log_spot_scale),
+            crate::numerics::scaled_signed_cash(
+                result.require(Greek::Gamma)?,
+                2.0 * log_spot_scale,
+            ),
+        ])
+    };
+    let (low, high) = match (
+        sample(slices.before_values, before),
+        sample(slices.after_values, after),
+    ) {
+        (Ok(low), Ok(high)) => (low, high),
+        (Err(error @ Error::Io(_)), _) | (_, Err(error @ Error::Io(_))) => return Err(error),
+        _ => return Ok(None),
+    };
+    let duration = before.years_until(after);
+    for (index, greek) in [Greek::Theta, Greek::Charm, Greek::Color]
+        .into_iter()
+        .enumerate()
+    {
+        result.set(request, greek, (high[index] - low[index]) / duration)?;
+    }
+    let bumped_settings = FiniteDifferenceSettings {
+        asset_upper_boundary: Some(saved.grid.space.upper),
+        ..settings
+    };
+    complete_greeks(
+        option,
+        context,
+        request,
+        shifts,
+        result,
+        |context, request| {
+            native(
+                option,
+                payoff,
+                context,
+                bumped_settings,
+                request,
+                shifts,
+                concentrate,
+            )
+            .map(|(result, _)| result)
+        },
+    )
+    .map(Some)
 }
 
 fn analysis<I: OptionContract>(
@@ -1218,6 +1467,11 @@ macro_rules! vanilla_pricing {
                     );
                 }
                 let payoff = Payoff::vanilla(option.option_type(), option.strike(), $american);
+                if let Some(result) =
+                    vanilla_time_analysis(option, payoff, context, self.settings, request, shifts)?
+                {
+                    return Ok(result);
+                }
                 analysis(
                     option,
                     context,

@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 from kiyosi import pricing
-from kiyosi.instruments import EuropeanOption
+from kiyosi.instruments import AmericanOption, EuropeanOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
@@ -108,3 +108,36 @@ def test_mixed_greeks_track_analytic_sensitivities(subtests):
             )
     assert actual.delta is None
     assert actual.gamma is None
+
+
+@pytest.mark.parametrize("contract", (AmericanOption, EuropeanOption))
+def test_shared_time_slices_match_independent_vanilla_rollbacks(contract):
+    start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+    option = contract(
+        option_type="put", strike=100, effective_time=start, expiry_time=end
+    )
+    at = start + timedelta(days=30)
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+        ),
+        spot_price=100,
+        valuation_time=at,
+    )
+    engine = pricing.FiniteDifferenceVanillaEngine(
+        asset_step_count=1000, time_step_count=1000
+    )
+    actual = engine.price_with_greeks(option, context, ["theta", "charm", "color"])
+    low, high = (
+        engine.price_with_greeks(
+            option,
+            context.replace(valuation_time=at + timedelta(days=day)),
+            ["delta", "gamma"],
+        )
+        for day in (-1, 1)
+    )
+    assert actual.price == engine.price(option, context)
+    assert actual.delta is None and actual.gamma is None
+    for greek, value in (("theta", "price"), ("charm", "delta"), ("color", "gamma")):
+        expected = (getattr(high, value) - getattr(low, value)) * 365 / 2
+        assert getattr(actual, greek) == pytest.approx(expected, rel=0.002, abs=1e-6)

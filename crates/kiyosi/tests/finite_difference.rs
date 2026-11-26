@@ -17,6 +17,56 @@ fn market(spot: f64, rate: f64, dividend: f64, sigma: f64) -> PricingContext {
 }
 
 #[test]
+fn shared_time_slices_match_independent_vanilla_rollbacks() -> Result<()> {
+    fn check<I: OptionContract>(
+        engine: &impl PricingEngine<I>,
+        option: &I,
+        context: &PricingContext,
+        low: &PricingContext,
+        high: &PricingContext,
+    ) -> Result<()> {
+        let measures = [Greek::Theta, Greek::Charm, Greek::Color];
+        let actual = engine.price_with_greeks(option, context, GreeksRequest::new(measures))?;
+        let stencil = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
+        let low = engine.price_with_greeks(option, low, stencil)?;
+        let high = engine.price_with_greeks(option, high, stencil)?;
+        assert_eq!(actual.price(), engine.price(option, context)?);
+        assert!(actual.get(Greek::Delta).is_none() && actual.get(Greek::Gamma).is_none());
+        for (greek, difference) in measures.into_iter().zip([
+            high.price() - low.price(),
+            high.require(Greek::Delta)? - low.require(Greek::Delta)?,
+            high.require(Greek::Gamma)? - low.require(Greek::Gamma)?,
+        ]) {
+            let expected = difference * 365.0 / 2.0;
+            assert!(
+                (actual.require(greek)? - expected).abs() <= 0.002 * expected.abs() + 1e-6,
+                "{greek:?} differs from the independent stencil"
+            );
+        }
+        Ok(())
+    }
+    let (start, end) = dates();
+    let base = market(100.0, 0.05, 0.02, 0.2);
+    let day = |days| {
+        base.replace(PricingContextChanges {
+            valuation_time: Some(start.add_days(days)?),
+            ..Default::default()
+        })
+    };
+    let (context, low, high) = (day(30)?, day(29)?, day(31)?);
+    let engine = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 1000,
+        time_step_count: 1000,
+        ..Default::default()
+    })?;
+    let american = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let european = EuropeanOption::new(OptionType::Put, 100.0, start, end)?;
+    check(&engine, &american, &context, &low, &high)?;
+    check(&engine, &european, &context, &low, &high)?;
+    Ok(())
+}
+
+#[test]
 fn automatic_american_grids_resolve_the_strike_before_expiry() -> Result<()> {
     let (start, _) = dates();
     let engine = FiniteDifferenceVanillaEngine::default();
