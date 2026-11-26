@@ -542,6 +542,9 @@ impl GreekMethod {
     }
 }
 
+#[doc(hidden)]
+pub type CouponPricer<'a, I> = Box<dyn Fn(&I, f64) -> Result<Option<f64>> + 'a>;
+
 /// Provides scalar pricing for numerical analysis and solvers, independent of exercise style.
 ///
 /// Implementations must return domain failures through [`Result<T>`](crate::Result),
@@ -738,6 +741,24 @@ pub trait PricingEngine<I = EuropeanOption> {
         _upper: &I,
         _context: &PricingContext,
     ) -> Result<Option<[f64; 2]>> {
+        Ok(None)
+    }
+
+    /// Prepares a shared price curve for notes that differ only in the quoted coupon.
+    ///
+    /// The evaluator receives a validated trial note and its fraction of the
+    /// original coupon bracket. Returning `None` selects scalar pricing.
+    ///
+    /// # Errors
+    ///
+    /// Propagates preparation failures. The solver may retry through scalar pricing.
+    #[doc(hidden)]
+    fn prepare_coupon_pricer<'a>(
+        &'a self,
+        _lower: &I,
+        _upper: &I,
+        _context: &'a PricingContext,
+    ) -> Result<Option<CouponPricer<'a, I>>> {
         Ok(None)
     }
 

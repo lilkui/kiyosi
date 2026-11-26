@@ -129,11 +129,28 @@ pub(super) trait Diffusion: Copy {
         self,
         stepper: &mut Stepper,
         old: [&[f64]; N],
-        next: [&mut [f64]; N],
+        mut next: [&mut [f64]; N],
         space: &SpatialGrid,
         middle: f64,
         key: [f64; 4],
         edges: [[f64; 2]; N],
+    ) -> Result<()> {
+        self.advance_batch(stepper, &old, &mut next, space, middle, key, &edges)
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "shared operator and layer inputs"
+    )]
+    fn advance_batch(
+        self,
+        stepper: &mut Stepper,
+        old: &[&[f64]],
+        next: &mut [&mut [f64]],
+        space: &SpatialGrid,
+        middle: f64,
+        key: [f64; 4],
+        edges: &[[f64; 2]],
     ) -> Result<()> {
         let scale = self.variance_rate(middle).sqrt();
         if let Some((surface, offset)) = self.surface() {
@@ -148,7 +165,7 @@ pub(super) trait Diffusion: Copy {
             )
         } else {
             let sigma = self.sigma(middle, 0.0) * scale;
-            for ((old, next), edges) in old.into_iter().zip(next).zip(edges) {
+            for ((old, next), &edges) in old.iter().zip(next).zip(edges) {
                 stepper.advance(old, next, space, sigma, key, edges)?;
             }
             Ok(())

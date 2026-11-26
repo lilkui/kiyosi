@@ -230,7 +230,6 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
         };
         checked(price)
     };
-    let price = |coupon| checked_price(&replace(option, coupon)?);
     let residual = |value: f64| {
         let residual = value - observed;
         if !residual.is_finite() {
@@ -244,10 +243,45 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
     let lower_note = replace(option, lo)?;
     let upper_note = replace(option, hi)?;
     crate::cancellation::check()?;
-    let bounds = match &prepared {
-        Some(prepared) => prepared.price_coupon_bounds(&lower_note, &upper_note, context),
-        None => engine.price_coupon_bounds(&lower_note, &upper_note, context),
-    };
+    let (original_lo, original_hi) = (lo, hi);
+    // Tight tolerances require independent pricing of each trial to account
+    // for rounding in the rolled-back cash flows.
+    let mut curve = None;
+    if s.price_tolerance >= 1e-10 * observed.abs().max(1.0) {
+        let shared = match &prepared {
+            Some(prepared) => prepared.prepare_coupon_pricer(&lower_note, &upper_note, context),
+            None => engine.prepare_coupon_pricer(&lower_note, &upper_note, context),
+        };
+        match shared {
+            Ok(result) => curve = result,
+            Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted => {
+                return Err(error.into());
+            }
+            Err(_) => {}
+        }
+    }
+    let mut bounds = Ok(None);
+    if let Some(pricer) = &curve {
+        bounds = pricer(&lower_note, 0.0).and_then(|lower| {
+            Ok(lower
+                .zip(pricer(&upper_note, 1.0)?)
+                .map(|(lo, hi)| [lo, hi])
+                .filter(|values| {
+                    values.iter().all(|value| {
+                        value.is_finite() && s.price_tolerance >= 1e-10 * value.abs().max(1.0)
+                    })
+                }))
+        });
+    }
+    if matches!(&bounds, Ok(None)) {
+        curve = None;
+        bounds = match &prepared {
+            Some(prepared) => prepared.price_coupon_bounds(&lower_note, &upper_note, context),
+            None => engine.price_coupon_bounds(&lower_note, &upper_note, context),
+        };
+    } else if bounds.is_err() {
+        curve = None;
+    }
     let (lower, upper) = match bounds {
         Ok(Some([lower, upper])) => (checked(lower)?, checked(upper)?),
         Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted => {
@@ -272,6 +306,26 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
             "price is not bracketed by coupon bounds".into(),
         ));
     }
+    let price = |coupon: f64| {
+        let note = replace(option, coupon)?;
+        crate::cancellation::check()?;
+        if let Some(pricer) = &curve {
+            let span = original_hi - original_lo;
+            let fraction = if span.is_finite() {
+                (coupon - original_lo) / span
+            } else {
+                (0.5 * coupon - 0.5 * original_lo) / (0.5 * original_hi - 0.5 * original_lo)
+            };
+            match pricer(&note, fraction) {
+                Ok(Some(value)) => return checked(value),
+                Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Interrupted => {
+                    return Err(error.into());
+                }
+                Ok(None) | Err(_) => {}
+            }
+        }
+        checked_price(&note)
+    };
     let span = upper - lower;
     let fraction = if span.is_finite() {
         (observed - lower) / span

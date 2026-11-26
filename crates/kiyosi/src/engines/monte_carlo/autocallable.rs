@@ -9,6 +9,7 @@ use crate::instruments::autocallable::pricing::{
     Initial, fixed_value, future_event_times, initial, validate,
 };
 use crate::numerics::log_ratio;
+use crate::risk::analytics::CouponPricer;
 use crate::{
     AutocallableNote, AutocallableTerms, Error, Greek, GreeksRequest, NumericalShiftSettings,
     OptionContract, PricingContext, PricingContextChanges, PricingEngine, PricingResult, Result,
@@ -774,6 +775,31 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
             scaled_value(low.scale, low.mean, 0.0)?,
             scaled_value(high.scale, high.mean, 0.0)?,
         ]))
+    }
+
+    fn prepare_coupon_pricer<'a>(
+        &'a self,
+        lower: &AutocallableNote<T>,
+        upper: &AutocallableNote<T>,
+        context: &'a PricingContext,
+    ) -> Result<Option<CouponPricer<'a, AutocallableNote<T>>>> {
+        let affected = lower.knock_in_affects_payoff();
+        if affected != upper.knock_in_affects_payoff() {
+            return Ok(None);
+        }
+        let Some([low, high]) = self.price_coupon_bounds(lower, upper, context)? else {
+            return Ok(None);
+        };
+        Ok(Some(Box::new(move |note, fraction| {
+            if note.knock_in_affects_payoff() != affected {
+                return Ok(None);
+            }
+            if let Sample::Fixed(value) = self.prepare_sample::<_, 1>(note, context)? {
+                return Ok(Some(value));
+            }
+            let price = low * (1.0 - fraction) + high * fraction;
+            Ok(Some(price))
+        })))
     }
 
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {

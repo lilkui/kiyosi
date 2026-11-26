@@ -15,6 +15,7 @@ use crate::instruments::autocallable::pricing::{
 };
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{scaled_cash, scaled_signed_cash};
+use crate::risk::analytics::CouponPricer;
 use crate::{AutocallableBarrierState, AutocallableNote, AutocallableTerms, Timestamp};
 
 impl FiniteDifferenceAutocallableEngine {
@@ -126,6 +127,73 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
     }
+    fn prepare_coupon_pricer<'a>(
+        &'a self,
+        lower: &AutocallableNote<T>,
+        upper: &AutocallableNote<T>,
+        context: &'a PricingContext,
+    ) -> Result<Option<CouponPricer<'a, AutocallableNote<T>>>> {
+        local_volatility::validate_model(context)?;
+        validate(lower, context)?;
+        validate(upper, context)?;
+        let expiry = lower.expiry_time();
+        if deterministic::enabled_until(context, expiry)? {
+            return Ok(None);
+        }
+        let start = context.deterministic_until(expiry)?;
+        let continuing = move |note: &AutocallableNote<T>| -> Result<Option<Initial>> {
+            let state = deterministic::autocallable_through(note, context, start)?;
+            Ok((state.settlement.is_none()
+                && fixed_value_at(note, context, start, state.knocked_in).is_none())
+            .then_some(state))
+        };
+        let (Some(low), Some(high)) = (continuing(lower)?, continuing(upper)?) else {
+            return Ok(None);
+        };
+        let affected = lower.knock_in_affects_payoff();
+        if low.knocked_in != high.knocked_in || affected != upper.knock_in_affects_payoff() {
+            return Ok(None);
+        }
+        let (rolled, _, discount) = continuation_context(context, start)?;
+        let rolled = rolled.as_ref();
+        let spot = rolled.spot_price();
+        let (space, [[lower_values, _], [upper_values, _]]) =
+            diffusion::with_diffusion!(rolled, |diffusion| solve_layers(
+                [lower, upper],
+                rolled,
+                self.settings,
+                diffusion,
+                low.knocked_in,
+                spot,
+            ))?;
+        Ok(Some(Box::new(move |note, fraction| {
+            let Some(state) = continuing(note)? else {
+                return Ok(None);
+            };
+            if state.knocked_in != low.knocked_in || note.knock_in_affects_payoff() != affected {
+                return Ok(None);
+            }
+            let mut values = Vec::with_capacity(lower_values.len());
+            for (index, (&lo, &hi)) in lower_values.iter().zip(&upper_values).enumerate() {
+                if index % 1024 == 0 {
+                    crate::cancellation::check()?;
+                }
+                let value = if fraction <= 0.0 {
+                    lo
+                } else if fraction >= 1.0 {
+                    hi
+                } else {
+                    lo * (1.0 - fraction) + hi * fraction
+                };
+                values.push(value);
+            }
+            let spline = space.spline(values);
+            let price = space.sample(&spline, spot)[0];
+            Ok(Some(crate::numerics::finite_price(
+                state.coupon + scaled_signed_cash(price, discount),
+            )?))
+        })))
+    }
     fn price_with_greeks_with_settings(
         &self,
         option: &AutocallableNote<T>,
@@ -198,10 +266,6 @@ fn native<T: AutocallableTerms>(
     Ok((result, upper))
 }
 
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "Validated grid step counts fit exactly in f64."
-)]
 fn solve_grid<T: AutocallableTerms, D: Diffusion>(
     note: &AutocallableNote<T>,
     context: &PricingContext,
@@ -210,6 +274,37 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
     starting_knocked: bool,
     minimum_spot: f64,
 ) -> Result<AutocallableGrid> {
+    let (space, [[alive, knocked]]) = solve_layers(
+        [note],
+        context,
+        settings,
+        diffusion,
+        starting_knocked,
+        minimum_spot,
+    )?;
+    let alive = space.spline(alive);
+    let knocked = (!knocked.is_empty()).then(|| space.spline(knocked));
+    Ok(AutocallableGrid {
+        space,
+        alive,
+        knocked,
+        starting_knocked,
+    })
+}
+
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "Validated grid step counts fit exactly in f64."
+)]
+fn solve_layers<T: AutocallableTerms, D: Diffusion, const N: usize>(
+    notes: [&AutocallableNote<T>; N],
+    context: &PricingContext,
+    settings: FiniteDifferenceSettings,
+    diffusion: D,
+    starting_knocked: bool,
+    minimum_spot: f64,
+) -> Result<(SpatialGrid, [[Vec<f64>; 2]; N])> {
+    let note = notes[0];
     let t = note.view();
     let daily = t.daily_knock_in();
     let layered = daily && !starting_knocked && note.knock_in_affects_payoff();
@@ -279,11 +374,19 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
         widths.extend_from_slice(&grid.widths[intervals..]);
         grid = TimeGrid { times, widths };
     }
-    let layers = if layered { 2 } else { 1 };
+    let layers = 1 + usize::from(layered);
     validate_work(
-        u64::from(settings.asset_step_count.unsigned_abs()) * layers,
+        u64::from(settings.asset_step_count.unsigned_abs()) * layers as u64 * N as u64,
         grid.rollback_steps(settings.scheme, &observations)?,
     )?;
+    if N > 1 {
+        validate_workspace(
+            settings.scheme,
+            (u64::from(settings.asset_step_count.unsigned_abs()) + 1) * N as u64,
+            grid.widths.len() as u64,
+            risk.workspace_bytes() + dividend.workspace_bytes(),
+        )?;
+    }
     let mut levels = Vec::new();
     if let Some(ki) = t.knock_in {
         levels.extend([t.reference_spot(), ki.level]);
@@ -355,10 +458,9 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
     }
     let size = space.count + 1;
     let knock_in_size = if layered { size } else { 0 };
-    let mut alive = vec![0.0; size];
-    let mut knocked = vec![0.0; knock_in_size];
-    let mut next_alive = vec![0.0; size];
-    let mut next_knocked = vec![0.0; knock_in_size];
+    let buffers = || std::array::from_fn(|_| [vec![0.0; size], vec![0.0; knock_in_size]]);
+    let mut values = buffers();
+    let mut next = buffers();
     let mut breaks = Vec::new();
     if let Some(ki) = t.knock_in {
         breaks.push(ki.level);
@@ -373,20 +475,23 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
         }
         breaks.push(r.coupon_barrier_level().unwrap_or(0.0));
     }
-    for i in 0..size {
-        let value = project_in_coordinates(&space, &breaks, i, |asset| {
-            [
-                expiry_payment(note, asset, starting_knocked, end_event),
-                if layered {
-                    expiry_payment(note, asset, true, end_event)
-                } else {
-                    0.0
-                },
-            ]
-        });
-        alive[i] = value[0];
-        if layered {
-            knocked[i] = value[1];
+    for (note, [alive, knocked]) in notes.into_iter().zip(&mut values) {
+        let end_event = event(note, time, context);
+        for i in 0..size {
+            let value = project_in_coordinates(&space, &breaks, i, |asset| {
+                [
+                    expiry_payment(note, asset, starting_knocked, end_event),
+                    if layered {
+                        expiry_payment(note, asset, true, end_event)
+                    } else {
+                        0.0
+                    },
+                ]
+            });
+            alive[i] = value[0];
+            if layered {
+                knocked[i] = value[1];
+            }
         }
     }
     let mut stepper = diffusion.stepper(space.count);
@@ -400,33 +505,30 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
             let key = [dt, weight, rate, q];
             let discount = (-rate * dt).exp();
             let dividend_discount = (-q * dt).exp();
-            let alive_edges = space.discount_affine_edges(&alive, discount, dividend_discount);
-            if layered {
-                diffusion.advance_layers(
-                    &mut stepper,
-                    [&alive, &knocked],
-                    [&mut next_alive, &mut next_knocked],
-                    &space,
-                    middle,
-                    key,
-                    [
-                        alive_edges,
-                        space.discount_affine_edges(&knocked, discount, dividend_discount),
-                    ],
-                )?;
-                std::mem::swap(&mut knocked, &mut next_knocked);
-            } else {
-                diffusion.advance(
-                    &mut stepper,
-                    &alive,
-                    &mut next_alive,
-                    &space,
-                    middle,
-                    key,
-                    alive_edges,
-                )?;
+            let mut old: [[&[f64]; 2]; N] = [[&[]; 2]; N];
+            let mut outputs: [[&mut [f64]; 2]; N] =
+                std::array::from_fn(|_| std::array::from_fn(|_| &mut [] as &mut [f64]));
+            let mut edges = [[[0.0; 2]; 2]; N];
+            let mut count = 0;
+            for (value, output) in values.iter().flatten().zip(next.iter_mut().flatten()) {
+                if !value.is_empty() {
+                    old.as_flattened_mut()[count] = value;
+                    outputs.as_flattened_mut()[count] = output;
+                    edges.as_flattened_mut()[count] =
+                        space.discount_affine_edges(value, discount, dividend_discount);
+                    count += 1;
+                }
             }
-            std::mem::swap(&mut alive, &mut next_alive);
+            diffusion.advance_batch(
+                &mut stepper,
+                &old.as_flattened()[..count],
+                &mut outputs.as_flattened_mut()[..count],
+                &space,
+                middle,
+                key,
+                &edges.as_flattened()[..count],
+            )?;
+            std::mem::swap(&mut values, &mut next);
         }
         let time = grid.times[step];
         let record = event(note, time, context).filter(|_| time > 0.0);
@@ -442,52 +544,47 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
                 }
                 breaks.push(r.coupon_barrier_level().unwrap_or(0.0));
             }
-            // Project only the jump correction, leaving smooth daily continuation unchanged.
-            for i in 0..size {
-                let correction = project_grid_node(&space, &breaks, i, |asset, node| {
-                    let value = |layer: &[f64]| {
-                        node.map_or_else(|| space.linear(layer, asset), |index| layer[index])
-                    };
-                    let a = value(&alive);
-                    let k = if layered { value(&knocked) } else { 0.0 };
-                    let coupon =
-                        record.map_or(0.0, |r| note.observation_coupon(r, |level| asset >= level));
-                    if let Some(r) =
-                        record.filter(|r| r.has_knock_out() && asset >= r.knock_out_level())
-                    {
-                        let payment = note.knock_out_payment(r) + coupon;
-                        [payment - a, payment - k]
-                    } else {
-                        [
-                            (if ki && t.below_knock_in(asset) {
-                                k - a
-                            } else {
-                                0.0
-                            }) + coupon,
-                            coupon,
-                        ]
+            for ((note, [alive, knocked]), [next_alive, next_knocked]) in
+                notes.into_iter().zip(&values).zip(&mut next)
+            {
+                let record = event(note, time, context).filter(|_| time > 0.0);
+                // Project only the jump correction, leaving smooth daily continuation unchanged.
+                for i in 0..size {
+                    let correction = project_grid_node(&space, &breaks, i, |asset, node| {
+                        let value = |layer: &[f64]| {
+                            node.map_or_else(|| space.linear(layer, asset), |index| layer[index])
+                        };
+                        let a = value(alive);
+                        let k = if layered { value(knocked) } else { 0.0 };
+                        let coupon = record
+                            .map_or(0.0, |r| note.observation_coupon(r, |level| asset >= level));
+                        if let Some(r) =
+                            record.filter(|r| r.has_knock_out() && asset >= r.knock_out_level())
+                        {
+                            let payment = note.knock_out_payment(r) + coupon;
+                            [payment - a, payment - k]
+                        } else {
+                            [
+                                (if ki && t.below_knock_in(asset) {
+                                    k - a
+                                } else {
+                                    0.0
+                                }) + coupon,
+                                coupon,
+                            ]
+                        }
+                    });
+                    next_alive[i] = alive[i] + correction[0];
+                    if layered {
+                        next_knocked[i] = knocked[i] + correction[1];
                     }
-                });
-                next_alive[i] = alive[i] + correction[0];
-                if layered {
-                    next_knocked[i] = knocked[i] + correction[1];
                 }
             }
-            std::mem::swap(&mut alive, &mut next_alive);
-            if layered {
-                std::mem::swap(&mut knocked, &mut next_knocked);
-            }
+            std::mem::swap(&mut values, &mut next);
             damping = 2;
         }
     }
-    let alive = space.spline(alive);
-    let knocked = layered.then(|| space.spline(knocked));
-    Ok(AutocallableGrid {
-        space,
-        alive,
-        knocked,
-        starting_knocked,
-    })
+    Ok((space, values))
 }
 
 #[derive(PartialEq)]
