@@ -105,6 +105,24 @@ def terminal_reference(option, context):
     )
 
 
+def test_fixed_purchases_before_terminal_knockout_match_analytic_settlement():
+    option = contract(
+        acceleration_factor=1,
+        calendar=all_days_calendar(),
+        knock_out_observation_times=[END],
+    )
+    context = market(108, START + timedelta(days=1), volatility=0.20)
+    # January 2 through 5 contribute four purchases before the January 6 test.
+    expected = terminal_reference(option.replace(accumulated_quantity=7), context)
+    for engine in engines():
+        actual = engine.price(option, context)
+        tolerance = 0.01
+        if isinstance(engine, pricing.MonteCarloAccumulatorEngine):
+            uncertainty = engine.price_with_statistics(option, context).standard_error
+            tolerance += 4 * uncertainty
+        assert actual == pytest.approx(expected, rel=0, abs=tolerance)
+
+
 def test_direction_dates_defaults_history_replacement_and_ownership(subtests):
     default = contract()
     assert default.option_type == "call"

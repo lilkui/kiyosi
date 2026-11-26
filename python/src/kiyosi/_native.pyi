@@ -4418,8 +4418,10 @@ class MonteCarloAccumulatorEngine(_MonteCarloMethods[Accumulator, Accumulator]):
     measure sampling error.
     Parallel pricing raises UnsupportedOperationError in a child forked after
     the parent's first parallel request. Use spawn or max_active_workers=1.
-    Simulation uses the future trading dates. A current
-    knock-out settles before any purchase.
+    Simulation uses future observation dates and expiry. With an explicit
+    knock-out schedule and fixed purchase quantities, only knock-out
+    dates and expiry require simulation. A current knock-out settles
+    before any purchase.
     Scheduled transition and sampling workspace is capped at 1 GiB per request.
     """
 

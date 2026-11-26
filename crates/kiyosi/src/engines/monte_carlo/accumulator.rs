@@ -132,7 +132,9 @@ impl MonteCarloAccumulatorEngine {
     /// Returns a price with optional standard error and asymptotic 95% confidence interval.
     ///
     /// Uncertainty follows [`MonteCarloEstimate`]; known pseudorandom settlements
-    /// have zero uncertainty. Sobol uses one dimension per future trading date.
+    /// have zero uncertainty. Sobol uses one dimension per simulated date.
+    /// An explicit knock-out schedule with fixed purchase quantities simulates
+    /// only future knock-out dates and expiry.
     /// Cancellation follows [`crate::CancellationToken`]. See [`Self::new`].
     ///
     /// # Errors

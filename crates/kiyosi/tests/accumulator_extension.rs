@@ -123,6 +123,35 @@ fn terminal_reference(option: &Accumulator, context: &PricingContext) -> f64 {
 }
 
 #[test]
+fn fixed_purchases_before_terminal_knockout_match_analytic_settlement() -> Result<()> {
+    let option = Accumulator::new(AccumulatorTerms {
+        calendar: TradingCalendar::all_days(),
+        acceleration_factor: 1.0,
+        ..terms(OptionType::Call, Some(vec![day(6)]))
+    })?;
+    let context = market(108.0, day(2), 0.20);
+    let before_expiry = option.replace(AccumulatorChanges {
+        accumulated_quantity: Some(Some(7.0)),
+        ..Default::default()
+    })?;
+    // January 2 through 5 contribute four purchases before the January 6 test.
+    let expected = terminal_reference(&before_expiry, &context);
+    for engine in engines() {
+        let actual = engine.price(&option, &context)?;
+        let tolerance = engine
+            .price_with_statistics(&option, &context)
+            .ok()
+            .and_then(|estimate| estimate.standard_error())
+            .map_or(0.01, |error| 0.01 + 4.0 * error);
+        assert!(
+            (actual - expected).abs() <= tolerance,
+            "{actual} != {expected}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn terminal_events_respect_direction_schedule_and_inclusive_knock_out() {
     for (direction, spot, monitored, expected) in [
         (OptionType::Call, 90.0, true, -50.0),
