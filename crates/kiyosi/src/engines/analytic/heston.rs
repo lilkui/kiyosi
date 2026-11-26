@@ -14,7 +14,10 @@ use crate::{
     PricingEngine, PricingResult, Result,
 };
 
-const TRANSFORM_CACHE_CAPACITY: usize = 16_384;
+const PANEL_SAMPLES: usize = 15;
+const PANEL_CACHE_CAPACITY: usize = 16_384 / PANEL_SAMPLES;
+type PanelSamples = [FourierSample; PANEL_SAMPLES];
+type PanelCache = HashMap<[u64; 2], PanelSamples>;
 
 /// Configures adaptive Heston Fourier integration; see [`AnalyticHestonEuropeanEngine::new`].
 ///
@@ -159,14 +162,21 @@ impl AnalyticHestonEuropeanEngine {
     /// engine settings remain unchanged on success and failure.
     pub fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
         let model = validate_market(option, context)?;
-        self.price_one(option, context, model, option.strike(), None)
+        self.price_one(
+            option,
+            context,
+            model,
+            option.strike(),
+            None,
+            &mut BinaryHeap::new(),
+        )
     }
 
     /// Prices European calls or puts across strikes with fixed dates and market inputs.
     ///
     /// Uses the template's direction and dates. The result preserves input order
     /// and duplicates. The empty batch validates the market and returns an empty
-    /// vector. A request-local cache shares Fourier transforms across strikes.
+    /// vector. A request-local cache shares Fourier samples for complete integration panels across strikes.
     /// Each strike retains the integration settings and budget of [`Self::price`].
     ///
     /// # Errors
@@ -210,11 +220,12 @@ impl AnalyticHestonEuropeanEngine {
         prices.try_reserve_exact(strikes.len()).map_err(|_| {
             Error::ComputationFailure("cannot reserve Heston strike batch output".into())
         })?;
-        let mut transforms = HashMap::new();
+        let mut geometry = PanelCache::new();
+        let mut panels = BinaryHeap::new();
         for &strike in strikes {
             crate::cancellation::check()?;
-            let cache = (strikes.len() > 1).then_some(&mut transforms);
-            prices.push(self.price_one(option, context, model, strike, cache)?);
+            let cache = (strikes.len() > 1).then_some(&mut geometry);
+            prices.push(self.price_one(option, context, model, strike, cache, &mut panels)?);
         }
         Ok(prices)
     }
@@ -225,7 +236,8 @@ impl AnalyticHestonEuropeanEngine {
         context: &PricingContext,
         model: &HestonParameters,
         strike: f64,
-        transforms: Option<&mut HashMap<u64, Complex64>>,
+        geometry: Option<&mut PanelCache>,
+        panels: &mut BinaryHeap<Panel>,
     ) -> Result<f64> {
         let start = context.valuation_time();
         let end = option.expiry_time();
@@ -285,9 +297,9 @@ impl AnalyticHestonEuropeanEngine {
             log_moneyness,
             weight,
             remaining: self.settings.max_evaluations,
-            transforms,
+            geometry,
         };
-        integrate(&mut integrand, base, self.settings, scale)
+        integrate(&mut integrand, base, self.settings, scale, panels)
     }
 }
 
@@ -451,44 +463,38 @@ struct Integrand<'a> {
     log_moneyness: f64,
     weight: f64,
     remaining: usize,
-    transforms: Option<&'a mut HashMap<u64, Complex64>>,
+    geometry: Option<&'a mut PanelCache>,
 }
 
-impl Integrand<'_> {
-    fn at(&mut self, t: f64) -> Result<f64> {
-        crate::cancellation::check()?;
-        if self.remaining < 2 {
-            return Err(nonconvergence());
-        }
-        self.remaining -= 2;
-        let u = self.frequency_scale * t / (1.0 - t);
-        let evaluate = || {
-            let log_heston = log_characteristic(self.model, self.time, u);
-            let log_black = -0.5 * self.variance * (u * u + 0.25);
-            let difference = log_heston - log_black;
-            if difference.norm_sqr() < 0.25 {
-                -log_black.exp() * complex_expm1(difference)
-            } else {
-                Complex64::new(log_black.exp(), 0.0) - log_heston.exp()
-            }
-        };
-        let transform = match self.transforms.as_mut() {
-            // Size the shared cache independently of the supplied strike list and evaluation budget.
-            Some(cache) if cache.len() < TRANSFORM_CACHE_CAPACITY => {
-                *cache.entry(u.to_bits()).or_insert_with(evaluate)
-            }
-            Some(cache) => cache.get(&u.to_bits()).copied().unwrap_or_else(evaluate),
-            None => evaluate(),
-        };
-        let value = self.weight
-            * (Complex64::from_polar(1.0, u * self.log_moneyness) * transform).re
-            / (u * u + 0.25)
-            * self.frequency_scale
-            / (1.0 - t).powi(2);
-        if !value.is_finite() {
-            return Err(computation());
-        }
-        Ok(value)
+#[derive(Clone, Copy)]
+struct FourierSample {
+    frequency: f64,
+    transform: Complex64,
+    payoff_denominator: f64,
+    jacobian_denominator: f64,
+}
+
+fn fourier_sample(
+    model: &HestonParameters,
+    time: f64,
+    variance: f64,
+    frequency_scale: f64,
+    t: f64,
+) -> FourierSample {
+    let u = frequency_scale * t / (1.0 - t);
+    let log_heston = log_characteristic(model, time, u);
+    let log_black = -0.5 * variance * (u * u + 0.25);
+    let difference = log_heston - log_black;
+    let transform = if difference.norm_sqr() < 0.25 {
+        -log_black.exp() * complex_expm1(difference)
+    } else {
+        Complex64::new(log_black.exp(), 0.0) - log_heston.exp()
+    };
+    FourierSample {
+        frequency: u,
+        transform,
+        payoff_denominator: u * u + 0.25,
+        jacobian_denominator: (1.0 - t).powi(2),
     }
 }
 
@@ -569,14 +575,59 @@ fn panel(f: &mut Integrand<'_>, left: f64, right: f64) -> Result<Panel> {
             error: 4.0 * f.weight * 0.5_f64.atan2(frequency),
         });
     }
-    let middle = f.at(center)?;
+    crate::cancellation::check()?;
+    f.remaining = f
+        .remaining
+        .checked_sub(2 * PANEL_SAMPLES)
+        .ok_or_else(nonconvergence)?;
+    let evaluate = || {
+        std::array::from_fn(|i| {
+            let t = if i == 0 {
+                center
+            } else {
+                let offset = half * X[(i - 1) / 2];
+                if i % 2 == 1 {
+                    center - offset
+                } else {
+                    center + offset
+                }
+            };
+            fourier_sample(f.model, f.time, f.variance, f.frequency_scale, t)
+        })
+    };
+    let key = [left.to_bits(), right.to_bits()];
+    let scratch;
+    let samples = match f.geometry.as_mut() {
+        Some(cache) if cache.len() < PANEL_CACHE_CAPACITY => {
+            cache.entry(key).or_insert_with(evaluate)
+        }
+        cache => {
+            if let Some(samples) = cache.and_then(|cache| cache.get(&key)) {
+                samples
+            } else {
+                scratch = evaluate();
+                &scratch
+            }
+        }
+    };
+    let values = samples.map(|sample| {
+        let phase = sample.frequency * f.log_moneyness;
+        f.weight * (Complex64::from_polar(1.0, phase) * sample.transform).re
+            / sample.payoff_denominator
+            * f.frequency_scale
+            / sample.jacobian_denominator
+    });
+    if values.iter().any(|value| !value.is_finite()) {
+        return Err(computation());
+    }
+    let middle = values[0];
     let mut kronrod = W[7] * middle;
     let mut gauss = G[3] * middle;
     let mut absolute = W[7] * middle.abs();
     let mut pairs = [(0.0, 0.0); 7];
     for i in 0..7 {
-        let a = f.at(center - half * X[i])?;
-        let b = f.at(center + half * X[i])?;
+        let a = values[2 * i + 1];
+        let b = values[2 * i + 2];
         pairs[i] = (a, b);
         kronrod += W[i] * (a + b);
         absolute += W[i] * (a.abs() + b.abs());
@@ -608,9 +659,10 @@ fn integrate(
     base: f64,
     settings: HestonIntegrationSettings,
     scale: f64,
+    panels: &mut BinaryHeap<Panel>,
 ) -> Result<f64> {
     let normalized_base = base / scale;
-    let mut panels = BinaryHeap::new();
+    panels.clear();
     let mut sum = Sum::default();
     let mut error = Sum::default();
     let ends = [0.0, 0.25, 0.5, 0.75, 0.9, 0.99, 1.0];
