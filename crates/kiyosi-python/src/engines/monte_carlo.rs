@@ -579,7 +579,7 @@ sampling_settings!(
         /// Raises
         /// ------
         /// KiyosiError
-        ///     If contract, market, strike, or sampling validation fails.
+        ///     If contract, market, strike, workspace, or sampling validation fails.
         /// TypeError, ValueError, OverflowError
         ///     If a strike representation is invalid.
         /// OSError
@@ -590,14 +590,19 @@ sampling_settings!(
         /// A stochastic request uses one seed. Call with_resolved_seed() to
         /// replay results from an engine configured without a seed.
         #[pyo3(signature = (instrument, context, *, strikes))]
-        #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns the extracted inputs.")]
+        #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns the extracted instrument.")]
         fn price_arithmetic_strikes<'py>(
             &self,
             py: Python<'py>,
             #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, asian::ArithmeticAveragePriceOption>,
             context: &PricingContext,
-            #[pyo3(from_py_with = crate::conversions::reals)] strikes: Vec<f64>,
+            strikes: &Bound<'_, PyAny>,
         ) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+            let strikes = crate::conversions::collect_values_checked(
+                strikes,
+                crate::conversions::real,
+                |count| domain(kiyosi::MonteCarloAsianEngine::validate_arithmetic_strike_count(count)),
+            )?;
             let instrument = &instrument.0;
             let prices = domain(crate::cancellation::run(py, || {
                 self.0.price_arithmetic_strikes(instrument, &context.0, &strikes)

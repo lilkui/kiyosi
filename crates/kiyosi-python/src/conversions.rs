@@ -153,7 +153,7 @@ pub(crate) fn collect_values<T>(
     collect_values_checked(value, convert, |_| Ok(()))
 }
 
-fn collect_values_checked<T>(
+pub(crate) fn collect_values_checked<T>(
     value: &Bound<'_, PyAny>,
     convert: impl Fn(&Bound<'_, PyAny>) -> PyResult<T>,
     check_count: impl Fn(usize) -> PyResult<()>,

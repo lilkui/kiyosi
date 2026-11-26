@@ -3,6 +3,8 @@
 import math
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from itertools import repeat
+from struct import calcsize
 
 import pytest
 from kiyosi import (
@@ -74,6 +76,20 @@ def test_duplicate_arithmetic_strikes_share_the_path_work_budget():
         engine.price_arithmetic_strikes(contract, quote, strikes=[100] * 8192)
         == (expected,) * 8192
     )
+
+
+def test_arithmetic_strike_batch_stops_reading_at_workspace_limit():
+    limit = (1 << 30) // (calcsize("P") + 2 * calcsize("d"))
+
+    def strikes():
+        yield from repeat(100.0, limit + 1)
+        pytest.fail("read past the first strike exceeding the workspace limit")
+
+    contract = option(ArithmeticAveragePriceOption)
+    with pytest.raises(InvalidInputError, match="strike batch workspace"):
+        pricing.MonteCarloAsianEngine().price_arithmetic_strikes(
+            contract, market(), strikes=strikes()
+        )
 
 
 def test_deterministic_arithmetic_weights_large_segment_before_scaling():

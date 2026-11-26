@@ -5035,7 +5035,7 @@ class MonteCarloAsianEngine(
         Raises
         ------
         KiyosiError
-            If contract, market, strike, or sampling validation fails.
+            If contract, market, strike, workspace, or sampling validation fails.
         TypeError, ValueError, OverflowError
             If a strike representation is invalid.
         OSError
