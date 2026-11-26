@@ -1,4 +1,6 @@
-use super::{Moments, check_path_step, estimate, path_samples, scaled_value, transition, unstable};
+use super::{
+    Moments, check_path_step, estimate, path_samples_lazy, scaled_value, transition, unstable,
+};
 use crate::numerics::log_ratio;
 use crate::{
     Accumulator, MonteCarloEstimate, MonteCarloSettings, OptionType, PricingContext, PricingEngine,
@@ -234,15 +236,15 @@ impl MonteCarloAccumulatorEngine {
         }
         let terminal_log_discount = steps.last().ok_or_else(unstable)?.2;
         let ([moments], [pairs], seed) =
-            path_samples(self.settings, steps.len(), statistics, |normals| {
+            path_samples_lazy(self.settings, steps.len(), statistics, |normals| {
                 let mut spot = initial_spot;
                 let mut log_return = 0.0;
                 let mut quantity = quantity;
-                for (index, ((drift, diffusion, log_discount, observe, accumulate), normal)) in
-                    steps.iter().zip(normals).enumerate()
+                for (index, (drift, diffusion, log_discount, observe, accumulate)) in
+                    steps.iter().enumerate()
                 {
                     check_path_step(index)?;
-                    log_return += diffusion.mul_add(*normal, *drift);
+                    log_return += diffusion.mul_add(normals.normal(), *drift);
                     spot = scaled_value(initial_spot, 1.0, log_return)?;
                     if !spot.is_finite() || spot <= 0.0 {
                         return Err(unstable());

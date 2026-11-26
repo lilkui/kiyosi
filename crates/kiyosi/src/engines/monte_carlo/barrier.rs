@@ -1,4 +1,4 @@
-use super::{check_path_step, greeks, path_means, scaled_value, unstable};
+use super::{check_path_step, greeks, path_means_lazy, scaled_value, unstable};
 use crate::engines::analytic::barrier::{hit_value, resolved_price};
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::log_ratio;
@@ -312,14 +312,18 @@ impl MonteCarloBarrierEngine {
         };
         let delta = request.has(Greek::Delta);
         let gamma = request.has(Greek::Gamma);
-        let (means, error, seed) = path_means(self.settings, steps.len(), statistics, |normals| {
+        let sample = |normals: &mut super::LazyPath<'_, '_>| {
             let mut terminal = 0.0;
             let mut noise = 0.0;
             let mut touched = false;
             let mut knocked_out = 0.0;
-            for (index, (&(mean, width, discount, observation), &z)) in
-                steps.iter().zip(normals).enumerate()
-            {
+            let first_normal = normals.normal();
+            for (index, &(mean, width, discount, observation)) in steps.iter().enumerate() {
+                let z = if index == 0 {
+                    first_normal
+                } else {
+                    normals.normal()
+                };
                 check_path_step(index)?;
                 noise = width.mul_add(z, noise);
                 terminal = mean + noise;
@@ -461,7 +465,7 @@ impl MonteCarloBarrierEngine {
                 )
             };
             let width = steps[0].1;
-            let z = normals[0];
+            let z = first_normal;
             let score = z / width;
             let d = if delta {
                 (value * score + first) / spot
@@ -478,7 +482,8 @@ impl MonteCarloBarrierEngine {
                 return Err(unstable());
             }
             Ok([value, d, g])
-        })?;
+        };
+        let (means, error, seed) = path_means_lazy(self.settings, steps.len(), statistics, sample)?;
         let mut values = means;
         if continuous && !knock_in && at_hit && option.rebate() != 0.0 {
             let hit = |context: &PricingContext| {

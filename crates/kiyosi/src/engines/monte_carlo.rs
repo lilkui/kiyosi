@@ -1278,7 +1278,31 @@ pub(crate) fn path_means<const N: usize>(
     statistics: bool,
     payoff: impl Fn(&[f64]) -> Result<[f64; N]> + Sync,
 ) -> Result<([f64; N], Option<f64>, u64)> {
-    let (moments, pairs, seed) = path_samples(settings, dimensions, statistics, payoff)?;
+    path_sample_means(
+        settings,
+        statistics,
+        path_samples(settings, dimensions, statistics, payoff)?,
+    )
+}
+
+fn path_means_lazy<const N: usize>(
+    settings: MonteCarloSettings,
+    dimensions: usize,
+    statistics: bool,
+    payoff: impl Fn(&mut LazyPath<'_, '_>) -> Result<[f64; N]> + Sync,
+) -> Result<([f64; N], Option<f64>, u64)> {
+    path_sample_means(
+        settings,
+        statistics,
+        path_samples_lazy(settings, dimensions, statistics, payoff)?,
+    )
+}
+
+fn path_sample_means<const N: usize>(
+    settings: MonteCarloSettings,
+    statistics: bool,
+    (moments, pairs, seed): ([Moments; N], [Moments; N], u64),
+) -> Result<([f64; N], Option<f64>, u64)> {
     let mut means = [0.0; N];
     for (mean, moment) in means.iter_mut().zip(&moments) {
         *mean = scaled_value(moment.scale, moment.mean, 0.0)?;
@@ -1301,6 +1325,7 @@ fn path_samples<const N: usize>(
         settings,
         dimensions,
         statistics,
+        dimensions,
         |draws, normals, paired| {
             for_each_path_chunk(normals, |chunk| {
                 for normal in chunk {
@@ -1333,6 +1358,7 @@ fn path_samples_lazy<const N: usize>(
         settings,
         dimensions,
         statistics,
+        if settings.antithetic { dimensions } else { 0 },
         |draws, normals, paired| {
             let mut path = LazyPath {
                 draws,
@@ -1365,13 +1391,15 @@ struct LazyPath<'a, 'b> {
 
 impl LazyPath<'_, '_> {
     fn normal(&mut self) -> f64 {
+        let Some(cache) = &mut self.cache else {
+            self.generated += 1;
+            return self.draws.normal();
+        };
         let value = if self.consumed < self.generated {
-            self.cache.as_ref().expect("only paired paths replay draws")[self.consumed]
+            cache[self.consumed]
         } else {
             let value = self.draws.normal();
-            if let Some(cache) = &mut self.cache {
-                cache[self.generated] = value;
-            }
+            cache[self.generated] = value;
             self.generated += 1;
             value
         };
@@ -1415,6 +1443,7 @@ fn sample_paths<const N: usize>(
     settings: MonteCarloSettings,
     dimensions: usize,
     statistics: bool,
+    buffer_len: usize,
     sample: impl Fn(&mut NormalDraws<'_>, &mut [f64], bool) -> Result<([f64; N], Option<[f64; N]>)>
     + Sync,
 ) -> Result<([Moments; N], [Moments; N], u64)> {
@@ -1444,7 +1473,7 @@ fn sample_paths<const N: usize>(
         };
         let mut moments = empty;
         let mut pairs = empty;
-        let mut normals = vec![0.0; dimensions];
+        let mut normals = vec![0.0; buffer_len];
         for path in block * BLOCK_SIZE..((block + 1) * BLOCK_SIZE).min(samples) {
             if path % 64 == 0 {
                 crate::cancellation::check()?;
