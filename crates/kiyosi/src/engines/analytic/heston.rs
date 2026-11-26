@@ -516,6 +516,38 @@ fn characteristic_difference(
     }
 }
 
+fn tail_modulus_bound(f: &Integrand<'_>, frequency: f64) -> f64 {
+    // Allow for roundoff in the exponent and keep the bound positive on underflow.
+    let damping = |exponent: f64| {
+        (-exponent * (1.0 - 64.0 * f64::EPSILON))
+            .exp()
+            .max(f64::MIN_POSITIVE)
+    };
+    let black = damping(0.5 * (f.variance.sqrt() * frequency).powi(2));
+    let rho = f.model.correlation().abs();
+    let initial = f.model.initial_variance();
+    let s = ((1.0 - rho) * (1.0 + rho) * frequency) * frequency;
+    if !s.is_normal() || initial == 0.0 {
+        return 1.0 + black;
+    }
+    // Conditioning on the variance path and applying Cauchy-Schwarz bounds the
+    // squared half-moment transform by E[exp(-s * integrated variance)].
+    // The CIR Laplace transform is at most exp(-initial * loading), since its
+    // mean-reversion contribution is nonpositive.
+    let kappa = f.model.mean_reversion_speed();
+    let gamma = kappa.hypot(f.model.vol_of_vol() * s.sqrt() * std::f64::consts::SQRT_2);
+    let elapsed = gamma * f.time;
+    let ratio = kappa / gamma;
+    let loading = (s / gamma) * (-2.0 * (-elapsed).exp_m1())
+        / (1.0 + ratio + (1.0 - ratio) * (-elapsed).exp());
+    let heston = if loading.is_normal() && elapsed.is_normal() {
+        damping(initial * loading * 0.5)
+    } else {
+        1.0
+    };
+    heston + black
+}
+
 struct Panel {
     left: f64,
     right: f64,
@@ -584,13 +616,13 @@ fn panel(f: &mut Integrand<'_>, left: f64, right: f64) -> Result<Panel> {
     }
     if right == 1.0 {
         let frequency = f.frequency_scale * left / (1.0 - left);
-        // Each half-moment characteristic function has modulus at most one.
-        // Bound the unresolved tail instead of trusting quadrature samples to find it.
+        // Both modulus bounds decrease with frequency. Integrate the payoff
+        // denominator exactly over the unresolved tail.
         return Ok(Panel {
             left,
             right,
             value: 0.0,
-            error: 4.0 * f.weight * 0.5_f64.atan2(frequency),
+            error: 2.0 * f.weight * 0.5_f64.atan2(frequency) * tail_modulus_bound(f, frequency),
         });
     }
     crate::cancellation::check()?;

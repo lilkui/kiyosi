@@ -101,6 +101,18 @@ fn heston_matches_quantlib_and_put_call_parity() {
 }
 
 #[test]
+fn heston_tail_bound_prices_within_a_tight_evaluation_budget() -> Result<()> {
+    let engine = AnalyticHestonEuropeanEngine::new(HestonIntegrationSettings {
+        absolute_tolerance: 1e-9,
+        relative_tolerance: 1e-9,
+        max_evaluations: 480,
+    })?;
+    let actual = engine.price(&option(OptionType::Call), &context(model()))?;
+    assert!((actual - 9.011_278_407_541_74).abs() < 1e-8, "{actual}");
+    Ok(())
+}
+
+#[test]
 fn default_heston_budget_prices_high_correlation_call() -> Result<()> {
     let start = dates().0;
     let option = EuropeanOption::new(OptionType::Call, 130.0, start, start.add_days(94)?)?;

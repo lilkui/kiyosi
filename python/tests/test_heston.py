@@ -93,6 +93,15 @@ def test_analytic_strike_batch_preserves_independent_prices_and_errors():
         )
 
 
+def test_heston_tail_bound_prices_within_a_tight_evaluation_budget():
+    engine = AnalyticHestonEuropeanEngine(
+        absolute_tolerance=1e-9, relative_tolerance=1e-9, max_evaluations=480
+    )
+    assert engine.price(option(), context()) == pytest.approx(
+        9.01127840754174, rel=0, abs=1e-8
+    )
+
+
 def test_default_heston_budget_prices_deep_out_of_money_call():
     parameters = model(
         dividend_yield=-0.02,
