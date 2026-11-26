@@ -84,6 +84,12 @@ def vanilla_statistics_contracts(
     vanilla = MonteCarloVanillaEngine()
     assert_type(vanilla.price(european, context), float)
     assert_type(vanilla.price(american, context), float)
+    assert_type(
+        vanilla.price_american_out_of_sample(
+            american, context, training_path_count=8192
+        ),
+        float,
+    )
     assert_type(vanilla.price_with_seed(american, context), tuple[float, int | None])
     assert_type(vanilla.price_with_statistics(european, context), MonteCarloEstimate)
     assert_type(vanilla.with_resolved_seed(), MonteCarloVanillaEngine)

@@ -833,3 +833,53 @@ fn equal_volatility_rate_stencils_match_scalar_exercise_paths() -> Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn out_of_sample_american_policy_replays_and_converges() -> Result<()> {
+    let put = option(OptionType::Put, 100.0);
+    let context = market(0.05, 0.02, 0.2, 100.0);
+    let reference = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 2000 })?
+        .price(&put, &context)?;
+    for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
+        let mut squared_error = 0.0;
+        for seed in [42, 111, 1729, 1999, 2111] {
+            let settings = MonteCarloGridSettings {
+                sampling: MonteCarloSettings {
+                    path_count: 32_768,
+                    seed: Some(seed),
+                    max_active_workers: 1,
+                    sampling,
+                    antithetic: true,
+                },
+                step_count: 100,
+            };
+            let engine = MonteCarloVanillaEngine::new(settings)?;
+            let actual = engine.price_american_out_of_sample(&put, &context, 8192)?;
+            squared_error += (actual - reference).powi(2);
+            if seed == 42 {
+                let parallel = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+                    sampling: MonteCarloSettings {
+                        max_active_workers: 4,
+                        ..settings.sampling
+                    },
+                    ..settings
+                })?;
+                assert_eq!(
+                    actual.to_bits(),
+                    parallel
+                        .price_american_out_of_sample(&put, &context, 8192)?
+                        .to_bits()
+                );
+                assert!(matches!(
+                    engine.price_american_out_of_sample(&put, &context, 0),
+                    Err(Error::InvalidInput(_))
+                ));
+            }
+        }
+        assert!(
+            (squared_error / 5.0).sqrt() < 0.055,
+            "{sampling:?}: {squared_error}"
+        );
+    }
+    Ok(())
+}

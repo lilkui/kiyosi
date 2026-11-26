@@ -458,3 +458,33 @@ def test_price_sampling_error_and_exercise_grid_convergence():
     for price in prices:
         assert price == pytest.approx(reference, rel=0, abs=0.3)
     assert max(prices) - min(prices) < 0.15
+
+
+@pytest.mark.parametrize("sampling", ["pseudo_random", "sobol"])
+def test_out_of_sample_american_policy_replays_and_converges(sampling):
+    put = contract()
+    snapshot = market(rate=0.05, dividend=0.02, sigma=0.2)
+    reference = CoxRossRubinsteinVanillaEngine(step_count=2000).price(put, snapshot)
+    engine = MonteCarloVanillaEngine(
+        path_count=32768,
+        step_count=100,
+        max_active_workers=1,
+        sampling=sampling,
+        antithetic=True,
+    )
+    errors = []
+    for seed in (42, 111, 1729, 1999, 2111):
+        seeded = engine.replace(seed=seed)
+        value = seeded.price_american_out_of_sample(
+            put, snapshot, training_path_count=8192
+        )
+        errors.append((value - reference) ** 2)
+        if seed == 42:
+            assert value == seeded.replace(
+                max_active_workers=4
+            ).price_american_out_of_sample(put, snapshot, training_path_count=8192)
+            with pytest.raises(InvalidInputError):
+                seeded.price_american_out_of_sample(
+                    put, snapshot, training_path_count=0
+                )
+    assert math.sqrt(sum(errors) / len(errors)) < 0.055

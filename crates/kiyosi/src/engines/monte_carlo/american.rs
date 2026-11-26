@@ -456,13 +456,93 @@ impl MonteCarloVanillaEngine {
         0.08 * context.spot_price()
     }
 
+    /// Fits an American exercise rule and prices it on a separate set of paths.
+    ///
+    /// The configured path count applies to valuation; training uses the supplied
+    /// count and a separate seed derived from the engine seed. Valuation streams each
+    /// path until exercise without retaining the training matrix. Fitting error is
+    /// part of the estimator; check convergence in both training and valuation counts.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for an invalid training count or work limit,
+    /// and propagates applicability, validation, sampling and cancellation errors.
+    ///
+    /// # Panics
+    ///
+    /// Propagates panics after parallel sampling finishes.
+    pub fn price_american_out_of_sample(
+        &self,
+        option: &AmericanOption,
+        context: &PricingContext,
+        training_path_count: i32,
+    ) -> Result<f64> {
+        let mut training = *self;
+        training.settings.sampling.path_count = training_path_count;
+        training.settings.sampling.validate()?;
+        let intervals = self.settings.step_count.unsigned_abs();
+        let work =
+            u64::from(self.settings.sampling.path_count.unsigned_abs()) * u64::from(intervals);
+        if work > WORK_BUDGET as u64 {
+            return Err(Error::InvalidInput(
+                "American Monte Carlo valuation exceeds one billion path steps".into(),
+            ));
+        }
+        let valuation = self.with_resolved_seed()?;
+        let seed = valuation.settings.sampling.resolved_seed()?;
+        training.settings.sampling.seed = Some(seed ^ 0x9e37_79b9_7f4a_7c15);
+        let mut policy = Vec::new();
+        let (_, used_seed) = training.american_spots(option, [context], true, Some(&mut policy))?;
+        if used_seed.is_none() || policy.is_empty() {
+            return valuation.price(option, context);
+        }
+        let (rate, dividend) = crate::engines::flat_rates(context)?;
+        let sigma = context.natural_bsm_parameters()?.volatility();
+        let time = context.valuation_time().years_until(option.expiry_time());
+        let dt = time / f64::from(intervals);
+        let drift = (rate - dividend - 0.5 * sigma * sigma) * dt;
+        let diffusion = sigma * dt.sqrt();
+        let strike = option.strike();
+        let spot = context.spot_price();
+        let payoff = crate::engines::Payoff::vanilla(option.option_type(), strike, true);
+        let ([moments], _, _) = super::path_samples_skipping(
+            valuation.settings.sampling,
+            intervals as usize,
+            false,
+            |draws| {
+                let mut current = spot;
+                for (step, &[coefficients]) in (0..intervals).zip(&policy) {
+                    check_path_step(step as usize)?;
+                    evolve_spot(&mut current, diffusion.mul_add(draws.normal(), drift).exp())?;
+                    let intrinsic = payoff.value(current);
+                    if intrinsic > 0.0 {
+                        if let Some([constant, linear, quadratic]) = coefficients {
+                            let x = current / strike;
+                            let continuation = constant + x * (linear + x * quadratic);
+                            if !continuation.is_finite() {
+                                return Err(unstable());
+                            }
+                            if intrinsic / strike > continuation {
+                                let elapsed = dt * f64::from(step + 1);
+                                return Ok([scaled_value(1.0, intrinsic, -rate * elapsed)?]);
+                            }
+                        }
+                    }
+                }
+                evolve_spot(&mut current, diffusion.mul_add(draws.normal(), drift).exp())?;
+                Ok([scaled_value(1.0, payoff.value(current), -rate * time)?])
+            },
+        )?;
+        Ok(scaled_value(moments.scale, moments.mean, 0.0)?.max(payoff.value(spot)))
+    }
+
     fn american_price(
         &self,
         option: &AmericanOption,
         context: &PricingContext,
         terminal_only: bool,
     ) -> Result<(f64, Option<u64>)> {
-        let ([price], seed) = self.american_spots(option, [context], terminal_only)?;
+        let ([price], seed) = self.american_spots(option, [context], terminal_only, None)?;
         Ok((price, seed))
     }
 
@@ -476,6 +556,7 @@ impl MonteCarloVanillaEngine {
         option: &AmericanOption,
         contexts: [&PricingContext; N],
         terminal_only: bool,
+        mut policy: Option<&mut Vec<[Option<[f64; 3]>; N]>>,
     ) -> Result<([f64; N], Option<u64>)> {
         let context = contexts[0];
         let initial = contexts.map(PricingContext::spot_price);
@@ -776,6 +857,9 @@ impl MonteCarloVanillaEngine {
         } else {
             runner
         };
+        if let Some(policy) = policy.as_mut() {
+            policy.resize(intervals - 1, [None; N]);
+        }
         regression.install(|| {
             for step in (0..intervals - 1).rev() {
                 if step < window_start {
@@ -866,6 +950,9 @@ impl MonteCarloVanillaEngine {
                     matrix[2][0] = matrix[0][2];
                     matrix[2][1] = matrix[1][2];
                     *coefficient = Some(solve_quadratic(matrix).ok_or_else(unstable)?);
+                }
+                if let Some(policy) = policy.as_mut() {
+                    policy[step] = coefficients;
                 }
             }
             Ok(())
@@ -974,7 +1061,8 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
             };
             let up = shifted(spot + shift)?;
             let down = shifted(spot - shift)?;
-            let (prices, seed) = engine.american_spots(option, [context, &up, &down], true)?;
+            let (prices, seed) =
+                engine.american_spots(option, [context, &up, &down], true, None)?;
             Some((up, down, prices, seed))
         } else {
             None
@@ -1004,7 +1092,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
                 if let (Ok(up), Ok(down)) =
                     (shifted(volatility + shift), shifted(volatility - shift))
                 {
-                    match engine.american_spots(option, [context, &up, &down], true) {
+                    match engine.american_spots(option, [context, &up, &down], true, None) {
                         Ok((prices, seed)) => volatility_batch = Some((up, down, prices, seed)),
                         Err(error @ Error::Io(_)) => return Err(error),
                         Err(_) => {} // Preserve scalar validation and error ordering.
@@ -1099,7 +1187,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
                         PricingResult::new(*down)?.with_seed(*seed),
                     )));
                 }
-                let ([up, down], seed) = engine.american_spots(option, [high, low], true)?;
+                let ([up, down], seed) = engine.american_spots(option, [high, low], true, None)?;
                 Ok(Some((
                     PricingResult::new(up)?.with_seed(seed),
                     PricingResult::new(down)?.with_seed(seed),

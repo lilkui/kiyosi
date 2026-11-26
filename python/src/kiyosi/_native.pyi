@@ -4116,6 +4116,37 @@ class MonteCarloVanillaEngine(
             If representations, Greek names or keyword arguments are invalid.
         """
 
+    def price_american_out_of_sample(
+        self,
+        instrument: AmericanOption,
+        context: PricingContext,
+        *,
+        training_path_count: SupportsIndex,
+    ) -> float:
+        """Fit an American exercise rule and price it on separate paths.
+
+        Parameters
+        ----------
+        instrument : AmericanOption
+            American call or put.
+        context : PricingContext
+            Flat-rate calendar-time Black–Scholes–Merton snapshot.
+        training_path_count : int
+            Number of paths used to fit the exercise rule. Sobol requires a
+            power of two. The engine's path_count controls valuation paths.
+
+        Returns
+        -------
+        float
+            The estimated value of the fitted exercise strategy.
+
+        Notes
+        -----
+        The engine seed determines the separate training and valuation streams.
+        Accuracy depends on both path counts and the number of exercise dates.
+        Cancellation propagates without a partial price.
+        """
+
 class MonteCarloEstimate:
     """Monte Carlo price with optional sampling uncertainty.
 

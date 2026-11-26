@@ -362,7 +362,46 @@ sampling_settings!(
 sampling_settings!(
     MonteCarloVanillaEngine, binomial::VanillaInstrument<'_>, [step_count],
     [///
-    ]
+    ],
+    {
+        /// Fit an American exercise rule and price it on separate paths.
+        ///
+        /// Parameters
+        /// ----------
+        /// instrument : AmericanOption
+        ///     American call or put.
+        /// context : PricingContext
+        ///     Flat-rate calendar-time Black–Scholes–Merton snapshot.
+        /// training_path_count : int
+        ///     Number of paths used to fit the exercise rule. Sobol requires a
+        ///     power of two. The engine's path_count controls valuation paths.
+        ///
+        /// Returns
+        /// -------
+        /// float
+        ///     The estimated value of the fitted exercise strategy.
+        ///
+        /// Notes
+        /// -----
+        /// The engine seed determines the separate training and valuation streams.
+        /// Accuracy depends on both path counts and the number of exercise dates.
+        /// Cancellation propagates without a partial price.
+        #[pyo3(signature = (instrument, context, *, training_path_count))]
+        #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns the extracted instrument.")]
+        fn price_american_out_of_sample(
+            &self,
+            py: Python<'_>,
+            #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, crate::instruments::american::AmericanOption>,
+            context: &PricingContext,
+            #[pyo3(from_py_with = integer)] training_path_count: i32,
+        ) -> PyResult<f64> {
+            let option = &instrument.0;
+            let context = &context.0;
+            domain(crate::cancellation::run(py, || {
+                self.0.price_american_out_of_sample(option, context, training_path_count)
+            })?)
+        }
+    }
 );
 
 /// Monte Carlo price with optional sampling uncertainty.
