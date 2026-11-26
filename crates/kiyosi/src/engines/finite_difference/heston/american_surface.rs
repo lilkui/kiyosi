@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use rayon::prelude::*;
 
 use super::{
@@ -11,7 +13,8 @@ impl FiniteDifferenceHestonVanillaEngine {
     ///
     /// With flat rates and time-homogeneous dynamics, one rollback supplies each
     /// time to maturity. Fixed asset bounds use strike tiles on absolute meshes.
-    /// Other markets use independent expiry rollbacks, which can run in parallel.
+    /// Compatible dated curves with automatic bounds share factored operators in
+    /// expiry tiles. Other markets use independent expiry rollbacks.
     /// The longest maturity sets each shared mesh. Short tenors on fixed
     /// bounds can use individual meshes. Check convergence across the surface.
     /// See [`Self::price_american_strikes`] for the contract and market inputs.
@@ -71,9 +74,10 @@ impl FiniteDifferenceHestonVanillaEngine {
         let constant_variance = model.initial_variance() > 0.0
             && (model.mean_reversion_speed() == 0.0
                 || model.initial_variance().to_bits() == model.long_run_variance().to_bits());
+        let flat = model.risk_free_curve().exact_flat_rate().is_some()
+            && model.dividend_curve().exact_flat_rate().is_some();
         let homogeneous = live.len() >= 2
-            && model.risk_free_curve().exact_flat_rate().is_some()
-            && model.dividend_curve().exact_flat_rate().is_some()
+            && flat
             && (constant_variance
                 || (model.vol_of_vol() > 0.0
                     && (model.initial_variance() > 0.0
@@ -154,6 +158,14 @@ impl FiniteDifferenceHestonVanillaEngine {
                 )?);
                 rows
             }
+        } else if !flat
+            && self.settings.asset_upper_boundary.is_none()
+            && self.settings.asset_step_count >= 128
+            && model.vol_of_vol() > 0.0
+            && (model.initial_variance() > 0.0
+                || model.mean_reversion_speed() > 0.0 && model.long_run_variance() > 0.0)
+        {
+            self.dated_surface(template, context, live, strikes)?
         } else {
             self.expiry_rows(template, context, live, strikes)?
         };
@@ -178,6 +190,121 @@ impl FiniteDifferenceHestonVanillaEngine {
             })
             .collect()
     }
+    fn dated_surface(
+        &self,
+        template: &AmericanOption,
+        context: &PricingContext,
+        live: &[Timestamp],
+        strikes: &[f64],
+    ) -> Result<Vec<Vec<f64>>> {
+        let model = context.model_parameters().as_heston()?;
+        let spot = context.spot_price();
+        let valuation = context.valuation_time();
+        let mut low = f64::INFINITY;
+        let mut high = 0.0_f64;
+        let mut queries = Vec::with_capacity(strikes.len());
+        for &strike in strikes {
+            crate::cancellation::check()?;
+            let ratio = spot / strike;
+            let normalized = spot * ratio;
+            if !normalized.is_normal() || !ratio.is_normal() || !ratio.recip().is_normal() {
+                return self.expiry_rows(template, context, live, strikes);
+            }
+            low = low.min(normalized);
+            high = high.max(normalized);
+            queries.push((normalized, ratio));
+        }
+        let anchor = super::super::solution::at_spot(context, high)?;
+        let first = live.partition_point(|&expiry| {
+            integrated_variance(model, valuation.years_until(expiry)).sqrt() < 0.04
+        });
+        if live.len() - first < 2 {
+            return self.expiry_rows(template, context, live, strikes);
+        }
+        let settings = self.settings;
+        let assets = u64::from(settings.asset_step_count.unsigned_abs()) + 1;
+        let variances = u64::from(settings.variance_step_count.unsigned_abs()) + 1;
+        let knots: u64 = [model.risk_free_curve(), model.dividend_curve()]
+            .iter()
+            .map(|curve| curve.nodes().len() as u64)
+            .sum();
+        let bytes = assets
+            .saturating_mul(variances + 8)
+            .saturating_mul(320)
+            .saturating_add(
+                (u64::from(settings.time_step_count.unsigned_abs()) + knots).saturating_mul(256),
+            )
+            .saturating_add(64 << 20);
+        let pool = rollback_pool();
+        if pool.is_some_and(|(_, workers)| live.len() - first < 2 * workers) {
+            return self.expiry_rows(template, context, live, strikes);
+        }
+        let parallel = pool.filter(|(_, workers)| bytes <= WORKSPACE_BUDGET / *workers as u64);
+        let mut rows = self.expiry_rows(template, context, &live[..first], strikes)?;
+        let queries: Arc<[(f64, f64)]> = queries.into();
+        let mut jobs = Vec::new();
+        let mut remaining = &live[first..];
+        while let Some(&first) = remaining.first() {
+            crate::cancellation::check()?;
+            let maturity = valuation.years_until(first);
+            let count = remaining
+                .partition_point(|&expiry| 0.5 * valuation.years_until(expiry) <= maturity)
+                .clamp(1, 2);
+            let (tile, tail) = remaining.split_at(count);
+            remaining = tail;
+            jobs.push(tile);
+        }
+        let solve = |tile: &[Timestamp]| {
+            if tile.len() == 1 {
+                return self.expiry_rows(template, context, tile, strikes);
+            }
+            let option = template.replace(crate::AmericanOptionChanges {
+                expiry_time: tile.last().copied(),
+                ..Default::default()
+            })?;
+            let mut surface = AmericanSurface {
+                times: tile
+                    .iter()
+                    .map(|&expiry| valuation.years_until(expiry))
+                    .collect(),
+                queries: SurfaceQueries::Dated(Arc::clone(&queries)),
+                rows: Vec::with_capacity(tile.len()),
+            };
+            let payoff = Payoff::vanilla(template.option_type(), spot, true);
+            let batch = prepare_batch(
+                &option,
+                &anchor,
+                payoff,
+                self.settings,
+                low,
+                &[spot],
+                &[],
+                Some(&mut surface),
+            );
+            match batch {
+                Ok(_) if surface.rows.len() == tile.len() => Ok(surface.rows),
+                Err(error @ crate::Error::Io(_)) => Err(error),
+                _ => self.expiry_rows(template, context, tile, strikes),
+            }
+        };
+        if let Some((pool, _)) = parallel {
+            let tokens = crate::cancellation::current();
+            let batches: Vec<_> = pool.install(|| {
+                jobs.par_iter()
+                    .map(|tile| crate::cancellation::with_tokens(tokens.clone(), || solve(tile)))
+                    .collect()
+            });
+            for batch in batches {
+                rows.extend(batch?);
+            }
+        } else {
+            for tile in jobs {
+                rows.extend(solve(tile)?);
+            }
+        }
+        Ok(rows)
+    }
+
     fn fixed_surface(
         &self,
         template: &AmericanOption,
@@ -323,6 +450,7 @@ pub(super) struct AmericanSurface {
 
 enum SurfaceQueries {
     Normalized(Vec<(f64, f64)>),
+    Dated(Arc<[(f64, f64)]>),
     Fixed { spot: f64, count: usize },
 }
 
@@ -330,6 +458,7 @@ impl AmericanSurface {
     pub(super) fn bytes(&self) -> u64 {
         let quotes = match &self.queries {
             SurfaceQueries::Normalized(queries) => queries.len() as u64,
+            SurfaceQueries::Dated(queries) => queries.len() as u64,
             SurfaceQueries::Fixed { count, .. } => *count as u64,
         };
         self.times.len() as u64 * (64 + 8 * quotes) + 16 * quotes
@@ -338,13 +467,21 @@ impl AmericanSurface {
     pub(super) fn work(&self, assets: u64) -> u64 {
         let work = match &self.queries {
             SurfaceQueries::Normalized(queries) => assets + queries.len() as u64,
+            SurfaceQueries::Dated(queries) => assets + queries.len() as u64,
             SurfaceQueries::Fixed { count, .. } => assets * *count as u64,
         };
         self.times.len() as u64 * work
     }
 
+    pub(super) fn maturities(&self) -> Option<&[f64]> {
+        matches!(self.queries, SurfaceQueries::Dated(_)).then_some(&self.times)
+    }
+
     pub(super) fn extend_grid(&self, events: &mut Vec<f64>, end: f64) {
         events.extend_from_slice(&self.times);
+        if self.maturities().is_some() {
+            return;
+        }
         let short = end - self.times[0];
         if short >= 24.0 / 31_536_000_000_000.0 {
             // Resolve the startup payoff kink even when the first tenor is short.
@@ -360,6 +497,26 @@ impl AmericanSurface {
         payoffs: &[Payoff],
         scale: f64,
     ) -> Result<()> {
+        let normalized_row = |spline: &Spline, payoff: Payoff, queries: &[(f64, f64)]| {
+            queries
+                .iter()
+                .map(|&(spot, ratio)| {
+                    crate::cancellation::check()?;
+                    crate::numerics::checked(
+                        grid_price(asset, spline, payoff, scale, spot)? / ratio,
+                    )
+                })
+                .collect::<Result<Vec<_>>>()
+        };
+        if let SurfaceQueries::Dated(queries) = &self.queries {
+            if time == 0.0 {
+                for (lane, &payoff) in payoffs.iter().enumerate() {
+                    self.rows
+                        .push(normalized_row(&spline(lane), payoff, queries)?);
+                }
+            }
+            return Ok(());
+        }
         if self
             .times
             .get(self.rows.len())
@@ -367,18 +524,9 @@ impl AmericanSurface {
         {
             let row = match &self.queries {
                 SurfaceQueries::Normalized(queries) => {
-                    let spline = spline(0);
-                    let payoff = payoffs[0];
-                    queries
-                        .iter()
-                        .map(|&(spot, ratio)| {
-                            crate::cancellation::check()?;
-                            crate::numerics::checked(
-                                grid_price(asset, &spline, payoff, scale, spot)? / ratio,
-                            )
-                        })
-                        .collect::<Result<_>>()?
+                    normalized_row(&spline(0), payoffs[0], queries)?
                 }
+                SurfaceQueries::Dated(_) => unreachable!("dated surfaces are sampled at valuation"),
                 SurfaceQueries::Fixed { spot, .. } => payoffs
                     .iter()
                     .enumerate()

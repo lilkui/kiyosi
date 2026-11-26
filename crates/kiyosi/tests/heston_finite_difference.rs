@@ -810,3 +810,45 @@ fn dense_european_surface_fits_the_indexed_payoff_work_budget() -> kiyosi::Resul
     }
     Ok(())
 }
+
+#[test]
+fn dated_american_expiry_tiles_match_independent_strips() -> kiyosi::Result<()> {
+    let (start, end) = dates();
+    let mut terms = context(0.3, -0.7).model_parameters().as_heston()?.clone();
+    let curve = RateTermStructure::new(start, vec![start.add_days(150)?, end], vec![0.98, 0.945])?;
+    terms = terms.replace(kiyosi::HestonParameterChanges {
+        risk_free_rate: Some(curve.into()),
+        ..Default::default()
+    })?;
+    let market = PricingContext::new(terms, 100.0, start)?;
+    let template = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let engine = FiniteDifferenceHestonVanillaEngine::default();
+    let strikes = [110.0, 90.0, 100.0, 90.0];
+    let expiries = [
+        end,
+        start.add_days(280)?,
+        start.add_days(290)?,
+        start.add_days(300)?,
+        start.add_days(310)?,
+        start.add_days(320)?,
+        start.add_days(330)?,
+        start.add_days(340)?,
+        end,
+    ];
+    let rows = engine.price_american_surface(&template, &market, &expiries, &strikes)?;
+    assert_eq!(rows[0], rows[8]);
+    for (&expiry, row) in expiries.iter().zip(rows) {
+        assert_eq!(row[1].to_bits(), row[3].to_bits());
+        let option = AmericanOption::new(OptionType::Put, 100.0, start, expiry)?;
+        for (value, reference) in row
+            .into_iter()
+            .zip(engine.price_american_strikes(&option, &market, &strikes)?)
+        {
+            assert!(
+                (value - reference).abs() < 0.003,
+                "{expiry:?}: {value} vs {reference}"
+            );
+        }
+    }
+    Ok(())
+}

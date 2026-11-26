@@ -717,3 +717,32 @@ def test_fixed_american_batch_with_partial_strike_tile_matches_scalar_prices():
         abs=0.002,
         rel=0,
     )
+
+
+def test_dated_american_expiry_tiles_match_independent_strips():
+    curve = RateTermStructure(
+        reference_time=START,
+        times=[START + timedelta(days=150), END],
+        factors=[0.98, 0.945],
+    )
+    market = context(model(risk_free_rate=curve))
+    put = AmericanOption(
+        option_type="put", strike=100, effective_time=START, expiry_time=END
+    )
+    engine = FiniteDifferenceHestonVanillaEngine()
+    strikes = (110, 90, 100, 90)
+    expiries = (
+        END,
+        *(START + timedelta(days=days) for days in range(280, 341, 10)),
+        END,
+    )
+    rows = engine.price_american_surface(
+        put, market, expiries=expiries, strikes=strikes
+    )
+    assert rows[0] == rows[-1]
+    for expiry, row in zip(expiries, rows, strict=True):
+        assert row[1] == row[3]
+        expected = engine.price_strikes(
+            put.replace(expiry_time=expiry), market, strikes=strikes
+        )
+        assert row == pytest.approx(expected, abs=0.003, rel=0)

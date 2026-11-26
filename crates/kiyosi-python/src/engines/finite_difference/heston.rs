@@ -263,8 +263,8 @@ engine_methods!(
         /// -----
         /// Compatible flat-rate markets share a rollback through the requested
         /// tenors. Fixed bounds use strike tiles, with individual meshes for
-        /// short tenors. Other markets use independent expiry rollbacks, which
-        /// can run in parallel. Check convergence across the surface.
+        /// short tenors. Compatible dated curves with automatic bounds share
+        /// factored operators in expiry tiles. Check convergence across the surface.
         /// Cancellation returns no partial result.
         #[pyo3(signature = (instrument, context, *, expiries, strikes))]
         #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns the extracted inputs before core pricing.")]

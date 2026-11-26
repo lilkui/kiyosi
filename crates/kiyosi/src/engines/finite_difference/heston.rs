@@ -801,7 +801,10 @@ fn prepare_batch(
         && [model.risk_free_curve(), model.dividend_curve()]
             .iter()
             .any(|curve| curve.calendar_quote().is_some());
-    let time_grid = if calendar_curve {
+    let dated_tile = exercise_surface
+        .as_ref()
+        .is_some_and(|surface| surface.maturities().is_some());
+    let time_grid = if calendar_curve || dated_tile {
         TimeGrid::aligned
     } else {
         TimeGrid::with_events
@@ -1007,6 +1010,16 @@ fn rollback_primal<const N: usize>(
     let length = nx * op.rows;
     let time = *times.times.last().expect("the time grid includes expiry");
     let american = payoffs[0].is_american();
+    let dated = exercise_surface
+        .as_ref()
+        .and_then(|surface| surface.maturities());
+    let maturities: [f64; N] = std::array::from_fn(|lane| {
+        dated
+            .and_then(|dates| dates.get(lane).copied())
+            .unwrap_or(time)
+    });
+    let dated = dated.is_some();
+    let mut active = maturities.map(|maturity| maturity.to_bits() == time.to_bits());
     // Contiguous payoff lanes share each spatial stencil and directional factor.
     let terminal: Vec<[f64; N]> = (0..nx)
         .map(|i| {
@@ -1021,13 +1034,27 @@ fn rollback_primal<const N: usize>(
     for row in values.chunks_exact_mut(nx) {
         crate::cancellation::check()?;
         row.copy_from_slice(&terminal);
+        if dated {
+            for cell in row {
+                for (value, &active) in cell.iter_mut().zip(&active) {
+                    if !active {
+                        *value = 0.0;
+                    }
+                }
+            }
+        }
     }
-    drop(terminal);
-    let intrinsic: Vec<[f64; N]> = asset
+    let terminal = dated.then_some(terminal);
+    let mut intrinsic: Vec<[f64; N]> = asset
         .spots
         .iter()
         .map(|&s| {
-            std::array::from_fn(|lane| payoffs.get(lane).map_or(0.0, |payoff| payoff.value(s)))
+            std::array::from_fn(|lane| {
+                payoffs
+                    .get(lane)
+                    .filter(|_| active[lane])
+                    .map_or(0.0, |payoff| payoff.value(s))
+            })
         })
         .collect();
     let mut multiplier = if american {
@@ -1039,9 +1066,16 @@ fn rollback_primal<const N: usize>(
     let mut stage = vec![[0.0; N]; length];
     let mut boundaries = payoffs
         .iter()
-        .map(|&payoff| {
+        .zip(maturities)
+        .map(|(&payoff, maturity)| {
             crate::cancellation::check()?;
-            ExerciseBoundaries::new(payoff, bounds, time, [risk, dividend], times.widths.len())
+            ExerciseBoundaries::new(
+                payoff,
+                bounds,
+                maturity,
+                [risk, dividend],
+                times.widths.len(),
+            )
         })
         .collect::<Result<Vec<_>>>()?;
 
@@ -1070,7 +1104,24 @@ fn rollback_primal<const N: usize>(
         for (step, &dt) in times.widths.iter().enumerate().rev() {
             crate::cancellation::check()?;
             let a = times.times[step];
-            let middle = a.midpoint(times.times[step + 1]);
+            let later = times.times[step + 1];
+            if let Some(terminal) = &terminal {
+                for (lane, &payoff) in payoffs.iter().enumerate() {
+                    if !active[lane] && maturities[lane].to_bits() == later.to_bits() {
+                        active[lane] = true;
+                        for (i, &spot) in asset.spots.iter().enumerate() {
+                            intrinsic[i][lane] = payoff.value(spot);
+                        }
+                        for row in values.chunks_exact_mut(nx) {
+                            crate::cancellation::check()?;
+                            for (cell, payoff) in row.iter_mut().zip(terminal) {
+                                cell[lane] = payoff[lane];
+                            }
+                        }
+                    }
+                }
+            }
+            let middle = a.midpoint(later);
             let rate = risk.rate(middle);
             let q = dividend.rate(middle);
             let var = if op.rows == 1 {
@@ -1081,6 +1132,9 @@ fn rollback_primal<const N: usize>(
             op.prepare(asset, [var, rate, q, dt / 3.0], operator_workers.as_ref())?;
             let mut edges = [[0.0; N]; 2];
             for (lane, boundary) in boundaries.iter_mut().enumerate() {
+                if !active[lane] {
+                    continue;
+                }
                 let [left, right] = boundary.at(a)?;
                 if !left.is_finite() || !right.is_finite() {
                     return Err(unstable());
@@ -1140,6 +1194,9 @@ fn rollback_primal<const N: usize>(
                 )?;
             }
         }
+        if dated && active[..payoffs.len()].iter().any(|&active| !active) {
+            return Err(unstable());
+        }
         Ok(())
     };
     if let Some((pool, _)) = pool {
@@ -1151,6 +1208,9 @@ fn rollback_primal<const N: usize>(
     let row = &values[valuation_row * nx..][..nx];
     let spline = |lane: usize| asset.spline(row.iter().map(|value| value[lane]).collect());
     let first = spline(0);
+    if dated {
+        return Ok((first, Vec::new()));
+    }
     let prices = payoffs
         .iter()
         .enumerate()
