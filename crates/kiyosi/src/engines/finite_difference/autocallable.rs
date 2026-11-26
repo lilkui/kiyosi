@@ -296,6 +296,13 @@ fn solve_grid<T: AutocallableTerms, D: Diffusion>(
     })
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RollbackLayer {
+    Joint,
+    Cash,
+    Exposure,
+}
+
 #[expect(
     clippy::cast_precision_loss,
     reason = "Validated grid step counts fit exactly in f64."
@@ -333,6 +340,33 @@ fn solve_layers<T: AutocallableTerms, D: Diffusion, const N: usize>(
                 .map(|time| context.valuation_time().years_until(time)),
         );
     }
+    let cash_grid = if layered
+        && !D::LOCAL
+        && settings.scheme != FiniteDifferenceScheme::ExplicitEuler
+        && trading.len() > observations.len() + 2
+        && validate_workspace(
+            settings.scheme,
+            (u64::from(settings.asset_step_count.unsigned_abs()) + 1) * N as u64,
+            2 * u64::from(settings.time_step_count.unsigned_abs())
+                + trading.len() as u64
+                + 2 * (observations.len() + risk.ends().len() + dividend.ends().len()) as u64
+                + 64,
+            risk.workspace_bytes() + dividend.workspace_bytes(),
+        )
+        .is_ok()
+    {
+        Some(diffusion::time_grid(
+            context,
+            expiry,
+            settings,
+            &risk,
+            &dividend,
+            &observations,
+        )?)
+    } else {
+        None
+    };
+    let cash_observations = cash_grid.as_ref().map(|_| observations.clone());
     observations.extend_from_slice(&trading);
     observations.sort_unstable_by(f64::total_cmp);
     diffusion::validate_event_resolution(context.valuation_time(), expiry, &event_times)?;
@@ -341,7 +375,45 @@ fn solve_layers<T: AutocallableTerms, D: Diffusion, const N: usize>(
     } else {
         diffusion::time_grid
     };
-    let mut grid = time_grid(context, expiry, settings, &risk, &dividend, &observations)?;
+    let mut exposure_settings = settings;
+    if let Some(cash_grid) = &cash_grid {
+        if settings.scheme == FiniteDifferenceScheme::Rannacher {
+            // Spend a fraction of the common leg's saved damping steps on
+            // resolving the exposure, whose daily jumps drive spot gamma.
+            let extra = i32::try_from(trading.len() / 2)
+                .unwrap_or(i32::MAX)
+                .min(settings.time_step_count / 8);
+            let refined = settings.time_step_count.saturating_add(extra);
+            let upper_steps = u64::from(refined.unsigned_abs())
+                + cash_grid.widths.len() as u64
+                + 3 * observations.len() as u64
+                + 2 * (risk.ends().len() + dividend.ends().len()) as u64
+                + 128;
+            if validate_work(
+                u64::from(settings.asset_step_count.unsigned_abs()) * N as u64,
+                upper_steps,
+            )
+            .is_ok()
+                && validate_workspace(
+                    settings.scheme,
+                    (u64::from(settings.asset_step_count.unsigned_abs()) + 1) * N as u64,
+                    upper_steps,
+                    risk.workspace_bytes() + dividend.workspace_bytes(),
+                )
+                .is_ok()
+            {
+                exposure_settings.time_step_count = refined;
+            }
+        }
+    }
+    let mut grid = time_grid(
+        context,
+        expiry,
+        exposure_settings,
+        &risk,
+        &dividend,
+        &observations,
+    )?;
     let mut nearest = observations
         .iter()
         .copied()
@@ -382,16 +454,23 @@ fn solve_layers<T: AutocallableTerms, D: Diffusion, const N: usize>(
         widths.extend_from_slice(&grid.widths[intervals..]);
         grid = TimeGrid { times, widths };
     }
-    let layers = 1 + usize::from(layered);
+    let daily_steps = grid.rollback_steps(settings.scheme, &observations)?;
+    let rollback_steps = if let Some((cash_grid, cash_observations)) =
+        cash_grid.as_ref().zip(cash_observations.as_deref())
+    {
+        daily_steps.saturating_add(cash_grid.rollback_steps(settings.scheme, cash_observations)?)
+    } else {
+        daily_steps * (1 + u64::from(layered))
+    };
     validate_work(
-        u64::from(settings.asset_step_count.unsigned_abs()) * layers as u64 * N as u64,
-        grid.rollback_steps(settings.scheme, &observations)?,
+        u64::from(settings.asset_step_count.unsigned_abs()) * N as u64,
+        rollback_steps,
     )?;
-    if N > 1 {
+    if N > 1 || cash_grid.is_some() {
         validate_workspace(
             settings.scheme,
             (u64::from(settings.asset_step_count.unsigned_abs()) + 1) * N as u64,
-            grid.widths.len() as u64,
+            (grid.widths.len() + cash_grid.as_ref().map_or(0, |grid| grid.widths.len())) as u64,
             risk.workspace_bytes() + dividend.workspace_bytes(),
         )?;
     }
@@ -496,103 +575,169 @@ fn solve_layers<T: AutocallableTerms, D: Diffusion, const N: usize>(
                     },
                 ]
             });
-            alive[i] = value[0];
+            alive[i] = if cash_grid.is_some() {
+                value[0] - value[1]
+            } else {
+                value[0]
+            };
             if layered {
                 knocked[i] = value[1];
             }
         }
     }
+    let first = if cash_grid.is_some() {
+        RollbackLayer::Exposure
+    } else {
+        RollbackLayer::Joint
+    };
+    let passes = [
+        Some((&grid, first)),
+        cash_grid.as_ref().map(|g| (g, RollbackLayer::Cash)),
+    ];
     let mut stepper = diffusion.stepper(space.count);
-    let mut damping: u32 = 2;
-    for step in (0..grid.widths.len()).rev() {
-        crate::cancellation::check()?;
-        for (current, dt, weight) in grid.substeps(step, settings.scheme, &mut damping) {
-            let middle = current + 0.5 * dt;
-            let rate = risk.rate(middle);
-            let q = dividend.rate(middle);
-            let key = [dt, weight, rate, q];
-            let discount = (-rate * dt).exp();
-            let dividend_discount = (-q * dt).exp();
-            let mut old: [[&[f64]; 2]; N] = [[&[]; 2]; N];
-            let mut outputs: [[&mut [f64]; 2]; N] =
-                std::array::from_fn(|_| std::array::from_fn(|_| &mut [] as &mut [f64]));
-            let mut edges = [[[0.0; 2]; 2]; N];
-            let mut count = 0;
-            for (value, output) in values.iter().flatten().zip(next.iter_mut().flatten()) {
-                if !value.is_empty() {
-                    old.as_flattened_mut()[count] = value;
-                    outputs.as_flattened_mut()[count] = output;
-                    edges.as_flattened_mut()[count] =
-                        space.discount_affine_edges(value, discount, dividend_discount);
-                    count += 1;
-                }
-            }
-            diffusion.advance_batch(
-                &mut stepper,
-                &old.as_flattened()[..count],
-                &mut outputs.as_flattened_mut()[..count],
-                &space,
-                middle,
-                key,
-                &edges.as_flattened()[..count],
-            )?;
-            std::mem::swap(&mut values, &mut next);
-        }
-        let time = grid.times[step];
-        let record = event(note, time, context).filter(|_| time > 0.0);
-        let ki = layered && trading.binary_search_by(|v| v.total_cmp(&time)).is_ok();
-        if record.is_some() || ki {
-            breaks.clear();
-            if let Some(ki) = t.knock_in.filter(|_| ki) {
-                breaks.push(ki.level);
-            }
-            if let Some(r) = record {
-                if r.has_knock_out() {
-                    breaks.push(r.knock_out_level());
-                }
-                breaks.push(r.coupon_barrier_level().unwrap_or(0.0));
-            }
-            for ((note, [alive, knocked]), [next_alive, next_knocked]) in
-                notes.into_iter().zip(&values).zip(&mut next)
-            {
-                let record = event(note, time, context).filter(|_| time > 0.0);
-                // Project only the jump correction, leaving smooth daily continuation unchanged.
-                for i in 0..size {
-                    let correction = project_grid_node(&space, &breaks, i, |asset, node| {
-                        let value = |layer: &[f64]| {
-                            node.map_or_else(|| space.linear(layer, asset), |index| layer[index])
-                        };
-                        let a = value(alive);
-                        let k = if layered { value(knocked) } else { 0.0 };
-                        let coupon = record
-                            .map_or(0.0, |r| note.observation_coupon(r, |level| asset >= level));
-                        if let Some(r) =
-                            record.filter(|r| r.has_knock_out() && asset >= r.knock_out_level())
-                        {
-                            let payment = note.knock_out_payment(r) + coupon;
-                            [payment - a, payment - k]
-                        } else {
-                            [
-                                (if ki && t.below_knock_in(asset) {
-                                    k - a
-                                } else {
-                                    0.0
-                                }) + coupon,
-                                coupon,
-                            ]
-                        }
-                    });
-                    next_alive[i] = alive[i] + correction[0];
-                    if layered {
-                        next_knocked[i] = knocked[i] + correction[1];
+    for (grid, layer) in passes.into_iter().flatten() {
+        let split = layer != RollbackLayer::Joint;
+        let cash = layer == RollbackLayer::Cash;
+        let mut damping: u32 = 2;
+        for step in (0..grid.widths.len()).rev() {
+            crate::cancellation::check()?;
+            for (current, dt, weight) in grid.substeps(step, settings.scheme, &mut damping) {
+                let middle = current + 0.5 * dt;
+                let rate = risk.rate(middle);
+                let q = dividend.rate(middle);
+                let key = [dt, weight, rate, q];
+                let discount = (-rate * dt).exp();
+                let dividend_discount = (-q * dt).exp();
+                let mut old: [[&[f64]; 2]; N] = [[&[]; 2]; N];
+                let mut outputs: [[&mut [f64]; 2]; N] =
+                    std::array::from_fn(|_| std::array::from_fn(|_| &mut [] as &mut [f64]));
+                let mut edges = [[[0.0; 2]; 2]; N];
+                let mut count = 0;
+                for (i, (value, output)) in values
+                    .iter()
+                    .flatten()
+                    .zip(next.iter_mut().flatten())
+                    .enumerate()
+                {
+                    if !value.is_empty() && (!split || (i % 2 == 1) == cash) {
+                        old.as_flattened_mut()[count] = value;
+                        outputs.as_flattened_mut()[count] = output;
+                        edges.as_flattened_mut()[count] =
+                            space.discount_affine_edges(value, discount, dividend_discount);
+                        count += 1;
                     }
                 }
+                diffusion.advance_batch(
+                    &mut stepper,
+                    &old.as_flattened()[..count],
+                    &mut outputs.as_flattened_mut()[..count],
+                    &space,
+                    middle,
+                    key,
+                    &edges.as_flattened()[..count],
+                )?;
+                swap_layers(&mut values, &mut next, layer);
             }
-            std::mem::swap(&mut values, &mut next);
-            damping = 2;
+            let time = grid.times[step];
+            let record = event(note, time, context)
+                .filter(|r| time > 0.0 && (layer != RollbackLayer::Exposure || r.has_knock_out()));
+            let ki = !cash && layered && trading.binary_search_by(|v| v.total_cmp(&time)).is_ok();
+            if record.is_some() || ki {
+                breaks.clear();
+                if let Some(ki) = t.knock_in.filter(|_| ki) {
+                    breaks.push(ki.level);
+                }
+                if let Some(r) = record {
+                    if r.has_knock_out() {
+                        breaks.push(r.knock_out_level());
+                    }
+                    breaks.push(r.coupon_barrier_level().unwrap_or(0.0));
+                }
+                for ((note, [alive, knocked]), [next_alive, next_knocked]) in
+                    notes.into_iter().zip(&values).zip(&mut next)
+                {
+                    let record = event(note, time, context).filter(|_| time > 0.0);
+                    // Project only the jump correction, leaving smooth daily continuation unchanged.
+                    for i in 0..size {
+                        let correction = project_grid_node(&space, &breaks, i, |asset, node| {
+                            let value = |layer: &[f64]| {
+                                node.map_or_else(
+                                    || space.linear(layer, asset),
+                                    |index| layer[index],
+                                )
+                            };
+                            let a = if cash { 0.0 } else { value(alive) };
+                            let k = if layered && layer != RollbackLayer::Exposure {
+                                value(knocked)
+                            } else {
+                                0.0
+                            };
+                            let hit = record
+                                .filter(|r| r.has_knock_out() && asset >= r.knock_out_level());
+                            if layer == RollbackLayer::Exposure {
+                                return [
+                                    if hit.is_some() || (ki && t.below_knock_in(asset)) {
+                                        -a
+                                    } else {
+                                        0.0
+                                    },
+                                    0.0,
+                                ];
+                            }
+                            let coupon = record.map_or(0.0, |r| {
+                                note.observation_coupon(r, |level| asset >= level)
+                            });
+                            if let Some(r) = hit {
+                                let payment = note.knock_out_payment(r) + coupon;
+                                [payment - a, payment - k]
+                            } else {
+                                [
+                                    (if ki && t.below_knock_in(asset) {
+                                        k - a
+                                    } else {
+                                        0.0
+                                    }) + coupon,
+                                    coupon,
+                                ]
+                            }
+                        });
+                        if !cash {
+                            next_alive[i] = alive[i] + correction[0];
+                        }
+                        if layered && layer != RollbackLayer::Exposure {
+                            next_knocked[i] = knocked[i] + correction[1];
+                        }
+                    }
+                }
+                swap_layers(&mut values, &mut next, layer);
+                damping = 2;
+            }
+        }
+    }
+    if cash_grid.is_some() {
+        for [alive, knocked] in &mut values {
+            for (value, &cash) in alive.iter_mut().zip(knocked.iter()) {
+                *value += cash;
+            }
         }
     }
     Ok((space, values))
+}
+
+fn swap_layers<const N: usize>(
+    values: &mut [[Vec<f64>; 2]; N],
+    next: &mut [[Vec<f64>; 2]; N],
+    layer: RollbackLayer,
+) {
+    match layer {
+        RollbackLayer::Joint => std::mem::swap(values, next),
+        RollbackLayer::Exposure | RollbackLayer::Cash => {
+            let index = usize::from(layer == RollbackLayer::Cash);
+            for (value, next) in values.iter_mut().zip(next) {
+                std::mem::swap(&mut value[index], &mut next[index]);
+            }
+        }
+    }
 }
 
 #[derive(PartialEq)]
