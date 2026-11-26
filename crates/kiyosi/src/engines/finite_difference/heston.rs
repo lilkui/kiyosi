@@ -1611,6 +1611,7 @@ impl AssetWorkers {
 // Asset lines in a tile are independent, so the recurrence advances their
 // four variance lanes together while the rest of the grid stays row-major.
 const ASSET_LANES: usize = 4;
+const VARIANCE_STRIP_BYTES: usize = 256 << 10;
 type AssetFactor = [[f64; ASSET_LANES]; 3];
 
 struct Operator {
@@ -2282,13 +2283,24 @@ impl Operator {
         let tile_width = ASSET_LANES * nx;
         let factor_count = rows.div_ceil(ASSET_LANES) * nx;
         let factor_rows = &self.matrices.asset_factors[..factor_count];
+        // Large grids amortize computing a reciprocal once and reusing it
+        // across a packed row. Use the same arithmetic for single payoffs on
+        // that grid so independent and batched solves agree exactly.
+        let reciprocals = active >= 128_000;
         let solve_rows = |values: &mut [[f64; N]], factors: &[AssetFactor]| {
             for (tile, factors) in values.chunks_mut(tile_width).zip(factors.chunks_exact(nx)) {
                 crate::cancellation::check()?;
                 if N == 1 {
-                    solve_asset_tile(tile.as_flattened_mut(), factors, [edges[0][0], edges[1][0]])?;
+                    let edges = [edges[0][0], edges[1][0]];
+                    if reciprocals {
+                        solve_asset_tile::<true>(tile.as_flattened_mut(), factors, edges)?;
+                    } else {
+                        solve_asset_tile::<false>(tile.as_flattened_mut(), factors, edges)?;
+                    }
+                } else if reciprocals {
+                    solve_packed_asset_tile::<N, true>(tile, factors, edges)?;
                 } else {
-                    solve_packed_asset_tile(tile, factors, edges)?;
+                    solve_packed_asset_tile::<N, false>(tile, factors, edges)?;
                 }
             }
             Ok(())
@@ -2305,8 +2317,22 @@ impl Operator {
             solve_rows(&mut values[..active], factor_rows)?;
         }
 
+        let factors = &self.matrices.variance_factors;
+        // Process complete variance lines in blocks that fit in a worker's cache.
+        // The spot sweep uses the same row-major workspace.
+        let columns = (VARIANCE_STRIP_BYTES / (self.rows * size_of::<[f64; N]>()))
+            .max(8)
+            .next_multiple_of(8);
         self.variance_strips(values, workers, |strip| {
-            solve_variance_strip(strip, &self.matrices.variance_factors, rows)
+            let width = strip[0].len();
+            if width <= columns {
+                return solve_variance_strip::<N, false>(strip, factors, rows, 0..width);
+            }
+            for first in (0..width).step_by(columns) {
+                let range = first..(first + columns).min(width);
+                solve_variance_strip::<N, true>(strip, factors, rows, range)?;
+            }
+            Ok(())
         })?;
         self.boundaries(values, edges);
         Ok(())
@@ -2397,7 +2423,11 @@ fn transpose_variance_strip(strip: &mut [&mut [f64]], factors: &[[f64; 3]]) -> R
     Ok(())
 }
 
-fn solve_asset_tile(tile: &mut [f64], factors: &[AssetFactor], edges: [f64; 2]) -> Result<()> {
+fn solve_asset_tile<const RECIPROCALS: bool>(
+    tile: &mut [f64],
+    factors: &[AssetFactor],
+    edges: [f64; 2],
+) -> Result<()> {
     let nx = factors.len();
     let mut rows = tile.chunks_exact_mut(nx);
     let mut rows: [&mut [f64]; ASSET_LANES] =
@@ -2422,8 +2452,14 @@ fn solve_asset_tile(tile: &mut [f64], factors: &[AssetFactor], edges: [f64; 2]) 
         for (value, row) in rhs.iter_mut().zip(&rows[..lanes]) {
             *value = row[i];
         }
-        let values: [f64; ASSET_LANES] =
-            std::array::from_fn(|lane| (rhs[lane] - uppers[lane] * next[lane]) / diagonals[lane]);
+        let values: [f64; ASSET_LANES] = std::array::from_fn(|lane| {
+            let value = rhs[lane] - uppers[lane] * next[lane];
+            if RECIPROCALS {
+                divide_spot_pivot(value, diagonals[lane])
+            } else {
+                value / diagonals[lane]
+            }
+        });
         for (row, value) in rows[..lanes].iter_mut().zip(values) {
             row[i] = value;
         }
@@ -2439,7 +2475,16 @@ fn solve_asset_tile(tile: &mut [f64], factors: &[AssetFactor], edges: [f64; 2]) 
     Ok(())
 }
 
-fn solve_packed_asset_tile<const N: usize>(
+fn divide_spot_pivot(value: f64, diagonal: f64) -> f64 {
+    let inverse = diagonal.recip();
+    if inverse.is_normal() {
+        value * inverse
+    } else {
+        value / diagonal
+    }
+}
+
+fn solve_packed_asset_tile<const N: usize, const RECIPROCALS: bool>(
     tile: &mut [[f64; N]],
     factors: &[AssetFactor],
     [left, right]: [[f64; N]; 2],
@@ -2459,8 +2504,20 @@ fn solve_packed_asset_tile<const N: usize>(
         }
         let mut next = right;
         for (cell, [_, diagonal, upper]) in interior.iter_mut().zip(factors).rev() {
-            for (value, next) in cell.iter_mut().zip(next) {
-                *value = (*value - upper[variance] * next) / diagonal[variance];
+            // A spot pivot is shared by every payoff lane.
+            let inverse = if RECIPROCALS {
+                diagonal[variance].recip()
+            } else {
+                0.0
+            };
+            if inverse.is_normal() {
+                for (value, next) in cell.iter_mut().zip(next) {
+                    *value = (*value - upper[variance] * next) * inverse;
+                }
+            } else {
+                for (value, next) in cell.iter_mut().zip(next) {
+                    *value = (*value - upper[variance] * next) / diagonal[variance];
+                }
             }
             next = *cell;
         }
@@ -2475,16 +2532,24 @@ fn solve_packed_asset_tile<const N: usize>(
     Ok(())
 }
 
-fn solve_variance_strip<const N: usize>(
+fn solve_variance_strip<const N: usize, const BLOCKED: bool>(
     strip: &mut [&mut [[f64; N]]],
     factors: &[[f64; 3]],
     dynamic_rows: usize,
+    columns: std::ops::Range<usize>,
 ) -> Result<()> {
     for (j, &[multiplier, _, _]) in factors.iter().enumerate().skip(1) {
         crate::cancellation::check()?;
         let (previous, current) = strip.split_at_mut(j);
-        let prior = previous[j - 1].as_flattened();
-        let row = current[0].as_flattened_mut();
+        let prior = &*previous[j - 1];
+        let row = &mut *current[0];
+        let (prior, row) = if BLOCKED {
+            (&prior[columns.clone()], &mut row[columns.clone()])
+        } else {
+            (prior, row)
+        };
+        let prior = prior.as_flattened();
+        let row = row.as_flattened_mut();
         if j < dynamic_rows {
             for (value, prior) in row.iter_mut().zip(prior.iter()) {
                 *value -= multiplier * prior;
@@ -2497,13 +2562,18 @@ fn solve_variance_strip<const N: usize>(
     }
     for (j, &[_, diagonal, upper]) in factors.iter().enumerate().rev() {
         let (current, next) = strip.split_at_mut(j + 1);
-        let row = current[j].as_flattened_mut();
-        solve_variance_row(
-            row,
-            next.first().map(|row| row.as_flattened()),
-            diagonal,
-            upper,
-        );
+        let row = &mut *current[j];
+        let row = if BLOCKED {
+            &mut row[columns.clone()]
+        } else {
+            row
+        };
+        let other = next.first().map(|row| {
+            let row = &**row;
+            if BLOCKED { &row[columns.clone()] } else { row }
+        });
+        let row = row.as_flattened_mut();
+        solve_variance_row(row, other.map(<[_]>::as_flattened), diagonal, upper);
         if row.iter().any(|value| !value.is_finite()) {
             return Err(unstable());
         }
@@ -2616,6 +2686,50 @@ mod adjoint_tests {
             );
             if key.map(f64::to_bits) == recurring.map(f64::to_bits) && parallel.cached.len() == 2 {
                 assert_eq!(cached, Some(parallel.matrices.asset_factors.as_ptr()));
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn blocked_heston_sweeps_match_independent_payoff_lanes() -> Result<()> {
+        let asset = SpatialGrid::new(675, [0.25, 4.0], 1.0)?;
+        let variance: Vec<_> = (0..=192).map(|i| f64::from(i) * 0.005).collect();
+        let model = HestonParameters::new(crate::HestonParameterInputs {
+            risk_free_rate: 0.04.into(),
+            dividend_yield: 0.01.into(),
+            initial_variance: 0.04,
+            long_run_variance: 0.04,
+            mean_reversion_speed: 1.2,
+            vol_of_vol: 0.3,
+            correlation: -0.7,
+        })?;
+        let mut op = Operator::new(&asset, Some(&variance), &model)?;
+        op.prepare(&asset, [0.0, 0.04, 0.01, 0.02], None)?;
+        let pattern = [0.0, 1.25, 0.75, -1.5, 2.0, -0.25, -1.0];
+        let input: Vec<[f64; 8]> = (0..asset.nodes.len() * variance.len())
+            .map(|i| std::array::from_fn(|lane| pattern[(i + lane) % pattern.len()]))
+            .collect();
+        let edges = [[0.8; 8], [-0.25; 8]];
+        let mut serial = input.clone();
+        let mut parallel = input.clone();
+        let workers = AssetWorkers {
+            count: 2,
+            tokens: Vec::new(),
+            rows_per_task: 96,
+        };
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(2)
+            .build()
+            .map_err(std::io::Error::other)?;
+        op.solve(&mut serial, edges, None)?;
+        pool.install(|| op.solve(&mut parallel, edges, Some(&workers)))?;
+        assert_eq!(serial, parallel);
+        for lane in 0..8 {
+            let mut values: Vec<_> = input.iter().map(|row| [row[lane]]).collect();
+            op.solve(&mut values, edges.map(|edge| [edge[lane]]), None)?;
+            for (packed, [separate]) in serial.iter().zip(values) {
+                assert_eq!(packed[lane].to_bits(), separate.to_bits());
             }
         }
         Ok(())
