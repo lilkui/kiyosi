@@ -106,6 +106,35 @@ fn arithmetic_strike_batches_replay_scalar_prices() -> Result<()> {
 }
 
 #[test]
+fn duplicate_arithmetic_strikes_share_the_path_work_budget() -> Result<()> {
+    let start = date(1, 1);
+    let option = ArithmeticAveragePriceOption::new(
+        OptionType::Call,
+        100.0,
+        start,
+        start,
+        start.add_days(365)?,
+        None,
+    )?;
+    let context = market(100.0, 0.2, start);
+    let engine = MonteCarloAsianEngine::new(MonteCarloGridSettings {
+        sampling: MonteCarloSettings {
+            path_count: 131_072,
+            seed: Some(7),
+            max_active_workers: 1,
+            ..Default::default()
+        },
+        step_count: 2,
+    })?;
+    let expected = engine.price(&option, &context)?;
+    assert!(expected > 0.0);
+    let strikes = vec![100.0; 8192];
+    let prices = engine.price_arithmetic_strikes(&option, &context, &strikes)?;
+    assert_eq!(prices, vec![expected; 8192]);
+    Ok(())
+}
+
+#[test]
 fn single_fixing_preserves_quoted_forward() -> Result<()> {
     let start = date(1, 1);
     let end = start.add_days(365)?;

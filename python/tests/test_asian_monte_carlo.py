@@ -62,6 +62,20 @@ def test_arithmetic_strike_batch_replays_scalar_prices(sampling, paths):
         engine.price_arithmetic_strikes(contract, quote, strikes=[105, True])
 
 
+def test_duplicate_arithmetic_strikes_share_the_path_work_budget():
+    engine = pricing.MonteCarloAsianEngine(
+        path_count=131_072, step_count=2, seed=7, max_active_workers=1
+    )
+    contract = option(ArithmeticAveragePriceOption, "call", strike=100)
+    quote = market()
+    expected = engine.price(contract, quote)
+    assert expected > 0
+    assert (
+        engine.price_arithmetic_strikes(contract, quote, strikes=[100] * 8192)
+        == (expected,) * 8192
+    )
+
+
 def test_deterministic_arithmetic_weights_large_segment_before_scaling():
     dividend = RateTermStructure(
         reference_time=START, times=[END - timedelta(days=4), END], factors=[1, 100]

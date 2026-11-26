@@ -201,8 +201,9 @@ impl MonteCarloAsianEngine {
     /// Prices arithmetic-average options across strikes on common simulated paths.
     ///
     /// The template supplies direction, dates and realized history. Each price
-    /// uses its own payoff and variance adjustment. Prices preserve input order
-    /// and duplicates. A stochastic request uses one seed across the batch.
+    /// uses its own payoff and variance adjustment. Duplicate strikes share a
+    /// quote, and prices preserve input order. A stochastic request uses one seed
+    /// across the batch.
     /// Use [`Self::with_resolved_seed`] for replay with an unseeded engine.
     ///
     /// # Examples
@@ -229,7 +230,7 @@ impl MonteCarloAsianEngine {
     /// # Errors
     ///
     /// Applies the contract and market constraints of [`Self::price`], including
-    /// for empty input. Invalid strikes, excessive output size or more than
+    /// for empty input. Invalid strikes, excessive batch workspace or more than
     /// one billion combined path steps and payoff evaluations return
     /// [`Error::InvalidInput`]. Cancellation returns [`Error::Io`].
     ///
@@ -249,12 +250,62 @@ impl MonteCarloAsianEngine {
             option.coverage(context)?;
         }
         crate::cancellation::check()?;
-        if strikes.len() > super::SCHEDULED_WORKSPACE_BUDGET / size_of::<f64>() {
+        let bytes_per_strike = size_of::<usize>() + 2 * size_of::<f64>();
+        if strikes.len() > super::SCHEDULED_WORKSPACE_BUDGET / bytes_per_strike {
             return Err(Error::InvalidInput(
-                "Asian strike output exceeds 1 GiB".into(),
+                "Asian strike batch workspace exceeds 1 GiB".into(),
             ));
         }
+        for &strike in strikes {
+            crate::cancellation::check()?;
+            crate::error::finite(strike, true, "strike")?;
+        }
         let stochastic = tau > 0.0 && !crate::engines::deterministic::enabled(context);
+        if strikes.len() <= 1 {
+            return self.price_distinct_arithmetic_strikes(template, context, strikes, stochastic);
+        }
+
+        let workspace_error =
+            |_| Error::ComputationFailure("cannot reserve Asian strike batch workspace".into());
+        let mut indices = Vec::new();
+        indices
+            .try_reserve_exact(strikes.len())
+            .map_err(workspace_error)?;
+        indices.extend(0..strikes.len());
+        indices.sort_unstable_by(|&i, &j| strikes[i].total_cmp(&strikes[j]));
+        let groups = || indices.chunk_by(|&i, &j| strikes[i].to_bits() == strikes[j].to_bits());
+        let mut unique = Vec::new();
+        unique
+            .try_reserve_exact(strikes.len())
+            .map_err(workspace_error)?;
+        crate::cancellation::check()?;
+        for group in groups() {
+            crate::cancellation::check()?;
+            unique.push(strikes[group[0]]);
+        }
+        let quotes =
+            self.price_distinct_arithmetic_strikes(template, context, &unique, stochastic)?;
+        let mut prices = unique;
+        prices.resize(strikes.len(), 0.0);
+        for (group, quote) in groups().zip(quotes) {
+            for chunk in group.chunks(1024) {
+                crate::cancellation::check()?;
+                for &index in chunk {
+                    prices[index] = quote;
+                }
+            }
+        }
+        Ok(prices)
+    }
+
+    fn price_distinct_arithmetic_strikes(
+        &self,
+        template: &ArithmeticAveragePriceOption,
+        context: &PricingContext,
+        strikes: &[f64],
+        stochastic: bool,
+    ) -> Result<Vec<f64>> {
+        let option = &template.0;
         let shared = stochastic && option.period() > 0.0;
         let valuation = context.valuation_time();
         let sampled = |strike| option.adjusted_strike_for(valuation, strike) > 0.0;
@@ -264,7 +315,6 @@ impl MonteCarloAsianEngine {
             let mut active = false;
             for &strike in chunk {
                 crate::cancellation::check()?;
-                crate::error::finite(strike, true, "strike")?;
                 if shared && sampled(strike) {
                     first.get_or_insert(strike);
                     active = true;
