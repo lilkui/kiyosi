@@ -840,3 +840,35 @@ def test_american_strike_batch_matches_scalar_prices_in_input_order():
     assert_rejection(
         InvalidInputError, engine.price_strikes, put, context, strikes=(100, 0)
     )
+
+
+def test_bsm_european_surface_matches_analytic_across_dated_rates():
+    curve = RateTermStructure(
+        reference_time=START,
+        times=[START + timedelta(days=150), END],
+        factors=[0.98, 0.945],
+    )
+    context = market(spot=100, rate=curve, dividend=0.02, sigma=0.25)
+    template = EuropeanOption(
+        option_type="call", strike=100, effective_time=START, expiry_time=END
+    )
+    expiries = (
+        END,
+        START,
+        START + timedelta(days=110),
+        START + timedelta(days=225),
+        END,
+    )
+    strikes = (110, 90, 100, 95, 90)
+    rows = FiniteDifferenceVanillaEngine().price_european_surface(
+        template, context, expiries=expiries, strikes=strikes
+    )
+    assert rows[0] == rows[4]
+    analytic = AnalyticEuropeanEngine()
+    for expiry, row in zip(expiries, rows, strict=True):
+        assert row[1] == row[4]
+        reference = tuple(
+            analytic.price(template.replace(strike=k, expiry_time=expiry), context)
+            for k in strikes
+        )
+        assert row == pytest.approx(reference, abs=0.001, rel=0)

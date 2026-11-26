@@ -3852,8 +3852,8 @@ class FiniteDifferenceVanillaEngine(
 
         Notes
         -----
-        Compatible local-volatility strips share one log-spot grid and
-        propagation. Each expiry uses its own damping steps. Short tenors
+        Compatible BSM and local-volatility strips share one log-spot grid
+        and propagation. Each expiry uses its own damping steps. Short tenors
         and other strips use price_strikes. Check convergence across the surface.
         Cancellation returns no partial result.
         """

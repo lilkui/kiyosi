@@ -1,6 +1,6 @@
 use super::{
     BusinessDiffusion, Diffusion, EuropeanOption, FiniteDifferenceScheme,
-    FiniteDifferenceVanillaEngine, Payoff, PricingContext, Result, Stepper, diffusion,
+    FiniteDifferenceVanillaEngine, Payoff, PricingContext, Result, Stepper, StripModel, diffusion,
     indexed_value, invalid_grid, local_volatility, payoff, strip_grid, terminal_moments,
     validate_work, validate_workspace,
 };
@@ -9,15 +9,35 @@ use crate::engines::finite_difference::{
     edge_weights::{BYTES_PER_STEP, EdgeWeights},
     unstable,
 };
-use crate::{Error, LocalVolatilityParameters, Timestamp};
+use crate::{Error, ModelParameters, Timestamp};
 
 impl FiniteDifferenceVanillaEngine {
     /// Prices a European strike and expiry surface in input order.
     ///
-    /// Uses the template's direction and effective time. Compatible local-volatility
-    /// strips share one log-spot grid and propagation, with separate damping at
-    /// each expiry. Short tenors and other strips use [`Self::price_strikes`].
+    /// Uses the template's direction and effective time. Compatible Black–Scholes–Merton
+    /// and local-volatility strips share one log-spot grid and propagation. Each expiry
+    /// uses separate damping.
+    /// Short tenors and other strips use [`Self::price_strikes`].
     /// Check convergence at the shortest maturity and across the strike range.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kiyosi::{BlackScholesMertonParameters, Date, EuropeanOption,
+    ///     FiniteDifferenceVanillaEngine, OptionType, PricingContext};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let end = start.add_days(365)?;
+    /// let call = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    /// let model = BlackScholesMertonParameters::new(0.05, 0.02, 0.25)?;
+    /// let market = PricingContext::new(model, 100.0, start)?;
+    /// let rows = FiniteDifferenceVanillaEngine::default().price_european_surface(
+    ///     &call, &market, &[start.add_days(180)?, end], &[90.0, 95.0, 100.0, 110.0],
+    /// )?;
+    /// assert!(rows[0][2] < rows[1][2]);
+    /// # Ok(())
+    /// # }
+    /// ```
     ///
     /// # Errors
     ///
@@ -84,16 +104,29 @@ impl FiniteDifferenceVanillaEngine {
                 .collect::<Result<Vec<_>>>()
         };
         let settings = self.settings;
-        let rows = if let Some(model) = local_volatility::local_model(context).filter(|_| {
-            active.len() >= 2
-                && strikes.len() >= 4
-                && settings.asset_step_count >= 128
-                && settings.scheme == FiniteDifferenceScheme::Rannacher
-                && limits[0] < limits[1]
-                && 0.5 * anchor.max(limits[1]) <= anchor.min(limits[0])
-        }) {
+        let rows = if active.len() >= 2
+            && strikes.len() >= 4
+            && settings.asset_step_count >= 128
+            && settings.scheme == FiniteDifferenceScheme::Rannacher
+            && limits[0] < limits[1]
+            && 0.5 * anchor.max(limits[1]) <= anchor.min(limits[0])
+        {
             let shared = || {
-                let sigma = model.surface().volatility(valuation, anchor)?;
+                let model = context.model_parameters();
+                let (strip, sigma) = match model {
+                    ModelParameters::BlackScholesMerton(model) => {
+                        let sigma = model.volatility();
+                        (StripModel::Constant(sigma), sigma)
+                    }
+                    ModelParameters::LocalVolatility(model) => {
+                        let surface = model.surface();
+                        (
+                            StripModel::Local(surface),
+                            surface.volatility(valuation, anchor)?,
+                        )
+                    }
+                    ModelParameters::Heston(_) => return Err(unstable()),
+                };
                 let width = |expiry| {
                     model
                         .variance_time_convention()
@@ -115,10 +148,10 @@ impl FiniteDifferenceVanillaEngine {
                     return scalar(active);
                 }
                 let mut rows = scalar(short)?;
-                rows.extend(local_rows(
+                rows.extend(strip_rows(
                     self,
                     context,
-                    model,
+                    strip,
                     compatible,
                     strikes,
                     limits,
@@ -160,10 +193,10 @@ impl FiniteDifferenceVanillaEngine {
     }
 }
 
-fn local_rows(
+fn strip_rows(
     engine: &FiniteDifferenceVanillaEngine,
     context: &PricingContext,
-    model: &LocalVolatilityParameters,
+    model: StripModel<'_>,
     expiries: &[Timestamp],
     strikes: &[f64],
     limits: [f64; 2],
@@ -171,13 +204,14 @@ fn local_rows(
 ) -> Result<Vec<Vec<f64>>> {
     let valuation = context.valuation_time();
     let end = expiries[expiries.len() - 1];
-    let surface = model.surface();
     let spot = context.spot_price();
-    if surface
-        .constant_volatility_between(valuation, end)?
-        .is_some()
-    {
-        return Err(unstable());
+    if let StripModel::Local(surface) = model {
+        if surface
+            .constant_volatility_between(valuation, end)?
+            .is_some()
+        {
+            return Err(unstable());
+        }
     }
     let settings = engine.settings;
     let times: Vec<_> = expiries
@@ -206,13 +240,20 @@ fn local_rows(
     )?
     .ok_or_else(unstable)?;
     let mut pending = [[0.0; 2]; 2];
-    let mut regular = Stepper::new_local(space.count);
-    let mut damped = Stepper::new_local(space.count);
+    let stepper = || match model {
+        StripModel::Constant(_) => Stepper::new(space.count),
+        StripModel::Local(_) => Stepper::new_local(space.count),
+    };
+    let mut regular = stepper();
+    let mut damped = stepper();
     let mut base: [Vec<f64>; 3] = std::array::from_fn(|_| vec![0.0; space.count + 1]);
     let mut current = base[0].clone();
     let mut next = base[0].clone();
     base[2][node] = 1.0;
-    let offset = surface.times()[0].years_until(valuation);
+    let offset = match model {
+        StripModel::Constant(_) => 0.0,
+        StripModel::Local(surface) => surface.times()[0].years_until(valuation),
+    };
     let clock =
         diffusion::uses_business_time(context).then(|| BusinessDiffusion::new(context, 0.0));
     let advance = |stepper: &mut Stepper,
@@ -220,17 +261,21 @@ fn local_rows(
                    next: &mut [f64],
                    (start, dt, theta): (f64, f64, f64)| {
         let middle = start + 0.5 * dt;
-        stepper.transpose_local(
-            weights,
-            next,
-            &space,
-            surface,
-            [
-                offset + middle,
-                clock.map_or(1.0, |clock| clock.variance_rate(middle).sqrt()),
-            ],
-            [dt, theta, risk.rate(middle), dividend.rate(middle)],
-        )
+        let key = [dt, theta, risk.rate(middle), dividend.rate(middle)];
+        let scale = clock.map_or(1.0, |clock| clock.variance_rate(middle).sqrt());
+        match model {
+            StripModel::Constant(sigma) => {
+                stepper.transpose_constant(weights, next, &space, sigma * scale, key)
+            }
+            StripModel::Local(surface) => stepper.transpose_local(
+                weights,
+                next,
+                &space,
+                surface,
+                [offset + middle, scale],
+                key,
+            ),
+        }
     };
     let mut rows = Vec::with_capacity(times.len());
     for (step, &dt) in grid.widths.iter().enumerate() {

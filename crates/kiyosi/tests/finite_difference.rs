@@ -1325,3 +1325,32 @@ fn american_strike_batch_matches_scalar_prices_in_input_order() -> Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn bsm_european_surface_matches_analytic_across_dated_rates() -> Result<()> {
+    let (start, end) = dates();
+    let curve = RateTermStructure::new(start, vec![start.add_days(150)?, end], vec![0.98, 0.945])?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(curve, 0.02, 0.25)?,
+        100.0,
+        start,
+    )?;
+    let template = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let expiries = [end, start, start.add_days(110)?, start.add_days(225)?, end];
+    let strikes = [110.0, 90.0, 100.0, 95.0, 90.0];
+    let engine = FiniteDifferenceVanillaEngine::default();
+    let rows = engine.price_european_surface(&template, &context, &expiries, &strikes)?;
+    assert_eq!(rows[0], rows[4]);
+    for (&expiry, row) in expiries.iter().zip(rows) {
+        assert_eq!(row[1].to_bits(), row[4].to_bits());
+        for (&strike, value) in strikes.iter().zip(row) {
+            let option = EuropeanOption::new(OptionType::Call, strike, start, expiry)?;
+            let reference = AnalyticEuropeanEngine.price(&option, &context)?;
+            assert!(
+                (value - reference).abs() < 0.001,
+                "{expiry:?}, {strike}: {value} vs {reference}"
+            );
+        }
+    }
+    Ok(())
+}

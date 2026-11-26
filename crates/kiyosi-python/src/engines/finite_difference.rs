@@ -297,8 +297,8 @@ fd_engine!(
         ///
         /// Notes
         /// -----
-        /// Compatible local-volatility strips share one log-spot grid and
-        /// propagation. Each expiry uses its own damping steps. Short tenors
+        /// Compatible BSM and local-volatility strips share one log-spot grid
+        /// and propagation. Each expiry uses its own damping steps. Short tenors
         /// and other strips use price_strikes. Check convergence across the surface.
         /// Cancellation returns no partial result.
         #[pyo3(signature = (instrument, context, *, expiries, strikes))]
