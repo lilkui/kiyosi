@@ -300,6 +300,7 @@ fd_engine!(
         /// Compatible BSM and local-volatility strips share one log-spot grid
         /// and propagation. Each expiry uses its own damping steps. Short tenors
         /// and other strips use price_strikes. Check convergence across the surface.
+        /// The rollback work limit applies across the request.
         /// Cancellation returns no partial result.
         #[pyo3(signature = (instrument, context, *, expiries, strikes))]
         #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns the extracted inputs before core pricing.")]

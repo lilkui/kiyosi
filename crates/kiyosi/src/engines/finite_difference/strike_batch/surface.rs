@@ -1,14 +1,17 @@
+use std::cell::Cell;
+
 use super::{
     BusinessDiffusion, Diffusion, EuropeanOption, FiniteDifferenceScheme,
     FiniteDifferenceVanillaEngine, Payoff, PricingContext, Result, Stepper, StripModel, diffusion,
-    indexed_value, invalid_grid, local_volatility, payoff, strip_grid, terminal_moments,
-    validate_work, validate_workspace,
+    indexed_value, invalid_grid, local_volatility, payoff, strike_group_len, strip_grid,
+    terminal_moments, validate_work, validate_workspace,
 };
 use crate::engines::finite_difference::{
+    Curve,
     edge_weights::{BYTES_PER_STEP, EdgeWeights},
     unstable, validate_finite_difference_surface_size,
 };
-use crate::{Error, ModelParameters, Timestamp};
+use crate::{Error, FiniteDifferenceSettings, ModelParameters, Timestamp};
 
 impl FiniteDifferenceVanillaEngine {
     /// Prices a European strike and expiry surface in input order.
@@ -40,9 +43,9 @@ impl FiniteDifferenceVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] for oversized output, invalid strikes or
-    /// expiries outside contract life or model coverage. Pricing and cancellation
-    /// errors return no partial surface.
+    /// Returns [`Error::InvalidInput`] for oversized output, excessive estimated
+    /// rollback work across the surface, invalid strikes, or expiries outside
+    /// contract life or model coverage. Errors return no partial surface.
     pub fn price_european_surface(
         &self,
         template: &EuropeanOption,
@@ -97,6 +100,12 @@ impl FiniteDifferenceVanillaEngine {
                 .collect::<Result<Vec<_>>>()
         };
         let settings = self.settings;
+        let shared_work = Cell::new(0_u64);
+        let fallback = |dates: &[Timestamp]| {
+            let work = fallback_work(context, settings, dates, strikes)?;
+            validate_work(1, shared_work.get().saturating_add(work))?;
+            scalar(dates)
+        };
         let rows = if active.len() >= 2
             && strikes.len() >= 4
             && settings.asset_step_count >= 128
@@ -138,27 +147,35 @@ impl FiniteDifferenceVanillaEngine {
                 }
                 let (short, compatible) = active.split_at(first);
                 if compatible.len() < 2 {
-                    return scalar(active);
+                    return Ok(None);
                 }
-                let mut rows = scalar(short)?;
-                rows.extend(strip_rows(
+                let short_work = fallback_work(context, settings, short, strikes)?;
+                let rows = strip_rows(
                     self,
                     context,
                     strip,
-                    compatible,
-                    strikes,
+                    (compatible, strikes),
                     limits,
                     (payoff, width(compatible[0])?),
-                )?);
-                Ok(rows)
+                    |work| {
+                        validate_work(1, work.saturating_add(short_work))?;
+                        shared_work.set(work);
+                        Ok(())
+                    },
+                )?;
+                Ok(Some((short, rows)))
             };
             match shared() {
-                Ok(rows) => rows,
+                Ok(Some((short, long_rows))) => {
+                    let mut rows = scalar(short)?;
+                    rows.extend(long_rows);
+                    rows
+                }
                 Err(error @ Error::Io(_)) => return Err(error),
-                Err(_) => scalar(active)?,
+                Ok(None) | Err(_) => fallback(active)?,
             }
         } else {
-            scalar(active)?
+            fallback(active)?
         };
         expiries
             .iter()
@@ -186,14 +203,84 @@ impl FiniteDifferenceVanillaEngine {
     }
 }
 
+fn fallback_work(
+    context: &PricingContext,
+    settings: FiniteDifferenceSettings,
+    expiries: &[Timestamp],
+    strikes: &[f64],
+) -> Result<u64> {
+    if expiries.is_empty() || crate::engines::deterministic::enabled(context) {
+        return Ok(0);
+    }
+    let mut ordered = strikes.to_vec();
+    ordered.sort_unstable_by(f64::total_cmp);
+    crate::cancellation::check()?;
+    let can_share =
+        settings.scheme == FiniteDifferenceScheme::Rannacher && settings.asset_step_count >= 128;
+    let mut rollbacks = 0_u64;
+    let mut remaining = ordered.as_slice();
+    while let Some(&first) = remaining.first() {
+        crate::cancellation::check()?;
+        let (group, tail) = remaining.split_at(strike_group_len(
+            context.spot_price(),
+            remaining,
+            |&strike| strike,
+        ));
+        rollbacks += 1;
+        for (index, pair) in group.windows(2).enumerate() {
+            if index % 1024 == 0 {
+                crate::cancellation::check()?;
+            }
+            rollbacks += u64::from(pair[0].to_bits() != pair[1].to_bits());
+        }
+        // A failed shared strike grid can be followed by a solve for each strike.
+        if can_share && group.len() >= 4 && first < group[group.len() - 1] {
+            rollbacks += 1;
+        }
+        remaining = tail;
+    }
+
+    let valuation = context.valuation_time();
+    let model = context.model_parameters();
+    let clock = model.variance_time_convention();
+    let local_times =
+        local_volatility::local_model(context).map_or(&[][..], |model| model.surface().times());
+    let local_start = local_times.partition_point(|&time| time <= valuation);
+    let calendar = clock.calendar();
+    let assets = u64::from(settings.asset_step_count.unsigned_abs());
+    let base_steps = u64::from(settings.time_step_count.unsigned_abs())
+        + if settings.scheme == FiniteDifferenceScheme::Rannacher {
+            4
+        } else {
+            0
+        };
+    let mut work = 0_u64;
+    for &expiry in expiries {
+        crate::cancellation::check()?;
+        if crate::engines::deterministic::enabled_until(context, expiry)? {
+            continue;
+        }
+        let knots = [model.risk_free_curve(), model.dividend_curve()]
+            .map(|curve| Curve::interval_count(curve, valuation, expiry) - 1);
+        let variance_knots = calendar.map_or(0, |_| {
+            valuation.date().days_until(expiry.date()).unsigned_abs()
+        });
+        let local_knots = local_times[local_start..].partition_point(|&time| time < expiry) as u64;
+        let steps = base_steps + knots[0] + knots[1] + local_knots + variance_knots;
+        work = work.saturating_add(assets.saturating_mul(rollbacks).saturating_mul(steps));
+        validate_work(1, work)?;
+    }
+    Ok(work)
+}
+
 fn strip_rows(
     engine: &FiniteDifferenceVanillaEngine,
     context: &PricingContext,
     model: StripModel<'_>,
-    expiries: &[Timestamp],
-    strikes: &[f64],
+    (expiries, strikes): (&[Timestamp], &[f64]),
     limits: [f64; 2],
     (payoff, width): (Payoff, f64),
+    charge_work: impl FnOnce(u64) -> Result<()>,
 ) -> Result<Vec<Vec<f64>>> {
     let valuation = context.valuation_time();
     let end = expiries[expiries.len() - 1];
@@ -216,13 +303,14 @@ fn strip_rows(
     let grid = diffusion::time_grid(context, end, settings, &risk, &dividend, &times)?;
     let count = space.count as u64 + 1;
     let steps = grid.widths.len() as u64;
-    validate_work(count, steps + 5 * times.len() as u64)?;
+    let work = count.saturating_mul(steps + 5 * times.len() as u64);
     validate_workspace(
         settings.scheme,
         4 * count,
         steps,
         risk.workspace_bytes() + dividend.workspace_bytes() + BYTES_PER_STEP * steps,
     )?;
+    charge_work(work)?;
     let bounds = [space.lower, space.upper];
     let sign = payoff.sign;
     let mut edges = EdgeWeights::new(

@@ -910,6 +910,20 @@ def test_bsm_european_surface_matches_analytic_across_dated_rates():
         assert row == pytest.approx(reference, abs=0.001, rel=0)
 
 
+def test_european_surface_caps_combined_expiry_rollbacks():
+    engine = FiniteDifferenceVanillaEngine(asset_step_count=2048, time_step_count=4096)
+    option = contract(EuropeanOption)
+    expiries = [END - timedelta(days=i) for i in range(180)]
+    with pytest.raises(InvalidInputError, match="one billion grid updates"):
+        engine.price_european_surface(
+            option, market(), expiries=expiries, strikes=[100]
+        )
+    rows = engine.price_european_surface(
+        option, market(sigma=0), expiries=expiries, strikes=[100]
+    )
+    assert len(rows) == len(expiries)
+
+
 def test_american_bsm_surface_matches_independent_strips_and_preserves_order():
     template = AmericanOption(
         option_type="put", strike=100, effective_time=START, expiry_time=END
