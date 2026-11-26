@@ -8,8 +8,8 @@ use super::{
 };
 use crate::risk::numerical::symmetric_shift;
 use crate::{
-    AmericanOption, BlackScholesMertonParameterChanges, Greek, OptionContract,
-    PricingContextChanges,
+    AmericanOption, AmericanOptionChanges, BlackScholesMertonParameterChanges, Greek,
+    OptionContract, PricingContextChanges,
 };
 
 const WORKSPACE_BUDGET: usize = 1 << 30;
@@ -59,7 +59,10 @@ impl AmericanGreekCache {
             Greek::Charm,
             Greek::Color,
         ];
-        let active = spot_bumps.into_iter().any(|greek| request.has(greek));
+        Self::for_path_sharing(spot_bumps.into_iter().any(|greek| request.has(greek)))
+    }
+
+    fn for_path_sharing(active: bool) -> Self {
         let previous = if active {
             PATH_CACHE.with(|cache| cache.replace(Some(Vec::new())))
         } else {
@@ -92,16 +95,16 @@ fn american_workspace<T>(capacity: usize) -> Result<Vec<T>> {
     Ok(buffer)
 }
 
-struct ExerciseBlock<const N: usize> {
+struct ExerciseBlock<const N: usize, const S: usize = N> {
     coordinates: Arc<Vec<f64>>,
     checkpoints: Vec<f64>,
     reverse_draws: Option<NormalDraws<'static>>,
-    spots: Vec<[f64; N]>,
+    spots: Vec<[f64; S]>,
     cash: Vec<[f64; N]>,
     regression: [[[f64; 4]; 3]; N],
 }
 
-fn reverse_workspace<const N: usize>(
+fn reverse_workspace<const N: usize, const S: usize>(
     settings: MonteCarloSettings,
     reserved_paths: usize,
     samples: usize,
@@ -116,8 +119,8 @@ fn reverse_workspace<const N: usize>(
         0
     };
     let bytes = samples * size_of::<f64>()
-        + reserved_paths * size_of::<[[f64; N]; 2]>()
-        + blocks * (size_of::<ExerciseBlock<N>>() + PATH_BLOCK_OVERHEAD)
+        + reserved_paths * (size_of::<[f64; N]>() + size_of::<[f64; S]>())
+        + blocks * (size_of::<ExerciseBlock<N, S>>() + PATH_BLOCK_OVERHEAD)
         + sampler
         + extra_bytes;
     if bytes > WORKSPACE_BUDGET {
@@ -137,7 +140,7 @@ fn reverse_workspace<const N: usize>(
     Ok((1, bytes))
 }
 
-fn exercise_window<const N: usize>(
+fn exercise_window<const N: usize, const S: usize>(
     settings: MonteCarloSettings,
     reserved_paths: usize,
     stored_paths: usize,
@@ -173,10 +176,10 @@ fn exercise_window<const N: usize>(
         };
         // Include the cache's shared block handles when a full path matrix is retained.
         let overhead =
-            size_of::<ExerciseBlock<N>>() + PATH_BLOCK_OVERHEAD + size_of::<Arc<Vec<f64>>>();
+            size_of::<ExerciseBlock<N, S>>() + PATH_BLOCK_OVERHEAD + size_of::<Arc<Vec<f64>>>();
         stored_paths
             .saturating_mul((window + checkpoints) * size_of::<f64>())
-            .saturating_add(reserved_paths * size_of::<[[f64; N]; 2]>())
+            .saturating_add(reserved_paths * (size_of::<[f64; N]>() + size_of::<[f64; S]>()))
             .saturating_add(blocks * overhead)
             .saturating_add(sampling)
             .saturating_add(extra_bytes)
@@ -232,7 +235,7 @@ fn exercise_window<const N: usize>(
     Ok((window, bytes))
 }
 
-impl<const N: usize> Default for ExerciseBlock<N> {
+impl<const N: usize, const S: usize> Default for ExerciseBlock<N, S> {
     fn default() -> Self {
         Self {
             coordinates: Arc::default(),
@@ -262,10 +265,10 @@ impl ExercisePaths<'_> {
         clippy::cast_precision_loss,
         reason = "Exercise steps are bounded by 10,000."
     )]
-    fn reverse_row<const N: usize>(
+    fn reverse_row<const N: usize, const S: usize>(
         &self,
         block_index: usize,
-        block: &mut ExerciseBlock<N>,
+        block: &mut ExerciseBlock<N, S>,
         step: usize,
     ) {
         let elapsed = step + 1;
@@ -481,10 +484,10 @@ impl ExercisePaths<'_> {
         Ok((coordinates, checkpoints))
     }
 
-    fn replay<const N: usize>(
+    fn replay<const N: usize, const S: usize>(
         &self,
         index: usize,
-        block: &mut ExerciseBlock<N>,
+        block: &mut ExerciseBlock<N, S>,
         start: usize,
     ) -> Result<()> {
         let begin = index * BLOCK_SIZE;
@@ -518,9 +521,9 @@ fn antithetic_coordinates_fit_without_window_replay() -> Result<()> {
         antithetic: true,
         ..Default::default()
     };
-    assert!(exercise_window::<1>(settings, paths, paths, intervals, 0)?.0 < intervals);
+    assert!(exercise_window::<1, 1>(settings, paths, paths, intervals, 0)?.0 < intervals);
     assert_eq!(
-        exercise_window::<1>(settings, paths, paths / 2, intervals, 0)?.0,
+        exercise_window::<1, 1>(settings, paths, paths / 2, intervals, 0)?.0,
         intervals
     );
     Ok(())
@@ -644,6 +647,113 @@ impl MonteCarloVanillaEngine {
         Ok(scaled_value(moments.scale, moments.mean, 0.0)?.max(payoff.value(spot)))
     }
 
+    /// Prices American strikes on the same simulated spot paths.
+    ///
+    /// Compatible quotes share each spot row and fit separate continuation
+    /// regressions. Prices preserve input order and duplicates. The request uses
+    /// one seed when sampling is required. Call [`Self::with_resolved_seed`] first
+    /// to replay an unseeded engine's draws.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kiyosi::*;
+    /// # fn main() -> Result<()> {
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let end = start.add_days(365)?;
+    /// let put = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    /// let market = PricingContext::new(
+    ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start,
+    /// )?;
+    /// let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+    ///     sampling: MonteCarloSettings { path_count: 4096, seed: Some(42), ..Default::default() },
+    ///     ..Default::default()
+    /// })?;
+    /// let prices = engine.price_american_strikes(&put, &market, &[90.0, 110.0])?;
+    /// assert!(prices[0] < prices[1]);
+    /// # Ok(()) }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Propagates input, market, sampling and cancellation errors.
+    /// A failed request returns no partial prices.
+    ///
+    /// # Panics
+    ///
+    /// Propagates panics after parallel sampling finishes.
+    pub fn price_american_strikes(
+        &self,
+        option: &AmericanOption,
+        context: &PricingContext,
+        strikes: &[f64],
+    ) -> Result<Vec<f64>> {
+        crate::engines::flat_rates(context)?;
+        crate::instruments::monitoring::validate_life(option, context)?;
+        context.validate_curve_horizon(option.expiry_time())?;
+        for &strike in strikes {
+            crate::cancellation::check()?;
+            crate::error::finite(strike, true, "strike")?;
+        }
+        let mut prices = american_workspace(strikes.len())?;
+        if strikes.is_empty() {
+            return Ok(prices);
+        }
+        let engine = if crate::engines::deterministic::enabled(context)
+            || context.valuation_time() == option.expiry_time()
+        {
+            *self
+        } else {
+            if self.settings.step_count < 2 {
+                return Err(Error::InvalidInput(
+                    "American Monte Carlo requires at least two exercise intervals".into(),
+                ));
+            }
+            self.with_resolved_seed()?
+        };
+        let _paths = AmericanGreekCache::for_path_sharing(strikes.len() > 4);
+        let _sobol = sobol::RequestCache::new();
+        let mut remaining = strikes;
+        while let Some(&strike) = remaining.first() {
+            crate::cancellation::check()?;
+            let mut quoted = false;
+            macro_rules! quote {
+                ($count:literal) => {
+                    if let Some(strikes) = remaining.first_chunk::<$count>() {
+                        match engine.american_scenarios::<$count, 1>(
+                            option,
+                            [context; $count],
+                            *strikes,
+                            true,
+                            None,
+                        ) {
+                            Ok((batch, _)) => {
+                                prices.extend(batch);
+                                remaining = &remaining[$count..];
+                                quoted = true;
+                            }
+                            Err(Error::InvalidInput(_) | Error::ComputationFailure(_)) => {}
+                            Err(error) => return Err(error),
+                        }
+                    }
+                };
+            }
+            quote!(4);
+            if !quoted {
+                quote!(2);
+            }
+            if !quoted {
+                let contract = option.replace(AmericanOptionChanges {
+                    strike: Some(strike),
+                    ..Default::default()
+                })?;
+                prices.push(engine.american_price(&contract, context, true)?.0);
+                remaining = &remaining[1..];
+            }
+        }
+        Ok(prices)
+    }
+
     fn american_price(
         &self,
         option: &AmericanOption,
@@ -763,9 +873,9 @@ impl MonteCarloVanillaEngine {
         }
         let workspace =
             if samples.saturating_mul(intervals) > PREFERRED_PATH_WORKSPACE / size_of::<f64>() {
-                reverse_workspace::<N>(settings, paths, samples, intervals, 0)
+                reverse_workspace::<N, N>(settings, paths, samples, intervals, 0)
             } else {
-                exercise_window::<N>(settings, paths, samples, intervals, 0)
+                exercise_window::<N, N>(settings, paths, samples, intervals, 0)
             };
         if workspace.is_err() {
             return Ok(None);
@@ -787,15 +897,32 @@ impl MonteCarloVanillaEngine {
             .map(Some)
     }
 
+    fn american_spots<const N: usize>(
+        &self,
+        option: &AmericanOption,
+        contexts: [&PricingContext; N],
+        terminal_only: bool,
+        policy: Option<&mut Vec<[Option<[f64; 3]>; N]>>,
+    ) -> Result<([f64; N], Option<u64>)> {
+        self.american_scenarios::<N, N>(
+            option,
+            contexts,
+            [option.strike(); N],
+            terminal_only,
+            policy,
+        )
+    }
+
     #[expect(
         clippy::cast_precision_loss,
         clippy::cast_sign_loss,
         reason = "Validated positive i32 path and step counts bound the buffers and fit exactly in f64."
     )]
-    fn american_spots<const N: usize>(
+    fn american_scenarios<const N: usize, const S: usize>(
         &self,
         option: &AmericanOption,
         contexts: [&PricingContext; N],
+        strikes: [f64; N],
         terminal_only: bool,
         mut policy: Option<&mut Vec<[Option<[f64; 3]>; N]>>,
     ) -> Result<([f64; N], Option<u64>)> {
@@ -803,11 +930,17 @@ impl MonteCarloVanillaEngine {
         let initial = contexts.map(PricingContext::spot_price);
         let settings = self.settings.sampling;
         let step_count = self.settings.step_count;
+        let contract = |strike| {
+            option.replace(AmericanOptionChanges {
+                strike: Some(strike),
+                ..Default::default()
+            })
+        };
         let scalar = || {
             let mut prices = [0.0; N];
             let mut seed = None;
-            for (price, context) in prices.iter_mut().zip(contexts) {
-                (*price, seed) = self.american_price(option, context, terminal_only)?;
+            for ((price, context), strike) in prices.iter_mut().zip(contexts).zip(strikes) {
+                (*price, seed) = self.american_price(&contract(strike)?, context, terminal_only)?;
             }
             Ok((prices, seed))
         };
@@ -841,10 +974,9 @@ impl MonteCarloVanillaEngine {
         }
         let [rate, dividend, _] = parameters[0];
         if crate::engines::deterministic::enabled(context) {
-            let payoff =
-                crate::engines::Payoff::vanilla(option.option_type(), option.strike(), true);
             let mut prices = [0.0; N];
-            for (price, context) in prices.iter_mut().zip(contexts) {
+            for ((price, context), strike) in prices.iter_mut().zip(contexts).zip(strikes) {
+                let payoff = crate::engines::Payoff::vanilla(option.option_type(), strike, true);
                 *price = crate::engines::deterministic::vanilla(option, payoff, context)?;
             }
             return Ok((prices, None));
@@ -857,8 +989,8 @@ impl MonteCarloVanillaEngine {
         } else {
             -1.0
         };
-        let payoff = |spot: f64| (sign * (spot - option.strike())).max(0.0);
-        let immediate = initial.map(payoff);
+        let payoff = |spot: f64, strike: f64| (sign * (spot - strike)).max(0.0);
+        let immediate = std::array::from_fn(|i| payoff(initial[i], strikes[i]));
         let time = valuation.years_until(expiry);
         if time == 0.0 {
             return Ok((immediate, None));
@@ -875,10 +1007,11 @@ impl MonteCarloVanillaEngine {
         {
             let mut prices = immediate;
             let mut seed = None;
-            for (price, context) in prices.iter_mut().zip(contexts) {
+            for ((price, context), strike) in prices.iter_mut().zip(contexts).zip(strikes) {
+                let contract = contract(strike)?;
                 let (value, used_seed) = <Self as PricingEngine<EuropeanOption>>::price_with_seed(
                     self,
-                    option.vanilla(),
+                    contract.vanilla(),
                     context,
                 )?;
                 *price = price.max(value);
@@ -929,13 +1062,25 @@ impl MonteCarloVanillaEngine {
             return scalar();
         }
         let anchor = (!normalized).then_some(initial[0]);
-        let strike = option.strike();
-        let cutoff = initial.map(|spot| {
-            let log = crate::numerics::log_ratio(strike, spot);
+        debug_assert!(
+            S == N
+                || (S == 1
+                    && same_growth
+                    && initial
+                        .iter()
+                        .all(|spot| spot.to_bits() == initial[0].to_bits()))
+        );
+        let strike_spot = |row: [f64; S], lane: usize| row[if S == 1 { 0 } else { lane }];
+        let cutoff: [f64; N] = std::array::from_fn(|i| {
+            let log = crate::numerics::log_ratio(strikes[i], initial[i]);
             // Leave a roundoff margin around the exercise boundary so the
             // original spot-space calculation decides the near-strike cases.
             sign * log - 32.0 * f64::EPSILON * (1.0 + log.abs())
         });
+        // A rejected shared spot must be out of the money for every strike.
+        let outside = strikes
+            .into_iter()
+            .fold(strikes[0], if sign > 0.0 { f64::min } else { f64::max });
         let spots_at = |step: usize| {
             let elapsed = (step + 1) as f64;
             let drifts = growth.map(|[drift, _]| drift * elapsed);
@@ -958,14 +1103,14 @@ impl MonteCarloVanillaEngine {
             });
             move |coordinate: f64| {
                 if !normalized {
-                    [coordinate; N]
+                    [coordinate; S]
                 } else if same_growth {
                     let log = growth[0][1] * coordinate;
                     if screen[0] && sign * log < group_cutoff[0] {
-                        return [strike; N];
+                        return std::array::from_fn(|i| if S == 1 { outside } else { strikes[i] });
                     }
                     let factor = log.exp();
-                    scales.map(|scale| scale * factor)
+                    std::array::from_fn(|i| scales[i] * factor)
                 } else {
                     let mut factors = [None; N];
                     std::array::from_fn(|i| {
@@ -976,7 +1121,7 @@ impl MonteCarloVanillaEngine {
                                 factors[i] = Some(log.exp());
                             }
                         }
-                        factors[source].map_or(strike, |factor| scales[i] * factor)
+                        factors[source].map_or(strikes[i], |factor| scales[i] * factor)
                     })
                 }
             }
@@ -990,9 +1135,9 @@ impl MonteCarloVanillaEngine {
         let path_values = stored_paths.saturating_mul(intervals);
         let reverse = normalized && path_values > PREFERRED_PATH_WORKSPACE / size_of::<f64>();
         let workspace = if reverse {
-            reverse_workspace::<N>(settings, reserved_paths, samples, intervals, policy_bytes)
+            reverse_workspace::<N, S>(settings, reserved_paths, samples, intervals, policy_bytes)
         } else {
-            exercise_window::<N>(
+            exercise_window::<N, S>(
                 settings,
                 reserved_paths,
                 stored_paths,
@@ -1090,7 +1235,9 @@ impl MonteCarloVanillaEngine {
                 |coordinate| {
                     let row = terminal(coordinate);
                     spots.push(row);
-                    cash.push(row.map(payoff));
+                    cash.push(std::array::from_fn(|i| {
+                        payoff(strike_spot(row, i), strikes[i])
+                    }));
                     Ok(())
                 },
             )?;
@@ -1112,12 +1259,14 @@ impl MonteCarloVanillaEngine {
             });
         }
         let apply_exercise =
-            |spots: [f64; N], cash: &mut [f64; N], coefficients: &[Option<[f64; 3]>; N]| {
-                for ((cash, spot), coefficient) in cash.iter_mut().zip(spots).zip(coefficients) {
+            |spots: [f64; S], cash: &mut [f64; N], coefficients: &[Option<[f64; 3]>; N]| {
+                for (i, (cash, coefficient)) in cash.iter_mut().zip(coefficients).enumerate() {
+                    let spot = strike_spot(spots, i);
+                    let strike = strikes[i];
                     let Some([constant, linear, quadratic]) = *coefficient else {
                         continue;
                     };
-                    let intrinsic = payoff(spot);
+                    let intrinsic = payoff(spot, strike);
                     if intrinsic <= 0.0 {
                         continue;
                     }
@@ -1174,14 +1323,16 @@ impl MonteCarloVanillaEngine {
                             apply_exercise(*spots, cash, &coefficients)?;
                         }
                         *spots = spots_at_step(value);
-                        for (index, ((cash, matrix), spot)) in
-                            cash.iter_mut().zip(&mut matrices).zip(*spots).enumerate()
+                        for (index, (cash, matrix)) in
+                            cash.iter_mut().zip(&mut matrices).enumerate()
                         {
+                            let spot = strike_spot(*spots, index);
+                            let strike = strikes[index];
                             *cash *= discount[index];
                             if !cash.is_finite() {
                                 return Err(unstable());
                             }
-                            if payoff(spot) > 0.0 {
+                            if payoff(spot, strike) > 0.0 {
                                 let x = spot / strike;
                                 let square = x * x;
                                 let target = *cash / strike;
@@ -1558,7 +1709,7 @@ mod tests {
             antithetic: false,
             ..Default::default()
         };
-        let (window, bytes) = exercise_window::<1>(settings, 340_000, 340_000, 50, 0)?;
+        let (window, bytes) = exercise_window::<1, 1>(settings, 340_000, 340_000, 50, 0)?;
         assert!(bytes > MAX_CACHED_PATH_VALUES * size_of::<f64>());
         assert_eq!(window, 50);
 
@@ -1566,7 +1717,7 @@ mod tests {
             path_count: 680_000,
             ..settings
         };
-        let (window, bytes) = exercise_window::<1>(settings, 680_000, 680_000, 50, 0)?;
+        let (window, bytes) = exercise_window::<1, 1>(settings, 680_000, 680_000, 50, 0)?;
         assert_eq!(window, 25);
         assert!(bytes <= PREFERRED_PATH_WORKSPACE);
         Ok(())
@@ -1580,7 +1731,7 @@ mod tests {
             path_count: paths,
             ..Default::default()
         };
-        let (window, bytes) = exercise_window::<3>(settings, 65_536, 65_536, intervals, 0)?;
+        let (window, bytes) = exercise_window::<3, 3>(settings, 65_536, 65_536, intervals, 0)?;
         assert_eq!(window, intervals);
         assert!((100 * 1024 * 1024..110 * 1024 * 1024).contains(&bytes));
         Ok(())

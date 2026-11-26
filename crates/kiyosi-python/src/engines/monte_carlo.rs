@@ -366,6 +366,49 @@ sampling_settings!(
     [///
     ],
     {
+        /// Price American strikes on the same simulated spot paths.
+        ///
+        /// Parameters
+        /// ----------
+        /// instrument : AmericanOption
+        ///     Template for option direction and dates.
+        /// context : PricingContext
+        ///     Flat-rate calendar-time Black–Scholes–Merton snapshot.
+        /// strikes : iterable of float
+        ///     Finite positive strikes.
+        ///
+        /// Returns
+        /// -------
+        /// tuple of float
+        ///     Prices in strike order, preserving duplicates.
+        ///
+        /// Notes
+        /// -----
+        /// The request uses one seed and fits a separate exercise rule for each
+        /// strike. Call with_resolved_seed() first to replay an unseeded engine.
+        ///
+        /// Raises
+        /// ------
+        /// KiyosiError
+        ///     If contract, market, strike or sampling validation fails.
+        /// OSError
+        ///     If interrupted or entropy retrieval or worker creation fails.
+        #[pyo3(signature = (instrument, context, *, strikes))]
+        #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns the extracted inputs.")]
+        fn price_american_strikes<'py>(
+            &self,
+            py: Python<'py>,
+            #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, crate::instruments::american::AmericanOption>,
+            context: &PricingContext,
+            #[pyo3(from_py_with = crate::conversions::reals)] strikes: Vec<f64>,
+        ) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+            let instrument = &instrument.0;
+            let prices = domain(crate::cancellation::run(py, || {
+                self.0.price_american_strikes(instrument, &context.0, &strikes)
+            })?)?;
+            pyo3::types::PyTuple::new(py, prices)
+        }
+
         /// Fit an American exercise rule and price it on separate paths.
         ///
         /// Parameters

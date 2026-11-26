@@ -4351,6 +4351,42 @@ class MonteCarloVanillaEngine(
             If representations, Greek names or keyword arguments are invalid.
         """
 
+    def price_american_strikes(
+        self,
+        instrument: AmericanOption,
+        context: PricingContext,
+        *,
+        strikes: Iterable[_Real],
+    ) -> tuple[float, ...]:
+        """Price American strikes on the same simulated spot paths.
+
+        Parameters
+        ----------
+        instrument : AmericanOption
+            Template for option direction and dates.
+        context : PricingContext
+            Flat-rate calendar-time Black–Scholes–Merton snapshot.
+        strikes : iterable of float
+            Finite positive strikes.
+
+        Returns
+        -------
+        tuple of float
+            Prices in strike order, preserving duplicates.
+
+        Notes
+        -----
+        The request uses one seed and fits a separate exercise rule for each
+        strike. Call with_resolved_seed() first to replay an unseeded engine.
+
+        Raises
+        ------
+        KiyosiError
+            If contract, market, strike or sampling validation fails.
+        OSError
+            If interrupted or entropy retrieval or worker creation fails.
+        """
+
     def price_american_out_of_sample(
         self,
         instrument: AmericanOption,

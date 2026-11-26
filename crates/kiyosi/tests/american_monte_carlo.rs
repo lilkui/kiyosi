@@ -927,3 +927,52 @@ fn out_of_sample_american_policy_replays_and_converges() -> Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn american_monte_carlo_strike_batch_replays_scalar_paths() -> Result<()> {
+    let template = option(OptionType::Put, 100.0);
+    let snapshot = market(0.05, 0.02, 0.25, 100.0);
+    let strikes = [100.0, 70.0, 110.0, 85.0, 100.0, 75.0, 140.0];
+    for (sampling, path_count) in [
+        (MonteCarloSampling::PseudoRandom, 4095),
+        (MonteCarloSampling::Sobol, 4096),
+    ] {
+        let settings = MonteCarloGridSettings {
+            sampling: MonteCarloSettings {
+                sampling,
+                path_count,
+                antithetic: true,
+                seed: Some(42),
+                max_active_workers: 2,
+            },
+            step_count: 32,
+        };
+        let engine = MonteCarloVanillaEngine::new(settings)?;
+        let prices = engine.price_american_strikes(&template, &snapshot, &strikes)?;
+        let expected = strikes
+            .iter()
+            .map(|&strike| engine.price(&option(OptionType::Put, strike), &snapshot))
+            .collect::<Result<Vec<_>>>()?;
+        assert_eq!(prices, expected);
+        let serial = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+            sampling: MonteCarloSettings {
+                max_active_workers: 1,
+                ..settings.sampling
+            },
+            ..settings
+        })?;
+        assert_eq!(
+            prices,
+            serial.price_american_strikes(&template, &snapshot, &strikes)?
+        );
+        assert_eq!(
+            engine.price_american_strikes(&template, &snapshot, &[])?,
+            Vec::<f64>::new()
+        );
+        assert!(matches!(
+            engine.price_american_strikes(&template, &snapshot, &[100.0, -1.0]),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    Ok(())
+}

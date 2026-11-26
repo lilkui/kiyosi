@@ -519,3 +519,27 @@ def test_out_of_sample_american_policy_replays_and_converges(sampling):
                     put, snapshot, training_path_count=0
                 )
     assert math.sqrt(sum(errors) / len(errors)) < 0.055
+
+
+@pytest.mark.parametrize(
+    "sampling,path_count", (("pseudo_random", 4095), ("sobol", 4096))
+)
+def test_american_monte_carlo_strike_batch_replays_scalar_paths(sampling, path_count):
+    snapshot = market(rate=0.05, dividend=0.02, sigma=0.25)
+    strikes = (100, 70, 110, 85, 100, 75, 140)
+    engine = MonteCarloVanillaEngine(
+        sampling=sampling,
+        path_count=path_count,
+        step_count=32,
+        seed=42,
+        antithetic=True,
+        max_active_workers=2,
+    )
+    put = contract()
+    prices = engine.price_american_strikes(put, snapshot, strikes=iter(strikes))
+    assert prices == tuple(engine.price(contract(strike=k), snapshot) for k in strikes)
+    serial = engine.replace(max_active_workers=1)
+    assert prices == serial.price_american_strikes(put, snapshot, strikes=strikes)
+    assert engine.price_american_strikes(put, snapshot, strikes=()) == ()
+    with pytest.raises(InvalidInputError):
+        engine.price_american_strikes(put, snapshot, strikes=(100, -1))
