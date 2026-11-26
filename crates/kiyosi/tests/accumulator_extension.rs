@@ -1017,6 +1017,12 @@ fn unmonitored_daily_accumulator_matches_the_conditional_digital_portfolio() -> 
         expected += (-0.01 * remaining).exp() * AnalyticDigitalEngine.price(&asset, &context)?
             - (-0.04 * remaining).exp() * AnalyticDigitalEngine.price(&cash, &context)?;
     }
+    let fd = FiniteDifferenceAccumulatorEngine::default();
+    let direct = fd.price(&option, &context)?;
+    assert!((direct - expected).abs() < 1e-10);
+    let with_greeks = fd.price_with_greeks(&option, &context, GreeksRequest::new([Greek::Vega]))?;
+    assert_eq!(with_greeks.price().to_bits(), direct.to_bits());
+    assert!(with_greeks.require(Greek::Vega)?.is_finite());
     for steps in [4, 1024] {
         let engine = QuadratureAccumulatorEngine::new(QuadratureSettings {
             asset_step_count: steps,

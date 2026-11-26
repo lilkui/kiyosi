@@ -141,17 +141,14 @@ fn price(
     if let Some(value) = settlement {
         return finite_price(value);
     }
+    if let Some(price) = unmonitored_accumulator_value(option, context, quantity, [rate, dividend])?
+    {
+        return Ok(price);
+    }
     context.validate_curve_horizon(option.expiry_time())?;
     let horizon = context.valuation_time().years_until(option.expiry_time());
     let strike = option.strike();
     let current = log_ratio(context.spot_price(), strike);
-    if option.knock_out_observation_times().is_some_and(|dates| {
-        dates
-            .last()
-            .is_none_or(|&last| last <= context.valuation_time())
-    }) {
-        return expiry_settlement(option, context, quantity, [rate, dividend]);
-    }
     let evaluate = |nodes: &[f64], layers: &[Layer; 2], drift, deviation, discount| {
         let value =
             |layer: &Layer| layer.evaluate(nodes, current, strike, drift, deviation, discount);
@@ -460,14 +457,22 @@ fn price(
 
 // Conditional on each fixing, the expected expiry spot is a fixed multiple of
 // that fixing's spot. Quantities therefore contribute separate digital moments.
-fn expiry_settlement(
+pub(in crate::engines) fn unmonitored_accumulator_value(
     option: &Accumulator,
     context: &PricingContext,
     quantity: f64,
     [rate, dividend]: [f64; 2],
-) -> Result<f64> {
+) -> Result<Option<f64>> {
+    if !option.knock_out_observation_times().is_some_and(|dates| {
+        dates
+            .last()
+            .is_none_or(|&last| last <= context.valuation_time())
+    }) {
+        return Ok(None);
+    }
     let valuation = context.valuation_time();
     let expiry = option.expiry_time();
+    context.validate_curve_horizon(expiry)?;
     let strike = option.strike();
     let current = log_ratio(context.spot_price(), strike);
     let sigma = context.natural_bsm_parameters()?.volatility();
@@ -539,5 +544,5 @@ fn expiry_settlement(
             }
         }
     }
-    finite_price(sum.total())
+    finite_price(sum.total()).map(Some)
 }

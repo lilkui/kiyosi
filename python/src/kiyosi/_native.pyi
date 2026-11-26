@@ -3055,6 +3055,9 @@ class FiniteDifferenceAccumulatorEngine(_FiniteDifferenceMethods[Accumulator]):
     domains require convergence checks.
 
     The rollback work limit counts both layers when future purchases are possible.
+    Default settings integrate each fixing directly for calendar-time flat-rate
+    BSM contracts with no future knock-out. Custom grid controls and solve()
+    use a numerical grid.
     """
 
 class FiniteDifferenceBarrierEngine(_FiniteDifferenceMethods[BarrierOption]):

@@ -206,6 +206,9 @@ macro_rules! fd_engine {
 
 fd_engine!(
     /// The rollback work limit counts both layers when future purchases are possible.
+    /// Default settings integrate each fixing directly for calendar-time flat-rate
+    /// BSM contracts with no future knock-out. Custom grid controls and solve()
+    /// use a numerical grid.
     ///
     FiniteDifferenceAccumulatorEngine,
     PyRef<'_, accumulator::Accumulator>,

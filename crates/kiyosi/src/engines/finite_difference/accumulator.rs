@@ -11,7 +11,9 @@ impl FiniteDifferenceAccumulatorEngine {
     ///
     /// Applies current events and events before variance resumes on the deterministic
     /// spot path, with inclusive knock-out and direction-dependent acceleration.
-    /// Supports flat and nonconstant rate curves.
+    /// Supports flat and nonconstant rate curves. Default settings value calendar-time
+    /// flat-rate BSM contracts without future knock-out by integrating each fixing.
+    /// Changing the grid controls or preparing a saved grid uses finite differences.
     /// Accepts BSM or local volatility; surface coverage is required only for
     /// remaining stochastic evolution, after immediate settlement is resolved.
     /// See [`Self::price`] for an example.
@@ -28,7 +30,8 @@ impl FiniteDifferenceAccumulatorEngine {
     ///
     /// # Greeks
     ///
-    /// Computes spline spot Greeks and completes other sensitivities with core bump defaults.
+    /// Computes spline spot Greeks on grids and uses core bump defaults for
+    /// other sensitivities and for direct per-fixing valuation.
     ///
     /// Fixes the central upper domain for bumped prices. At expiry Greeks follow
     /// terminal payoffs, with time Greeks absent. Stencils crossing current
@@ -130,6 +133,18 @@ fn native(
         request,
         shifts,
         |rolled, quantity, request, shifts| {
+            if settings == FiniteDifferenceSettings::default() {
+                if let Ok((rate, dividend)) = crate::engines::flat_rates(rolled) {
+                    if let Some(price) = crate::engines::quadrature::unmonitored_accumulator_value(
+                        option,
+                        rolled,
+                        quantity,
+                        [rate, dividend],
+                    )? {
+                        return PricingResult::new(price);
+                    }
+                }
+            }
             let grid = diffusion::with_diffusion!(rolled, |diffusion| {
                 solve_grid(option, rolled, settings, diffusion, rolled.spot_price())
             })?;

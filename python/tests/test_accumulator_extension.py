@@ -682,6 +682,12 @@ def test_unmonitored_daily_accumulator_matches_the_conditional_digital_portfolio
             stock * math.erfc((d2 + deviation) / math.sqrt(2))
             - cash * math.erfc(d2 / math.sqrt(2))
         ) / 2
+    fd = pricing.FiniteDifferenceAccumulatorEngine()
+    direct = fd.price(option, context)
+    assert direct == pytest.approx(expected, abs=1e-10, rel=0)
+    with_greeks = fd.price_with_greeks(option, context, "vega")
+    assert with_greeks.price == direct
+    assert math.isfinite(with_greeks.require("vega"))
     for steps in (4, 1024):
         engine = pricing.QuadratureAccumulatorEngine(asset_step_count=steps)
         assert engine.price(option, context) == pytest.approx(

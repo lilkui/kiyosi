@@ -1,5 +1,6 @@
 mod accumulator;
 pub use accumulator::QuadratureAccumulatorEngine;
+pub(super) use accumulator::unmonitored_accumulator_value;
 mod autocallable;
 pub use autocallable::QuadratureAutocallableEngine;
 mod barrier;
