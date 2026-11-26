@@ -901,10 +901,10 @@ impl MonteCarloVanillaEngine {
                 sigma * dt.sqrt(),
             ]
         });
-        let shared_growth: [usize; N] = std::array::from_fn(|i| {
+        let shared_diffusion: [usize; N] = std::array::from_fn(|i| {
             growth[..i]
                 .iter()
-                .position(|previous| previous.map(f64::to_bits) == growth[i].map(f64::to_bits))
+                .position(|previous| previous[1].to_bits() == growth[i][1].to_bits())
                 .unwrap_or(i)
         });
         let log_discount = parameters.map(|[rate, _, _]| -rate * dt);
@@ -936,40 +936,47 @@ impl MonteCarloVanillaEngine {
             // original spot-space calculation decides the near-strike cases.
             sign * log - 32.0 * f64::EPSILON * (1.0 + log.abs())
         });
-        let mut group_cutoff = cutoff;
-        for (lane, &source) in shared_growth.iter().enumerate() {
-            group_cutoff[source] = group_cutoff[source].min(cutoff[lane]);
-        }
         let spots_at = |step: usize| {
             let elapsed = (step + 1) as f64;
             let drifts = growth.map(|[drift, _]| drift * elapsed);
             let root = elapsed.sqrt();
+            let mut group_cutoff = [f64::INFINITY; N];
+            for (lane, &source) in shared_diffusion.iter().enumerate() {
+                group_cutoff[source] = group_cutoff[source].min(cutoff[lane] - sign * drifts[lane]);
+            }
             let screen: [bool; N] = std::array::from_fn(|i| {
-                // Predictable screening is most useful on rows where most paths
-                // are out of the money. Dense exercise rows take the direct path.
-                group_cutoff[i] > sign * drifts[i] + 0.5 * growth[i][1] * root
+                // Predictable screening is most useful on sparse exercise rows.
+                group_cutoff[i] > 0.5 * growth[i][1] * root
             });
-            move |coordinate| {
+            // Use the same reconstruction in scalar and batched scenarios.
+            let scales: [f64; N] = std::array::from_fn(|i| {
+                if normalized {
+                    initial[i] * drifts[i].exp()
+                } else {
+                    initial[i]
+                }
+            });
+            move |coordinate: f64| {
                 if !normalized {
                     [coordinate; N]
                 } else if same_growth {
-                    let log = growth[0][1].mul_add(coordinate, drifts[0]);
+                    let log = growth[0][1] * coordinate;
                     if screen[0] && sign * log < group_cutoff[0] {
                         return [strike; N];
                     }
                     let factor = log.exp();
-                    initial.map(|scale| scale * factor)
+                    scales.map(|scale| scale * factor)
                 } else {
                     let mut factors = [None; N];
                     std::array::from_fn(|i| {
-                        let source = shared_growth[i];
+                        let source = shared_diffusion[i];
                         if source == i {
-                            let log = growth[i][1].mul_add(coordinate, drifts[i]);
+                            let log = growth[i][1] * coordinate;
                             if !screen[i] || sign * log >= group_cutoff[i] {
                                 factors[i] = Some(log.exp());
                             }
                         }
-                        factors[source].map_or(strike, |factor| initial[i] * factor)
+                        factors[source].map_or(strike, |factor| scales[i] * factor)
                     })
                 }
             }
