@@ -221,6 +221,40 @@ impl MonteCarloAutocallableEngine {
         )))
     }
 
+    fn market_pair<T: AutocallableTerms>(
+        &self,
+        note: &AutocallableNote<T>,
+        a: &PricingContext,
+        b: &PricingContext,
+    ) -> Result<Option<([f64; 2], u64)>> {
+        let (Sample::Path(a), Sample::Path(b)) = (
+            self.prepare_sample::<_, 2>(note, a)?,
+            self.prepare_sample::<_, 2>(note, b)?,
+        ) else {
+            return Ok(None);
+        };
+        // For the same note and valuation, equal monitoring modes select the same dates.
+        if a.steps.len() != b.steps.len()
+            || a.state.knocked_in != b.state.knocked_in
+            || a.bridge.is_some() != b.bridge.is_some()
+        {
+            return Ok(None);
+        }
+        let ([v, w], _, seed) = if a.shares_transitions(&b)? {
+            a.sample(self.settings, [&a, &b], false, true)?
+        } else if let Some(bridge) = &a.bridge {
+            path_samples_skipping(self.settings, a.steps.len(), false, |normals| {
+                PathPlan::bridge_payoffs::<2, false>(bridge, [&a, &b], normals)
+            })?
+        } else {
+            path_samples_lazy(self.settings, a.steps.len(), false, false, |normals| {
+                a.spot_payoffs::<2, false>([&a, &b], normals)
+            })?
+        };
+        let price = |moment: Moments| scaled_value(moment.scale, moment.mean, 0.0);
+        Ok(Some(([price(v)?, price(w)?], seed)))
+    }
+
     fn prepare_sample<'a, T: AutocallableTerms, const N: usize>(
         &self,
         note: &'a AutocallableNote<T>,
@@ -441,12 +475,12 @@ impl<T: AutocallableTerms> PathPlan<'_, T> {
     ) -> Result<([Moments; N], [Moments; N], u64)> {
         if let Some(bridge) = &self.bridge {
             return path_samples_skipping(settings, self.steps.len(), statistics, |normals| {
-                self.bridge_payoffs(bridge, plans, normals)
+                Self::bridge_payoffs::<N, true>(bridge, plans, normals)
             });
         }
         path_samples_lazy(settings, self.steps.len(), statistics, false, |normals| {
             if spot_stencil {
-                self.spot_payoffs(plans, normals)
+                self.spot_payoffs::<N, true>(plans, normals)
             } else {
                 self.payoff(plans, normals)
             }
@@ -480,46 +514,66 @@ impl<T: AutocallableTerms> PathPlan<'_, T> {
         Ok(())
     }
 
-    fn bridge_payoffs<const N: usize>(
-        &self,
+    fn bridge_payoffs<const N: usize, const SHARED_GROWTH: bool>(
         bridge: &BridgePlan,
         plans: [&Self; N],
         normals: &mut SkippingPath<'_, '_>,
     ) -> Result<[f64; N]> {
+        let bridges = plans.map(|plan| {
+            if SHARED_GROWTH {
+                bridge
+            } else {
+                plan.bridge.as_ref().expect("shared bridge dates")
+            }
+        });
         let mut cash = plans.map(|plan| plan.state.coupon);
         let mut monitoring =
             plans.map(|plan| (!plan.state.knocked_in).then_some(plan.knock_in).flatten());
         let mut knocked_in = plans.map(|plan| plan.state.knocked_in);
         let mut active = [true; N];
         let mut start = 0;
-        let mut log_return = 0.0;
-        let mut discount = 0.0;
+        let mut log_returns = [0.0; N];
+        let mut discounts = [0.0; N];
         for (index, interval) in bridge.intervals.iter().enumerate() {
             check_path_step(index)?;
-            let target = log_return + interval.diffusion.mul_add(normals.normal(), interval.drift);
+            let normal = normals.normal();
+            let targets: [f64; N] = std::array::from_fn(|lane| {
+                let lane = if SHARED_GROWTH { 0 } else { lane };
+                let interval = &bridges[lane].intervals[index];
+                log_returns[lane] + interval.diffusion.mul_add(normal, interval.drift)
+            });
             for i in start..interval.end {
                 if monitoring.iter().all(Option::is_none) {
                     normals.skip(interval.end - i);
                     break;
                 }
                 check_path_step(i)?;
-                let [weight, diffusion] = bridge.daily[i];
-                log_return += weight.mul_add(target - log_return, diffusion * normals.normal());
-                for (level, hit) in monitoring.iter_mut().zip(&mut knocked_in) {
-                    if level.is_some_and(|level| log_return < level) {
+                let normal = normals.normal();
+                for lane in 0..if SHARED_GROWTH { 1 } else { N } {
+                    if SHARED_GROWTH || monitoring[lane].is_some() {
+                        let [weight, diffusion] = bridges[lane].daily[i];
+                        let value = &mut log_returns[lane];
+                        *value += weight.mul_add(targets[lane] - *value, diffusion * normal);
+                    }
+                }
+                for (lane, level) in monitoring.iter_mut().enumerate() {
+                    let value = log_returns[if SHARED_GROWTH { 0 } else { lane }];
+                    if level.is_some_and(|level| value < level) {
                         *level = None;
-                        *hit = true;
+                        knocked_in[lane] = true;
                     }
                 }
             }
-            log_return = target;
+            log_returns = targets;
             start = interval.end + 1;
-            discount = self.steps[interval.end].transition[2];
             for lane in 0..N {
                 if !active[lane] {
                     continue;
                 }
                 let step = &plans[lane].steps[interval.end];
+                let log_return = log_returns[lane];
+                let discount = step.transition[2];
+                discounts[lane] = discount;
                 if step.observe_knock_in && monitoring[lane].is_some_and(|level| log_return < level)
                 {
                     monitoring[lane] = None;
@@ -544,6 +598,8 @@ impl<T: AutocallableTerms> PathPlan<'_, T> {
         }
         for (lane, plan) in plans.into_iter().enumerate() {
             if active[lane] {
+                let log_return = log_returns[lane];
+                let discount = discounts[lane];
                 let hit = knocked_in[lane]
                     || (plan.expiry_knock_in
                         && plan.knock_in.is_some_and(|level| log_return < level));
@@ -553,28 +609,35 @@ impl<T: AutocallableTerms> PathPlan<'_, T> {
         finite_payoffs(cash)
     }
 
-    fn spot_payoffs<const N: usize>(
+    fn spot_payoffs<const N: usize, const SHARED_GROWTH: bool>(
         &self,
         plans: [&Self; N],
         normals: &mut LazyPath<'_, '_>,
     ) -> Result<[f64; N]> {
-        let mut log_return = 0.0;
-        let mut discount = 0.0;
+        let mut log_returns = [0.0; N];
+        let mut discounts = [0.0; N];
         let mut cash = plans.map(|plan| plan.state.coupon);
         let mut knocked_in = plans.map(|plan| plan.state.knocked_in);
         let mut active = [true; N];
         for (index, step) in self.steps.iter().enumerate() {
             check_path_step(index)?;
-            let [drift, diffusion, log_discount] = step.transition;
-            discount = log_discount;
-            log_return += diffusion.mul_add(normals.normal(), drift);
+            let normal = normals.normal();
+            if SHARED_GROWTH {
+                log_returns[0] += step.transition[1].mul_add(normal, step.transition[0]);
+            }
             for lane in 0..N {
                 if !active[lane] {
                     continue;
                 }
                 let plan = plans[lane];
-                plan.validate_return(log_return)?;
                 let step = &plan.steps[index];
+                let [drift, diffusion, discount] = step.transition;
+                discounts[lane] = discount;
+                if !SHARED_GROWTH {
+                    log_returns[lane] += diffusion.mul_add(normal, drift);
+                }
+                let log_return = log_returns[if SHARED_GROWTH { 0 } else { lane }];
+                plan.validate_return(log_return)?;
                 if step.observe_knock_in {
                     knocked_in[lane] |= plan.knock_in.is_some_and(|level| log_return < level);
                 }
@@ -595,6 +658,8 @@ impl<T: AutocallableTerms> PathPlan<'_, T> {
         for lane in 0..N {
             if active[lane] {
                 let plan = plans[lane];
+                let log_return = log_returns[if SHARED_GROWTH { 0 } else { lane }];
+                let discount = discounts[lane];
                 knocked_in[lane] |=
                     plan.expiry_knock_in && plan.knock_in.is_some_and(|level| log_return < level);
                 cash[lane] += plan.discounted_terminal(log_return, knocked_in[lane], discount)?;
@@ -707,51 +772,74 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
         settings.validate()?;
         let spot = context.spot_price();
         let shift = crate::risk::numerical::symmetric_shift(spot, settings.spot_shift_at(spot));
-        if !(request.has(Greek::Delta) || request.has(Greek::Gamma))
-            || shift <= 0.0
-            || spot <= shift
-            || context.valuation_time() == option.expiry_time()
-            || option.all_greeks_unavailable(context)
-            || option.at_spot_discontinuity(context, shift)
-        {
-            return crate::numerical_greeks(self, option, context, request, settings);
-        }
         let _sampling = super::RequestCache::new();
         let engine = self.with_resolved_seed()?;
-        let shifted = |spot| {
-            context.replace(PricingContextChanges {
-                spot_price: Some(spot),
-                ..Default::default()
-            })
-        };
-        let high = shifted(spot + shift)?;
-        let low = shifted(spot - shift)?;
-        let (base, up, down, seed) = match engine.spot_prices(option, [context, &high, &low]) {
-            Ok(Some(([base, up, down], seed))) => (base, up, down, seed),
-            Ok(None) | Err(Error::InvalidInput(_)) => {
-                return crate::numerical_greeks(&engine, option, context, request, settings);
+        let mut spot_batch = None;
+        if (request.has(Greek::Delta) || request.has(Greek::Gamma))
+            && shift > 0.0
+            && spot > shift
+            && context.valuation_time() != option.expiry_time()
+            && !option.all_greeks_unavailable(context)
+            && !option.at_spot_discontinuity(context, shift)
+        {
+            let shifted = |spot| {
+                context.replace(PricingContextChanges {
+                    spot_price: Some(spot),
+                    ..Default::default()
+                })
+            };
+            let high = shifted(spot + shift)?;
+            let low = shifted(spot - shift)?;
+            match engine.spot_prices(option, [context, &high, &low]) {
+                Ok(Some((prices, seed))) => spot_batch = Some((high, low, prices, seed)),
+                Ok(None) | Err(Error::InvalidInput(_)) => {}
+                Err(error) => return Err(error),
             }
-            Err(error) => return Err(error),
+        }
+        let seed = std::cell::Cell::new(None);
+        let native = |context: &PricingContext, _| {
+            let (price, used_seed) = engine.price_with_seed(option, context)?;
+            if used_seed.is_some() {
+                seed.set(used_seed);
+            }
+            PricingResult::new(price)
         };
-        let native =
-            |context: &PricingContext, _| PricingResult::new(engine.price(option, context)?);
+        let base = if let Some((_, _, [base, ..], used_seed)) = &spot_batch {
+            seed.set(Some(*used_seed));
+            PricingResult::new(*base)?
+        } else {
+            native(context, request)?
+        };
         crate::risk::numerical::complete_greeks_with_pair(
             option,
             context,
             request,
             settings,
             false,
-            PricingResult::new(base)?,
+            base,
             native,
             |a, b, _| {
-                if *a == high && *b == low {
-                    Ok(Some((PricingResult::new(up)?, PricingResult::new(down)?)))
-                } else {
-                    Ok(None)
+                if let Some((high, low, [_, up, down], _)) = &spot_batch {
+                    if a == high && b == low {
+                        return Ok(Some((PricingResult::new(*up)?, PricingResult::new(*down)?)));
+                    }
                 }
+                if a.valuation_time() == b.valuation_time()
+                    && a.model_parameters() != b.model_parameters()
+                {
+                    match engine.market_pair(option, a, b) {
+                        Ok(Some(([up, down], used_seed))) => {
+                            seed.set(Some(used_seed));
+                            return Ok(Some((PricingResult::new(up)?, PricingResult::new(down)?)));
+                        }
+                        Err(error @ Error::Io(_)) => return Err(error),
+                        Ok(None) | Err(_) => {}
+                    }
+                }
+                Ok(None)
             },
         )
-        .map(|result| result.with_seed(Some(seed)))
+        .map(|result| result.with_seed(seed.get()))
     }
 
     fn price_coupon_bounds(
