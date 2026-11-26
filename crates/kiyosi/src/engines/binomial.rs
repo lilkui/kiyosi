@@ -311,6 +311,121 @@ fn european_levels(
     Ok((weighted(0, 0)?, nodes))
 }
 
+// Normalize relative to the mode, so a million-step tree only visits its
+// probability band. Successive outward weight ratios decrease monotonically.
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    reason = "Tree sizes and floored binomial modes are bounded and fit exactly in f64."
+)]
+fn binomial_upper_tail(steps: usize, probability: f64, first: usize) -> Option<f64> {
+    if first == 0 {
+        return Some(1.0);
+    }
+    if first > steps {
+        return Some(0.0);
+    }
+    let complement = 1.0 - probability;
+    let mode = (((steps + 1) as f64 * probability) as usize).min(steps);
+    let radius = 8.0 * (steps as f64 * probability * complement).sqrt();
+    if first.abs_diff(mode) as f64 > radius {
+        return None;
+    }
+    let mut total = crate::numerics::Sum::default();
+    let mut tail = crate::numerics::Sum::default();
+    total.add(1.0);
+    if mode >= first {
+        tail.add(1.0);
+    }
+    let mut visit = |indices: &mut dyn Iterator<Item = usize>, ratio: &dyn Fn(usize) -> f64| {
+        let mut weight = 1.0;
+        for i in indices {
+            let ratio = ratio(i);
+            weight *= ratio;
+            // Bound all remaining terms by a geometric series. The small
+            // tail controls the absolute tolerance when evaluating a rare event.
+            if ratio < 1.0 && weight <= f64::EPSILON * (1.0 - ratio) * tail.total() {
+                break;
+            }
+            total.add(weight);
+            if i >= first {
+                tail.add(weight);
+            }
+        }
+    };
+    visit(&mut (mode + 1..=steps), &|i| {
+        (steps - i + 1) as f64 * probability / (i as f64 * complement)
+    });
+    visit(&mut (0..mode).rev(), &|i| {
+        (i + 1) as f64 * complement / ((steps - i) as f64 * probability)
+    });
+    Some(tail.total() / total.total())
+}
+
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "Validated binomial counts fit exactly in f64."
+)]
+fn terminal_tail_levels(
+    payoff: Payoff,
+    spot: f64,
+    steps: usize,
+    [width, p, log_discount]: [f64; 3],
+    level: usize,
+) -> Option<(f64, [f64; 3])> {
+    // Use the full log-space sum for rare tails or extreme asset ranges.
+    if steps < 256 || !(0.1..=0.9).contains(&p) || steps as f64 * width + spot.ln().abs() > 600.0 {
+        return None;
+    }
+    let moneyness = log_ratio(spot, payoff.strike);
+    let log_growth = p
+        .mul_add(width.exp_m1(), (1.0 - p) * (-width).exp_m1())
+        .ln_1p();
+    let tilted = p * (width - log_growth).exp();
+    let call = payoff.sign > 0.0;
+    let price_at = |offset: usize, removed: usize| {
+        let n = steps - removed;
+        // Locate the paying suffix, reversing the node order for a put.
+        let mut low = 0;
+        let mut high = n + 1;
+        while low < high {
+            let mid = low.midpoint(high);
+            let node = offset + if call { mid } else { n - mid };
+            let distance = moneyness + (2.0 * node as f64 - steps as f64) * width;
+            if payoff.sign * distance > 0.0 {
+                high = mid;
+            } else {
+                low = mid + 1;
+            }
+        }
+        if low > n {
+            return Some(0.0);
+        }
+        let tail = |prob| binomial_upper_tail(n, if call { prob } else { 1.0 - prob }, low);
+        let discount = n as f64 * log_discount;
+        if let Some(payout) = payoff.payout() {
+            return Some(scaled(payout, discount + tail(p)?.ln())).filter(|x| x.is_finite());
+        }
+        let forward = (2.0 * offset as f64 - removed as f64) * width + n as f64 * log_growth;
+        let asset = scaled(spot * tail(tilted)?, discount + forward);
+        if payoff.is_digital() {
+            return Some(asset).filter(|x| x.is_finite());
+        }
+        let cash = scaled(payoff.strike * tail(p)?, discount);
+        let price = payoff.sign * (asset - cash);
+        (price.is_finite() && price > 1e-5 * asset.max(cash)).then_some(price)
+    };
+    let price = price_at(0, 0)?;
+    let mut nodes = [0.0; 3];
+    if level > 0 {
+        for (offset, node) in nodes.iter_mut().enumerate().take(level + 1) {
+            *node = price_at(offset, level)?;
+        }
+    }
+    Some((price, nodes))
+}
+
 #[expect(
     clippy::cast_precision_loss,
     clippy::cast_sign_loss,
@@ -342,6 +457,44 @@ fn native(
     }
     let (width, up, down, discount, p) = parameters(context, dt)?;
     let steps = settings.step_count as usize;
+    let tail_level = if request.has(Greek::Gamma) {
+        2.min(steps)
+    } else {
+        usize::from(request.has(Greek::Delta))
+    };
+    if no_early_exercise {
+        crate::cancellation::check()?;
+        if let Some((price, second)) = terminal_tail_levels(
+            payoff,
+            spot,
+            steps,
+            [width, p, discount.log_factor],
+            tail_level,
+        ) {
+            let first = if tail_level == 2 {
+                [
+                    discount.rollback(second[0], second[1], p),
+                    discount.rollback(second[1], second[2], p),
+                ]
+            } else {
+                [second[0], second[1]]
+            };
+            let price = if payoff.is_american() {
+                price.max(exercise(spot))
+            } else {
+                price
+            };
+            return tree_result(
+                price,
+                first,
+                second,
+                spot,
+                [up, down, up * up],
+                request,
+                steps,
+            );
+        }
+    }
     let up_squared = up * up;
     let mut node_spot = spot * down.powi(settings.step_count);
     if !up_squared.is_finite() || !node_spot.is_normal() {
@@ -438,7 +591,27 @@ fn native(
             }
         }
     }
-    let mut result = PricingResult::new(values[0])?;
+    tree_result(
+        values[0],
+        first,
+        second,
+        spot,
+        [up, down, up_squared],
+        request,
+        steps,
+    )
+}
+
+fn tree_result(
+    price: f64,
+    first: [f64; 2],
+    second: [f64; 3],
+    spot: f64,
+    [up, down, up_squared]: [f64; 3],
+    request: GreeksRequest,
+    steps: usize,
+) -> Result<PricingResult> {
+    let mut result = PricingResult::new(price)?;
     if request.has(Greek::Delta) {
         let denominator = spot * (up - down);
         if denominator.is_finite() && denominator != 0.0 {
