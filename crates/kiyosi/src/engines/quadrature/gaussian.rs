@@ -540,18 +540,17 @@ impl TransitionCache {
         })
     }
 
-    fn convolutions(&self, drift: f64, deviation: f64) -> &[(Range<usize>, Arc<ConvolutionGrid>)] {
+    fn convolutions(&self, deviation: f64) -> &[(Range<usize>, Arc<ConvolutionGrid>)] {
         let bytes = self
             .grids
             .iter()
-            .map(|(_, grid)| grid.bytes())
+            .map(|(_, grid)| grid.bytes(deviation))
             .sum::<usize>();
         if bytes > self.budget
-            || drift.abs() > 4.0 * deviation
             || self
                 .grids
                 .iter()
-                .any(|(_, grid)| deviation < 2.0 * grid.spacing)
+                .any(|(_, grid)| deviation < grid.spacing / 8.0)
         {
             &[]
         } else {
@@ -560,8 +559,11 @@ impl TransitionCache {
     }
 
     fn transition_work(&self, nodes: &[f64], drift: f64, deviation: f64) -> Result<usize> {
-        let grids = self.convolutions(drift, deviation);
-        let fft_work = grids.iter().map(|(_, grid)| grid.work()).sum::<usize>();
+        let grids = self.convolutions(deviation);
+        let fft_work = grids
+            .iter()
+            .map(|(_, grid)| grid.work(deviation))
+            .sum::<usize>();
         if covers_grid(grids, nodes.len()) {
             return Ok(fft_work);
         }
@@ -658,8 +660,11 @@ impl TransitionCache {
             index
         } else {
             // Retain common event gaps without accumulating matrices for irregular schedules.
-            let grids = self.convolutions(drift, deviation).to_vec();
-            let bytes = grids.iter().map(|(_, grid)| grid.bytes()).sum::<usize>();
+            let grids = self.convolutions(deviation).to_vec();
+            let bytes = grids
+                .iter()
+                .map(|(_, grid)| grid.bytes(deviation))
+                .sum::<usize>();
             let row_bytes = if covers_grid(&grids, nodes.len()) {
                 0
             } else {
@@ -677,8 +682,16 @@ impl TransitionCache {
             while retained + minimum > self.budget {
                 retained -= self.entries.remove(0).1.storage_bytes();
             }
+            let index_bytes = row_bytes.saturating_sub(nodes.len() * size_of::<Row>());
             let max_moments = (self.budget - retained - minimum) / BYTES_PER_CACHED_MOMENT;
-            let mut transition = Transition::new(nodes, drift, deviation, max_moments, &grids)?;
+            let mut transition = Transition::new(
+                nodes,
+                drift,
+                deviation,
+                max_moments,
+                index_bytes != 0,
+                &grids,
+            )?;
             for (patch, grid) in grids {
                 let fft = GaussianConvolution::new(
                     grid,
@@ -728,7 +741,7 @@ impl Transition {
     fn storage_bytes(&self) -> usize {
         self.convolutions
             .iter()
-            .map(|(_, fft)| fft.grid.bytes())
+            .map(|(_, fft)| fft.grid.bytes(self.deviation))
             .sum::<usize>()
             + self.rows.capacity() * size_of::<Row>()
             + self.moments.capacity() * size_of::<IntervalMoments>()
@@ -746,21 +759,25 @@ impl Transition {
         budget: usize,
         grids: &[(Range<usize>, Arc<ConvolutionGrid>)],
     ) -> Result<usize> {
-        nodes.iter().enumerate().try_fold(
-            nodes.len().saturating_mul(size_of::<Row>()),
-            |bytes, (index, &node)| {
-                crate::cancellation::check()?;
-                let cells =
-                    direct_ranges(active_cells(nodes, node + drift, deviation), index, grids)
-                        .iter()
-                        .map(ExactSizeIterator::len)
-                        .sum::<usize>();
-                let bytes = bytes.saturating_add(cells.saturating_mul(size_of::<usize>()));
-                (bytes <= budget)
-                    .then_some(bytes)
-                    .ok_or_else(workspace_error)
-            },
-        )
+        let row_bytes = nodes.len().saturating_mul(size_of::<Row>());
+        if row_bytes > budget {
+            return Err(workspace_error());
+        }
+        let index_budget =
+            (budget - row_bytes).min(nodes.len().saturating_mul(256 * size_of::<usize>()));
+        let mut bytes = 0;
+        for (index, &node) in nodes.iter().enumerate() {
+            crate::cancellation::check()?;
+            let cells = direct_ranges(active_cells(nodes, node + drift, deviation), index, grids)
+                .iter()
+                .map(ExactSizeIterator::len)
+                .sum::<usize>();
+            bytes += cells * size_of::<usize>();
+            if bytes > index_budget {
+                return Ok(row_bytes);
+            }
+        }
+        Ok(row_bytes + bytes)
     }
 
     fn new(
@@ -768,6 +785,7 @@ impl Transition {
         drift: f64,
         deviation: f64,
         max_moments: usize,
+        cache_indices: bool,
         grids: &[(Range<usize>, Arc<ConvolutionGrid>)],
     ) -> Result<Self> {
         let mut moments = Vec::new();
@@ -776,12 +794,21 @@ impl Transition {
         if !covers_grid(grids, nodes.len()) {
             rows.reserve_exact(nodes.len());
         }
-        for (index, &node) in nodes.iter().take(rows.capacity()).enumerate() {
+        let row_count = if covers_grid(grids, nodes.len()) {
+            0
+        } else {
+            nodes.len()
+        };
+        for (index, &node) in nodes.iter().take(row_count).enumerate() {
             crate::cancellation::check()?;
             let mean = node + drift;
             let ranges = direct_ranges(active_cells(nodes, mean, deviation), index, grids);
-            let mut indices = Vec::with_capacity(ranges.iter().map(ExactSizeIterator::len).sum());
-            for cell in ranges.iter().cloned().flatten() {
+            let cells = ranges.iter().cloned().flatten();
+            let mut indices = Vec::new();
+            if cache_indices {
+                indices.reserve_exact(ranges.iter().map(ExactSizeIterator::len).sum());
+            }
+            for cell in cells.take(if cache_indices { usize::MAX } else { 0 }) {
                 // Reuse only exactly translated cells, including midpoint rounding.
                 let key = [
                     nodes[cell + 1] - nodes[cell],
@@ -837,7 +864,11 @@ impl Transition {
             if !self.convolutions.is_empty() {
                 sum.add(*value);
             }
-            for (cell, &index) in ranges.iter().cloned().flatten().zip(indices) {
+            for (offset, cell) in ranges.iter().cloned().flatten().enumerate() {
+                if offset % 1024 == 0 {
+                    crate::cancellation::check()?;
+                }
+                let index = indices.get(offset).copied().unwrap_or(usize::MAX);
                 let value = if index == usize::MAX {
                     cell_moments(
                         nodes[cell],
@@ -921,9 +952,17 @@ impl ConvolutionGrid {
             + self.extras.saturating_mul(self.regular.len() + self.extras)
     }
 
-    fn bytes(&self) -> usize {
+    fn use_fft(&self, deviation: f64) -> bool {
+        deviation >= 2.0 * self.spacing
+    }
+
+    fn bytes(&self, deviation: f64) -> usize {
         // Spectra, plans, scratch, and sparse exact rows for cells split by breakpoints.
-        let spectra = self.size.saturating_mul(16 * size_of::<Complex64>());
+        let spectra = if self.use_fft(deviation) {
+            self.size.saturating_mul(16 * size_of::<Complex64>())
+        } else {
+            self.regular.len() * 2 * size_of::<IntervalMoments>()
+        };
         let corrections = self
             .correction_count()
             .saturating_mul(2 * size_of::<(usize, IntervalMoments)>());
@@ -931,19 +970,33 @@ impl ConvolutionGrid {
         spectra.saturating_add(corrections).saturating_add(rows)
     }
 
-    fn work(&self) -> usize {
-        (5 * self.size * self.size.ilog2() as usize).saturating_add(self.correction_count())
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "The band has at most 226 cells."
+    )]
+    fn work(&self, deviation: f64) -> usize {
+        let regular = if self.use_fft(deviation) {
+            5 * self.size * self.size.ilog2() as usize
+        } else {
+            ((112.0 * deviation / self.spacing).ceil() as usize + 2) * self.regular.len()
+        };
+        regular.saturating_add(self.correction_count())
     }
 }
 
 struct GaussianConvolution {
     grid: Arc<ConvolutionGrid>,
-    forward: Arc<dyn Fft<f64>>,
-    inverse: Arc<dyn Fft<f64>>,
-    kernels: [Vec<Complex64>; 4],
+    fft: Option<Spectrum>,
     moments: Vec<IntervalMoments>,
     corrections: Vec<Vec<(usize, IntervalMoments)>>,
     tail_work: Rc<Counter<usize>>,
+}
+
+struct Spectrum {
+    forward: Arc<dyn Fft<f64>>,
+    inverse: Arc<dyn Fft<f64>>,
+    kernels: [Vec<Complex64>; 4],
     input: Vec<Complex64>,
     output: Vec<Complex64>,
     scratch: Vec<Complex64>,
@@ -964,17 +1017,7 @@ impl GaussianConvolution {
         crate::cancellation::check()?;
         let size = grid.size;
         let spacing = grid.spacing;
-        let mut planner = FftPlanner::new();
-        let forward = planner.plan_fft_forward(size);
-        let inverse = planner.plan_fft_inverse(size);
-        let mut scratch = vec![
-            Complex64::default();
-            forward
-                .get_inplace_scratch_len()
-                .max(inverse.get_inplace_scratch_len())
-        ];
-        let blank = || vec![Complex64::default(); size];
-        let mut kernels: [Vec<_>; 4] = std::array::from_fn(|_| blank());
+        let fft = grid.use_fft(deviation).then(|| Spectrum::new(size));
         let cells = grid.regular.len() - 1;
         let mut cell_weights = Vec::with_capacity(2 * cells);
         for offset in 0..2 * cells {
@@ -982,25 +1025,11 @@ impl GaussianConvolution {
                 crate::cancellation::check()?;
             }
             let left = (offset as f64 - cells as f64) * spacing;
-            let moments = cell_moments(left, left + spacing, drift, deviation);
-            // The correlation offset is j - i. The convolution kernel uses i - j.
-            let index = (cells + size - offset) % size;
-            kernels[0][index].re = moments.mass;
-            if moments.mass != 0.0 {
-                for (kernel, conditional) in kernels[1..].iter_mut().zip(moments.conditional) {
-                    kernel[index].re = moments.mass * conditional;
-                }
-            }
-            cell_weights.push(moments);
+            cell_weights.push(cell_moments(left, left + spacing, drift, deviation));
         }
-        let normalization = 1.0 / size as f64;
-        for kernel in &mut kernels {
-            crate::cancellation::check()?;
-            forward.process_with_scratch(kernel, &mut scratch);
-            for value in kernel {
-                *value *= normalization;
-            }
-        }
+        let fft = fft
+            .map(|fft| fft.prepare(cells, &cell_weights))
+            .transpose()?;
         let mut corrections = Vec::new();
         if grid.extras > 0 {
             corrections.reserve_exact(nodes.len());
@@ -1028,15 +1057,10 @@ impl GaussianConvolution {
         }
         Ok(Self {
             grid,
-            forward,
-            inverse,
-            kernels,
+            fft,
             moments: cell_weights,
             corrections,
             tail_work,
-            input: blank(),
-            output: blank(),
-            scratch,
         })
     }
 
@@ -1047,6 +1071,9 @@ impl GaussianConvolution {
         [drift, deviation, discount]: [f64; 3],
         values: &mut [f64],
     ) -> Result<()> {
+        if self.fft.is_none() {
+            return self.integrate_band(nodes, curve, [drift, deviation, discount], values);
+        }
         let factor = discount.exp();
         let scale = curve
             .iter()
@@ -1082,10 +1109,11 @@ impl GaussianConvolution {
         let support = &regular[..cells];
         let first = support.iter().position(nonzero).unwrap_or(cells);
         let last = support.iter().rposition(nonzero).map_or(cells, |i| i + 1);
-        self.output.fill(Complex64::default());
-        for (power, kernel) in self.kernels.iter().enumerate() {
+        let fft = self.fft.as_mut().expect("FFT selected above");
+        fft.output.fill(Complex64::default());
+        for (power, kernel) in fft.kernels.iter().enumerate() {
             crate::cancellation::check()?;
-            for (value, pair) in self.input.iter_mut().zip(regular.windows(2)) {
+            for (value, pair) in fft.input.iter_mut().zip(regular.windows(2)) {
                 *value = Complex64::new(
                     if pair[1] == pair[0] + 1 {
                         curve[pair[0]][power]
@@ -1095,17 +1123,17 @@ impl GaussianConvolution {
                     0.0,
                 );
             }
-            self.input[cells..].fill(Complex64::default());
-            self.forward
-                .process_with_scratch(&mut self.input, &mut self.scratch);
-            for ((value, coefficient), weight) in
-                self.output.iter_mut().zip(&self.input).zip(kernel)
+            fft.input[cells..].fill(Complex64::default());
+            fft.forward
+                .process_with_scratch(&mut fft.input, &mut fft.scratch);
+            for ((value, coefficient), weight) in fft.output.iter_mut().zip(&fft.input).zip(kernel)
             {
                 *value += coefficient * weight;
             }
         }
-        self.inverse
-            .process_with_scratch(&mut self.output, &mut self.scratch);
+        fft.inverse
+            .process_with_scratch(&mut fft.output, &mut fft.scratch);
+        let fft = self.fft.as_ref().expect("transformed spectrum");
         let roundoff = 128.0 * f64::EPSILON * scale;
         let mut index = 0;
         for (node_index, (value, &node)) in values.iter_mut().zip(nodes).enumerate() {
@@ -1121,7 +1149,7 @@ impl GaussianConvolution {
                 *value = sum.total() * factor;
                 continue;
             }
-            let sample = self.output[index].re;
+            let sample = fft.output[index].re;
             let estimate = sample + sum.total();
             *value = if estimate.is_finite() && estimate.abs() > roundoff && sample.abs() > roundoff
             {
@@ -1164,6 +1192,57 @@ impl GaussianConvolution {
                 sum.total() * factor
             };
             index += 1;
+        }
+        Ok(())
+    }
+
+    fn integrate_band(
+        &self,
+        nodes: &[f64],
+        curve: &[Polynomial],
+        [drift, deviation, discount]: [f64; 3],
+        values: &mut [f64],
+    ) -> Result<()> {
+        let regular = &self.grid.regular;
+        let cells = regular.len() - 1;
+        let factor = discount.exp();
+        if !factor.is_normal() {
+            for (value, &node) in values.iter_mut().zip(nodes) {
+                crate::cancellation::check()?;
+                let remaining = self
+                    .tail_work
+                    .get()
+                    .checked_sub(active_cells(nodes, node + drift, deviation).len())
+                    .ok_or_else(excessive_rollback_work)?;
+                self.tail_work.set(remaining);
+                *value = integrate_curve(curve, nodes, node + drift, deviation, discount);
+            }
+            return Ok(());
+        }
+        let mut row = 0;
+        for (index, (value, &node)) in values.iter_mut().zip(nodes).enumerate() {
+            if index % 256 == 0 {
+                crate::cancellation::check()?;
+            }
+            let mut sum = Sum::default();
+            for &(cell, ref moments) in self.corrections.get(index).into_iter().flatten() {
+                sum.add(moments.integrate(&curve[cell]));
+            }
+            if regular[row] == index {
+                let active = active_cells(nodes, node + drift, deviation);
+                let left = regular.partition_point(|&cell| cell < active.start);
+                let right = regular
+                    .partition_point(|&cell| cell < active.end)
+                    .min(cells);
+                for column in left..right {
+                    let cell = regular[column];
+                    if regular[column + 1] == cell + 1 {
+                        sum.add(self.moments[cells - row + column].integrate(&curve[cell]));
+                    }
+                }
+                row += 1;
+            }
+            *value = sum.total() * factor;
         }
         Ok(())
     }
@@ -1213,6 +1292,56 @@ impl GaussianConvolution {
     }
 }
 
+impl Spectrum {
+    fn new(size: usize) -> Self {
+        let mut planner = FftPlanner::new();
+        let forward = planner.plan_fft_forward(size);
+        let inverse = planner.plan_fft_inverse(size);
+        let scratch = vec![
+            Complex64::default();
+            forward
+                .get_inplace_scratch_len()
+                .max(inverse.get_inplace_scratch_len())
+        ];
+        let blank = || vec![Complex64::default(); size];
+        Self {
+            forward,
+            inverse,
+            kernels: std::array::from_fn(|_| blank()),
+            input: blank(),
+            output: blank(),
+            scratch,
+        }
+    }
+
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "The workspace bounds the transform length."
+    )]
+    fn prepare(mut self, cells: usize, moments: &[IntervalMoments]) -> Result<Self> {
+        let size = self.input.len();
+        for (offset, moments) in moments.iter().enumerate() {
+            // The correlation offset is j - i. The convolution kernel uses i - j.
+            let index = (cells + size - offset) % size;
+            self.kernels[0][index].re = moments.mass;
+            if moments.mass != 0.0 {
+                for (kernel, conditional) in self.kernels[1..].iter_mut().zip(moments.conditional) {
+                    kernel[index].re = moments.mass * conditional;
+                }
+            }
+        }
+        let normalization = 1.0 / size as f64;
+        for kernel in &mut self.kernels {
+            crate::cancellation::check()?;
+            self.forward.process_with_scratch(kernel, &mut self.scratch);
+            for value in kernel {
+                *value *= normalization;
+            }
+        }
+        Ok(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1244,7 +1373,7 @@ mod tests {
     fn transition_integrates_when_there_is_no_room_to_cache_moments() -> Result<()> {
         let nodes = [-1.0, 0.0, 1.0];
         let curve = [[1.0, 0.0, 0.0, 0.0]; 2];
-        let mut transition = Transition::new(&nodes, 0.25, 0.5, 0, &[])?;
+        let mut transition = Transition::new(&nodes, 0.25, 0.5, 0, false, &[])?;
         let mut values = [0.0; 3];
         transition.integrate(&nodes, &curve, -0.05, &mut values)?;
         for (&node, actual) in nodes.iter().zip(values) {
@@ -1274,7 +1403,7 @@ mod tests {
                 .iter()
                 .map(|&x| [(2.0 * x).sin(), x * x, -0.2, 0.1])
                 .collect();
-            for (drift, deviation) in [(-0.14, 0.09), (0.19, 0.3)] {
+            for (drift, deviation) in [(-0.14, 0.09), (0.19, 0.3), (0.6, 0.09), (0.01, 0.004)] {
                 let mut cache = TransitionCache::new(&nodes, nodes.len(), 1, 384)?;
                 let transition = cache.get(1.0, &nodes, drift, deviation)?;
                 assert!(!transition.convolutions.is_empty());
