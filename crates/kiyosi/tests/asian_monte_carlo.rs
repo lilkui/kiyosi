@@ -37,6 +37,75 @@ fn market(spot: f64, sigma: f64, valuation: Timestamp) -> PricingContext {
 }
 
 #[test]
+fn arithmetic_strike_batches_replay_scalar_prices() -> Result<()> {
+    let start = date(1, 1);
+    let expiry = start.add_days(365)?;
+    let valuation = date(7, 1);
+    let market = market(100.0, 0.2, valuation);
+    let option = ArithmeticAveragePriceOption::new(
+        OptionType::Put,
+        40.0,
+        start,
+        start,
+        expiry,
+        Some(104.0),
+    )?;
+    let strikes = [40.0, 105.0]
+        .into_iter()
+        .chain((85..117).map(f64::from))
+        .chain([105.0])
+        .collect::<Vec<_>>();
+    for (sampling, path_count) in [
+        (MonteCarloSampling::PseudoRandom, 1025),
+        (MonteCarloSampling::Sobol, 1024),
+    ] {
+        let engine = MonteCarloAsianEngine::new(MonteCarloGridSettings {
+            sampling: MonteCarloSettings {
+                path_count,
+                sampling,
+                seed: Some(42),
+                antithetic: true,
+                max_active_workers: 2,
+            },
+            step_count: 16,
+        })?;
+        let prices = engine.price_arithmetic_strikes(&option, &market, &strikes)?;
+        let reference = strikes
+            .iter()
+            .map(|&strike| {
+                engine.price(
+                    &option.replace(AveragePriceOptionChanges {
+                        strike: Some(strike),
+                        ..Default::default()
+                    })?,
+                    &market,
+                )
+            })
+            .collect::<Result<Vec<_>>>()?;
+        assert_eq!(prices, reference);
+        assert_eq!(prices[0], 0.0);
+        assert!(prices[1] > prices[0]);
+        assert_eq!(
+            engine.price_arithmetic_strikes(&option, &market, &[])?,
+            [] as [f64; 0],
+        );
+        assert!(matches!(
+            engine.price_arithmetic_strikes(&option, &market, &[105.0, f64::NAN]),
+            Err(Error::InvalidInput(_))
+        ));
+        let invalid_history = option.replace(AveragePriceOptionChanges {
+            realized_average: Some(None),
+            ..Default::default()
+        })?;
+        assert!(matches!(
+            engine.price_arithmetic_strikes(&invalid_history, &market, &[]),
+            Err(Error::MissingHistory(_))
+        ));
+    }
+    Ok(())
+}
+
+#[test]
 fn single_fixing_preserves_quoted_forward() -> Result<()> {
     let start = date(1, 1);
     let end = start.add_days(365)?;

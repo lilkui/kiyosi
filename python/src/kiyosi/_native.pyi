@@ -5009,6 +5009,44 @@ class MonteCarloAsianEngine(
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
+    def price_arithmetic_strikes(
+        self,
+        instrument: ArithmeticAveragePriceOption,
+        context: PricingContext,
+        *,
+        strikes: Iterable[_Real],
+    ) -> tuple[float, ...]:
+        """Price arithmetic-average options across strikes on common simulated paths.
+
+        Parameters
+        ----------
+        instrument : ArithmeticAveragePriceOption
+            Template for option direction, dates, and realized history.
+        context : PricingContext
+            Black–Scholes–Merton market snapshot.
+        strikes : iterable of float
+            Finite positive strikes in output order, including duplicates.
+
+        Returns
+        -------
+        tuple of float
+            Prices in input order. Empty input validates the contract and market.
+
+        Raises
+        ------
+        KiyosiError
+            If contract, market, strike, or sampling validation fails.
+        TypeError, ValueError, OverflowError
+            If a strike representation is invalid.
+        OSError
+            If interrupted or entropy retrieval or worker creation fails.
+
+        Notes
+        -----
+        A stochastic request uses one seed. Call with_resolved_seed() to
+        replay results from an engine configured without a seed.
+        """
+
     def replace(
         self,
         *,

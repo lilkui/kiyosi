@@ -31,6 +31,37 @@ START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 KINDS = (ArithmeticAveragePriceOption, GeometricAveragePriceOption)
 
 
+@pytest.mark.parametrize(
+    ("sampling", "paths"), [("pseudo_random", 1025), ("sobol", 1024)]
+)
+def test_arithmetic_strike_batch_replays_scalar_prices(sampling, paths):
+    quote = market(100, 0.2, valuation=START + timedelta(days=181))
+    contract = option(ArithmeticAveragePriceOption, "put", strike=40, realized=104)
+    strikes = [40, 105, *range(85, 117), 105]
+    engine = pricing.MonteCarloAsianEngine(
+        path_count=paths,
+        step_count=16,
+        seed=42,
+        sampling=sampling,
+        antithetic=True,
+        max_active_workers=2,
+    )
+    prices = engine.price_arithmetic_strikes(contract, quote, strikes=iter(strikes))
+    assert prices == tuple(
+        engine.price(contract.replace(strike=k), quote) for k in strikes
+    )
+    assert prices[0] == 0 < prices[1] == prices[-1]
+    assert engine.price_arithmetic_strikes(contract, quote, strikes=[]) == ()
+    with pytest.raises(MissingHistoryError):
+        engine.price_arithmetic_strikes(
+            contract.replace(realized_average=None), quote, strikes=[]
+        )
+    with pytest.raises(InvalidInputError, match="strike"):
+        engine.price_arithmetic_strikes(contract, quote, strikes=[105, -1])
+    with pytest.raises(TypeError):
+        engine.price_arithmetic_strikes(contract, quote, strikes=[105, True])
+
+
 def test_deterministic_arithmetic_weights_large_segment_before_scaling():
     dividend = RateTermStructure(
         reference_time=START, times=[END - timedelta(days=4), END], factors=[1, 100]

@@ -2,10 +2,13 @@ use crate::engines::curve::Curve;
 use crate::instruments::asian::AverageTerms;
 use crate::numerics::{checked, log_ratio, scaled_cash};
 use crate::{
-    ArithmeticAveragePriceOption, Error, GeometricAveragePriceOption, Greek, GreeksRequest,
-    MonteCarloEstimate, MonteCarloSampling, PricingContext, PricingEngine, PricingResult, Result,
+    ArithmeticAveragePriceOption, AveragePriceOptionChanges, Error, GeometricAveragePriceOption,
+    Greek, GreeksRequest, MonteCarloEstimate, MonteCarloSampling, MonteCarloSettings,
+    PricingContext, PricingEngine, PricingResult, Result,
 };
 use crate::{Timestamp, TurnbullWakemanArithmeticAveragePriceEngine};
+
+const STRIKE_TILE: usize = 32;
 
 /// Prices geometric and arithmetic continuous averages using CPU Monte Carlo.
 ///
@@ -195,25 +198,180 @@ impl MonteCarloAsianEngine {
         <Self as PricingEngine<I>>::price_with_statistics(self, option, context)
     }
 
-    #[expect(
-        clippy::cast_sign_loss,
-        reason = "The constructor validates positive step counts before converting them to dimensions."
-    )]
+    /// Prices arithmetic-average options across strikes on common simulated paths.
+    ///
+    /// The template supplies direction, dates and realized history. Each price
+    /// uses its own payoff and variance adjustment. Prices preserve input order
+    /// and duplicates. A stochastic request uses one seed across the batch.
+    /// Use [`Self::with_resolved_seed`] for replay with an unseeded engine.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kiyosi::{ArithmeticAveragePriceOption, BlackScholesMertonParameters, Date,
+    ///     MonteCarloAsianEngine, MonteCarloGridSettings, MonteCarloSettings, OptionType,
+    ///     PricingContext};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let option = ArithmeticAveragePriceOption::new(OptionType::Call, 100.0,
+    ///     start, start, start.add_days(365)?, None)?;
+    /// let context = PricingContext::new(
+    ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start)?;
+    /// let engine = MonteCarloAsianEngine::new(MonteCarloGridSettings {
+    ///     sampling: MonteCarloSettings { path_count: 4096, seed: Some(7), ..Default::default() },
+    ///     ..Default::default()
+    /// })?;
+    /// let prices = engine.price_arithmetic_strikes(&option, &context, &[95.0, 105.0])?;
+    /// assert!(prices[0] > prices[1]);
+    /// # Ok(()) }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Applies the contract and market constraints of [`Self::price`], including
+    /// for empty input. Invalid strikes, excessive output size or more than
+    /// one billion combined path steps and payoff evaluations return
+    /// [`Error::InvalidInput`]. Cancellation returns [`Error::Io`].
+    ///
+    /// # Panics
+    ///
+    /// Propagates worker panics after parallel work has finished.
+    pub fn price_arithmetic_strikes(
+        &self,
+        template: &ArithmeticAveragePriceOption,
+        context: &PricingContext,
+        strikes: &[f64],
+    ) -> Result<Vec<f64>> {
+        context.natural_bsm_parameters()?;
+        let option = &template.0;
+        let tau = option.validate(context)?;
+        if tau > 0.0 {
+            option.coverage(context)?;
+        }
+        crate::cancellation::check()?;
+        if strikes.len() > super::SCHEDULED_WORKSPACE_BUDGET / size_of::<f64>() {
+            return Err(Error::InvalidInput(
+                "Asian strike output exceeds 1 GiB".into(),
+            ));
+        }
+        let stochastic = tau > 0.0 && !crate::engines::deterministic::enabled(context);
+        let shared = stochastic && option.period() > 0.0;
+        let valuation = context.valuation_time();
+        let sampled = |strike| option.adjusted_strike_for(valuation, strike) > 0.0;
+        let mut first = None;
+        let mut active_tiles = 0;
+        for chunk in strikes.chunks(STRIKE_TILE) {
+            let mut active = false;
+            for &strike in chunk {
+                crate::cancellation::check()?;
+                crate::error::finite(strike, true, "strike")?;
+                if shared && sampled(strike) {
+                    first.get_or_insert(strike);
+                    active = true;
+                }
+            }
+            active_tiles += usize::from(active);
+        }
+        let contract = |strike| {
+            template.replace(AveragePriceOptionChanges {
+                strike: Some(strike),
+                ..Default::default()
+            })
+        };
+        let mut prices = Vec::new();
+        prices.try_reserve_exact(strikes.len()).map_err(|_| {
+            Error::ComputationFailure("cannot reserve Asian strike batch output".into())
+        })?;
+        let settings = self.settings.sampling;
+        let Some(first) = first else {
+            let engine = if stochastic && !shared && !strikes.is_empty() {
+                settings.validate_path_steps(strikes.len().saturating_mul(2))?;
+                self.with_resolved_seed()?
+            } else {
+                *self
+            };
+            for &strike in strikes {
+                crate::cancellation::check()?;
+                prices.push(engine.price(&contract(strike)?, context)?);
+            }
+            return Ok(prices);
+        };
+        let request = GreeksRequest::new([]);
+        let Prepared::Arithmetic(grid) =
+            self.prepare(&contract(first)?.0, context, false, request)?
+        else {
+            return Err(super::unstable());
+        };
+        settings.validate_path_steps(
+            active_tiles
+                .saturating_mul(grid.dimensions)
+                .saturating_add(strikes.len()),
+        )?;
+        let engine = self.with_resolved_seed()?;
+        let settings = engine.settings.sampling;
+        for chunk in strikes.chunks(STRIKE_TILE) {
+            crate::cancellation::check()?;
+            let mut payoffs = [None; STRIKE_TILE];
+            for (lane, &strike) in payoffs.iter_mut().zip(chunk) {
+                if sampled(strike) {
+                    *lane = Some(ArithmeticParameters {
+                        strike,
+                        ..grid.payoff
+                    });
+                }
+            }
+            let mut values = [None; STRIKE_TILE];
+            if payoffs.iter().any(Option::is_some) {
+                grid.sample_strikes(settings, &payoffs, &mut values)?;
+            }
+            for (value, &strike) in values.into_iter().zip(chunk) {
+                prices.push(match value {
+                    Some(price) if price >= 0.0 => crate::numerics::finite_price(price)?,
+                    _ => engine.price(&contract(strike)?, context)?,
+                });
+            }
+        }
+        Ok(prices)
+    }
+
     fn native(
         &self,
-        o: &AverageTerms,
+        option: &AverageTerms,
         context: &PricingContext,
         geometric: bool,
         request: GreeksRequest,
         statistics: bool,
     ) -> Result<(PricingResult, Option<f64>)> {
         let settings = self.settings.sampling;
+        let (means, error, seed) = match self.prepare(option, context, geometric, request)? {
+            Prepared::Known(result) => {
+                let error = (statistics && settings.sampling == MonteCarloSampling::PseudoRandom)
+                    .then_some(0.0);
+                return Ok((result, error));
+            }
+            Prepared::Geometric(payoff) => super::path_means(settings, 1, statistics, |normals| {
+                payoff.geometric(normals[0], request)
+            })?,
+            Prepared::Arithmetic(grid) => grid.sample(settings, request, statistics)?,
+        };
+        Ok((result(means, request)?.with_seed(Some(seed)), error))
+    }
+
+    #[expect(
+        clippy::cast_sign_loss,
+        reason = "The constructor validates positive step counts before converting them to dimensions."
+    )]
+    fn prepare(
+        &self,
+        o: &AverageTerms,
+        context: &PricingContext,
+        geometric: bool,
+        request: GreeksRequest,
+    ) -> Result<Prepared> {
         let step_count = self.settings.step_count;
         let tau = o.validate(context)?;
-        let known_error =
-            (statistics && settings.sampling == MonteCarloSampling::PseudoRandom).then_some(0.0);
         if tau == 0.0 {
-            return Ok((PricingResult::new(o.settlement(context)?)?, known_error));
+            return Ok(Prepared::Known(PricingResult::new(o.settlement(context)?)?));
         }
         let model = context.natural_bsm_parameters()?;
         if geometric {
@@ -221,12 +379,9 @@ impl MonteCarloAsianEngine {
         }
         o.coverage(context)?;
         if crate::engines::deterministic::enabled(context) {
-            return Ok((
-                PricingResult::new(crate::engines::deterministic::average(
-                    o, context, geometric,
-                )?)?,
-                known_error,
-            ));
+            return Ok(Prepared::Known(PricingResult::new(
+                crate::engines::deterministic::average(o, context, geometric)?,
+            )?));
         }
         let valuation = context.valuation_time();
         let start = o.averaging_start;
@@ -292,9 +447,9 @@ impl MonteCarloAsianEngine {
             } else {
                 0.0
             };
-            return Ok((result([price, first, 0.0], request)?, known_error));
+            return Ok(Prepared::Known(result([price, first, 0.0], request)?));
         }
-        let (means, standard_error, seed) = if geometric || single {
+        if geometric || single {
             let variance_time = if single { tau } else { lead + future / 3.0 };
             let moneyness = if single {
                 let carry = model.dividend_curve().log_factor(valuation, expiry)? - log_discount;
@@ -326,9 +481,7 @@ impl MonteCarloAsianEngine {
             if !p.drift.is_finite() || !p.width.is_finite() {
                 return Err(crate::engines::monte_carlo::unstable());
             }
-            crate::engines::monte_carlo::path_means(settings, 1, statistics, |normals| {
-                p.geometric(normals[0], request)
-            })?
+            Ok(Prepared::Geometric(p))
         } else {
             let dt = future / f64::from(step_count);
             let interval_forward = if flat {
@@ -387,36 +540,187 @@ impl MonteCarloAsianEngine {
                 return Err(crate::engines::monte_carlo::unstable());
             }
             let dimensions = step_count as usize - 1 + usize::from(lead > 0.0);
-            let control = p.geometric_control(&interval_drifts, request)?;
-            let sample = |settings, control: Option<&GeometricControl>| {
-                super::path_means(settings, dimensions, statistics, |normals| {
-                    p.arithmetic(normals, lead > 0.0, &interval_drifts, request, control)
-                })
-            };
-            let (mut means, error, seed) = sample(settings, control.as_ref())?;
-            if let Some(control) = control {
-                for (mean, expected) in means.iter_mut().zip(control.expected) {
-                    *mean += expected;
+            Ok(Prepared::Arithmetic(ArithmeticGrid {
+                payoff: p,
+                interval_drifts,
+                lead: lead > 0.0,
+                dimensions,
+            }))
+        }
+    }
+}
+
+enum Prepared {
+    Known(PricingResult),
+    Geometric(GeometricParameters),
+    Arithmetic(ArithmeticGrid),
+}
+
+struct ArithmeticGrid {
+    payoff: ArithmeticParameters,
+    interval_drifts: Vec<f64>,
+    lead: bool,
+    dimensions: usize,
+}
+
+impl ArithmeticGrid {
+    fn sample_strikes(
+        &self,
+        settings: MonteCarloSettings,
+        payoffs: &[Option<ArithmeticParameters>; STRIKE_TILE],
+        prices: &mut [Option<f64>; STRIKE_TILE],
+    ) -> Result<()> {
+        let request = GreeksRequest::new([]);
+        let mut controls = [None; STRIKE_TILE];
+        for (control, payoff) in controls.iter_mut().zip(payoffs) {
+            if let Some(payoff) = payoff {
+                *control = payoff.geometric_control(&self.interval_drifts, request)?;
+            }
+        }
+        let geometric = controls.iter().any(Option::is_some);
+        let flat = self.interval_drifts.is_empty();
+        let (means, _, _) = super::path_means(settings, self.dimensions, false, |normals| {
+            let path = self.path(normals, geometric)?;
+            let mut values = [0.0; STRIKE_TILE];
+            for ((value, payoff), control) in values.iter_mut().zip(payoffs).zip(&controls) {
+                if let Some(payoff) = payoff {
+                    *value = payoff.arithmetic(path, flat, request, control.as_ref())?[0];
                 }
             }
-            if means[0] < 0.0 {
-                // An unusually negative put residual can overwhelm the exact control mean.
-                sample(
-                    super::MonteCarloSettings {
-                        seed: Some(seed),
-                        ..settings
-                    },
-                    None,
-                )?
-            } else {
-                (means, error, seed)
-            }
-        };
-        Ok((
-            result(means, request)?.with_seed(Some(seed)),
-            standard_error,
-        ))
+            Ok(values)
+        })?;
+        for (((price, payoff), mean), control) in
+            prices.iter_mut().zip(payoffs).zip(means).zip(controls)
+        {
+            *price = payoff.map(|_| mean + control.map_or(0.0, |c| c.expected[0]));
+        }
+        Ok(())
     }
+
+    fn sample(
+        &self,
+        settings: MonteCarloSettings,
+        request: GreeksRequest,
+        statistics: bool,
+    ) -> Result<([f64; 3], Option<f64>, u64)> {
+        let control = self
+            .payoff
+            .geometric_control(&self.interval_drifts, request)?;
+        let sample = |settings, control: Option<&GeometricControl>| {
+            super::path_means(settings, self.dimensions, statistics, |normals| {
+                let path = self.path(normals, control.is_some())?;
+                self.payoff
+                    .arithmetic(path, self.interval_drifts.is_empty(), request, control)
+            })
+        };
+        let (mut means, error, seed) = sample(settings, control.as_ref())?;
+        if let Some(control) = control {
+            for (mean, expected) in means.iter_mut().zip(control.expected) {
+                *mean += expected;
+            }
+        }
+        if means[0] < 0.0 {
+            // An unusually negative put residual can overwhelm the exact control mean.
+            sample(
+                MonteCarloSettings {
+                    seed: Some(seed),
+                    ..settings
+                },
+                None,
+            )
+        } else {
+            Ok((means, error, seed))
+        }
+    }
+    #[expect(
+        clippy::cast_sign_loss,
+        reason = "The constructor validates positive step counts before comparing them to path indices."
+    )]
+    fn path(&self, normals: &[f64], geometric: bool) -> Result<ArithmeticPath> {
+        let p = &self.payoff;
+        let lead = self.lead;
+        let interval_drifts = &self.interval_drifts;
+        let lead_normal = if lead { normals[0] } else { 0.0 };
+        let lead_growth = p.lead_drift + p.lead_width * lead_normal;
+        let (mut growth, mut relative_sum, mut log_sum) = (0.0, 0.0, f64::NEG_INFINITY);
+        let (mut normal_sum, mut weighted_normals) = (0.0, 0.0);
+        let mut geometric_growth = 0.0;
+        for (index, &normal) in normals[usize::from(lead)..].iter().enumerate() {
+            super::check_path_step(index)?;
+            let drift = if interval_drifts.is_empty() {
+                p.drift
+            } else {
+                interval_drifts[index]
+            };
+            growth += drift + p.width * normal;
+            let fraction = if index + 2 == p.step_count as usize {
+                0.5
+            } else {
+                1.0
+            } / f64::from(p.step_count);
+            if geometric {
+                geometric_growth += fraction * growth;
+            }
+            if p.width < f64::MIN_POSITIVE {
+                normal_sum += normal;
+                weighted_normals += fraction * normal_sum;
+            }
+            if growth > 600.0 || log_sum != f64::NEG_INFINITY {
+                // Above exp(600), unit offsets fall below floating-point precision.
+                if log_sum == f64::NEG_INFINITY {
+                    log_sum = (1.0 - 0.5 / f64::from(p.step_count) + relative_sum).ln();
+                }
+                log_sum = log_add(log_sum, fraction.ln() + growth);
+            } else {
+                relative_sum += fraction * growth.exp_m1();
+            }
+        }
+        let half = 0.5 / f64::from(p.step_count);
+        let rest = 1.0 - half;
+        let log_spot = p.spot.ln();
+        let log_rest = if log_sum == f64::NEG_INFINITY {
+            rest.ln() + (relative_sum / rest).ln_1p()
+        } else {
+            log_sum
+        };
+        let log_q = log_spot + p.weight.ln() + lead_growth + log_rest + p.interval_forward;
+        let log_c = log_spot + p.weight.ln() + lead_growth + half.ln();
+        let log_history = if p.realized > 0.0 && p.prior_weight > 0.0 {
+            p.realized.ln() + p.prior_weight.ln()
+        } else {
+            f64::NEG_INFINITY
+        };
+        let log_accrued = log_add(log_history, log_c);
+        // Keep tiny growth separate from the unit value and monetary scale.
+        let extra = (log_sum == f64::NEG_INFINITY).then(|| {
+            lead_growth.exp_m1()
+                + lead_growth.exp()
+                    * (rest * p.interval_forward.exp_m1() + relative_sum * p.interval_forward.exp())
+        });
+        let vanishing_center = (weighted_normals + p.lead_width_ratio * lead_normal) / rest;
+        Ok(ArithmeticPath {
+            lead_growth,
+            geometric_growth,
+            log_spot,
+            log_q,
+            log_c,
+            log_accrued,
+            extra,
+            vanishing_center,
+        })
+    }
+}
+
+#[derive(Clone, Copy)]
+struct ArithmeticPath {
+    lead_growth: f64,
+    geometric_growth: f64,
+    log_spot: f64,
+    log_q: f64,
+    log_c: f64,
+    log_accrued: f64,
+    extra: Option<f64>,
+    vanishing_center: f64,
 }
 
 struct GeometricParameters {
@@ -630,6 +934,7 @@ fn positive_difference(a: f64, b: f64) -> f64 {
     }
 }
 
+#[derive(Clone, Copy)]
 struct ArithmeticParameters {
     spot: f64,
     strike: f64,
@@ -648,6 +953,7 @@ struct ArithmeticParameters {
     interval_forward: f64,
 }
 
+#[derive(Clone, Copy)]
 struct GeometricControl {
     log_strike: f64,
     log_asset_scale: f64,
@@ -740,53 +1046,23 @@ impl ArithmeticParameters {
         [price, delta, gamma]
     }
 
-    #[expect(
-        clippy::cast_sign_loss,
-        reason = "The constructor validates positive step counts before comparing them to path indices."
-    )]
     fn arithmetic(
         &self,
-        normals: &[f64],
-        lead: bool,
-        interval_drifts: &[f64],
+        path: ArithmeticPath,
+        flat: bool,
         request: GreeksRequest,
         control: Option<&GeometricControl>,
     ) -> Result<[f64; 3]> {
-        let lead_normal = if lead { normals[0] } else { 0.0 };
-        let lead_growth = self.lead_drift + self.lead_width * lead_normal;
-        let (mut growth, mut relative_sum, mut log_sum) = (0.0, 0.0, f64::NEG_INFINITY);
-        let (mut normal_sum, mut weighted_normals) = (0.0, 0.0);
-        let mut geometric_growth = 0.0;
-        for (index, &normal) in normals[usize::from(lead)..].iter().enumerate() {
-            super::check_path_step(index)?;
-            let drift = if interval_drifts.is_empty() {
-                self.drift
-            } else {
-                interval_drifts[index]
-            };
-            growth += drift + self.width * normal;
-            let fraction = if index + 2 == self.step_count as usize {
-                0.5
-            } else {
-                1.0
-            } / f64::from(self.step_count);
-            if control.is_some() {
-                geometric_growth += fraction * growth;
-            }
-            if self.width < f64::MIN_POSITIVE {
-                normal_sum += normal;
-                weighted_normals += fraction * normal_sum;
-            }
-            if growth > 600.0 || log_sum != f64::NEG_INFINITY {
-                // Above exp(600), unit offsets fall below floating-point precision.
-                if log_sum == f64::NEG_INFINITY {
-                    log_sum = (1.0 - 0.5 / f64::from(self.step_count) + relative_sum).ln();
-                }
-                log_sum = log_add(log_sum, fraction.ln() + growth);
-            } else {
-                relative_sum += fraction * growth.exp_m1();
-            }
-        }
+        let ArithmeticPath {
+            lead_growth,
+            geometric_growth,
+            log_spot,
+            log_q,
+            log_c,
+            log_accrued,
+            extra,
+            vanishing_center,
+        } = path;
         let residual = |mut values: [f64; 3]| {
             if let Some(control) = control {
                 let width = control.first_weight * self.width;
@@ -803,22 +1079,6 @@ impl ArithmeticParameters {
             }
             checked_sample(values)
         };
-        let half = 0.5 / f64::from(self.step_count);
-        let rest = 1.0 - half;
-        let log_spot = self.spot.ln();
-        let log_rest = if log_sum == f64::NEG_INFINITY {
-            rest.ln() + (relative_sum / rest).ln_1p()
-        } else {
-            log_sum
-        };
-        let log_q = log_spot + self.weight.ln() + lead_growth + log_rest + self.interval_forward;
-        let log_c = log_spot + self.weight.ln() + lead_growth + half.ln();
-        let log_history = if self.realized > 0.0 && self.prior_weight > 0.0 {
-            self.realized.ln() + self.prior_weight.ln()
-        } else {
-            f64::NEG_INFINITY
-        };
-        let log_accrued = log_add(log_history, log_c);
         let log_strike = self.strike.ln();
         if log_accrued >= log_strike {
             if self.sign < 0.0 {
@@ -843,19 +1103,13 @@ impl ArithmeticParameters {
         let mut forward = log_q - log_b;
         let baseline = self.prior_weight * ((self.realized - self.strike) / self.spot)
             + self.weight * ((self.spot - self.strike) / self.spot);
-        if log_sum == f64::NEG_INFINITY {
-            // Keep tiny growth separate from the unit value and monetary scale.
-            let extra = lead_growth.exp_m1()
-                + lead_growth.exp()
-                    * (rest * self.interval_forward.exp_m1()
-                        + relative_sum * self.interval_forward.exp());
+        if let Some(extra) = extra {
             let excess = baseline + self.weight * extra;
             let b = (log_b - log_spot).exp();
             if b > 0.0 && (excess / b).abs() < 0.5 {
                 forward = (excess / b).ln_1p();
             }
         }
-        let vanishing_center = (weighted_normals + self.lead_width_ratio * lead_normal) / rest;
         let mut center = if self.width > 0.0 {
             forward / self.width
         } else if forward == 0.0 {
@@ -863,7 +1117,7 @@ impl ArithmeticParameters {
         } else {
             (forward / (self.log_width / 2.0).exp()) / (self.log_width / 2.0).exp()
         };
-        if interval_drifts.is_empty()
+        if flat
             && self.width < f64::MIN_POSITIVE
             && self.drift == 0.0
             && self.lead_drift == 0.0

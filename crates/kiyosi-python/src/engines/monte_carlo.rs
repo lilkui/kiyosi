@@ -558,7 +558,53 @@ sampling_settings!(
         /// terminal-payoff stencils with the request's shifts. Use numerical_greeks
         /// for scalar differences throughout.
         ///
-    ]
+    ],
+    {
+        /// Price arithmetic-average options across strikes on common simulated paths.
+        ///
+        /// Parameters
+        /// ----------
+        /// instrument : ArithmeticAveragePriceOption
+        ///     Template for option direction, dates, and realized history.
+        /// context : PricingContext
+        ///     Black–Scholes–Merton market snapshot.
+        /// strikes : iterable of float
+        ///     Finite positive strikes in output order, including duplicates.
+        ///
+        /// Returns
+        /// -------
+        /// tuple of float
+        ///     Prices in input order. Empty input validates the contract and market.
+        ///
+        /// Raises
+        /// ------
+        /// KiyosiError
+        ///     If contract, market, strike, or sampling validation fails.
+        /// TypeError, ValueError, OverflowError
+        ///     If a strike representation is invalid.
+        /// OSError
+        ///     If interrupted or entropy retrieval or worker creation fails.
+        ///
+        /// Notes
+        /// -----
+        /// A stochastic request uses one seed. Call with_resolved_seed() to
+        /// replay results from an engine configured without a seed.
+        #[pyo3(signature = (instrument, context, *, strikes))]
+        #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns the extracted inputs.")]
+        fn price_arithmetic_strikes<'py>(
+            &self,
+            py: Python<'py>,
+            #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, asian::ArithmeticAveragePriceOption>,
+            context: &PricingContext,
+            #[pyo3(from_py_with = crate::conversions::reals)] strikes: Vec<f64>,
+        ) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+            let instrument = &instrument.0;
+            let prices = domain(crate::cancellation::run(py, || {
+                self.0.price_arithmetic_strikes(instrument, &context.0, &strikes)
+            })?)?;
+            crate::conversions::python_tuple(py, prices, Ok)
+        }
+    }
 );
 
 sampling_settings!(

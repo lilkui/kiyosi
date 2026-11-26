@@ -145,13 +145,16 @@ impl AverageTerms {
     }
 
     pub(crate) fn adjusted_strike(&self, valuation: Timestamp) -> f64 {
+        self.adjusted_strike_for(valuation, self.terms.strike())
+    }
+
+    pub(crate) fn adjusted_strike_for(&self, valuation: Timestamp, strike: f64) -> f64 {
         let elapsed = self.averaging_start.years_until(valuation);
         if elapsed > 0.0 {
             let tau = valuation.years_until(self.terms.expiry_time());
-            self.terms.strike()
-                + elapsed / tau * (self.terms.strike() - self.realized.unwrap_or(0.0))
+            strike + elapsed / tau * (strike - self.realized.unwrap_or(0.0))
         } else {
-            self.terms.strike()
+            strike
         }
     }
 }
