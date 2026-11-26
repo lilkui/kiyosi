@@ -27,6 +27,29 @@ struct CalendarOverrides {
     base: TradingCalendar,
     closed: Vec<Date>,
     open: Vec<Date>,
+    effective: Option<[Vec<Date>; 2]>,
+}
+
+fn date_key(date: Date) -> i32 {
+    date.year() * 10_000
+        + i32::try_from(date.month()).expect("months fit i32") * 100
+        + i32::try_from(date.day()).expect("month days fit i32")
+}
+
+fn weekdays_between(end: Date, days: i32) -> Result<i32> {
+    let mut count = (days / 7) * 5;
+    let mut date = end.add_days(-i64::from(days % 7))?;
+    for _ in 0..days % 7 {
+        count += i32::from(date.is_weekday());
+        date = date.add_days(1)?;
+    }
+    Ok(count)
+}
+
+fn count_between<T: Ord + Copy>(sorted: &[T], start: T, end: T) -> i32 {
+    let first = sorted.partition_point(|value| *value < start);
+    let last = sorted.partition_point(|value| *value < end);
+    i32::try_from(last - first).expect("the supported date range fits i32")
 }
 
 fn normalize_dates(dates: &mut Vec<Date>) -> Result<()> {
@@ -224,8 +247,33 @@ impl TradingCalendar {
             merge_overrides(&mut open, previous_open, &closed)?;
             base = underlying.clone();
         }
+        let effective = if matches!(base.kind, CalendarKind::Predicate(_)) {
+            None
+        } else {
+            let mut effective = [Vec::new(), Vec::new()];
+            for ((dates, opens), output) in [(&closed, false), (&open, true)]
+                .into_iter()
+                .zip(&mut effective)
+            {
+                for chunk in dates.chunks(1024) {
+                    crate::cancellation::check()?;
+                    output.extend(
+                        chunk
+                            .iter()
+                            .copied()
+                            .filter(|&date| base.is_trading_day(date) != opens),
+                    );
+                }
+            }
+            Some(effective)
+        };
         Ok(Self {
-            kind: CalendarKind::Overrides(Arc::new(CalendarOverrides { base, closed, open })),
+            kind: CalendarKind::Overrides(Arc::new(CalendarOverrides {
+                base,
+                closed,
+                open,
+                effective,
+            })),
             basis,
         })
     }
@@ -255,17 +303,12 @@ impl TradingCalendar {
     /// # Panics
     ///
     /// Propagates panics from a custom predicate supplied to [`Self::new`].
-    #[expect(
-        clippy::cast_possible_wrap,
-        reason = "Validated calendar months and days fit in i32."
-    )]
     pub fn is_trading_day(&self, date: Date) -> bool {
         match &self.kind {
             CalendarKind::AllDays => true,
             CalendarKind::Weekdays => date.is_weekday(),
             CalendarKind::Sse => {
-                let encoded = date.year() * 10_000 + date.month() as i32 * 100 + date.day() as i32;
-                date.is_weekday() && SSE_HOLIDAYS.binary_search(&encoded).is_err()
+                date.is_weekday() && SSE_HOLIDAYS.binary_search(&date_key(date)).is_err()
             }
             CalendarKind::Predicate(predicate) => predicate(date),
             CalendarKind::Overrides(overrides) => {
@@ -327,6 +370,27 @@ impl TradingCalendar {
     /// Propagates panics from a custom predicate supplied to [`Self::new`].
     pub fn trading_days_between(&self, start: Date, end: Date) -> Result<i32> {
         validate_range(start, end)?;
+        let days = i32::try_from(start.days_until(end)).expect("the supported date range fits i32");
+        if days == 0 {
+            return Ok(0);
+        }
+        crate::cancellation::check()?;
+        match &self.kind {
+            CalendarKind::AllDays => return Ok(days),
+            CalendarKind::Weekdays => return weekdays_between(end, days),
+            CalendarKind::Sse => {
+                return Ok(weekdays_between(end, days)?
+                    - count_between(SSE_HOLIDAYS, date_key(start), date_key(end)));
+            }
+            CalendarKind::Overrides(overrides) => {
+                if let Some([closed, open]) = &overrides.effective {
+                    return Ok(overrides.base.trading_days_between(start, end)?
+                        - count_between(closed, start, end)
+                        + count_between(open, start, end));
+                }
+            }
+            CalendarKind::Predicate(_) => {}
+        }
         let mut date = start;
         let mut count = 0;
         while date < end {

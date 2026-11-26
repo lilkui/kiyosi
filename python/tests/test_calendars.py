@@ -640,3 +640,18 @@ def test_date_conversion_boundaries_and_protocol_failures():
     with pytest.raises(ConversionFailure):
         custom_calendar(base=base, closed_dates=broken_dates())
     assert base.is_trading_day(date(2025, 1, 1))
+
+
+def test_indexed_calendar_counts_match_daily_membership():
+    start = date(2024, 1, 1)
+    amended = custom_calendar(
+        base=sse_calendar(),
+        closed_dates=[date(2024, 2, 9), date(2024, 2, 10)],
+        open_dates=[date(2024, 2, 11), date(2024, 2, 20)],
+    )
+    for calendar in (all_days_calendar(), weekdays_calendar(), sse_calendar(), amended):
+        count = 0
+        for offset in range(400):
+            day = start + timedelta(days=offset)
+            assert calendar.trading_days_between(start, day) == count
+            count += calendar.is_trading_day(day)

@@ -141,9 +141,8 @@ impl TradingCalendar {
         end: &Bound<'_, PyAny>,
     ) -> PyResult<i32> {
         let (start, end) = (date(start)?, date(end)?);
-        run_date_scan(py, start.days_until(end).unsigned_abs(), || {
-            self.0.trading_days_between(start, end)
-        })
+        py.check_signals()?;
+        domain(self.0.trading_days_between(start, end))
     }
 
     /// Return trading-day count divided by the calendar annualization basis.
@@ -170,9 +169,8 @@ impl TradingCalendar {
         end: &Bound<'_, PyAny>,
     ) -> PyResult<f64> {
         let (start, end) = (date(start)?, date(end)?);
-        run_date_scan(py, start.days_until(end).unsigned_abs(), || {
-            self.0.trading_year_fraction(start, end)
-        })
+        py.check_signals()?;
+        domain(self.0.trading_year_fraction(start, end))
     }
 }
 

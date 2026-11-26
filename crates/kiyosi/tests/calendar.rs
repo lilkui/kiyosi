@@ -717,3 +717,35 @@ fn calendar_override_components_borrow_normalized_owned_storage() {
 fn time(year: i32, month: u32, day_of_month: u32) -> kiyosi::Timestamp {
     day(year, month, day_of_month).start_of_day()
 }
+
+#[test]
+fn indexed_calendar_counts_match_daily_membership() -> kiyosi::Result<()> {
+    let start = day(2020, 1, 1);
+    let end = day(2035, 1, 1);
+    let sse = TradingCalendar::sse();
+    let amended = TradingCalendar::custom(
+        sse.clone(),
+        vec![day(2024, 2, 9), day(2024, 2, 10)],
+        vec![day(2024, 2, 11), day(2024, 2, 20)],
+        Some(252),
+    )?;
+    for calendar in [
+        TradingCalendar::all_days(),
+        TradingCalendar::weekdays(),
+        sse,
+        amended,
+    ] {
+        let mut count = 0;
+        let mut date = start;
+        while date < end {
+            count += i32::from(calendar.is_trading_day(date));
+            date = date.add_days(1)?;
+            assert_eq!(
+                calendar.trading_days_between(start, date)?,
+                count,
+                "{calendar:?} through {date:?}"
+            );
+        }
+    }
+    Ok(())
+}

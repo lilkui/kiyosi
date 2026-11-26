@@ -75,20 +75,30 @@ impl VarianceTimeConvention {
         let Self::Business(calendar) = self else {
             return Ok(start.years_until(end));
         };
-        let mut current = start;
-        let mut days = 0.0;
-        while current < end {
-            crate::cancellation::check()?;
-            let next = if current.date() == end.date() {
-                end
-            } else {
-                current.date().add_days(1)?.start_of_day()
-            };
-            if calendar.is_trading_day(current.date()) {
-                days += current.years_until(next) * 365.0;
-            }
-            current = next;
+        if start == end {
+            return Ok(0.0);
         }
+        crate::cancellation::check()?;
+        let first = start.date();
+        let last = end.date();
+        let fraction = |from: Timestamp, to| from.years_until(to) * 365.0;
+        let days = if first == last {
+            f64::from(calendar.is_trading_day(first)) * fraction(start, end)
+        } else {
+            let next = first.add_days(1)?;
+            let first_day =
+                f64::from(calendar.is_trading_day(first)) * fraction(start, next.start_of_day());
+            crate::cancellation::check()?;
+            let complete_days = calendar.trading_days_between(next, last)?;
+            let midnight = last.start_of_day();
+            let last_day = if midnight == end {
+                0.0
+            } else {
+                crate::cancellation::check()?;
+                f64::from(calendar.is_trading_day(last)) * fraction(midnight, end)
+            };
+            first_day + f64::from(complete_days) + last_day
+        };
         Ok(days / f64::from(calendar.trading_days_per_year()))
     }
 
