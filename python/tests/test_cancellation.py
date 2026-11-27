@@ -134,7 +134,8 @@ def test_autocallable_observation_iterable_polls_signals_before_consuming_record
     start = datetime(2025, 1, 1)
     end = datetime(2026, 1, 1)
     record = AutocallableObservation.snowball(end, 110, coupon_rate=0.08)
-    count = 2_000_000
+    # Leave time for the virtual CPU timer to fire even on fast builds.
+    count = 8_000_000
     records = repeat(record, count)
 
     class Observations:
@@ -247,6 +248,8 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                             def stop(*args):
                                 raise StopCalculation("requested stop")
                             signal.signal(signal.SIGINT, stop)
+                        else:
+                            signal.signal(signal.SIGINT, signal.default_int_handler)
                         expected = StopCalculation if case == "custom_handler" else KeyboardInterrupt
                         ready, start_request = threading.Event(), threading.Event()
                         def send_interrupt():
@@ -266,7 +269,8 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                             elif case == "fd_solution_batch":
                                 saved.price_many(spots)
                             elif case == "tree_batch":
-                                engine.price_many([option] * 32, context)
+                                # Four 16,000-step rollbacks fit the batch work limit.
+                                engine.price_many([option] * 4, context)
                             elif case == "seeded_mc":
                                 engine.price_with_seed(option, context)
                             elif case in ("analytic_greeks", "tree"):
