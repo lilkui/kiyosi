@@ -1,10 +1,28 @@
 use kiyosi::{
     BarrierOption, BarrierOptionTerms, BarrierType, BlackScholesMertonParameters, EuropeanOption,
     MonteCarloBarrierEngine, MonteCarloGridSettings, MonteCarloSampling, MonteCarloSettings,
-    MonteCarloVanillaEngine, PricingContext,
+    MonteCarloVanillaEngine, PricingContext, configure_monte_carlo_pool,
 };
 
 use super::common::{Failure, Price, Request};
+
+pub(super) fn prepare_workers(request: &mut Request) -> Result<i32, Failure> {
+    let workers = request.number("workers")?;
+    if workers < 1 {
+        return Err("MC benchmark workers must be positive".into());
+    }
+    if workers > 1 {
+        let available = std::thread::available_parallelism()?.get();
+        if usize::try_from(workers)? > available {
+            return Err(format!(
+                "MC benchmark requests {workers} workers but only {available} CPUs are available"
+            )
+            .into());
+        }
+        configure_monte_carlo_pool(workers)?;
+    }
+    Ok(workers)
+}
 
 pub fn prepare(request: &mut Request, barrier: bool) -> Result<Price, Failure> {
     let side = request.option()?;
@@ -29,14 +47,13 @@ pub fn prepare(request: &mut Request, barrier: bool) -> Result<Price, Failure> {
             "barrier seed 5 couples QuantLib Gaussian and auxiliary crossing streams".into(),
         );
     }
-    let workers: i32 = request.number("workers")?;
-    if workers != 1
-        || seed == 0
+    let workers = prepare_workers(request)?;
+    if seed == 0
         || request.take("sampling")? != "pseudo_random"
         || request.take("antithetic")? != "false"
         || request.take("control_variate")? != "false"
     {
-        return Err("MC benchmark requires one worker, nonzero seed, pseudorandom, no antithetic/control variate".into());
+        return Err("MC benchmark requires a nonzero seed, pseudorandom sampling and no antithetic/control variate".into());
     }
     let sampling = MonteCarloSettings {
         path_count: request.number("path_count")?,

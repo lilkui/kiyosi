@@ -7,6 +7,7 @@
 - Linux、Rust/Cargo、Python 3.12+（仅需标准库）。
 - C++17 编译器与 Boost 头文件。
 - 使用 `-O3 -DNDEBUG` 编译的 QuantLib C++ **1.44**，且可通过 `quantlib-config` 和运行时链接器找到。仅安装 Python 版 QuantLib 包无法满足要求。仅使用 Cargo 的库开发工作流不需要 QuantLib。
+- 完整清单中的多线程蒙特卡洛用例需要至少 8 个可用逻辑 CPU。可用 CPU 不足时，可通过 `--case` 选择单工作线程用例。
 
 ## 运行方式
 
@@ -21,6 +22,9 @@ python3 benchmarks/quantlib/run.py --case european-bsm-atm-call --report /tmp/bs
 
 # 使用已有二进制文件校验精度，不计时
 python3 benchmarks/quantlib/run.py --no-build --price-only
+
+# 在相同合约与路径数下对比 Kiyosi 使用 1 个和 8 个工作线程时的延迟
+python3 benchmarks/quantlib/run.py --case mc-european-call --case mc-european-call-8-workers
 ```
 
 若 QuantLib 安装在非标准路径：
@@ -49,6 +53,8 @@ python3 benchmarks/quantlib/run.py
 两端的价格均须满足 `abs(price - reference) + reference_uncertainty <= error_budget`。蒙特卡洛用例还会跨验证种子检查经验误差、偏差与离散度。门限未通过时跳过计时，该行比值为 `null`，命令以失败状态退出。每次原生定价批次最多运行 120 秒，超时记为用例失败。用例独立运行，单个失败不影响其余用例。
 
 计时基于预先构造的合约、定价上下文、模型与引擎，交替采集 15 组双后端样本。每次请求都计算价格，计时包含后端固有的额外开销，包括 QuantLib 的敏感度与样本方差计算。比值定义为 `Q/K`，大于 1 表示 Kiyosi 延迟更低。JSON 报告保留原始样本、后端参数配置、参考值证据、覆盖情况以及机器与构建元数据。请在空闲机器上运行测量；结果仅适用于所记录的场景与参数配置。
+
+报告的 `profiles.kiyosi.workers` 和 `profiles.quantlib.workers` 记录每个蒙特卡洛用例的工作线程配置。`-8-workers` 用例使用 8 个 Kiyosi 工作线程与 1 个 QuantLib 工作线程，其 `Q/K` 比值对应这两个配置。Kiyosi 的并行加速比为同一场景下 1 个工作线程与 8 个工作线程的 Kiyosi 中位延迟之比。
 
 报告的 `source` 记录运行脚本时的检出版本和工作区状态，`build.source` 记录构建二进制文件时的版本和状态。构建记录与 QuantLib 可执行文件放在同一目录，文件名为可执行文件名加 `.build.json`。使用 `--no-build` 时，脚本校验二进制文件的指纹后保留构建记录。
 

@@ -213,7 +213,7 @@ class CommandTests(unittest.TestCase):
             data = json.loads(report.read_text())
             self.assertEqual(data["status"], "failed")
             self.assertEqual(data["error"], f"missing executable: {missing.resolve()}")
-            self.assertEqual(len(data["cases"]), 59)
+            self.assertEqual(len(data["cases"]), 62)
             self.assertTrue(
                 all(row["status"] == "prerequisite_failed" for row in data["cases"])
             )
@@ -237,7 +237,7 @@ class CommandTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 1, result.stderr)
             data = json.loads(report.read_text())
-            self.assertEqual(len(data["cases"]), 59)
+            self.assertEqual(len(data["cases"]), 62)
             self.assertTrue(
                 all(row["status"] == "prerequisite_failed" for row in data["cases"])
             )

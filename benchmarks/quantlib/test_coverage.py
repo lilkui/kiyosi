@@ -265,7 +265,7 @@ class CoverageTests(unittest.TestCase):
         self.assertEqual(report["coverage"]["required_cells"], 51)
         self.assertEqual(report["coverage"]["covered_cells"], 51)
         self.assertEqual(len(report["coverage"]["eligible_engines"]), 20)
-        self.assertEqual(len(report["cases"]), 59)
+        self.assertEqual(len(report["cases"]), 62)
         cells = report["coverage"]["cells"]
         self.assertEqual(len(cells), 51)
         for cell in cells:
@@ -322,13 +322,13 @@ class CoverageTests(unittest.TestCase):
                 self.assertEqual(
                     rows["crr-bsm-down-out-call"]["status"], "accuracy_failed"
                 )
-                self.assertEqual(len(rows), 59)
+                self.assertEqual(len(rows), 62)
 
     def test_missing_reference_keeps_row_and_later_results(self):
         report = self.run_suite(missing_reference="mc-american-put")
         self.assertEqual(report["cases"][0]["error"], "missing reference")
         self.assertEqual(report["cases"][-1]["status"], "accuracy_failed")
-        self.assertEqual(len(report["cases"]), 59)
+        self.assertEqual(len(report["cases"]), 62)
 
 
 if __name__ == "__main__":

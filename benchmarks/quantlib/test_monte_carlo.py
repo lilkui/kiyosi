@@ -165,6 +165,8 @@ class MonteCarloNativeTests(unittest.TestCase):
         from run import native
 
         for case in self.cases.values():
+            if case["profiles"]["kiyosi"]["workers"] > 1:
+                continue
             for backend, binary in self.executables.items():
                 with self.subTest(case=case["id"], backend=backend):
                     first = native(binary, case, backend, 1)
@@ -176,10 +178,16 @@ class MonteCarloNativeTests(unittest.TestCase):
                         invalid["profiles"][backend]["seed"] = 5
                         with self.assertRaisesRegex(RuntimeError, "couples QuantLib"):
                             native(binary, invalid, backend, 1)
-                    policy = "MC benchmark requires one worker"
+                    rust_policy = "MC benchmark requires a nonzero seed"
+                    quantlib_policy = "MC benchmark requires one worker"
                     for key, value, rust_error, quantlib_error in (
-                        ("workers", 2, policy, policy),
-                        ("seed", 0, policy, "seed$"),
+                        (
+                            "workers",
+                            0,
+                            "workers must be positive",
+                            quantlib_policy,
+                        ),
+                        ("seed", 0, rust_policy, "seed$"),
                         ("seed", 4294967301, "number too large", "seed$"),
                         (
                             "path_count",
@@ -187,9 +195,9 @@ class MonteCarloNativeTests(unittest.TestCase):
                             "path_count must be between",
                             "path_count$",
                         ),
-                        ("antithetic", "true", policy, policy),
-                        ("control_variate", "true", policy, policy),
-                        ("sampling", "sobol", policy, policy),
+                        ("antithetic", "true", rust_policy, quantlib_policy),
+                        ("control_variate", "true", rust_policy, quantlib_policy),
+                        ("sampling", "sobol", rust_policy, quantlib_policy),
                         ("path_count", 1.5, "invalid digit", "path_count$"),
                     ):
                         invalid = copy.deepcopy(case)
@@ -202,13 +210,25 @@ class MonteCarloNativeTests(unittest.TestCase):
                             self.assertRaisesRegex(RuntimeError, diagnostic),
                         ):
                             native(binary, invalid, backend, 1)
+        invalid = copy.deepcopy(self.cases["mc-european-call"])
+        invalid["profiles"]["kiyosi"]["workers"] = 2147483647
+        with self.assertRaisesRegex(RuntimeError, "but only .* CPUs are available"):
+            native(self.executables["kiyosi"], invalid, "kiyosi", 1)
+        invalid["profiles"]["quantlib"]["workers"] = 2
+        with self.assertRaisesRegex(RuntimeError, "MC benchmark requires one worker"):
+            native(self.executables["quantlib"], invalid, "quantlib", 1)
 
     def test_committed_profiles_pass_live_ensemble_gate(self):
-        case_ids = (
+        worker_baselines = (
             "mc-european-call",
-            "mc-european-put",
             "mc-barrier-down-out-call",
+            "mc-american-put",
+        )
+        case_ids = (
+            *worker_baselines,
+            "mc-european-put",
             "mc-barrier-up-in-put",
+            *(f"{identifier}-8-workers" for identifier in worker_baselines),
         )
         with tempfile.TemporaryDirectory() as directory:
             report = Path(directory) / "report.json"
@@ -218,8 +238,6 @@ class MonteCarloNativeTests(unittest.TestCase):
                     str(HERE / "run.py"),
                     "--no-build",
                     "--price-only",
-                    "--cases",
-                    str(HERE / "cases/monte_carlo.json"),
                     *(
                         argument
                         for identifier in case_ids
@@ -244,6 +262,45 @@ class MonteCarloNativeTests(unittest.TestCase):
                             ensemble = backend["seed_ensemble"]
                             self.assertEqual(len(ensemble["samples"]), 32)
                             self.assertTrue(ensemble["passed"], ensemble)
+
+            by_id = {row["id"]: row for row in rows}
+            for identifier in worker_baselines:
+                with self.subTest(baseline=identifier):
+                    baseline = by_id[identifier]
+                    parallel = by_id[f"{identifier}-8-workers"]
+                    self.assertEqual(parallel["inputs"], baseline["inputs"])
+                    for key in ("error_budget", "mc_validation"):
+                        self.assertEqual(parallel[key], baseline[key])
+                    for key in ("value", "uncertainty"):
+                        self.assertEqual(
+                            parallel["reference"][key], baseline["reference"][key]
+                        )
+                    self.assertEqual(
+                        parallel["profiles"],
+                        {
+                            **baseline["profiles"],
+                            "kiyosi": {**baseline["profiles"]["kiyosi"], "workers": 8},
+                        },
+                    )
+                    for backend in self.executables:
+                        serial_result = baseline["backends"][backend]
+                        parallel_result = parallel["backends"][backend]
+                        self.assertEqual(
+                            parallel_result["accuracy"]["price"],
+                            serial_result["accuracy"]["price"],
+                        )
+                        self.assertEqual(
+                            [
+                                sample["price"]
+                                for sample in parallel_result["seed_ensemble"][
+                                    "samples"
+                                ]
+                            ],
+                            [
+                                sample["price"]
+                                for sample in serial_result["seed_ensemble"]["samples"]
+                            ],
+                        )
 
 
 if __name__ == "__main__":

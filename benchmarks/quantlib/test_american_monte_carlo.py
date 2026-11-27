@@ -84,17 +84,18 @@ class AmericanMonteCarloTests(unittest.TestCase):
                         self.assertNotIn("calibration_seed", sample["profile"])
 
     def test_native_work_policy_rejects_invalid_profiles(self):
-        policy = "American MC requires one worker"
+        rust_policy = "American MC requires a nonzero seed"
+        quantlib_policy = "American MC requires one worker"
         for backend, executable in self.executables.items():
             for key, value, rust_error, quantlib_error in (
-                ("workers", 2, policy, policy),
-                ("seed", 0, policy, "seed$"),
+                ("workers", 0, "workers must be positive", quantlib_policy),
+                ("seed", 0, rust_policy, "seed$"),
                 ("seed", 4294967296, "number too large", "seed$"),
-                ("step_count", 1, policy, policy),
+                ("step_count", 1, rust_policy, quantlib_policy),
                 ("step_count", 2.5, "invalid digit", "step_count$"),
-                ("path_count", 10000001, policy, "path_count$"),
-                ("basis", "laguerre", policy, policy),
-                ("antithetic", "true", policy, policy),
+                ("path_count", 10000001, rust_policy, "path_count$"),
+                ("basis", "laguerre", rust_policy, quantlib_policy),
+                ("antithetic", "true", rust_policy, quantlib_policy),
             ):
                 invalid = copy.deepcopy(self.case)
                 invalid["profiles"][backend][key] = value
@@ -105,6 +106,10 @@ class AmericanMonteCarloTests(unittest.TestCase):
                 ):
                     native(executable, invalid, backend, 1)
         invalid = copy.deepcopy(self.case)
+        invalid["profiles"]["quantlib"]["workers"] = 2
+        with self.assertRaisesRegex(RuntimeError, quantlib_policy):
+            native(self.executables["quantlib"], invalid, "quantlib", 1)
+        invalid["profiles"]["quantlib"]["workers"] = 1
         invalid["profiles"]["quantlib"]["calibration_seed"] = 1729
         with self.assertRaisesRegex(RuntimeError, "independent nonzero seeds"):
             native(self.executables["quantlib"], invalid, "quantlib", 1)

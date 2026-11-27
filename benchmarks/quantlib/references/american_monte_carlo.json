@@ -426,6 +426,15 @@
           ]
         }
       }
+    },
+    {
+      "id": "mc-american-put-8-workers",
+      "value": 6.660684545893456,
+      "uncertainty": 5e-05,
+      "provenance": {
+        "method": "Independent Kiyosi and QuantLib finite differences; separate time/space/domain refinements; first-order temporal extrapolation",
+        "source": "references/american_monte_carlo.json (mc-american-put); calibration/american.json"
+      }
     }
   ]
 }

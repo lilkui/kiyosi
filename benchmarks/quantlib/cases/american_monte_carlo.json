@@ -100,6 +100,106 @@
         "exercise_intervals": 50,
         "kiyosi_continuation_training": "Same 65536 simulated pricing paths; ITM rows per exercise date"
       }
+    },
+    {
+      "id": "mc-american-put-8-workers",
+      "family": "mc_american_bsm",
+      "engine": "MonteCarloVanillaEngine",
+      "quantlib_engine": "MCAmericanEngine",
+      "model": "bsm",
+      "inputs": {
+        "option": "put",
+        "valuation": "2025-01-01",
+        "expiry": "2026-01-01",
+        "spot": 100,
+        "strike": 100,
+        "rate": 0.05,
+        "dividend": 0.02,
+        "volatility": 0.2
+      },
+      "profiles": {
+        "kiyosi": {
+          "path_count": 65536,
+          "step_count": 50,
+          "seed": 1729,
+          "workers": 8,
+          "sampling": "pseudo_random",
+          "antithetic": "false",
+          "control_variate": "false",
+          "basis": "quadratic_monomial"
+        },
+        "quantlib": {
+          "path_count": 65536,
+          "step_count": 50,
+          "seed": 1729,
+          "workers": 1,
+          "sampling": "pseudo_random",
+          "antithetic": "false",
+          "control_variate": "false",
+          "basis": "quadratic_monomial",
+          "calibration_path_count": 32768,
+          "calibration_seed": 11729
+        }
+      },
+      "error_budget": 0.15,
+      "mc_validation": {
+        "seeds": [
+          1009,
+          1106,
+          1203,
+          1300,
+          1397,
+          1494,
+          1591,
+          1688,
+          1785,
+          1882,
+          1979,
+          2076,
+          2173,
+          2270,
+          2367,
+          2464,
+          2561,
+          2658,
+          2755,
+          2852,
+          2949,
+          3046,
+          3143,
+          3240,
+          3337,
+          3434,
+          3531,
+          3628,
+          3725,
+          3822,
+          3919,
+          4016
+        ],
+        "timing_seed": 1729,
+        "max_rmse": 0.075,
+        "max_abs_bias": 0.05,
+        "max_sample_stddev": 0.075,
+        "calibration_seed_offset": 10000
+      },
+      "validation_seed_policy": "1009+97*i, i=0..31; timing1729; calibration seed=pricing seed+10000; declared before LSM outputs",
+      "estimator_work": {
+        "kiyosi": "PCG32 / Box-Muller; in-sample continuation fit on ITM paths; basis1,S/K,(S/K)^2 with degree fallback; all path generation/fitting/valuation in each price",
+        "quantlib": "MT19937 / inverse normal; independent calibration then pricing; quadratic monomial basis and exercise payoff basis; all calibration/path generation/valuation in each recalculate; variance and exercise-probability accumulation",
+        "quantlib_brownian_bridge_path_construction": false,
+        "calibration_antithetic": false,
+        "physical_pricing_paths_per_call": {
+          "kiyosi": 65536,
+          "quantlib": 65536
+        },
+        "calibration_paths_per_call": {
+          "kiyosi": 0,
+          "quantlib": 32768
+        },
+        "exercise_intervals": 50,
+        "kiyosi_continuation_training": "Same 65536 simulated pricing paths; ITM rows per exercise date"
+      }
     }
   ]
 }

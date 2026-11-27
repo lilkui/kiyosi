@@ -4,6 +4,7 @@ use kiyosi::{
 };
 
 use super::common::{Failure, Price, Request};
+use super::monte_carlo::prepare_workers;
 
 pub fn prepare(request: &mut Request) -> Result<Price, Failure> {
     let side = request.option()?;
@@ -23,11 +24,10 @@ pub fn prepare(request: &mut Request) -> Result<Price, Failure> {
         valuation,
     )?;
     let seed: u32 = request.number("seed")?;
-    let workers = request.number("workers")?;
+    let workers = prepare_workers(request)?;
     let step_count = request.number("step_count")?;
     let path_count = request.number("path_count")?;
-    if workers != 1
-        || seed == 0
+    if seed == 0
         || !(2..=10_000).contains(&step_count)
         || !(1..=10_000_000).contains(&path_count)
         || request.take("sampling")? != "pseudo_random"
@@ -35,7 +35,7 @@ pub fn prepare(request: &mut Request) -> Result<Price, Failure> {
         || request.take("control_variate")? != "false"
         || request.take("basis")? != "quadratic_monomial"
     {
-        return Err("American MC requires one worker, nonzero seed, pseudorandom, quadratic monomial, no antithetic/control variate and bounded paths/steps".into());
+        return Err("American MC requires a nonzero seed, pseudorandom sampling, quadratic monomial, no antithetic/control variate and bounded paths/steps".into());
     }
     let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
         sampling: MonteCarloSettings {

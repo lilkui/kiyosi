@@ -605,7 +605,7 @@ def main(argv=None):
         "protocol": {
             "paired_samples": 15,
             "target_ms": args.target_ms if finite_number(args.target_ms) else None,
-            "workers_per_backend": 1,
+            "mc_workers": "per-case backend profiles",
             "quartiles": "inclusive linear interpolation",
             "price_only": args.price_only,
         },

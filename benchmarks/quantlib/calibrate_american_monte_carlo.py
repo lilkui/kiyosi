@@ -134,7 +134,21 @@ def main():
     }
     write_report(
         HERE / "references/american_monte_carlo.json",
-        {"schema_version": 1, "cases": [reference]},
+        {
+            "schema_version": 1,
+            "cases": [
+                reference,
+                {
+                    "id": "mc-american-put-8-workers",
+                    "value": reference["value"],
+                    "uncertainty": reference["uncertainty"],
+                    "provenance": {
+                        "method": reference["provenance"]["method"],
+                        "source": "references/american_monte_carlo.json (mc-american-put); calibration/american.json",
+                    },
+                },
+            ],
+        },
     )
 
 
