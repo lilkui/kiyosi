@@ -108,8 +108,9 @@ impl MonteCarloAutocallableEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] above 1,048,576 notes and
-    /// [`Error::ComputationFailure`] if output reservation fails.
+    /// Returns [`Error::InvalidInput`] above 1,048,576 notes or one billion
+    /// estimated path and note visits, and [`Error::ComputationFailure`] if output
+    /// reservation fails.
     /// Propagates scalar pricing, entropy and cancellation errors.
     ///
     /// # Panics

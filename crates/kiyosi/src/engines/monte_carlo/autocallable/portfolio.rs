@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;
@@ -5,8 +6,8 @@ use std::sync::Arc;
 use super::super::{BLOCK_SIZE, BlockRunner, PathBlocks, skipped_sample_pair};
 use super::{
     AutocallableNote, AutocallableTerms, CashEvent, Error, Moments, MonteCarloAutocallableEngine,
-    MonteCarloSettings, PathPlan, PathStep, PricingContext, PricingEngine, Result, Sample,
-    SkippingPath, check_path_step, scaled_value, transition, unstable,
+    MonteCarloSettings, PathPlan, PathStep, PricingContext, Result, Sample, SkippingPath,
+    check_path_step, scaled_value, transition, unstable,
 };
 use crate::instruments::autocallable::PortfolioVariation;
 use crate::numerics::Sum;
@@ -15,6 +16,7 @@ use crate::{ObservationSchedule, TimeOfDay, Timestamp, TradingCalendar};
 // Leave room for the next note's preparation and the request's Sobol table.
 const BLOCKS_PER_WAVE: usize = 64;
 const BATCH_BYTES: usize = 256 * 1024 * 1024;
+const BATCH_WORK_LIMIT: u64 = 1_000_000_000;
 const PLAN_RESERVATION: usize = 16;
 const DAILY_GRID_SLOTS: usize = 4;
 const DAILY_GRID_BYTES: usize = 2 * 1024 * 1024;
@@ -22,6 +24,21 @@ const SHARED_STEP_BYTES: usize =
     2 * size_of::<SharedInterval>() + size_of::<[f64; 2]>() + 4 * size_of::<usize>();
 
 type IndexedPlan<'a, T> = (usize, PathPlan<'a, T>);
+
+struct BatchWork(Cell<u64>);
+
+impl BatchWork {
+    fn charge(&self, settings: MonteCarloSettings, visits_per_path: u64) -> Result<()> {
+        let visits = u64::from(settings.path_count.unsigned_abs()).saturating_mul(visits_per_path);
+        self.0.set(self.0.get().checked_sub(visits).ok_or_else(|| {
+            Error::InvalidInput(
+                "autocallable Monte Carlo batch exceeds one billion estimated path and note visits"
+                    .into(),
+            )
+        })?);
+        Ok(())
+    }
+}
 
 pub(super) struct SparseEvents {
     key: u64,
@@ -167,6 +184,7 @@ pub(super) fn price_many<T: AutocallableTerms>(
 ) -> Result<Vec<f64>> {
     crate::binding_support::validate_contract_batch_size(notes.len())?;
     let _sampling = super::super::sobol::RequestCache::new();
+    let work = BatchWork(Cell::new(BATCH_WORK_LIMIT));
     let mut prices = Vec::new();
     prices
         .try_reserve_exact(notes.len())
@@ -197,11 +215,18 @@ pub(super) fn price_many<T: AutocallableTerms>(
             Ok(Sample::Path(plan)) => plan,
             Err(Error::InvalidInput(_)) => {
                 // A schedule may fit only as a scalar request.
-                price_groups(&mut groups, engine, context, &mut prices, share_daily_grid)?;
+                price_groups(
+                    &mut groups,
+                    engine,
+                    context,
+                    &mut prices,
+                    share_daily_grid,
+                    &work,
+                )?;
                 index_by_grid.clear();
                 charged_grids.clear();
                 bytes = 0;
-                let (price, seed) = engine.price_with_seed(note, context)?;
+                let (price, seed) = scalar_quote(note, engine, context, &work)?;
                 engine.settings.seed = seed.or(engine.settings.seed);
                 prices[index] = price;
                 continue;
@@ -221,14 +246,21 @@ pub(super) fn price_many<T: AutocallableTerms>(
                 .filter(|grid| !charged_grids.contains(grid))
                 .map_or(0, |_| grid_bytes);
         if bytes > budget.saturating_sub(charge) {
-            price_groups(&mut groups, engine, context, &mut prices, share_daily_grid)?;
+            price_groups(
+                &mut groups,
+                engine,
+                context,
+                &mut prices,
+                share_daily_grid,
+                &work,
+            )?;
             index_by_grid.clear();
             charged_grids.clear();
             bytes = 0;
             charge = plan_bytes + grid.map_or(0, |_| grid_bytes);
         }
         if charge > budget {
-            prices[index] = scalar(&plan, engine, context)?;
+            prices[index] = scalar(&plan, engine, context, &work)?;
             continue;
         }
         if let Some(grid) = grid {
@@ -255,7 +287,14 @@ pub(super) fn price_many<T: AutocallableTerms>(
         groups[group].push((index, plan));
         bytes += charge;
     }
-    price_groups(&mut groups, engine, context, &mut prices, share_daily_grid)?;
+    price_groups(
+        &mut groups,
+        engine,
+        context,
+        &mut prices,
+        share_daily_grid,
+        &work,
+    )?;
     Ok(prices)
 }
 
@@ -329,13 +368,38 @@ fn scalar<T: AutocallableTerms>(
     plan: &PathPlan<'_, T>,
     engine: MonteCarloAutocallableEngine,
     context: &PricingContext,
+    work: &BatchWork,
 ) -> Result<f64> {
     if plan.shared_events.is_some() {
         // A singleton uses the ordinary estimator, including its bridge if eligible.
-        return engine.price(plan.note, context);
+        return scalar_quote(plan.note, engine, context, work).map(|(price, _)| price);
     }
-    let ([moment], _, _) = plan.sample(engine.settings, [plan], false, false)?;
-    scaled_value(moment.scale, moment.mean, 0.0)
+    sample_scalar(plan, engine.settings, work).map(|(price, _)| price)
+}
+
+fn scalar_quote<T: AutocallableTerms>(
+    note: &AutocallableNote<T>,
+    engine: MonteCarloAutocallableEngine,
+    context: &PricingContext,
+    work: &BatchWork,
+) -> Result<(f64, Option<u64>)> {
+    match engine.prepare_sample::<_, 1>(note, context)? {
+        Sample::Fixed(price) => Ok((price, None)),
+        Sample::Path(plan) => {
+            let (price, seed) = sample_scalar(&plan, engine.settings, work)?;
+            Ok((price, Some(seed)))
+        }
+    }
+}
+
+fn sample_scalar<T: AutocallableTerms>(
+    plan: &PathPlan<'_, T>,
+    settings: MonteCarloSettings,
+    work: &BatchWork,
+) -> Result<(f64, u64)> {
+    work.charge(settings, plan.steps.len() as u64 + 1)?;
+    let ([moment], _, seed) = plan.sample(settings, [plan], false, false)?;
+    Ok((scaled_value(moment.scale, moment.mean, 0.0)?, seed))
 }
 
 fn price_groups<T: AutocallableTerms>(
@@ -344,19 +408,20 @@ fn price_groups<T: AutocallableTerms>(
     context: &PricingContext,
     prices: &mut [f64],
     share_daily_grid: bool,
+    work: &BatchWork,
 ) -> Result<()> {
     for group in groups.drain(..) {
         crate::cancellation::check()?;
         let (index, base) = &group[0];
         if group.len() == 1 {
-            prices[*index] = scalar(base, engine, context)?;
+            prices[*index] = scalar(base, engine, context, work)?;
         } else {
             let shared = share_daily_grid && base.shared_daily_grid();
             if shared && group.len() >= 3 {
-                price_coupon_families(&group, engine.settings, prices)?;
+                price_coupon_families(&group, engine.settings, prices, work)?;
             } else {
                 let notes = group.iter().collect::<Vec<_>>();
-                Portfolio::new(&notes, shared)?.price(engine.settings, prices)?;
+                Portfolio::new(&notes, shared)?.price(engine.settings, prices, work)?;
             }
         }
     }
@@ -367,6 +432,7 @@ fn price_coupon_families<T: AutocallableTerms>(
     group: &[IndexedPlan<'_, T>],
     settings: MonteCarloSettings,
     prices: &mut [f64],
+    work: &BatchWork,
 ) -> Result<()> {
     let mut by_key = HashMap::<_, Vec<usize>>::new();
     let mut families = Vec::<Vec<usize>>::new();
@@ -428,7 +494,7 @@ fn price_coupon_families<T: AutocallableTerms>(
             .zip(simulated)
             .filter_map(|(note, &simulate)| simulate.then_some(note))
             .collect::<Vec<_>>();
-        price_shared(&notes, settings, prices)
+        price_shared(&notes, settings, prices, work)
     };
     sample(&simulated, prices)?;
     let mut retry = false;
@@ -498,8 +564,10 @@ fn price_shared<T: AutocallableTerms>(
     notes: &[&IndexedPlan<'_, T>],
     settings: MonteCarloSettings,
     prices: &mut [f64],
+    work: &BatchWork,
 ) -> Result<()> {
-    let scalar_lanes = |prices: &mut [f64]| Portfolio::new(notes, true)?.price(settings, prices);
+    let scalar_lanes =
+        |prices: &mut [f64]| Portfolio::new(notes, true)?.price(settings, prices, work);
     if notes.len() < 3 {
         return scalar_lanes(prices);
     }
@@ -540,8 +608,8 @@ fn price_shared<T: AutocallableTerms>(
             strips.push(None);
         }
     }
-    let result =
-        Portfolio::new(&compressed, true)?.price_with_strips(settings, prices, &strips, offset);
+    let result = Portfolio::new(&compressed, true)?
+        .price_with_strips(settings, prices, &strips, offset, work);
     match result {
         Err(Error::ComputationFailure(_)) => scalar_lanes(prices),
         result => result,
@@ -931,8 +999,13 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
         })
     }
 
-    fn price(&self, settings: MonteCarloSettings, prices: &mut [f64]) -> Result<()> {
-        self.price_with_strips(settings, prices, &[], 0)
+    fn price(
+        &self,
+        settings: MonteCarloSettings,
+        prices: &mut [f64],
+        work: &BatchWork,
+    ) -> Result<()> {
+        self.price_with_strips(settings, prices, &[], 0, work)
     }
 
     fn price_with_strips(
@@ -941,11 +1014,35 @@ impl<'a, 'b, T: AutocallableTerms> Portfolio<'a, 'b, T> {
         prices: &mut [f64],
         strips: &[Option<ThresholdStrip>],
         buckets: usize,
+        work: &BatchWork,
     ) -> Result<()> {
         let base = self.base;
         let dimensions = base.steps.len();
-        let blocks = PathBlocks::new(settings, dimensions)?;
         let lanes = self.notes.len();
+        // Charge the shared grid, each simulated lane, and the packed cash-flow actions.
+        let lane_visits = 3 * lanes as u64;
+        let event_visits = if let Some(shared) = &self.shared {
+            let mut visits = shared.events.len() as u64 + shared.words.len() as u64;
+            if !strips.is_empty() {
+                for chunk in shared.events.chunks(1024) {
+                    crate::cancellation::check()?;
+                    for (lane, _) in chunk {
+                        if let Some(strip) = &strips[*lane] {
+                            visits += u64::from(strip.levels.len().ilog2()) + 2;
+                        }
+                    }
+                }
+            }
+            visits
+        } else {
+            let bridge_visits = base
+                .bridge
+                .as_ref()
+                .map_or(0, |bridge| 2 * bridge.intervals.len() as u64 * lanes as u64);
+            self.events.len() as u64 + bridge_visits
+        };
+        work.charge(settings, dimensions as u64 + lane_visits + event_visits)?;
+        let blocks = PathBlocks::new(settings, dimensions)?;
         let wave = blocks.count().min(BLOCKS_PER_WAVE);
         let mut partials: Vec<_> = (0..wave)
             .map(|_| {

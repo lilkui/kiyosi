@@ -46,6 +46,13 @@ def test_autocallable_batch_stops_at_contract_count_limit():
         MC().price_many(instruments(), market(), shared_grid=True)
 
 
+@pytest.mark.parametrize("shared_grid", (False, True))
+def test_autocallable_batches_bound_per_note_path_work(shared_grid):
+    engine = MC(path_count=10_000_000, seed=42)
+    with pytest.raises(InvalidInputError, match="path and note visits"):
+        engine.price_many((contract(),) * 100, market(), shared_grid=shared_grid)
+
+
 def test_portfolio_reduction_replays_across_waves():
     first = contract(
         knock_in_observation=KnockInObservation.every_trading_day(clock_time())

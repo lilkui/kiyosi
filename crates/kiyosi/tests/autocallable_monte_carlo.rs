@@ -27,6 +27,29 @@ fn autocallable_batches_reject_an_excessive_contract_count() -> Result<()> {
 }
 
 #[test]
+fn autocallable_batches_bound_per_note_path_work() -> Result<()> {
+    let (terms, _, _) = autocallable_support::multi_event_terms(KnockInObservation::AtExpiry);
+    let note = SnowballOption::new(terms)?;
+    let notes = [&note; 100];
+    let engine = MonteCarloAutocallableEngine::new(MonteCarloSettings {
+        path_count: 10_000_000,
+        seed: Some(42),
+        ..Default::default()
+    })?;
+    let context = market(100.0, date(1, 1));
+    for result in [
+        engine.price_many(&notes, &context),
+        engine.price_many_on_shared_grid(&notes, &context),
+    ] {
+        assert!(matches!(
+            result,
+            Err(Error::InvalidInput(message)) if message.contains("path and note visits")
+        ));
+    }
+    Ok(())
+}
+
+#[test]
 fn portfolio_prices_replay_scalar_paths() -> Result<()> {
     let (mut terms, _, _) =
         autocallable_support::multi_event_terms(KnockInObservation::EveryTradingDay {

@@ -4571,6 +4571,8 @@ class MonteCarloAutocallableEngine(
         ------
         UnsupportedOperationError
             If the instruments have different types or the market is unsupported.
+        InvalidInputError
+            If the batch exceeds one billion estimated path and note visits.
         KiyosiError
             If scalar pricing validation or computation fails.
         OSError
