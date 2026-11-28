@@ -356,7 +356,7 @@ fn analytic_at_hit_rebates_shift_prices_without_adding_sampling_variance() {
 }
 
 #[test]
-fn generic_statistics_reject_engines_without_sampling_estimators() {
+fn statistics_reject_combinations_without_sampling_estimators() {
     let (start, end) = dates();
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
     assert!(matches!(
@@ -364,12 +364,9 @@ fn generic_statistics_reject_engines_without_sampling_estimators() {
         Err(Error::UnsupportedOperation(_))
     ));
     let american = AmericanOption::new(OptionType::Call, 100.0, start, end).unwrap();
+    let engine = MonteCarloVanillaEngine::new(settings().into()).unwrap();
     assert!(matches!(
-        PricingEngine::price_with_statistics(
-            &MonteCarloVanillaEngine::new(settings().into()).unwrap(),
-            &american,
-            &market()
-        ),
+        engine.price_with_statistics(&american, &market()),
         Err(Error::UnsupportedOperation(_))
     ));
 }

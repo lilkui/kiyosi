@@ -87,43 +87,6 @@ impl MonteCarloAccumulatorEngine {
         self.settings
     }
 
-    /// Returns a price with optional standard error and asymptotic 95% confidence interval.
-    ///
-    /// Uncertainty follows [`MonteCarloEstimate`]; known pseudorandom settlements
-    /// have zero uncertainty. Sobol uses one dimension per simulated date.
-    /// When an explicit knock-out schedule groups multiple fixed purchase dates,
-    /// only future knock-out dates and expiry require simulation.
-    /// Cancellation follows [`crate::CancellationToken`]. See [`Self::new`].
-    ///
-    /// # Errors
-    ///
-    /// Checks flat rates ([`crate::Error::UnsupportedOperation`]), then inclusive life
-    /// and prior history. Invalid life or impossible history returns
-    /// [`crate::Error::InvalidInput`]; missing history returns [`crate::Error::MissingHistory`].
-    /// Calendar compatibility is validated by [`Accumulator::new`]. Required curve
-    /// coverage is checked before simulating future events.
-    /// Sobol dimensions above 21,201 or transition and sampling workspace
-    /// above 1 GiB per request return [`crate::Error::InvalidInput`].
-    /// Non-finite paths, quantities, settlements or uncertainty return
-    /// [`crate::Error::ComputationFailure`]. Entropy and thread failures retain native
-    /// I/O details through [`crate::Error::Io`].
-    ///
-    /// # Panics
-    ///
-    /// Propagates worker panics after the call's parallel work has finished.
-    ///
-    /// # Aborts
-    ///
-    /// Allocation exhaustion follows the allocator's behavior (normally process abort).
-    pub fn price_with_statistics(
-        &self,
-        option: &Accumulator,
-        context: &PricingContext,
-    ) -> Result<MonteCarloEstimate> {
-        let (sample, pairs, known, seed) = self.sample(option, context, true)?;
-        estimate(self.settings, sample, pairs, 0.0, known, seed)
-    }
-
     fn sample(
         &self,
         option: &Accumulator,
@@ -263,12 +226,41 @@ impl PricingEngine<Accumulator> for MonteCarloAccumulatorEngine {
         let (sample, _, _, seed) = self.sample(option, context, false)?;
         Ok((scaled_value(sample.scale, sample.mean, 0.0)?, seed))
     }
+    /// Returns a price with optional standard error and asymptotic 95% confidence interval.
+    ///
+    /// Uncertainty follows [`MonteCarloEstimate`]; known pseudorandom settlements
+    /// have zero uncertainty. Sobol uses one dimension per simulated date.
+    /// When an explicit knock-out schedule groups multiple fixed purchase dates,
+    /// only future knock-out dates and expiry require simulation.
+    /// Cancellation follows [`crate::CancellationToken`]. See [`Self::new`].
+    ///
+    /// # Errors
+    ///
+    /// Checks flat rates ([`crate::Error::UnsupportedOperation`]), then inclusive life
+    /// and prior history. Invalid life or impossible history returns
+    /// [`crate::Error::InvalidInput`]; missing history returns [`crate::Error::MissingHistory`].
+    /// Calendar compatibility is validated by [`Accumulator::new`]. Required curve
+    /// coverage is checked before simulating future events.
+    /// Sobol dimensions above 21,201 or transition and sampling workspace
+    /// above 1 GiB per request return [`crate::Error::InvalidInput`].
+    /// Non-finite paths, quantities, settlements or uncertainty return
+    /// [`crate::Error::ComputationFailure`]. Entropy and thread failures retain native
+    /// I/O details through [`crate::Error::Io`].
+    ///
+    /// # Panics
+    ///
+    /// Propagates worker panics after the call's parallel work has finished.
+    ///
+    /// # Aborts
+    ///
+    /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     fn price_with_statistics(
         &self,
         option: &Accumulator,
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
-        self.price_with_statistics(option, context)
+        let (sample, pairs, known, seed) = self.sample(option, context, true)?;
+        estimate(self.settings, sample, pairs, 0.0, known, seed)
     }
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         crate::engines::flat_rates(context).map(|_| ())

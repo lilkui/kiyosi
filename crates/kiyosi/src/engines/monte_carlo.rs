@@ -1115,61 +1115,6 @@ impl MonteCarloVanillaEngine {
         self.settings
     }
 
-    /// Returns the price, standard error and asymptotic 95% confidence interval.
-    ///
-    /// Uses the same samples and reduction order as [`Self::price`].
-    /// Leaves uncertainty absent for Sobol and insufficient independent samples;
-    /// see [`MonteCarloEstimate`] for antithetic and expiry rules.
-    ///
-    /// # Errors
-    ///
-    /// Propagates [`Self::price`] errors and returns [`Error::ComputationFailure`]
-    /// when uncertainty or interval endpoints are non-finite.
-    ///
-    /// # Panics
-    ///
-    /// Propagates worker panics after the call's parallel work, as in [`Self::price`].
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # use kiyosi::*;
-    /// # fn main() -> kiyosi::Result<()> {
-    /// # let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// # let option = EuropeanOption::new(OptionType::Call, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
-    /// # let context = PricingContext::new(BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
-    /// let engine = MonteCarloVanillaEngine::new(kiyosi::MonteCarloGridSettings {
-    ///     sampling: MonteCarloSettings { seed: Some(42), ..Default::default() },
-    ///     ..Default::default()
-    /// })?;
-    /// let estimate = engine.price_with_statistics(&option, &context)?;
-    /// assert!(estimate.standard_error().is_some_and(|error| error > 0.0));
-    /// assert!(estimate.confidence_interval().is_some());
-    /// assert_eq!(estimate.seed(), Some(42));
-    /// let replay = MonteCarloVanillaEngine::new(kiyosi::MonteCarloGridSettings {
-    ///     sampling: MonteCarloSettings { seed: estimate.seed(), ..engine.settings().sampling },
-    ///     ..engine.settings()
-    /// })?;
-    /// assert_eq!(replay.price_with_statistics(&option, &context)?, estimate);
-    /// # Ok(()) }
-    /// ```
-    pub fn price_with_statistics(
-        &self,
-        option: &EuropeanOption,
-        context: &PricingContext,
-    ) -> Result<MonteCarloEstimate> {
-        let (sample, pairs, log_scale, seed) = self.sample(option, context, true)?;
-        estimate(
-            self.settings.sampling,
-            sample,
-            pairs,
-            log_scale,
-            context.valuation_time() == option.expiry_time()
-                || crate::engines::deterministic::enabled(context),
-            seed,
-        )
-    }
-
     fn sample(
         &self,
         option: &EuropeanOption,
@@ -1340,12 +1285,62 @@ impl PricingEngine for MonteCarloVanillaEngine {
         let (sample, _, log_scale, seed) = self.sample(option, context, false)?;
         Ok((scaled_value(sample.scale, sample.mean, log_scale)?, seed))
     }
+
+    /// Returns the price, standard error and asymptotic 95% confidence interval.
+    ///
+    /// Uses the same samples and reduction order as [`Self::price`].
+    /// Leaves uncertainty absent for Sobol and insufficient independent samples;
+    /// see [`MonteCarloEstimate`] for antithetic and expiry rules.
+    ///
+    /// # Errors
+    ///
+    /// Propagates [`Self::price`] errors and returns [`Error::ComputationFailure`]
+    /// when uncertainty or interval endpoints are non-finite.
+    ///
+    /// # Panics
+    ///
+    /// Propagates worker panics after the call's parallel work, as in [`Self::price`].
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use kiyosi::{BlackScholesMertonParameters, Date, EuropeanOption, OptionType, PricingContext};
+    /// use kiyosi::{MonteCarloVanillaEngine, PricingEngine};
+    /// use kiyosi::{MonteCarloGridSettings, MonteCarloSettings};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// # let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// # let option = EuropeanOption::new(OptionType::Call, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
+    /// # let context = PricingContext::new(BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
+    /// let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+    ///     sampling: MonteCarloSettings { seed: Some(42), ..Default::default() },
+    ///     ..Default::default()
+    /// })?;
+    /// let estimate = engine.price_with_statistics(&option, &context)?;
+    /// assert!(estimate.standard_error().is_some_and(|error| error > 0.0));
+    /// assert!(estimate.confidence_interval().is_some());
+    /// assert_eq!(estimate.seed(), Some(42));
+    /// let replay = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+    ///     sampling: MonteCarloSettings { seed: estimate.seed(), ..engine.settings().sampling },
+    ///     ..engine.settings()
+    /// })?;
+    /// assert_eq!(replay.price_with_statistics(&option, &context)?, estimate);
+    /// # Ok(()) }
+    /// ```
     fn price_with_statistics(
         &self,
         option: &EuropeanOption,
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
-        self.price_with_statistics(option, context)
+        let (sample, pairs, log_scale, seed) = self.sample(option, context, true)?;
+        estimate(
+            self.settings.sampling,
+            sample,
+            pairs,
+            log_scale,
+            context.valuation_time() == option.expiry_time()
+                || crate::engines::deterministic::enabled(context),
+            seed,
+        )
     }
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         crate::engines::flat_rates(context).map(|_| ())

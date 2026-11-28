@@ -155,35 +155,6 @@ impl MonteCarloBarrierEngine {
         self.settings
     }
 
-    /// Returns a price with sampling standard error and an asymptotic 95% interval.
-    ///
-    /// Uncertainty follows [`MonteCarloEstimate`]. Resolved analytic branches have
-    /// zero pseudorandom uncertainty; an analytic at-hit rebate adds no sampling
-    /// variance. See [`Self::price`] for an example.
-    ///
-    /// # Errors
-    ///
-    /// Propagates [`Self::price`] errors and returns [`crate::Error::ComputationFailure`]
-    /// for non-finite uncertainty or confidence bounds.
-    ///
-    /// # Panics
-    ///
-    /// Propagates worker panics as in [`Self::price`].
-    ///
-    /// # Aborts
-    ///
-    /// Allocation exhaustion follows the allocator's behavior, as in [`Self::price`].
-    pub fn price_with_statistics<I>(
-        &self,
-        option: &I,
-        context: &PricingContext,
-    ) -> Result<MonteCarloEstimate>
-    where
-        Self: PricingEngine<I>,
-    {
-        PricingEngine::price_with_statistics(self, option, context)
-    }
-
     fn native(
         &self,
         contract: Contract<'_>,
@@ -598,6 +569,24 @@ macro_rules! barrier_pricing {
                 ))
             }
 
+            /// Returns a price with sampling standard error and an asymptotic 95% interval.
+            ///
+            /// Uncertainty follows [`MonteCarloEstimate`]. Resolved analytic branches have
+            /// zero pseudorandom uncertainty; an analytic at-hit rebate adds no sampling
+            /// variance. See [`Self::price`] for an example.
+            ///
+            /// # Errors
+            ///
+            /// Propagates [`Self::price`] errors and returns [`crate::Error::ComputationFailure`]
+            /// for non-finite uncertainty or confidence bounds.
+            ///
+            /// # Panics
+            ///
+            /// Propagates worker panics as in [`Self::price`].
+            ///
+            /// # Aborts
+            ///
+            /// Allocation exhaustion follows the allocator's behavior, as in [`Self::price`].
             fn price_with_statistics(
                 &self,
                 option: &$option,

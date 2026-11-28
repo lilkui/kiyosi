@@ -155,37 +155,6 @@ impl MonteCarloAsianEngine {
         self.settings
     }
 
-    /// Returns a price with sampling standard error and an asymptotic 95% interval.
-    ///
-    /// Accepts geometric and arithmetic average-price contracts. Uncertainty follows
-    /// [`MonteCarloEstimate`]; terminal and analytic pseudorandom branches have zero
-    /// uncertainty. Sampling error does not measure arithmetic integration bias.
-    /// See [`Self::price`] for an example.
-    ///
-    /// # Errors
-    ///
-    /// Propagates [`Self::price`] errors and returns [`Error::ComputationFailure`]
-    /// for non-finite uncertainty or confidence bounds.
-    ///
-    /// # Panics
-    ///
-    /// Propagates worker panics as in [`Self::price`].
-    ///
-    /// # Aborts
-    ///
-    /// Allocation exhaustion follows the allocator's behavior, as in [`Self::price`].
-    pub fn price_with_statistics<I>(
-        &self,
-        option: &I,
-        context: &PricingContext,
-    ) -> Result<MonteCarloEstimate>
-    where
-        Self: PricingEngine<I>,
-    {
-        context.natural_bsm_parameters()?;
-        <Self as PricingEngine<I>>::price_with_statistics(self, option, context)
-    }
-
     /// Prices arithmetic-average options across strikes on common simulated paths.
     ///
     /// The template supplies direction, dates and realized history. Each price
@@ -836,6 +805,25 @@ macro_rules! asian_pricing {
                 ))
             }
 
+            /// Returns a price with sampling standard error and an asymptotic 95% interval.
+            ///
+            /// Accepts geometric and arithmetic average-price contracts. Uncertainty follows
+            /// [`MonteCarloEstimate`]; terminal and analytic pseudorandom branches have zero
+            /// uncertainty. Sampling error does not measure arithmetic integration bias.
+            /// See [`Self::price`] for an example.
+            ///
+            /// # Errors
+            ///
+            /// Propagates [`Self::price`] errors and returns [`Error::ComputationFailure`]
+            /// for non-finite uncertainty or confidence bounds.
+            ///
+            /// # Panics
+            ///
+            /// Propagates worker panics as in [`Self::price`].
+            ///
+            /// # Aborts
+            ///
+            /// Allocation exhaustion follows the allocator's behavior, as in [`Self::price`].
             fn price_with_statistics(
                 &self,
                 option: &$option,

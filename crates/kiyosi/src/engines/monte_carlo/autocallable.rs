@@ -149,44 +149,6 @@ impl MonteCarloAutocallableEngine {
         portfolio::price_many(*self, notes, context, true)
     }
 
-    /// Returns a price with optional standard error and asymptotic 95% confidence interval.
-    ///
-    /// Uncertainty follows [`MonteCarloEstimate`]; known pseudorandom cash flows
-    /// have zero uncertainty even before expiry. Coupons are discounted at their
-    /// contractual dates, including a current Phoenix coupon exactly once.
-    /// Cancellation follows [`crate::CancellationToken`]. See [`Self::new`].
-    ///
-    /// # Errors
-    ///
-    /// Missing required history returns [`crate::Error::MissingHistory`];
-    /// see the [caller-supplied history contract](crate).
-    ///
-    /// Checks flat rates ([`crate::Error::UnsupportedOperation`]), then inclusive
-    /// life and prior history. Invalid life or impossible history returns
-    /// [`crate::Error::InvalidInput`]. Calendar compatibility follows
-    /// [`AutocallableNote::new`]. Sobol dimensions above 21,201 or transition and
-    /// sampling workspace above 1 GiB per request
-    /// return [`crate::Error::InvalidInput`]. Non-finite paths,
-    /// payments or uncertainty return [`crate::Error::ComputationFailure`].
-    /// Entropy and thread failures preserve native I/O details through
-    /// [`crate::Error::Io`].
-    ///
-    /// # Panics
-    ///
-    /// Propagates worker panics after the call's parallel work has finished.
-    ///
-    /// # Aborts
-    ///
-    /// Allocation exhaustion follows the allocator's behavior (normally process abort).
-    pub fn price_with_statistics<T: AutocallableTerms>(
-        &self,
-        note: &AutocallableNote<T>,
-        context: &PricingContext,
-    ) -> Result<MonteCarloEstimate> {
-        let (sample, pairs, known, seed) = self.sample(note, context, true)?;
-        estimate(self.settings, sample, pairs, 0.0, known, seed)
-    }
-
     fn sample<T: AutocallableTerms>(
         &self,
         note: &AutocallableNote<T>,
@@ -890,12 +852,42 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
         let (sample, _, _, seed) = self.sample(option, context, false)?;
         Ok((scaled_value(sample.scale, sample.mean, 0.0)?, seed))
     }
+    /// Returns a price with optional standard error and asymptotic 95% confidence interval.
+    ///
+    /// Uncertainty follows [`MonteCarloEstimate`]; known pseudorandom cash flows
+    /// have zero uncertainty even before expiry. Coupons are discounted at their
+    /// contractual dates, including a current Phoenix coupon exactly once.
+    /// Cancellation follows [`crate::CancellationToken`]. See [`Self::new`].
+    ///
+    /// # Errors
+    ///
+    /// Missing required history returns [`crate::Error::MissingHistory`];
+    /// see the [caller-supplied history contract](crate).
+    ///
+    /// Checks flat rates ([`crate::Error::UnsupportedOperation`]), then inclusive
+    /// life and prior history. Invalid life or impossible history returns
+    /// [`crate::Error::InvalidInput`]. Calendar compatibility follows
+    /// [`AutocallableNote::new`]. Sobol dimensions above 21,201 or transition and
+    /// sampling workspace above 1 GiB per request
+    /// return [`crate::Error::InvalidInput`]. Non-finite paths,
+    /// payments or uncertainty return [`crate::Error::ComputationFailure`].
+    /// Entropy and thread failures preserve native I/O details through
+    /// [`crate::Error::Io`].
+    ///
+    /// # Panics
+    ///
+    /// Propagates worker panics after the call's parallel work has finished.
+    ///
+    /// # Aborts
+    ///
+    /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     fn price_with_statistics(
         &self,
         option: &AutocallableNote<T>,
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
-        self.price_with_statistics(option, context)
+        let (sample, pairs, known, seed) = self.sample(option, context, true)?;
+        estimate(self.settings, sample, pairs, 0.0, known, seed)
     }
     fn price_with_greeks_with_settings(
         &self,

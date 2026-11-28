@@ -51,38 +51,6 @@ impl MonteCarloDigitalEngine {
         self.settings
     }
 
-    /// Returns a price with sampling standard error and an asymptotic 95% interval.
-    ///
-    /// Uncertainty follows [`MonteCarloEstimate`]; terminal pseudorandom settlements
-    /// have zero uncertainty. See [`Self::price_with_greeks`] for an example.
-    ///
-    /// # Errors
-    ///
-    /// Propagates [`Self::price`] errors and returns [`crate::Error::ComputationFailure`]
-    /// for non-finite uncertainty or confidence bounds.
-    ///
-    /// # Panics
-    ///
-    /// Propagates worker panics as in [`Self::price`].
-    ///
-    /// # Aborts
-    ///
-    /// Allocation exhaustion follows the allocator's behavior, as in [`Self::price`].
-    pub fn price_with_statistics(
-        &self,
-        option: &DigitalOption,
-        context: &PricingContext,
-    ) -> Result<MonteCarloEstimate> {
-        let (result, standard_error) =
-            self.native(option, context, GreeksRequest::new([]), true)?;
-        MonteCarloEstimate::from_sampling(
-            result.price(),
-            standard_error,
-            self.settings(),
-            result.seed(),
-        )
-    }
-
     fn native(
         &self,
         option: &DigitalOption,
@@ -207,12 +175,36 @@ impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
         ))
     }
 
+    /// Returns a price with sampling standard error and an asymptotic 95% interval.
+    ///
+    /// Uncertainty follows [`MonteCarloEstimate`]; terminal pseudorandom settlements
+    /// have zero uncertainty. See [`Self::price_with_greeks`] for an example.
+    ///
+    /// # Errors
+    ///
+    /// Propagates [`Self::price`] errors and returns [`crate::Error::ComputationFailure`]
+    /// for non-finite uncertainty or confidence bounds.
+    ///
+    /// # Panics
+    ///
+    /// Propagates worker panics as in [`Self::price`].
+    ///
+    /// # Aborts
+    ///
+    /// Allocation exhaustion follows the allocator's behavior, as in [`Self::price`].
     fn price_with_statistics(
         &self,
         option: &DigitalOption,
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
-        self.price_with_statistics(option, context)
+        let (result, standard_error) =
+            self.native(option, context, GreeksRequest::new([]), true)?;
+        MonteCarloEstimate::from_sampling(
+            result.price(),
+            standard_error,
+            self.settings(),
+            result.seed(),
+        )
     }
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         crate::engines::flat_rates(context).map(|_| ())
