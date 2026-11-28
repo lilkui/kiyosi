@@ -45,22 +45,10 @@ def native_barrier_controls(
 
 
 def bounded_lattice_price(put: AmericanOption, context: PricingContext) -> None:
+    engine = CoxRossRubinsteinVanillaEngine(step_count=20_000, rollback_tolerance=1e-6)
+    assert_type(engine.price(put, context), float)
     assert_type(
-        CoxRossRubinsteinVanillaEngine(step_count=20_000).price_with_rollback_tolerance(
-            put, context, absolute_tolerance=1e-6
-        ),
-        float,
-    )
-    assert_type(
-        CoxRossRubinsteinVanillaEngine(
-            step_count=20_000
-        ).price_with_greeks_with_rollback_tolerance(
-            put,
-            context,
-            ["gamma", "vega"],
-            absolute_tolerance=1e-6,
-        ),
-        PricingResult,
+        engine.price_with_greeks(put, context, ["gamma", "vega"]), PricingResult
     )
 
 

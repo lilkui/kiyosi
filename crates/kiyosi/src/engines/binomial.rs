@@ -111,9 +111,12 @@ impl CoxRossRubinsteinVanillaEngine {
 
     /// Configures tolerance-bounded rollback for American options.
     ///
-    /// Ordinary price, Greek and implied-volatility requests use the bound.
-    /// Pass `None` to use full rollback. See
-    /// [`Self::price_with_rollback_tolerance`] for the truncation error bound.
+    /// Price, Greek, and implied-volatility requests use the bound for American
+    /// options. The tolerance is in price units. The bound uses the probability
+    /// of paths exiting the retained lattice and a discounted payoff bound.
+    /// Grid discretization and floating-point errors are separate. Greek
+    /// stencils can tighten the bound, and a wide band uses full rollback.
+    /// Pass `None` to use full rollback.
     ///
     /// # Examples
     ///
@@ -132,7 +135,7 @@ impl CoxRossRubinsteinVanillaEngine {
     /// Returns [`Error::InvalidInput`] for a nonpositive or nonfinite tolerance.
     pub fn with_rollback_tolerance(mut self, tolerance: Option<f64>) -> Result<Self> {
         if let Some(tolerance) = tolerance {
-            crate::error::finite(tolerance, true, "absolute_tolerance")?;
+            crate::error::finite(tolerance, true, "rollback_tolerance")?;
         }
         self.rollback_tolerance = tolerance;
         Ok(self)
@@ -183,109 +186,6 @@ impl CoxRossRubinsteinVanillaEngine {
     {
         context.natural_bsm_parameters()?;
         <Self as PricingEngine<I>>::price(self, option, context)
-    }
-
-    /// Prices an American option with an absolute tolerance for discarding lattice tails.
-    ///
-    /// The tolerance is in price units. The omitted paths' contribution is bounded
-    /// using their exit probability and a discounted payoff bound. Calls use
-    /// share-weighted probabilities to bound payouts that grow with spot.
-    /// The bound concerns lattice truncation. The usual discretization and
-    /// floating-point errors apply. A wide band falls back to full rollback.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::InvalidInput`] for a nonpositive or nonfinite tolerance,
-    /// out-of-life valuation, or excessive rollback work.
-    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves.
-    /// Propagates the numerical and cancellation errors of [`Self::price`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use kiyosi::{AmericanOption, BinomialSettings, BlackScholesMertonParameters,
-    ///     CoxRossRubinsteinVanillaEngine, Date, OptionType, PricingContext};
-    /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let end = Date::new(2026, 1, 1)?.start_of_day();
-    /// let put = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
-    /// let market = PricingContext::new(
-    ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start)?;
-    /// let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 20_000 })?;
-    /// assert!(engine.price_with_rollback_tolerance(&put, &market, 1e-6)? > 0.0);
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn price_with_rollback_tolerance(
-        &self,
-        option: &AmericanOption,
-        context: &PricingContext,
-        absolute_tolerance: f64,
-    ) -> Result<f64> {
-        crate::error::finite(absolute_tolerance, true, "absolute_tolerance")?;
-        flat_rates(context)?;
-        Ok(self
-            .banded_native(
-                option,
-                Payoff::vanilla(option.option_type(), option.strike(), true),
-                context,
-                absolute_tolerance,
-                GreeksRequest::new([]),
-                None,
-            )?
-            .price())
-    }
-
-    /// Prices an American option and its requested Greeks with tolerance-bounded rollback.
-    ///
-    /// The tolerance caps discarded tail value in each price calculation. The
-    /// engine tightens it for sensitivities whose differences amplify price errors.
-    /// Grid discretization and rounding errors apply. See
-    /// [`Self::price_with_rollback_tolerance`] for the rollback contract.
-    ///
-    /// # Errors
-    ///
-    /// Propagates rollback, numerical shift and bumped pricing errors.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use kiyosi::{AmericanOption, BinomialSettings, BlackScholesMertonParameters,
-    ///     CoxRossRubinsteinVanillaEngine, Date, Greek, GreeksRequest,
-    ///     NumericalShiftSettings, OptionType, PricingContext};
-    ///
-    /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let put = AmericanOption::new(OptionType::Put, 100.0, start, start.add_days(365)?)?;
-    /// let market = PricingContext::new(
-    ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start)?;
-    /// let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 20_000 })?;
-    /// let result = engine.price_with_greeks_with_rollback_tolerance(
-    ///     &put, &market, GreeksRequest::new([Greek::Delta]), NumericalShiftSettings::default(), 1e-6)?;
-    /// assert!(result.require(Greek::Delta)? < 0.0);
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn price_with_greeks_with_rollback_tolerance(
-        &self,
-        option: &AmericanOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-        shifts: crate::NumericalShiftSettings,
-        absolute_tolerance: f64,
-    ) -> Result<PricingResult> {
-        crate::error::finite(absolute_tolerance, true, "absolute_tolerance")?;
-        flat_rates(context)?;
-        shifts.validate()?;
-        time_step(option, context, self.settings)?;
-        self.banded_greeks(
-            option,
-            Payoff::vanilla(option.option_type(), option.strike(), true),
-            context,
-            request,
-            shifts,
-            absolute_tolerance,
-        )
     }
 
     fn banded_greeks(

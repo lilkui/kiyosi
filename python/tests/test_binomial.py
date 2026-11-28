@@ -124,9 +124,7 @@ def test_banded_american_put_preserves_price_within_the_truncation_budget():
     engine = CoxRossRubinsteinVanillaEngine(step_count=4800)
     exact = engine.price(put, snapshot)
     for tolerance in (0.1, 1e-6):
-        bounded = engine.price_with_rollback_tolerance(
-            put, snapshot, absolute_tolerance=tolerance
-        )
+        bounded = engine.replace(rollback_tolerance=tolerance).price(put, snapshot)
         assert exact - tolerance - 1e-9 <= bounded <= exact + 1e-9
     fine = engine.replace(step_count=20_000)
     with pytest.raises(InvalidInputError):
@@ -136,23 +134,17 @@ def test_banded_american_put_preserves_price_within_the_truncation_budget():
         step_count=20_000, rollback_tolerance=1e-6
     )
     assert configured.replace(rollback_tolerance=None) == fine
-    quote = fine.price_with_rollback_tolerance(put, snapshot, absolute_tolerance=1e-6)
-    assert configured.price(put, snapshot) == quote
+    quote = configured.price(put, snapshot)
     assert implied_volatility(
         configured, put, snapshot, quote, lower_bound=0.15, upper_bound=0.25
     ) == pytest.approx(0.2, rel=0, abs=1e-8)
-    assert configured.price_with_greeks(put, snapshot, "delta").delta == (
-        fine.price_with_greeks_with_rollback_tolerance(
-            put, snapshot, "delta", absolute_tolerance=1e-6
-        ).delta
+    assert quote == pytest.approx(
+        engine.replace(step_count=10_000).price(put, snapshot), abs=1e-4
     )
-    assert fine.price_with_rollback_tolerance(
-        put, snapshot, absolute_tolerance=1e-6
-    ) == pytest.approx(engine.replace(step_count=10_000).price(put, snapshot), abs=1e-4)
-    with pytest.raises(InvalidInputError):
-        fine.price_with_rollback_tolerance(put, snapshot, absolute_tolerance=0)
+    with pytest.raises(InvalidInputError, match="rollback_tolerance"):
+        fine.replace(rollback_tolerance=0)
     with pytest.raises(TypeError):
-        fine.price_with_rollback_tolerance(put, snapshot, absolute_tolerance=True)
+        fine.replace(rollback_tolerance=True)
 
 
 def test_banded_american_call_matches_full_tree_and_original_spot_greeks():
@@ -173,7 +165,7 @@ def test_banded_american_call_matches_full_tree_and_original_spot_greeks():
     fine = engine.replace(step_count=20_000)
     with pytest.raises(InvalidInputError):
         fine.price(call, snapshot)
-    price = fine.price_with_rollback_tolerance(call, snapshot, absolute_tolerance=1e-6)
+    price = fine.replace(rollback_tolerance=1e-6).price(call, snapshot)
     dual = call.replace(option_type="put", strike=100)
     dual_snapshot = market(spot=92, rate=0.08, dividend=0.05, sigma=0.2)
     assert fine.replace(rollback_tolerance=1e-6).price(
@@ -189,17 +181,13 @@ def test_banded_put_greeks_match_the_full_tree():
     engine = CoxRossRubinsteinVanillaEngine(step_count=4800)
     greeks = ["delta", "gamma", "rho", "vega"]
     exact = engine.price_with_greeks(put, snapshot, greeks, rate_shift=2e-4)
-    bounded = engine.price_with_greeks_with_rollback_tolerance(
-        put, snapshot, greeks, absolute_tolerance=1e-6, rate_shift=2e-4
+    bounded = engine.replace(rollback_tolerance=1e-6).price_with_greeks(
+        put, snapshot, greeks, rate_shift=2e-4
     )
     assert bounded.price == pytest.approx(exact.price, rel=0, abs=1e-6)
     for greek in greeks:
         assert getattr(bounded, greek) == pytest.approx(
             getattr(exact, greek), rel=0, abs=1e-6
-        )
-    with pytest.raises(TypeError):
-        engine.price_with_greeks_with_rollback_tolerance(
-            put, snapshot, greeks, absolute_tolerance=True
         )
 
 

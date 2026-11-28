@@ -119,7 +119,9 @@ fn banded_american_put_preserves_price_within_the_truncation_budget() -> Result<
         let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 4800 })?;
         let exact = engine.price(&option, &snapshot)?;
         for tolerance in [0.1, 1e-6] {
-            let bounded = engine.price_with_rollback_tolerance(&option, &snapshot, tolerance)?;
+            let bounded = engine
+                .with_rollback_tolerance(Some(tolerance))?
+                .price(&option, &snapshot)?;
             assert!(bounded <= exact + 1e-9);
             assert!(exact - bounded <= tolerance + 1e-9);
         }
@@ -130,9 +132,8 @@ fn banded_american_put_preserves_price_within_the_truncation_budget() -> Result<
         fine.price(&option, &snapshot),
         Err(Error::InvalidInput(_))
     ));
-    let actual = fine.price_with_rollback_tolerance(&option, &snapshot, 1e-6)?;
     let configured = fine.with_rollback_tolerance(Some(1e-6))?;
-    assert!((configured.price(&option, &snapshot)? - actual).abs() < 1e-12);
+    let actual = configured.price(&option, &snapshot)?;
     let volatility = implied_volatility(
         &configured,
         &option,
@@ -141,23 +142,9 @@ fn banded_american_put_preserves_price_within_the_truncation_budget() -> Result<
         ImpliedVolatilitySettings::new(0.15, 0.25),
     )?;
     assert!((volatility - 0.2).abs() < 1e-8);
-    let request = GreeksRequest::new([Greek::Delta]);
-    let greeks = configured.price_with_greeks(&option, &snapshot, request)?;
-    let bounded = fine.price_with_greeks_with_rollback_tolerance(
-        &option,
-        &snapshot,
-        request,
-        NumericalShiftSettings::default(),
-        1e-6,
-    )?;
-    assert!((greeks.require(Greek::Delta)? - bounded.require(Greek::Delta)?).abs() < 1e-12);
     let reference = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 10_000 })?
         .price(&option, &snapshot)?;
     assert!((actual - reference).abs() < 1e-4);
-    assert!(matches!(
-        fine.price_with_rollback_tolerance(&option, &snapshot, 0.0),
-        Err(Error::InvalidInput(_))
-    ));
     assert!(matches!(
         fine.with_rollback_tolerance(Some(0.0)),
         Err(Error::InvalidInput(_))
@@ -982,13 +969,9 @@ fn banded_put_greeks_match_the_full_tree() -> Result<()> {
     let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 4800 })?;
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Rho, Greek::Vega]);
     let exact = engine.price_with_greeks(&put, &snapshot, request)?;
-    let bounded = engine.price_with_greeks_with_rollback_tolerance(
-        &put,
-        &snapshot,
-        request,
-        NumericalShiftSettings::default(),
-        1e-6,
-    )?;
+    let bounded = engine
+        .with_rollback_tolerance(Some(1e-6))?
+        .price_with_greeks(&put, &snapshot, request)?;
     assert!((bounded.price() - exact.price()).abs() <= 1e-6);
     for greek in [Greek::Delta, Greek::Gamma, Greek::Rho, Greek::Vega] {
         assert!(
@@ -997,13 +980,9 @@ fn banded_put_greeks_match_the_full_tree() -> Result<()> {
         );
     }
     let fine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 20_000 })?;
-    let result = fine.price_with_greeks_with_rollback_tolerance(
-        &put,
-        &snapshot,
-        request,
-        NumericalShiftSettings::default(),
-        1e-6,
-    )?;
+    let result = fine
+        .with_rollback_tolerance(Some(1e-6))?
+        .price_with_greeks(&put, &snapshot, request)?;
     assert!(result.require(Greek::Gamma)? > 0.0);
     Ok(())
 }

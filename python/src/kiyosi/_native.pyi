@@ -2559,6 +2559,8 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
     Set rollback_tolerance to a positive absolute tolerance in price units
     to bound discarded lattice tails in ordinary American option pricing,
     Greeks, and implied volatility. The default, None, uses full rollback.
+    Grid discretization and rounding errors are separate. Greek stencils
+    can tighten the truncation bound.
     """
 
     def __eq__(self, other: object) -> bool: ...
@@ -2599,72 +2601,6 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
         The request accepts up to 1,048,576 contracts and caps combined
         rollback work at one billion grid updates.
         A failed request returns no partial results.
-        """
-
-    def price_with_greeks_with_rollback_tolerance(
-        self,
-        instrument: AmericanOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        absolute_tolerance: _Real,
-        spot_shift: _Real | None | EllipsisType = ...,
-        volatility_shift: _Real | None | EllipsisType = ...,
-        rate_shift: _Real | EllipsisType = ...,
-        time_shift: timedelta | None | EllipsisType = ...,
-    ) -> PricingResult:
-        """Price an American option and its requested Greeks with bounded lattice tails.
-
-        Parameters
-        ----------
-        instrument : AmericanOption
-            American option to price.
-        context : PricingContext
-            Market data with flat rates.
-        greeks : str or iterable of str
-            Requested Greek names or "all".
-        absolute_tolerance : float
-            Positive truncation tolerance in price units. The engine tightens it
-            for sensitivities whose differences amplify price errors.
-        spot_shift, volatility_shift, rate_shift, time_shift : optional
-            Numerical controls as in price_with_greeks.
-
-        Returns
-        -------
-        PricingResult
-            The price and requested sensitivities. Grid and rounding errors apply.
-        """
-
-    def price_with_rollback_tolerance(
-        self,
-        instrument: AmericanOption,
-        context: PricingContext,
-        *,
-        absolute_tolerance: _Real,
-    ) -> float:
-        """Price an American option with a bound on the discarded lattice tails.
-
-        Parameters
-        ----------
-        instrument : AmericanOption
-            American option to price.
-        context : PricingContext
-            Market data with flat rates.
-        absolute_tolerance : float
-            Positive truncation tolerance in price units. Grid discretization
-            and floating-point errors apply.
-
-        Returns
-        -------
-        float
-            Price calculated on the bounded tree, or on the full tree when cheaper.
-
-        Raises
-        ------
-        InvalidInputError
-            If the tolerance or valuation is invalid, or rollback work exceeds the limit.
-        UnsupportedOperationError
-            If the rate curves are nonconstant.
         """
 
     def replace(
