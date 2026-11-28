@@ -845,9 +845,8 @@ class BlackScholesMertonParameters:
         ----------
         **fields : object
             Constructor fields to replace. Omitted fields and fields set to
-            Ellipsis default to the instance's values. None clears the calendar.
-            A replacement clock uses the supplied or defaulted volatility value
-            directly. See the class parameters for units.
+            Ellipsis default to the instance's values. Pass calendar=None to
+            clear the calendar. See the class parameters for supported clocks.
 
         Returns
         -------
@@ -904,14 +903,17 @@ class BlackScholesMertonParameters:
 
     @property
     def variance_time_convention(self) -> Literal["actual_365_fixed", "business"]:
-        """Return the model volatility annualization choice."""
+        """Return the model's variance time convention."""
 
     @property
     def calendar(self) -> TradingCalendar | None:
-        """Return an owned model calendar, or None for A/365F."""
+        """Return an owned variance calendar, or None for Actual/365 Fixed."""
 
 class HestonParameters:
     """Heston stochastic-volatility parameters under the risk-neutral measure.
+
+    Variance parameters use Actual/365 Fixed. The rate curves define rate
+    and dividend accrual independently.
 
     Parameters
     ----------
@@ -930,15 +932,11 @@ class HestonParameters:
         Correlation between the asset and variance Brownian motions in [-1, 1],
         including endpoints.
 
-    variance_time_convention : {"actual_365_fixed", "business"}, optional
-        Volatility annualization and variance clock. The Rust default is
-        actual_365_fixed. The rate curves define rate and dividend accrual.
-    calendar : TradingCalendar or None, optional
-        Required for business time and rejected for actual_365_fixed. Business
-        time accumulates uniformly over each trading date's 24 hours, divided
-        by the calendar's fixed annualization basis; closed dates contribute zero.
-        Contract observation calendars are independent. Replacement preserves
-        omitted volatility values without unit conversion when changing the clock.
+    variance_time_convention : {"actual_365_fixed"}, optional
+        Fixed variance time convention. Defaults to "actual_365_fixed".
+    calendar : None, optional
+        Defaults to None. Contract observation calendars and rate curve
+        calendars are set on those objects.
 
     Raises
     ------
@@ -969,8 +967,8 @@ class HestonParameters:
         mean_reversion_speed: _Real,
         vol_of_vol: _Real,
         correlation: _Real,
-        variance_time_convention: Literal["actual_365_fixed", "business"] = ...,
-        calendar: TradingCalendar | None = ...,
+        variance_time_convention: Literal["actual_365_fixed"] = ...,
+        calendar: None = ...,
     ) -> None: ...
     def replace(
         self,
@@ -982,9 +980,8 @@ class HestonParameters:
         mean_reversion_speed: _Real | EllipsisType = ...,
         vol_of_vol: _Real | EllipsisType = ...,
         correlation: _Real | EllipsisType = ...,
-        variance_time_convention: Literal["actual_365_fixed", "business"]
-        | EllipsisType = ...,
-        calendar: TradingCalendar | None | EllipsisType = ...,
+        variance_time_convention: Literal["actual_365_fixed"] | EllipsisType = ...,
+        calendar: None | EllipsisType = ...,
     ) -> HestonParameters:
         """Return a validated copy with the supplied fields applied.
 
@@ -992,9 +989,8 @@ class HestonParameters:
         ----------
         **fields : object
             Constructor fields to replace. Omitted fields and fields set to
-            Ellipsis default to the instance's values. None clears the calendar.
-            A replacement clock uses the supplied or defaulted volatility value
-            directly. See the class parameters for units.
+            Ellipsis default to the instance's values. Pass calendar=None to
+            clear the calendar. See the class parameters for supported clocks.
 
         Returns
         -------
@@ -1068,12 +1064,12 @@ class HestonParameters:
         """Return the correlation between the asset and variance Brownian motions."""
 
     @property
-    def variance_time_convention(self) -> Literal["actual_365_fixed", "business"]:
-        """Return the model volatility annualization choice."""
+    def variance_time_convention(self) -> Literal["actual_365_fixed"]:
+        """Return the model's variance time convention."""
 
     @property
-    def calendar(self) -> TradingCalendar | None:
-        """Return an owned model calendar, or None for A/365F."""
+    def calendar(self) -> None:
+        """Return an owned variance calendar, or None for Actual/365 Fixed."""
 
 class LocalVolatilitySurface:
     """Local-volatility table indexed by time (rows) and absolute spot (columns).
@@ -1206,9 +1202,8 @@ class LocalVolatilityParameters:
         ----------
         **fields : object
             Constructor fields to replace. Omitted fields and fields set to
-            Ellipsis default to the instance's values. None clears the calendar.
-            A replacement clock uses the supplied or defaulted volatility value
-            directly. See the class parameters for units.
+            Ellipsis default to the instance's values. Pass calendar=None to
+            clear the calendar. See the class parameters for supported clocks.
 
         Returns
         -------
@@ -1265,11 +1260,11 @@ class LocalVolatilityParameters:
 
     @property
     def variance_time_convention(self) -> Literal["actual_365_fixed", "business"]:
-        """Return the model volatility annualization choice."""
+        """Return the model's variance time convention."""
 
     @property
     def calendar(self) -> TradingCalendar | None:
-        """Return an owned model calendar, or None for A/365F."""
+        """Return an owned variance calendar, or None for Actual/365 Fixed."""
 
 class TradingCalendar:
     """Trading calendar with a fixed annualization basis.

@@ -17,6 +17,7 @@ from kiyosi.instruments import (
     TouchOption,
 )
 from kiyosi.market import (
+    HestonParameters,
     PricingContext,
     TradingCalendar,
 )
@@ -30,6 +31,37 @@ from kiyosi.pricing import (
 BinaryBarrierOption()  # ty: ignore[no-matching-overload]
 TouchOption()  # ty: ignore[no-matching-overload]
 DoubleTouchOption()  # ty: ignore[missing-argument]
+
+
+def heston_uses_fixed_variance_time() -> None:
+    model = HestonParameters(
+        risk_free_rate=0.05,
+        dividend_yield=0.02,
+        initial_variance=0.04,
+        long_run_variance=0.04,
+        mean_reversion_speed=1.5,
+        vol_of_vol=0.3,
+        correlation=-0.7,
+    )
+    assert_type(model.variance_time_convention, Literal["actual_365_fixed"])
+    assert_type(model.calendar, None)
+    assert_type(
+        model.replace(variance_time_convention="actual_365_fixed", calendar=None),
+        HestonParameters,
+    )
+    model.replace(variance_time_convention="business")  # ty: ignore[invalid-argument-type]
+    model.replace(calendar=TradingCalendar.weekdays())  # ty: ignore[invalid-argument-type]
+    HestonParameters(
+        risk_free_rate=0.05,
+        dividend_yield=0.02,
+        initial_variance=0.04,
+        long_run_variance=0.04,
+        mean_reversion_speed=1.5,
+        vol_of_vol=0.3,
+        correlation=-0.7,
+        variance_time_convention="business",  # ty: ignore[invalid-argument-type]
+        calendar=TradingCalendar.weekdays(),  # ty: ignore[invalid-argument-type]
+    )
 
 
 def touch_payment_conditions(start: datetime, end: datetime) -> None:

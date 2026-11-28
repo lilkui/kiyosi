@@ -5,6 +5,9 @@ use pyo3::prelude::*;
 
 /// Heston stochastic-volatility parameters under the risk-neutral measure.
 ///
+/// Variance parameters use Actual/365 Fixed. The rate curves define rate
+/// and dividend accrual independently.
+///
 /// Parameters
 /// ----------
 /// risk_free_rate, dividend_yield : float or RateTermStructure
@@ -22,15 +25,11 @@ use pyo3::prelude::*;
 ///     Correlation between the asset and variance Brownian motions in [-1, 1],
 ///     including endpoints.
 ///
-/// variance_time_convention : {"actual_365_fixed", "business"}, optional
-///     Volatility annualization and variance clock. The Rust default is
-///     actual_365_fixed. The rate curves define rate and dividend accrual.
-/// calendar : TradingCalendar or None, optional
-///     Required for business time and rejected for actual_365_fixed. Business
-///     time accumulates uniformly over each trading date's 24 hours, divided
-///     by the calendar's fixed annualization basis; closed dates contribute zero.
-///     Contract observation calendars are independent. Replacement preserves
-///     omitted volatility values without unit conversion when changing the clock.
+/// variance_time_convention : {"actual_365_fixed"}, optional
+///     Fixed variance time convention. Defaults to "actual_365_fixed".
+/// calendar : None, optional
+///     Defaults to None. Contract observation calendars and rate curve
+///     calendars are set on those objects.
 ///
 /// Raises
 /// ------

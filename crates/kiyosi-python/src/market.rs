@@ -16,9 +16,8 @@ macro_rules! rate_properties {
                 /// ----------
                 /// **fields : object
                 ///     Constructor fields to replace. Omitted fields and fields set to
-                ///     Ellipsis default to the instance's values. None clears the calendar.
-                ///     A replacement clock uses the supplied or defaulted volatility value
-                ///     directly. See the class parameters for units.
+                ///     Ellipsis default to the instance's values. Pass calendar=None to
+                ///     clear the calendar. See the class parameters for supported clocks.
                 ///
                 /// Returns
                 /// -------
@@ -37,12 +36,12 @@ macro_rules! rate_properties {
             ], {
             $($extra)*
 
-            /// Return the model volatility annualization choice.
+            /// Return the model's variance time convention.
             #[getter]
             fn variance_time_convention(&self) -> &'static str {
                 $crate::market::variance_time_convention_name(self.0.variance_time_convention())
             }
-            /// Return an owned model calendar, or None for A/365F.
+            /// Return an owned variance calendar, or None for Actual/365 Fixed.
             #[getter]
             fn calendar(&self) -> Option<$crate::calendar::TradingCalendar> {
                 self.0.variance_time_convention().calendar().cloned().map($crate::calendar::TradingCalendar)
