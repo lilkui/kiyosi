@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use crate::VarianceTimeConvention;
-use crate::{Date, Error, RateTermStructure, Result, Timestamp, error::finite};
+use crate::{Error, RateTermStructure, Result, Timestamp, error::finite};
 
 /// Supplies a continuously compounded flat rate or an owned term structure.
 ///
@@ -514,9 +514,5 @@ impl PricingContext {
     /// Returns the valuation instant; see [`Self::new`].
     pub fn valuation_time(&self) -> Timestamp {
         self.valuation_time
-    }
-    /// Returns the date containing the valuation instant; see [`Self::new`].
-    pub fn valuation_date(&self) -> Date {
-        self.valuation_time.date()
     }
 }

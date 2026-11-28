@@ -513,7 +513,9 @@ impl Accumulator {
         let spot = context.spot_price();
         if self.observes_knock_out(context.valuation_time())
             && self.is_knock_out(spot)
-            && self.calendar().is_trading_day(context.valuation_date())
+            && self
+                .calendar()
+                .is_trading_day(context.valuation_time().date())
         {
             return (quantity, Some(quantity * self.unit_payoff(spot)));
         }
@@ -547,7 +549,9 @@ impl OptionContract for Accumulator {
         }
         if self.observes_knock_out(context.valuation_time())
             && self.is_knock_out(context.spot_price())
-            && self.calendar().is_trading_day(context.valuation_date())
+            && self
+                .calendar()
+                .is_trading_day(context.valuation_time().date())
         {
             return false;
         }
@@ -620,7 +624,9 @@ impl OptionContract for Accumulator {
         let spot = context.spot_price();
         let crosses = |level| spot - radius <= level && level <= spot + radius;
         let observes = self.observes_knock_out(context.valuation_time())
-            && self.calendar().is_trading_day(context.valuation_date());
+            && self
+                .calendar()
+                .is_trading_day(context.valuation_time().date());
         (observes && crosses(self.knock_out_level()))
             || (self.current_observation(context)
                 && (!observes || !self.is_knock_out(spot))

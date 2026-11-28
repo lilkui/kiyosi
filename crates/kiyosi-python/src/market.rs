@@ -577,7 +577,7 @@ value_methods!(PricingContext, PricingContextChanges,
     /// Return the date containing the valuation instant.
     #[getter]
     fn valuation_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.valuation_date())
+        python_date(py, self.0.valuation_time().date())
     }
     /// Return valuation time.
     #[getter]

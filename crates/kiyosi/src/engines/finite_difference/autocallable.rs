@@ -1066,7 +1066,8 @@ impl<T: AutocallableTerms> Backend<AutocallableNote<T>> for AutocallableState {
         let days = if note.view().daily_knock_in() {
             usize::try_from(
                 context
-                    .valuation_date()
+                    .valuation_time()
+                    .date()
                     .days_until(note.expiry_time().date()),
             )
             .unwrap_or(usize::MAX)
