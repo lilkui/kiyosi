@@ -245,10 +245,10 @@ def test_dividend_coverage_ends_at_the_last_observation(subtests):
             option,
             market(
                 valuation=start,
-                rate=RateTermStructure.bounded_flat(
+                rate=RateTermStructure.flat(
                     0.04, reference_time=start, max_time=risk_end
                 ),
-                dividend=RateTermStructure.bounded_flat(
+                dividend=RateTermStructure.flat(
                     0.01, reference_time=start, max_time=dividend_end
                 ),
             ),

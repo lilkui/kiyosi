@@ -553,58 +553,41 @@ class RateTermStructure:
         factors: Iterable[_Real],
     ) -> None: ...
     @staticmethod
+    @overload
     def flat(
-        rate: _Real, *, reference_time: datetime | None = None
-    ) -> RateTermStructure:
-        """Create a continuously compounded flat rate curve.
-
-        Parameters
-        ----------
-        rate : float
-            Finite annual rate in decimal units; negative rates are allowed.
-        reference_time : datetime.datetime, optional
-            Inclusive lower coverage bound, or None for an undated curve.
-
-        Returns
-        -------
-        RateTermStructure
-            Owned flat curve with no upper coverage bound.
-
-        Raises
-        ------
-        InvalidInputError
-            If the rate is non-finite.
-        """
-
-    @staticmethod
-    def bounded_flat(
         rate: _Real,
         *,
-        reference_time: datetime,
-        max_time: datetime,
-        calendar: TradingCalendar | None = None,
+        reference_time: datetime | None = None,
+        max_time: None = None,
+        calendar: None = None,
     ) -> RateTermStructure:
-        """Create a constant annual quote with inclusive coverage bounds.
+        """Create a flat curve from a continuously compounded annual rate.
 
         Parameters
         ----------
         rate : float
-            Finite continuously compounded annual rate; negative rates are allowed.
-        reference_time, max_time : datetime.datetime
-            Inclusive coverage bounds. Equal bounds select a single instant.
+            Finite annual rate in decimal units. Negative rates are allowed.
+        reference_time : datetime.datetime or None, optional
+            Inclusive lower coverage bound. None creates an undated curve.
+        max_time : datetime.datetime or None, optional
+            Inclusive upper coverage bound. Requires reference_time.
+            Equal bounds select a single instant.
         calendar : TradingCalendar or None, optional
-            None uses Actual/365 Fixed. With a calendar, accrued time is the
-            elapsed fraction of each open date divided by its annualization
-            basis. Closed dates contribute zero.
+            Actual/365 Fixed applies by default. A calendar requires both coverage
+            bounds. Open days accrue their elapsed fraction divided by the
+            calendar's annualization basis. Closed days contribute zero.
 
         Returns
         -------
         RateTermStructure
-            Owned curve retaining the quote and coverage through shifts. Calendar
-            transitions within the bounds appear in nodes.
+            Owned curve retaining its annual quote and coverage through shifts.
+            Calendar transitions within the bounds appear in nodes.
 
         Raises
         ------
+        TypeError
+            If max_time is supplied without reference_time, or a calendar is
+            supplied without both coverage bounds.
         InvalidInputError
             If the rate or an implied forward is non-finite, or max_time precedes
             reference_time.
@@ -614,6 +597,15 @@ class RateTermStructure:
         Long calendar scans release the GIL and poll Python signals.
         """
 
+    @staticmethod
+    @overload
+    def flat(
+        rate: _Real,
+        *,
+        reference_time: datetime,
+        max_time: datetime,
+        calendar: TradingCalendar | None = None,
+    ) -> RateTermStructure: ...
     @property
     def exact_flat_rate(self) -> float | None:
         """Return the scalar rate when all implied forwards are exactly constant.

@@ -159,10 +159,8 @@ def test_outstanding_units_require_zero_curve_coverage():
     )
     for volatility in (0.0, 0.2):
         for risk_end, dividend_end in ((valuation, end), (end, valuation), (end, end)):
-            risk = RateTermStructure.bounded_flat(
-                0, reference_time=start, max_time=risk_end
-            )
-            dividend = RateTermStructure.bounded_flat(
+            risk = RateTermStructure.flat(0, reference_time=start, max_time=risk_end)
+            dividend = RateTermStructure.flat(
                 0, reference_time=start, max_time=dividend_end
             )
             context = market(

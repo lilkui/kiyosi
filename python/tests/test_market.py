@@ -95,9 +95,7 @@ def test_public_curve_parts_reconstruct_extreme_shifts_without_loss(subtests):
     assert base.shifted(1000).factors[-1] == 0.0
     for curve in (
         RateTermStructure.flat(0.05),
-        RateTermStructure.bounded_flat(
-            0.05, reference_time=REFERENCE, max_time=MATURITY
-        ),
+        RateTermStructure.flat(0.05, reference_time=REFERENCE, max_time=MATURITY),
     ):
         assert curve.base_factors == (())
         assert curve.parallel_shift == 0.0
@@ -110,15 +108,35 @@ def test_rounded_flat_nodes_explain_exact_constant_curve_requirement():
         factors=[math.exp(-0.05 * 180 / 365), math.exp(-0.05)],
     )
     assert curve.exact_flat_rate is None
-    with pytest.raises(UnsupportedOperationError, match="bounded_flat"):
+    with pytest.raises(UnsupportedOperationError, match="bounded flat"):
         pricing.CoxRossRubinsteinVanillaEngine(step_count=64).price(
             vanilla(), market(rate=curve)
         )
 
 
+def test_flat_curve_factory_requires_coverage_bounds_for_calendar():
+    quote = 0.05
+    undated = RateTermStructure.flat(quote, reference_time=None, max_time=None)
+    dated = RateTermStructure.flat(quote, reference_time=REFERENCE)
+    assert (undated.reference_time, undated.max_time) == (None, None)
+    assert (dated.reference_time, dated.max_time) == (REFERENCE, None)
+    assert dated.factor(REFERENCE, MATURITY) == undated.factor(REFERENCE, MATURITY)
+    with pytest.raises(TypeError, match="max_time requires reference_time"):
+        RateTermStructure.flat(quote, max_time=MATURITY)
+    for bounds in (
+        {},
+        {"reference_time": REFERENCE},
+        {"max_time": MATURITY},
+    ):
+        with pytest.raises(
+            TypeError, match="calendar requires reference_time and max_time"
+        ):
+            RateTermStructure.flat(quote, calendar=TradingCalendar.weekdays(), **bounds)
+
+
 def test_bounded_flat_curves_preserve_exact_rates_coverage_and_engine_support():
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
-    curve = RateTermStructure.bounded_flat(0.05, reference_time=start, max_time=end)
+    curve = RateTermStructure.flat(0.05, reference_time=start, max_time=end)
     assert curve.exact_flat_rate == 0.05
     assert curve.reference_time == start
     assert curve.max_time == end
@@ -132,16 +150,14 @@ def test_bounded_flat_curves_preserve_exact_rates_coverage_and_engine_support():
     assert shifted.max_time == end
     assert curve.exact_flat_rate == 0.05
     for value in (curve, shifted):
-        assert "bounded_flat" in repr(value)
+        assert repr(value).startswith("RateTermStructure.flat(")
     for rate, reference, maximum in (
         (0.05, end, start),
         (float("nan"), start, end),
     ):
         with pytest.raises(InvalidInputError):
-            RateTermStructure.bounded_flat(
-                rate, reference_time=reference, max_time=maximum
-            )
-    point = RateTermStructure.bounded_flat(0.05, reference_time=start, max_time=start)
+            RateTermStructure.flat(rate, reference_time=reference, max_time=maximum)
+    point = RateTermStructure.flat(0.05, reference_time=start, max_time=start)
     assert point.factor(start, start) == 1
     option = EuropeanOption(
         option_type="call", strike=100, effective_time=start, expiry_time=end
@@ -171,15 +187,13 @@ def test_calendar_bounded_quotes_pause_on_closed_dates():
     end = start + timedelta(days=3)
     bounds = {"reference_time": start, "max_time": end}
     calendar = TradingCalendar.weekdays()
-    default = RateTermStructure.bounded_flat(0.05, **bounds)
+    default = RateTermStructure.flat(0.05, **bounds)
     assert (
-        RateTermStructure.bounded_flat(
-            0.05, calendar=TradingCalendar.all_days(), **bounds
-        )
+        RateTermStructure.flat(0.05, calendar=TradingCalendar.all_days(), **bounds)
         == default
     )
-    assert RateTermStructure.bounded_flat(0.05, calendar=None, **bounds) == default
-    curve = RateTermStructure.bounded_flat(0.05, calendar=calendar, **bounds)
+    assert RateTermStructure.flat(0.05, calendar=None, **bounds) == default
+    curve = RateTermStructure.flat(0.05, calendar=calendar, **bounds)
     assert curve.nodes == (saturday, monday)
     assert curve.exact_flat_rate is None
     assert curve.factor(saturday, monday) == 1
@@ -195,7 +209,7 @@ def test_calendar_bounded_quotes_pause_on_closed_dates():
     with pytest.raises(InvalidInputError):
         shifted.factor(start, end + timedelta(microseconds=1))
     with pytest.raises(TypeError):
-        RateTermStructure.bounded_flat(0.05, calendar="weekdays", **bounds)
+        RateTermStructure.flat(0.05, calendar="weekdays", **bounds)
 
 
 def test_calendar_rate_greeks_use_each_quotes_accrual_time():
@@ -203,8 +217,8 @@ def test_calendar_rate_greeks_use_each_quotes_accrual_time():
     end = start + timedelta(days=3)
     bounds = {"reference_time": start, "max_time": end}
     calendar = TradingCalendar.weekdays()
-    risk = RateTermStructure.bounded_flat(0.05, calendar=calendar, **bounds)
-    dividend = RateTermStructure.bounded_flat(
+    risk = RateTermStructure.flat(0.05, calendar=calendar, **bounds)
+    dividend = RateTermStructure.flat(
         -0.02,
         calendar=TradingCalendar.custom(
             base=calendar,

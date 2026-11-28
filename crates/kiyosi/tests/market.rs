@@ -33,7 +33,7 @@ fn rounded_flat_nodes_require_explicit_constant_curve_representation() {
     let model = kiyosi::BlackScholesMertonParameters::new(curve, 0.0, 0.2).unwrap();
     let error = model.flat_risk_free_rate().unwrap_err();
     assert!(matches!(error, Error::UnsupportedOperation(_)));
-    assert!(error.to_string().contains("bounded_flat"));
+    assert!(error.to_string().contains("bounded flat"));
     let explicit = RateTermStructure::bounded_flat(0.05, start, end).unwrap();
     assert_eq!(explicit.exact_flat_rate(), Some(0.05));
     assert!(matches!(

@@ -47,7 +47,7 @@ def test_fixed_snowball_payment_needs_only_the_risk_curve():
             [END], [120], knock_out_coupon_rates=[0]
         ),
     )
-    dividend = RateTermStructure.bounded_flat(0, reference_time=START, max_time=START)
+    dividend = RateTermStructure.flat(0, reference_time=START, max_time=START)
     expected = math.exp(-0.05 * (END - START).days / 365)
     for engine in (
         FiniteDifferenceAutocallableEngine(),

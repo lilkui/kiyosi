@@ -292,7 +292,7 @@ impl RateTermStructure {
     pub(super) fn require_flat_rate(&self, field: &str) -> Result<f64> {
         self.exact_flat_rate().ok_or_else(|| {
             Error::UnsupportedOperation(format!(
-                "{field} curve is not exactly constant; use an Actual/365 Fixed flat curve (bounded_flat preserves coverage)"
+                "{field} curve is not exactly constant; use an Actual/365 Fixed flat curve (a bounded flat curve preserves coverage)"
             ).into())
         })
     }

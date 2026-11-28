@@ -181,54 +181,33 @@ impl RateTermStructure {
         })
         .map(Self)
     }
-    /// Create a continuously compounded flat rate curve.
+    /// Create a flat curve from a continuously compounded annual rate.
     ///
     /// Parameters
     /// ----------
     /// rate : float
-    ///     Finite annual rate in decimal units; negative rates are allowed.
-    /// reference_time : datetime.datetime, optional
-    ///     Inclusive lower coverage bound, or None for an undated curve.
-    ///
-    /// Returns
-    /// -------
-    /// RateTermStructure
-    ///     Owned flat curve with no upper coverage bound.
-    ///
-    /// Raises
-    /// ------
-    /// InvalidInputError
-    ///     If the rate is non-finite.
-    ///
-    #[staticmethod]
-    #[pyo3(signature = (rate, *, reference_time=None))]
-    fn flat(rate: &Bound<'_, PyAny>, reference_time: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
-        Ok(Self(domain(kiyosi::RateTermStructure::flat(
-            real(rate)?,
-            reference_time.map(timestamp).transpose()?,
-        ))?))
-    }
-    /// Create a constant annual quote with inclusive coverage bounds.
-    ///
-    /// Parameters
-    /// ----------
-    /// rate : float
-    ///     Finite continuously compounded annual rate; negative rates are allowed.
-    /// reference_time, max_time : datetime.datetime
-    ///     Inclusive coverage bounds. Equal bounds select a single instant.
+    ///     Finite annual rate in decimal units. Negative rates are allowed.
+    /// reference_time : datetime.datetime or None, optional
+    ///     Inclusive lower coverage bound. None creates an undated curve.
+    /// max_time : datetime.datetime or None, optional
+    ///     Inclusive upper coverage bound. Requires reference_time.
+    ///     Equal bounds select a single instant.
     /// calendar : TradingCalendar or None, optional
-    ///     None uses Actual/365 Fixed. With a calendar, accrued time is the
-    ///     elapsed fraction of each open date divided by its annualization
-    ///     basis. Closed dates contribute zero.
+    ///     Actual/365 Fixed applies by default. A calendar requires both coverage
+    ///     bounds. Open days accrue their elapsed fraction divided by the
+    ///     calendar's annualization basis. Closed days contribute zero.
     ///
     /// Returns
     /// -------
     /// RateTermStructure
-    ///     Owned curve retaining the quote and coverage through shifts. Calendar
-    ///     transitions within the bounds appear in nodes.
+    ///     Owned curve retaining its annual quote and coverage through shifts.
+    ///     Calendar transitions within the bounds appear in nodes.
     ///
     /// Raises
     /// ------
+    /// TypeError
+    ///     If max_time is supplied without reference_time, or a calendar is
+    ///     supplied without both coverage bounds.
     /// InvalidInputError
     ///     If the rate or an implied forward is non-finite, or max_time precedes
     ///     reference_time.
@@ -238,19 +217,21 @@ impl RateTermStructure {
     /// Long calendar scans release the GIL and poll Python signals.
     ///
     #[staticmethod]
-    #[pyo3(signature = (rate, *, reference_time, max_time, calendar=None))]
-    fn bounded_flat(
+    #[pyo3(signature = (rate, *, reference_time=None, max_time=None, calendar=None))]
+    fn flat(
         py: Python<'_>,
         rate: &Bound<'_, PyAny>,
-        reference_time: &Bound<'_, PyAny>,
-        max_time: &Bound<'_, PyAny>,
+        reference_time: Option<&Bound<'_, PyAny>>,
+        max_time: Option<&Bound<'_, PyAny>>,
         calendar: Option<crate::calendar::TradingCalendar>,
     ) -> PyResult<Self> {
+        use pyo3::exceptions::PyTypeError;
+
         let rate = real(rate)?;
-        let reference = timestamp(reference_time)?;
-        let end = timestamp(max_time)?;
-        let curve = match calendar {
-            Some(calendar) => crate::calendar::run_date_scan(
+        let reference = reference_time.map(timestamp).transpose()?;
+        let end = max_time.map(timestamp).transpose()?;
+        let curve = match (reference, end, calendar) {
+            (Some(reference), Some(end), Some(calendar)) => crate::calendar::run_date_scan(
                 py,
                 reference.date().days_until(end.date()).unsigned_abs(),
                 || {
@@ -259,9 +240,18 @@ impl RateTermStructure {
                     )
                 },
             )?,
-            None => domain(kiyosi::RateTermStructure::bounded_flat(
+            (Some(reference), Some(end), None) => domain(kiyosi::RateTermStructure::bounded_flat(
                 rate, reference, end,
             ))?,
+            (_, _, Some(_)) => {
+                return Err(PyTypeError::new_err(
+                    "calendar requires reference_time and max_time",
+                ));
+            }
+            (None, Some(_), None) => {
+                return Err(PyTypeError::new_err("max_time requires reference_time"));
+            }
+            (reference, None, None) => domain(kiyosi::RateTermStructure::flat(rate, reference))?,
         };
         Ok(Self(curve))
     }

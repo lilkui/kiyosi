@@ -694,7 +694,7 @@ def test_dense_fixed_heston_batch_resolves_the_full_strike_range():
 
 def test_heston_finite_difference_with_recurring_calendar_rates():
     end = START + timedelta(days=364)
-    curve = RateTermStructure.bounded_flat(
+    curve = RateTermStructure.flat(
         0.05, reference_time=START, max_time=end, calendar=TradingCalendar.weekdays()
     )
     market = context(model(risk_free_rate=curve))

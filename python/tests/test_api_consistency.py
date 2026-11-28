@@ -468,7 +468,7 @@ def test_european_digitals_allow_pre_effective_pricing_greeks_and_solves(
             assert mc.price_with_statistics(
                 future, context
             ) == mc.price_with_statistics(existing, context)
-        short = market.RateTermStructure.bounded_flat(
+        short = market.RateTermStructure.flat(
             0.05, reference_time=start, max_time=expiry - timedelta(days=1)
         )
         uncovered = context.replace(
@@ -560,7 +560,7 @@ def test_european_pre_effective_pricing_preserves_contract_and_model_coverage(su
     )
     context = context.replace(model_parameters=local)
     assert engines[2].price(future, context) == engines[2].price(existing, context)
-    bounded = market.RateTermStructure.bounded_flat(
+    bounded = market.RateTermStructure.flat(
         0.05, reference_time=effective, max_time=expiry
     )
     with pytest.raises(InvalidInputError):

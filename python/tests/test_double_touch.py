@@ -102,7 +102,7 @@ def test_double_barrier_refinement_preserves_the_opposite_boundary():
 
 
 def test_analytic_touch_payments_require_only_the_settlement_curve():
-    short = RateTermStructure.bounded_flat(0.02, reference_time=START, max_time=FIRST)
+    short = RateTermStructure.flat(0.02, reference_time=START, max_time=FIRST)
     cash_context = market(120, rate=0.05, dividend=short)
     asset_context = market(120, rate=short)
     single = TouchOption(

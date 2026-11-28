@@ -35,7 +35,7 @@ pub(crate) fn curve(py: Python<'_>, value: &kiyosi::RateTermStructure) -> PyResu
     if let (Some((rate, accrual_calendar)), Some(end)) = (value.calendar_quote(), value.max_time())
     {
         return Ok(format!(
-            "RateTermStructure.bounded_flat(rate={rate:?}, reference_time={reference}, max_time={}, calendar={})",
+            "RateTermStructure.flat(rate={rate:?}, reference_time={reference}, max_time={}, calendar={})",
             python_timestamp(py, end)?.repr()?,
             calendar(py, accrual_calendar)?
         ));
@@ -48,7 +48,7 @@ pub(crate) fn curve(py: Python<'_>, value: &kiyosi::RateTermStructure) -> PyResu
     {
         if let Some(end) = value.max_time() {
             return Ok(format!(
-                "RateTermStructure.bounded_flat(rate={rate:?}, reference_time={reference}, max_time={})",
+                "RateTermStructure.flat(rate={rate:?}, reference_time={reference}, max_time={})",
                 python_timestamp(py, end)?.repr()?
             ));
         }

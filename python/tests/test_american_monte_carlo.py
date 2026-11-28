@@ -266,7 +266,7 @@ def test_weekend_rate_greeks_keep_calendar_accrual():
     start = datetime(2025, 1, 4)
     end = start + timedelta(days=2)
     option = contract("call").replace(effective_time=start, expiry_time=end)
-    curve = RateTermStructure.bounded_flat(
+    curve = RateTermStructure.flat(
         0.05, reference_time=start, max_time=end, calendar=TradingCalendar.weekdays()
     )
     context = market(rate=curve, dividend=curve, sigma=0.25, valuation=start)

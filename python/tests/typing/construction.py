@@ -19,6 +19,7 @@ from kiyosi.instruments import (
 from kiyosi.market import (
     HestonParameters,
     PricingContext,
+    RateTermStructure,
     TradingCalendar,
 )
 from kiyosi.pricing import (
@@ -31,6 +32,20 @@ from kiyosi.pricing import (
 BinaryBarrierOption()  # ty: ignore[no-matching-overload]
 TouchOption()  # ty: ignore[no-matching-overload]
 DoubleTouchOption()  # ty: ignore[missing-argument]
+
+
+def flat_curve_coverage(start: datetime, end: datetime) -> None:
+    calendar = TradingCalendar.weekdays()
+    assert_type(RateTermStructure.flat(0.05), RateTermStructure)
+    assert_type(RateTermStructure.flat(0.05, reference_time=start), RateTermStructure)
+    assert_type(
+        RateTermStructure.flat(
+            0.05, reference_time=start, max_time=end, calendar=calendar
+        ),
+        RateTermStructure,
+    )
+    RateTermStructure.flat(0.05, max_time=end)  # ty: ignore[invalid-argument-type]
+    RateTermStructure.flat(0.05, reference_time=start, calendar=calendar)  # ty: ignore[invalid-argument-type]
 
 
 def heston_uses_fixed_variance_time() -> None:

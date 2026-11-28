@@ -337,6 +337,7 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
         "range_new",
         "range_replace",
         "curve_new",
+        "curve_flat_calendar",
         "curve_factors",
         "curve_shift",
         "heston_saved",
@@ -451,8 +452,13 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                     operation = lambda: RateTermStructure(
                         reference_time=start_time, times=times, factors=factors,
                     )
+                elif case == "curve_flat_calendar":
+                    operation = lambda: RateTermStructure.flat(
+                        0.01, reference_time=start_time, max_time=long_end,
+                        calendar=TradingCalendar.weekdays(),
+                    )
                 elif case == "curve_factors":
-                    curve = RateTermStructure.bounded_flat(
+                    curve = RateTermStructure.flat(
                         0.01, reference_time=start_time, max_time=long_end,
                         calendar=TradingCalendar.weekdays(),
                     )
@@ -588,6 +594,11 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                     created = operation()
                     assert created.max_time == times[-1]
                     assert abs(created.factor(start_time, created.max_time) - factors[-1]) < 1e-15
+                elif case == "curve_flat_calendar":
+                    created = operation()
+                    assert created.reference_time == start_time
+                    assert created.max_time == long_end
+                    assert created.factor(start_time, long_end) > 0
                 elif case == "curve_factors":
                     factors = curve.factors
                     assert len(factors) > 1_000_000
