@@ -1,4 +1,4 @@
-use kiyosi::engines::{BinomialSettings, BinomialVanilla};
+use kiyosi::engines::{BinomialSettings, BinomialVanilla, BinomialVanillaSettings};
 use kiyosi::instruments::OptionContract;
 use kiyosi::*;
 
@@ -22,7 +22,10 @@ fn vanilla_batch_rejects_an_excessive_contract_count() -> Result<()> {
 fn american_binomial_batch_caps_combined_rollback_work() -> Result<()> {
     let (start, end) = dates();
     let put = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
-    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 16_000 })?;
+    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 16_000,
+        ..Default::default()
+    })?;
     let snapshot = market(100.0, 0.05, 0.02, 0.2);
     let instruments = [BinomialVanilla::American(&put); 8];
     assert!(matches!(
@@ -69,8 +72,17 @@ fn american_batch_matches_scalar_for_full_and_banded_trees() -> Result<()> {
         BinomialVanilla::European(&call),
         BinomialVanilla::American(&puts[0]),
     ]);
-    let full = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 1024 })?;
-    for engine in [full, full.with_rollback_tolerance(Some(1e-6))?] {
+    let full = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 1024,
+        ..Default::default()
+    })?;
+    for engine in [
+        full,
+        CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+            rollback_tolerance: Some(1e-6),
+            ..full.settings()
+        })?,
+    ] {
         let expected = options
             .iter()
             .map(|option| match option {
@@ -88,8 +100,14 @@ fn banded_american_call_matches_full_tree_and_original_spot_greeks() -> Result<(
     let (start, end) = dates();
     let call = AmericanOption::new(OptionType::Call, 92.0, start, end)?;
     let snapshot = market(100.0, 0.05, 0.08, 0.2);
-    let full = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 4_800 })?;
-    let bounded = full.with_rollback_tolerance(Some(1e-6))?;
+    let full = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 4_800,
+        ..Default::default()
+    })?;
+    let bounded = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        rollback_tolerance: Some(1e-6),
+        ..full.settings()
+    })?;
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Vega]);
     let expected = full.price_with_greeks(&call, &snapshot, request)?;
     let actual = bounded.price_with_greeks(&call, &snapshot, request)?;
@@ -100,12 +118,20 @@ fn banded_american_call_matches_full_tree_and_original_spot_greeks() -> Result<(
             "{greek:?}"
         );
     }
-    let fine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 20_000 })?;
+    let fine = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 20_000,
+        ..Default::default()
+    })?;
     assert!(matches!(
         fine.price(&call, &snapshot),
         Err(Error::InvalidInput(_))
     ));
-    let fine = fine.with_rollback_tolerance(Some(1e-6))?;
+    let settings = BinomialVanillaSettings {
+        rollback_tolerance: Some(1e-6),
+        ..fine.settings()
+    };
+    let fine = CoxRossRubinsteinVanillaEngine::new(settings)?;
+    assert_eq!(fine.settings(), settings);
     let price = fine.price(&call, &snapshot)?;
     let dual = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
     assert!((price - fine.price(&dual, &market(92.0, 0.08, 0.05, 0.2))?).abs() < 1e-7);
@@ -118,23 +144,34 @@ fn banded_american_put_preserves_price_within_the_truncation_budget() -> Result<
     let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
     for (spot, rate, dividend) in [(100.0, 0.05, 0.02), (120.0, -0.03, 0.01), (75.0, 0.08, 0.0)] {
         let snapshot = market(spot, rate, dividend, 0.2);
-        let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 4800 })?;
+        let engine = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+            step_count: 4800,
+            ..Default::default()
+        })?;
         let exact = engine.price(&option, &snapshot)?;
         for tolerance in [0.1, 1e-6] {
-            let bounded = engine
-                .with_rollback_tolerance(Some(tolerance))?
-                .price(&option, &snapshot)?;
+            let bounded = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+                rollback_tolerance: Some(tolerance),
+                ..engine.settings()
+            })?
+            .price(&option, &snapshot)?;
             assert!(bounded <= exact + 1e-9);
             assert!(exact - bounded <= tolerance + 1e-9);
         }
     }
     let snapshot = market(100.0, 0.05, 0.02, 0.2);
-    let fine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 20_000 })?;
+    let fine = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 20_000,
+        ..Default::default()
+    })?;
     assert!(matches!(
         fine.price(&option, &snapshot),
         Err(Error::InvalidInput(_))
     ));
-    let configured = fine.with_rollback_tolerance(Some(1e-6))?;
+    let configured = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        rollback_tolerance: Some(1e-6),
+        ..fine.settings()
+    })?;
     let actual = configured.price(&option, &snapshot)?;
     let volatility = implied_volatility(
         &configured,
@@ -144,11 +181,17 @@ fn banded_american_put_preserves_price_within_the_truncation_budget() -> Result<
         ImpliedVolatilitySettings::new(0.15, 0.25),
     )?;
     assert!((volatility - 0.2).abs() < 1e-8);
-    let reference = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 10_000 })?
-        .price(&option, &snapshot)?;
+    let reference = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 10_000,
+        ..Default::default()
+    })?
+    .price(&option, &snapshot)?;
     assert!((actual - reference).abs() < 1e-4);
     assert!(matches!(
-        fine.with_rollback_tolerance(Some(0.0)),
+        CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+            rollback_tolerance: Some(0.0),
+            ..fine.settings()
+        }),
         Err(Error::InvalidInput(_))
     ));
     Ok(())
@@ -180,7 +223,11 @@ fn tree_discounts_preserve_representable_prices_after_factor_rounding() -> Resul
                 expected_cash,
             ),
             (
-                CoxRossRubinsteinVanillaEngine::new(settings)?.price(&vanilla, &context)?,
+                CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+                    step_count: settings.step_count,
+                    ..Default::default()
+                })?
+                .price(&vanilla, &context)?,
                 expected_call,
             ),
             (
@@ -207,7 +254,11 @@ fn implied_volatility_recovers_tree_quotes_with_zero_or_tiny_carry() {
         let context = market(100.0, rate, dividend, 0.2);
         for steps in [1, 256] {
             let settings = BinomialSettings { step_count: steps };
-            let vanilla = CoxRossRubinsteinVanillaEngine::new(settings).unwrap();
+            let vanilla = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+                step_count: settings.step_count,
+                ..Default::default()
+            })
+            .unwrap();
             let cash = CoxRossRubinsteinDigitalEngine::new(settings).unwrap();
             for (quote, solved) in [
                 (
@@ -242,7 +293,10 @@ fn implied_volatility_recovers_tree_quotes_with_zero_or_tiny_carry() {
 fn implied_volatility_keeps_the_only_admissible_endpoint() -> Result<()> {
     let (start, end) = dates();
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
-    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 1 })?;
+    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 1,
+        ..Default::default()
+    })?;
     for (rate, dividend) in [(0.125, 0.0), (0.0, 0.125)] {
         let context = market(100.0, rate, dividend, 0.125);
         let quote = engine.price(&option, &context)?;
@@ -316,7 +370,10 @@ fn one_step_gamma_falls_back_after_log_space_pricing() -> Result<()> {
     let (start, end) = dates();
     let option = EuropeanOption::new(OptionType::Call, 100_000.0, start, end)?;
     let context = market(100_000.0, -700.0, -700.0, 0.2);
-    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 1 })?;
+    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 1,
+        ..Default::default()
+    })?;
     let shift = 10_000.0;
     let result = engine.price_with_greeks_with_settings(
         &option,
@@ -338,12 +395,18 @@ fn american_rollback_budget_preserves_direct_tree_pricing() -> Result<()> {
     let context = market(100.0, 0.05, 0.02, 0.2);
     let put = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
     let call = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
-    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 16_001 })?;
+    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 16_001,
+        ..Default::default()
+    })?;
     assert!(matches!(
         engine.price(&put, &context),
         Err(Error::InvalidInput(_))
     ));
-    let boundary = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 16_000 })?;
+    let boundary = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 16_000,
+        ..Default::default()
+    })?;
     assert!((boundary.price(&put, &context)? - 6.6606).abs() < 0.001);
     let expected = AnalyticEuropeanEngine.price(&call, &context)?;
     assert!((engine.price(&call, &context)? - expected).abs() < 0.001);
@@ -360,9 +423,11 @@ fn european_tree_refines_to_analytic_price_and_node_greeks() {
             .price_with_greeks(&option, &context, GreeksRequest::all())
             .unwrap();
         for steps in [255, 256, 4095, 4096] {
-            let engine =
-                CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: steps })
-                    .unwrap();
+            let engine = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+                step_count: steps,
+                ..Default::default()
+            })
+            .unwrap();
             let actual = engine
                 .price_with_greeks(
                     &option,
@@ -420,8 +485,11 @@ fn digital_tree_matches_one_step_cash_and_asset_payments() {
 fn american_early_exercise_and_no_dividend_limit() {
     let (start, end) = dates();
     for steps in [1, 2, 3, 17, 255, 256, 257] {
-        let engine =
-            CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: steps }).unwrap();
+        let engine = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+            step_count: steps,
+            ..Default::default()
+        })
+        .unwrap();
         for (direction, strike, spot, rate, dividend, delta) in [
             (OptionType::Put, 100.0, 88.0, 0.15, 0.0, -1.0),
             (OptionType::Call, 88.0, 100.0, 0.0, 0.15, 1.0),
@@ -651,11 +719,15 @@ fn expiry_boundaries_settle_strictly_and_life_errors_precede_trees() {
 
 #[test]
 fn settings_flat_curve_validation_and_unstable_trees_preserve_inputs() {
+    assert_eq!(BinomialVanillaSettings::default().step_count, 256);
     assert_eq!(BinomialSettings::default().step_count, 256);
     for steps in [-1, 0, 1_000_001] {
         assert!(matches!(
-            CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: steps })
-                .unwrap_err(),
+            CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+                step_count: steps,
+                ..Default::default()
+            })
+            .unwrap_err(),
             Error::InvalidInput(_)
         ));
         assert!(matches!(
@@ -666,10 +738,13 @@ fn settings_flat_curve_validation_and_unstable_trees_preserve_inputs() {
     }
     for steps in [1, 1_000_000] {
         assert_eq!(
-            CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: steps })
-                .unwrap()
-                .settings()
-                .step_count,
+            CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+                step_count: steps,
+                ..Default::default()
+            })
+            .unwrap()
+            .settings()
+            .step_count,
             steps
         );
         assert_eq!(
@@ -767,7 +842,7 @@ fn settings_flat_curve_validation_and_unstable_trees_preserve_inputs() {
         Error::RootNotBracketed(_)
     ));
     assert_eq!(context, before);
-    assert_eq!(vanilla.settings(), BinomialSettings::default());
+    assert_eq!(vanilla.settings(), BinomialVanillaSettings::default());
     assert_eq!(vanilla.price(&option, &context).unwrap(), quote);
 }
 
@@ -798,7 +873,11 @@ fn implied_brackets_intersect_tree_domain_for_all_supported_contracts() {
     }
 
     let (start, end) = dates();
-    let vanilla = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 17 }).unwrap();
+    let vanilla = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 17,
+        ..Default::default()
+    })
+    .unwrap();
     let digital = CoxRossRubinsteinDigitalEngine::new(BinomialSettings { step_count: 17 }).unwrap();
     let context = market(100.0, 0.15, 0.0, 0.2);
 
@@ -851,8 +930,11 @@ fn deterministic_endpoints_and_underflowed_tail_weights_remain_finite() {
     }
     let option = EuropeanOption::new(OptionType::Call, 1e280 * 8.0_f64.exp(), start, end).unwrap();
     let context = market(1e280, 0.04, 0.01, 0.2);
-    let engine =
-        CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 2048 }).unwrap();
+    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 2048,
+        ..Default::default()
+    })
+    .unwrap();
     // Tail probabilities underflow individually, while their payoff-weighted sum is positive.
     let price = engine.price(&option, &context).unwrap();
     // Independently rolled back in the public Python contract test.
@@ -873,8 +955,11 @@ fn deterministic_endpoints_and_underflowed_tail_weights_remain_finite() {
 #[test]
 fn vanilla_numerical_completion_tracks_analytic_and_propagates_bump_failures() {
     let (start, end) = dates();
-    let engine =
-        CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 1000 }).unwrap();
+    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 1000,
+        ..Default::default()
+    })
+    .unwrap();
     let context = market(100.0, 0.04, 0.01, 0.2)
         .replace(PricingContextChanges {
             valuation_time: Some(Timestamp::new(start.date(), 12, 0, 0, 0).unwrap()),
@@ -912,7 +997,11 @@ fn vanilla_numerical_completion_tracks_analytic_and_propagates_bump_failures() {
         .unwrap();
         assert_eq!(generic, actual);
     }
-    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 1 }).unwrap();
+    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 1,
+        ..Default::default()
+    })
+    .unwrap();
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
     let context = market(100.0, 0.15, 0.0, 0.2);
     let before = context.clone();
@@ -940,7 +1029,11 @@ fn one_step_speed_respects_automatic_and_explicit_spot_bumps() {
     let (start, end) = dates();
     let option = EuropeanOption::new(OptionType::Call, 0.015, start, end).unwrap();
     let context = market(0.015, 0.05, 0.02, 0.2);
-    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 1 }).unwrap();
+    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 1,
+        ..Default::default()
+    })
+    .unwrap();
     let result = engine
         .price_with_greeks(&option, &context, GreeksRequest::new([Greek::Speed]))
         .unwrap();
@@ -968,12 +1061,17 @@ fn banded_put_greeks_match_the_full_tree() -> Result<()> {
     let (start, end) = dates();
     let put = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
     let snapshot = market(100.0, 0.05, 0.02, 0.2);
-    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 4800 })?;
+    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 4800,
+        ..Default::default()
+    })?;
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Rho, Greek::Vega]);
     let exact = engine.price_with_greeks(&put, &snapshot, request)?;
-    let bounded = engine
-        .with_rollback_tolerance(Some(1e-6))?
-        .price_with_greeks(&put, &snapshot, request)?;
+    let bounded = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        rollback_tolerance: Some(1e-6),
+        ..engine.settings()
+    })?
+    .price_with_greeks(&put, &snapshot, request)?;
     assert!((bounded.price() - exact.price()).abs() <= 1e-6);
     for greek in [Greek::Delta, Greek::Gamma, Greek::Rho, Greek::Vega] {
         assert!(
@@ -981,10 +1079,15 @@ fn banded_put_greeks_match_the_full_tree() -> Result<()> {
             "{greek:?}"
         );
     }
-    let fine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 20_000 })?;
-    let result = fine
-        .with_rollback_tolerance(Some(1e-6))?
-        .price_with_greeks(&put, &snapshot, request)?;
+    let fine = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 20_000,
+        ..Default::default()
+    })?;
+    let result = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        rollback_tolerance: Some(1e-6),
+        ..fine.settings()
+    })?
+    .price_with_greeks(&put, &snapshot, request)?;
     assert!(result.require(Greek::Gamma)? > 0.0);
     Ok(())
 }

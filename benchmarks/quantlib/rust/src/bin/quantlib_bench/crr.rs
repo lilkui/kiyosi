@@ -2,7 +2,7 @@ use kiyosi::PricingEngine;
 use kiyosi::{
     AmericanOption, BarrierOption, BarrierOptionTerms, BarrierType, BlackScholesMertonParameters,
     CoxRossRubinsteinBarrierEngine, CoxRossRubinsteinVanillaEngine, EuropeanOption, PricingContext,
-    engines::BinomialSettings,
+    engines::{BinomialSettings, BinomialVanillaSettings},
 };
 
 use super::common::{Failure, Price, Request};
@@ -22,9 +22,7 @@ pub fn prepare(request: &mut Request, barrier: bool) -> Result<Price, Failure> {
         request.number("volatility")?,
     )?;
     let context = PricingContext::new(model, spot, valuation)?;
-    let settings = BinomialSettings {
-        step_count: request.number("step_count")?,
-    };
+    let step_count = request.number("step_count")?;
     if barrier {
         let level = request.number("barrier")?;
         let kind = match request.take("barrier_type")?.as_str() {
@@ -37,7 +35,7 @@ pub fn prepare(request: &mut Request, barrier: bool) -> Result<Price, Failure> {
         let option = BarrierOption::new(BarrierOptionTerms::new(
             side, strike, valuation, expiry, level, kind,
         ))?;
-        let engine = CoxRossRubinsteinBarrierEngine::new(settings)?;
+        let engine = CoxRossRubinsteinBarrierEngine::new(BinomialSettings { step_count })?;
         Ok(Box::new(move || {
             engine.price(
                 std::hint::black_box(&option),
@@ -45,7 +43,10 @@ pub fn prepare(request: &mut Request, barrier: bool) -> Result<Price, Failure> {
             )
         }))
     } else {
-        let engine = CoxRossRubinsteinVanillaEngine::new(settings)?;
+        let engine = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+            step_count,
+            ..Default::default()
+        })?;
         match request.take("exercise")?.as_str() {
             "european" => {
                 let option = EuropeanOption::new(side, strike, valuation, expiry)?;

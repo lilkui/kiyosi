@@ -23,7 +23,7 @@ pub(crate) mod monte_carlo;
 pub(crate) mod quadrature;
 
 pub use analytic::heston::HestonIntegrationSettings;
-pub use binomial::{BinomialSettings, BinomialVanilla};
+pub use binomial::{BinomialSettings, BinomialVanilla, BinomialVanillaSettings};
 pub use finite_difference::heston::HestonFiniteDifferenceSettings;
 pub use finite_difference::{
     FiniteDifferenceEngine, FiniteDifferenceScheme, FiniteDifferenceSettings,

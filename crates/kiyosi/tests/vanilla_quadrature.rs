@@ -1,5 +1,5 @@
 use kiyosi::engines::{
-    BinomialSettings, MonteCarloGridSettings, MonteCarloSampling, MonteCarloSettings,
+    BinomialVanillaSettings, MonteCarloGridSettings, MonteCarloSampling, MonteCarloSettings,
     QuadratureVanillaSettings,
 };
 use kiyosi::*;
@@ -207,8 +207,11 @@ fn american_quadrature_retains_european_lower_bound() -> Result<()> {
 #[test]
 fn american_prices_refine_toward_independent_tree_with_negative_carry() {
     let (start, end) = dates();
-    let reference =
-        CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 4000 }).unwrap();
+    let reference = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 4000,
+        ..Default::default()
+    })
+    .unwrap();
     let engine = QuadratureVanillaEngine::new(QuadratureVanillaSettings {
         asset_step_count: 768,
         time_step_count: 800,

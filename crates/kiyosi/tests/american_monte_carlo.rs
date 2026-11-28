@@ -1,5 +1,5 @@
 use kiyosi::engines::{
-    BinomialSettings, MonteCarloGridSettings, MonteCarloSampling, MonteCarloSettings,
+    BinomialVanillaSettings, MonteCarloGridSettings, MonteCarloSampling, MonteCarloSettings,
 };
 use kiyosi::*;
 
@@ -170,8 +170,11 @@ fn reverse_training_accepts_paths_beyond_the_full_matrix_limit() -> Result<()> {
         },
         step_count: 150,
     })?;
-    let reference = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 2000 })?
-        .price(&put, &context)?;
+    let reference = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 2000,
+        ..Default::default()
+    })?
+    .price(&put, &context)?;
     let price = engine.price(&put, &context)?;
     assert!((price - reference).abs() < 0.04, "{price} != {reference}");
     Ok(())
@@ -305,10 +308,13 @@ fn sparse_and_rank_deficient_paths_preserve_exercise_and_currency_scaling() {
 fn sampling_combinations_preserve_threads_seeds_and_exact_odd_paths() {
     let put = option(OptionType::Put, 100.0);
     let context = market(0.05, 0.02, 0.2, 100.0);
-    let reference = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 2000 })
-        .unwrap()
-        .price(&put, &context)
-        .unwrap();
+    let reference = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 2000,
+        ..Default::default()
+    })
+    .unwrap()
+    .price(&put, &context)
+    .unwrap();
     for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
         for antithetic in [false, true] {
             let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
@@ -913,8 +919,11 @@ fn equal_volatility_rate_stencils_match_scalar_exercise_paths() -> Result<()> {
 fn out_of_sample_american_policy_replays_and_converges() -> Result<()> {
     let put = option(OptionType::Put, 100.0);
     let context = market(0.05, 0.02, 0.2, 100.0);
-    let reference = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 2000 })?
-        .price(&put, &context)?;
+    let reference = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 2000,
+        ..Default::default()
+    })?
+    .price(&put, &context)?;
     for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
         let mut squared_error = 0.0;
         for seed in [42, 111, 1729, 1999, 2111] {

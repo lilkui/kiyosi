@@ -12,7 +12,9 @@ use crate::{
     instruments::OptionContract,
 };
 
-/// Configures the number of CRR time steps. See [`CoxRossRubinsteinVanillaEngine::new`].
+/// Configures the number of CRR time steps for digital and barrier options.
+///
+/// See [`CoxRossRubinsteinDigitalEngine::new`] for an example.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BinomialSettings {
     /// Sets the number of steps, from 1 through 1,000,000 inclusive. Defaults to 256.
@@ -59,6 +61,33 @@ impl BinomialSettings {
             ));
         }
         Ok(())
+    }
+}
+
+/// Configures the step count and American rollback tolerance of a vanilla CRR tree.
+///
+/// See [`CoxRossRubinsteinVanillaEngine::new`] for an example.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BinomialVanillaSettings {
+    /// Sets the number of steps, from 1 through 1,000,000 inclusive. Defaults to 256.
+    pub step_count: i32,
+    /// Bounds discarded American lattice tails in absolute price units.
+    ///
+    /// A positive finite tolerance applies to American prices, Greeks, and
+    /// implied-volatility requests. The bound uses the probability of paths
+    /// exiting the retained lattice and a discounted payoff bound. Grid
+    /// discretization and floating-point errors are separate. Greek stencils can
+    /// tighten the bound, and a wide band uses full rollback. The default,
+    /// `None`, selects full rollback when needed.
+    pub rollback_tolerance: Option<f64>,
+}
+
+impl Default for BinomialVanillaSettings {
+    fn default() -> Self {
+        Self {
+            step_count: BinomialSettings::default().step_count,
+            rollback_tolerance: None,
+        }
     }
 }
 
@@ -114,71 +143,47 @@ pub struct CoxRossRubinsteinVanillaEngine {
 }
 
 impl CoxRossRubinsteinVanillaEngine {
-    /// Creates an engine after validating its step count.
+    /// Creates an engine with validated step count and rollback tolerance.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] outside 1 through 1,000,000 steps.
+    /// Returns [`Error::InvalidInput`] outside 1 through 1,000,000 steps or for a
+    /// nonpositive or nonfinite tolerance. Pricing checks work limits for the
+    /// actual rollback path.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{CoxRossRubinsteinVanillaEngine, engines::BinomialSettings};
+    /// use kiyosi::{CoxRossRubinsteinVanillaEngine, engines::BinomialVanillaSettings};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 1024 })?;
-    /// assert_eq!(engine.settings().step_count, 1024);
+    /// let settings = BinomialVanillaSettings {
+    ///     step_count: 20_000,
+    ///     rollback_tolerance: Some(1e-6),
+    /// };
+    /// let engine = CoxRossRubinsteinVanillaEngine::new(settings)?;
+    /// assert_eq!(engine.settings(), settings);
     /// # Ok(()) }
     /// ```
-    pub fn new(settings: BinomialSettings) -> Result<Self> {
-        settings.validate()?;
+    pub fn new(settings: BinomialVanillaSettings) -> Result<Self> {
+        let tree = BinomialSettings {
+            step_count: settings.step_count,
+        };
+        tree.validate()?;
+        if let Some(tolerance) = settings.rollback_tolerance {
+            crate::error::finite(tolerance, true, "rollback_tolerance")?;
+        }
         Ok(Self {
-            settings,
-            rollback_tolerance: None,
+            settings: tree,
+            rollback_tolerance: settings.rollback_tolerance,
         })
     }
 
-    /// Returns owned settings. See [`Self::new`] for an example.
-    pub fn settings(&self) -> BinomialSettings {
-        self.settings
-    }
-
-    /// Returns the configured American option truncation tolerance in price units.
-    ///
-    /// See [`Self::with_rollback_tolerance`] for configuration.
-    pub fn rollback_tolerance(&self) -> Option<f64> {
-        self.rollback_tolerance
-    }
-
-    /// Configures tolerance-bounded rollback for American options.
-    ///
-    /// Price, Greek, and implied-volatility requests use the bound for American
-    /// options. The tolerance is in price units. The bound uses the probability
-    /// of paths exiting the retained lattice and a discounted payoff bound.
-    /// Grid discretization and floating-point errors are separate. Greek
-    /// stencils can tighten the bound, and a wide band uses full rollback.
-    /// Pass `None` to use full rollback.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use kiyosi::{CoxRossRubinsteinVanillaEngine, Result, engines::BinomialSettings};
-    /// # fn main() -> Result<()> {
-    /// let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 20_000 })?
-    ///     .with_rollback_tolerance(Some(1e-6))?;
-    /// assert_eq!(engine.rollback_tolerance(), Some(1e-6));
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::InvalidInput`] for a nonpositive or nonfinite tolerance.
-    pub fn with_rollback_tolerance(mut self, tolerance: Option<f64>) -> Result<Self> {
-        if let Some(tolerance) = tolerance {
-            crate::error::finite(tolerance, true, "rollback_tolerance")?;
+    /// Returns the complete engine settings. See [`Self::new`] for an example.
+    pub fn settings(&self) -> BinomialVanillaSettings {
+        BinomialVanillaSettings {
+            step_count: self.settings.step_count,
+            rollback_tolerance: self.rollback_tolerance,
         }
-        self.rollback_tolerance = tolerance;
-        Ok(self)
     }
 
     fn banded_greeks(

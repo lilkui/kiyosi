@@ -171,21 +171,21 @@ binomial_engine!(
         const _STATE_FIELDS: &'static [&'static str] = &["step_count", "rollback_tolerance"];
 
         #[new]
-        #[pyo3(signature = (*, step_count=kiyosi::engines::BinomialSettings::default().step_count,
-            rollback_tolerance=None))]
+        #[pyo3(signature = (*, step_count=kiyosi::engines::BinomialVanillaSettings::default().step_count,
+            rollback_tolerance=kiyosi::engines::BinomialVanillaSettings::default().rollback_tolerance))]
         fn new(
             #[pyo3(from_py_with = integer)] step_count: i32,
             #[pyo3(from_py_with = crate::conversions::optional_real)] rollback_tolerance: Option<f64>,
         ) -> PyResult<Self> {
             Ok(Self(domain(kiyosi::CoxRossRubinsteinVanillaEngine::new(
-                kiyosi::engines::BinomialSettings { step_count }
-            ).and_then(|engine| engine.with_rollback_tolerance(rollback_tolerance)))?))
+                kiyosi::engines::BinomialVanillaSettings { step_count, rollback_tolerance }
+            ))?))
         }
 
         /// Return the American option lattice truncation tolerance in price units.
         #[getter]
         fn rollback_tolerance(&self) -> Option<f64> {
-            self.0.rollback_tolerance()
+            self.0.settings().rollback_tolerance
         }
 
         /// Price vanilla options in input order on one market snapshot.
