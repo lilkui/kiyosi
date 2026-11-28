@@ -8,6 +8,7 @@ from datetime import time as clock_time
 import pytest
 from kiyosi import (
     InvalidInputError,
+    MissingHistoryError,
     RootNotBracketedError,
     UnsupportedOperationError,
 )
@@ -51,6 +52,29 @@ def test_autocallable_batches_bound_per_note_path_work(shared_grid):
     engine = MC(path_count=10_000_000, seed=42)
     with pytest.raises(InvalidInputError, match="path and note visits"):
         engine.price_many((contract(),) * 100, market(), shared_grid=shared_grid)
+
+
+def test_phoenix_batch_history_starts_at_first_knock_out():
+    end = START + timedelta(days=60)
+    first_knock_out = end - timedelta(days=1)
+    coupons = [CouponObservation(START + timedelta(days=i), 80) for i in range(1, 61)]
+    note = phoenix(
+        calendar=TradingCalendar.all_days(),
+        expiry_time=end,
+        barrier_state=None,
+        knock_out_observations=[KnockOutObservation(first_knock_out, 110)],
+        coupon_observations=coupons,
+    )
+    engine = MC(seed=42)
+    current = market(spot=120, valuation=first_knock_out)
+    assert engine.price_many([note, note], current) == pytest.approx(
+        (1.01, 1.01), rel=0, abs=1e-14
+    )
+    with pytest.raises(MissingHistoryError):
+        engine.price_many([note], market(spot=100, valuation=end))
+
+    expiry_only = note.replace(knock_out_observations=[KnockOutObservation(end, 110)])
+    assert engine.price_many([expiry_only], market(spot=100, valuation=end)) == (1.01,)
 
 
 @pytest.mark.parametrize("shared_grid", (False, True))

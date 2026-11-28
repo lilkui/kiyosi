@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use super::{Payoff, curve::Curve};
 use crate::instruments::autocallable::pricing::{
-    Initial, event_times_through, fixed_value, initial, validate,
+    Initial, event_times_through, fixed_value, initial, validate_with_work_check,
 };
 use crate::instruments::{
     autocallable::ObservationEvent,
@@ -1154,16 +1154,21 @@ pub(super) fn autocallable<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
     context: &PricingContext,
 ) -> Result<f64> {
-    autocallable_with_work_check(note, context, || Ok(()))
+    autocallable_with_work_check(note, context, |_| Ok(()))
 }
 
 pub(super) fn autocallable_with_work_check<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
     context: &PricingContext,
-    check_work: impl FnOnce() -> Result<()>,
+    charge: impl Fn(u64) -> Result<()>,
 ) -> Result<f64> {
-    validate(note, context)?;
-    let state = autocallable_through_checked(note, context, note.expiry_time(), None, check_work)?;
+    validate_with_work_check(note, context, &charge)?;
+    let state = autocallable_through_checked(note, context, note.expiry_time(), None, || {
+        // Fixed-flow detection, schedule construction, and replay can each visit the dates.
+        charge(
+            3 * note.future_schedule_visits(context.valuation_time(), note.view().daily_knock_in()),
+        )
+    })?;
     finite(state.settlement.ok_or_else(invalid)?)
 }
 

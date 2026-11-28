@@ -109,8 +109,16 @@ pub(crate) fn validate<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
     context: &PricingContext,
 ) -> Result<()> {
+    validate_with_work_check(note, context, |_| Ok(()))
+}
+
+pub(crate) fn validate_with_work_check<T: AutocallableTerms>(
+    note: &AutocallableNote<T>,
+    context: &PricingContext,
+    charge: impl Fn(u64) -> Result<()>,
+) -> Result<()> {
     crate::instruments::monitoring::validate_life(note, context)?;
-    note.prior(context.valuation_time())?;
+    note.prior_with_work_check(context.valuation_time(), charge)?;
     Ok(())
 }
 

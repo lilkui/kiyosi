@@ -1302,18 +1302,42 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         })
     }
     pub(crate) fn prior(&self, time: Timestamp) -> Result<bool> {
-        let had_out = self
-            .events()
-            .iter()
-            .find(|record| record.knock_out.is_some())
-            .is_some_and(|record| record.time < time);
+        self.prior_with_work_check(time, |_| Ok(()))
+    }
+
+    pub(crate) fn prior_with_work_check(
+        &self,
+        time: Timestamp,
+        charge: impl Fn(u64) -> Result<()>,
+    ) -> Result<bool> {
+        let terms = self.view();
+        let first_out = terms
+            .knock_out_observations
+            .first()
+            .map(|record| record.time)
+            .or_else(|| {
+                terms
+                    .autocall_observations
+                    .first()
+                    .map(|record| record.time)
+            });
+        let had_out = first_out.is_some_and(|first| first < time);
         let had_in = || {
-            if !self.view().daily_knock_in() || time <= self.effective_time() {
+            if !terms.daily_knock_in() || time <= terms.effective_time {
                 return Ok(false);
             }
-            self.has_daily_observation(self.effective_time(), time.add_micros(-1)?)
+            let end = time.add_micros(-1)?.min(terms.expiry_time);
+            charge(
+                terms
+                    .effective_time
+                    .date()
+                    .days_until(end.date())
+                    .unsigned_abs()
+                    + 1,
+            )?;
+            self.has_daily_observation(terms.effective_time, end)
         };
-        match self.barrier_state() {
+        match terms.barrier_state {
             None if had_out || had_in()? => {
                 return Err(Error::MissingHistory(
                     "prior autocallable state is required".into(),
@@ -1329,8 +1353,24 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
             }
             _ => {}
         }
-        Ok(self.barrier_state() == Some(AutocallableBarrierState::KnockedIn))
+        Ok(terms.barrier_state == Some(AutocallableBarrierState::KnockedIn))
     }
+
+    pub(crate) fn future_schedule_visits(&self, start: Timestamp, daily: bool) -> u64 {
+        let events = self.events();
+        let future = events.len() - events.partition_point(|event| event.time() <= start);
+        let days = if daily {
+            start
+                .date()
+                .days_until(self.expiry_time().date())
+                .unsigned_abs()
+                + 1
+        } else {
+            0
+        };
+        days + future as u64 + 1
+    }
+
     pub(crate) fn daily_at(&self, context: &PricingContext) -> bool {
         self.view().daily_knock_in() && self.daily_time(context.valuation_time(), self.calendar())
     }

@@ -7,7 +7,7 @@ use super::{
 };
 use crate::instruments::autocallable::ObservationEvent;
 use crate::instruments::autocallable::pricing::{
-    Initial, fixed_value, future_event_times, initial, validate,
+    Initial, fixed_value, future_event_times, initial, validate_with_work_check,
 };
 use crate::numerics::log_ratio;
 use crate::risk::analytics::CouponPricer;
@@ -287,7 +287,7 @@ impl MonteCarloAutocallableEngine {
         note: &'a AutocallableNote<T>,
         context: &PricingContext,
     ) -> Result<Sample<'a, T>> {
-        self.prepare_sample_on_grid::<T, N>(note, context, None)
+        self.prepare_sample_on_grid::<T, N>(note, context, None, |_| Ok(()))
     }
 
     fn prepare_sample_on_grid<'a, T: AutocallableTerms, const N: usize>(
@@ -295,15 +295,25 @@ impl MonteCarloAutocallableEngine {
         note: &'a AutocallableNote<T>,
         context: &PricingContext,
         shared: Option<&mut portfolio::DailyGrids<'a>>,
+        charge: impl Fn(u64) -> Result<()>,
     ) -> Result<Sample<'a, T>> {
         let model = context.natural_bsm_parameters()?;
         let rate = model.flat_risk_free_rate()?;
         let dividend = model.flat_dividend_yield()?;
         if crate::engines::deterministic::enabled(context) {
-            return crate::engines::deterministic::autocallable(note, context).map(Sample::Fixed);
+            return crate::engines::deterministic::autocallable_with_work_check(
+                note, context, charge,
+            )
+            .map(Sample::Fixed);
         }
-        validate(note, context)?;
+        validate_with_work_check(note, context, &charge)?;
         let state = initial(note, context);
+        let terms = note.view();
+        let valuation = context.valuation_time();
+        let expiry = note.expiry_time();
+        if state.settlement.is_none() {
+            charge(note.future_schedule_visits(valuation, terms.daily_knock_in()))?;
+        }
         if let Some(value) = state.settlement.or_else(|| {
             fixed_value(note, context, state.knocked_in).map(|value| value + state.coupon)
         }) {
@@ -313,10 +323,17 @@ impl MonteCarloAutocallableEngine {
                 Err(unstable())
             };
         }
-        context.validate_curve_horizon(note.expiry_time())?;
-        let terms = note.view();
+        let curve_knots = [model.risk_free_curve(), model.dividend_curve()]
+            .into_iter()
+            .map(|curve| {
+                curve
+                    .nodes_after(valuation)
+                    .partition_point(|&node| node <= expiry) as u64
+            })
+            .sum();
+        charge(curve_knots)?;
+        context.validate_curve_horizon(expiry)?;
         let daily = terms.daily_knock_in() && !state.knocked_in && note.knock_in_affects_payoff();
-        let valuation = context.valuation_time();
         let sigma = model.volatility();
         let initial_spot = context.spot_price();
         let safe_returns = super::safe_log_returns(initial_spot);
@@ -327,8 +344,13 @@ impl MonteCarloAutocallableEngine {
                 steps,
                 events,
                 excursion,
-            }) = shared.prepare(note, context, self.settings, [rate, dividend, sigma])?
-            {
+            }) = shared.prepare(
+                note,
+                context,
+                self.settings,
+                [rate, dividend, sigma],
+                &charge,
+            )? {
                 self.settings
                     .validate_scheduled_workspace::<[PathStep; N]>(steps.len())?;
                 if safe_returns.contains(&excursion) && safe_returns.contains(&-excursion) {
@@ -350,6 +372,8 @@ impl MonteCarloAutocallableEngine {
                 }));
             }
         }
+        // Construct the combined schedule, then turn it into path transitions.
+        charge(2 * note.future_schedule_visits(valuation, daily))?;
         let dates = future_event_times(note, context, daily)?;
         let mut previous = valuation;
         if N > 1 {
@@ -383,6 +407,7 @@ impl MonteCarloAutocallableEngine {
         }
         let bridge =
             if daily && safe_returns.contains(&excursion) && safe_returns.contains(&-excursion) {
+                charge(2 * steps.len() as u64)?;
                 self.settings
                     .validate_scheduled_workspace::<[(PathStep, BridgeInterval, [f64; 2]); N]>(
                         steps.len(),

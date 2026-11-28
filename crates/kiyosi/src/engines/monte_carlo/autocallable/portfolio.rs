@@ -78,6 +78,7 @@ impl<'a> DailyGrids<'a> {
         context: &PricingContext,
         settings: MonteCarloSettings,
         [rate, dividend, sigma]: [f64; 3],
+        charge: impl Fn(u64) -> Result<()>,
     ) -> Result<Option<SparsePath>> {
         let Some(clock) = note.observation_clock_time() else {
             return Ok(None);
@@ -94,10 +95,11 @@ impl<'a> DailyGrids<'a> {
             self.0.remove(index)
         } else {
             let max_days = DAILY_GRID_BYTES / (size_of::<Timestamp>() + size_of::<PathStep>());
-            let days = valuation.date().days_until(expiry.date());
-            if usize::try_from(days).unwrap_or(usize::MAX) >= max_days - 1 {
+            let days = valuation.date().days_until(expiry.date()).unsigned_abs() + 1;
+            if days >= max_days as u64 {
                 return Ok(None);
             }
+            charge(3 * days + events.len() as u64)?;
             for record in events {
                 crate::cancellation::check()?;
                 if record.time != expiry && !note.daily_time(record.time, calendar) {
@@ -161,6 +163,7 @@ impl<'a> DailyGrids<'a> {
         };
         self.0.push(grid);
         let grid = self.0.last().expect("the daily grid was retained");
+        charge(events.len() as u64)?;
         let mut sparse = Vec::with_capacity(events.len());
         for record in events {
             crate::cancellation::check()?;
@@ -215,6 +218,7 @@ pub(super) fn price_many<T: AutocallableTerms>(
             note,
             context,
             share_daily_grid.then_some(&mut daily_grids),
+            |visits| work.charge_visits(visits),
         ) {
             Ok(Sample::Fixed(price)) => {
                 prices[index] = price;
@@ -242,6 +246,9 @@ pub(super) fn price_many<T: AutocallableTerms>(
             Err(error) => return Err(error),
         };
         engine = engine.with_resolved_seed()?;
+        if plan.shared_events.is_none() {
+            work.charge_visits(2 * plan.steps.len() as u64)?;
+        }
         let shared = share_daily_grid && plan.shared_daily_grid();
         let (key, plan_bytes) = key_and_workspace(&plan, engine.settings, shared)?;
         let grid = plan
@@ -278,6 +285,10 @@ pub(super) fn price_many<T: AutocallableTerms>(
         let mut matched = None;
         for &candidate in candidates.iter() {
             let base = &groups[candidate][0].1;
+            if !shared || !Arc::ptr_eq(&base.steps, &plan.steps) {
+                let steps = base.steps.len().min(plan.steps.len()) as u64;
+                work.charge_visits(if shared { steps } else { 3 * steps })?;
+            }
             if if shared {
                 base.same_daily_grid(&plan)?
             } else {
@@ -313,26 +324,65 @@ fn price_deterministic<T: AutocallableTerms>(
     work: &BatchWork,
 ) -> Result<Vec<f64>> {
     crate::engines::flat_rates(context)?;
-    let valuation = context.valuation_time();
     for (note, price) in notes.iter().zip(&mut prices) {
         crate::cancellation::check()?;
-        *price = deterministic::autocallable_with_work_check(note, context, || {
-            let events = note.events();
-            let future = events.len() - events.partition_point(|event| event.time() <= valuation);
-            let days = if note.view().daily_knock_in() {
-                valuation
-                    .date()
-                    .days_until(note.expiry_time().date())
-                    .unsigned_abs()
-                    + 1
-            } else {
-                0
-            };
-            // Each date can be visited during both schedule construction and replay.
-            work.charge_visits(2 * (days + future as u64 + 1))
+        *price = deterministic::autocallable_with_work_check(note, context, |visits| {
+            work.charge_visits(visits)
         })?;
     }
     Ok(prices)
+}
+
+#[test]
+fn stochastic_portfolio_budgets_fixed_payment_preparation() -> Result<()> {
+    use crate::{
+        BlackScholesMertonParameters, CouponObservation, Date, KnockInObservation,
+        KnockOutObservation, PhoenixOption, PhoenixTerms, PricingContextChanges,
+    };
+
+    let start = Date::new(2025, 1, 2)?.start_of_day();
+    let middle = start.add_days(1)?;
+    let end = start.add_days(2)?;
+    let note = PhoenixOption::new(PhoenixTerms::new(
+        0.01,
+        100.0,
+        80.0,
+        100.0,
+        100.0,
+        start,
+        end,
+        vec![KnockOutObservation::new(end, 110.0)?],
+        vec![
+            CouponObservation::new(middle, 0.0)?,
+            CouponObservation::new(end, 0.0)?,
+        ],
+        KnockInObservation::AtExpiry,
+        TradingCalendar::all_days(),
+    ))?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,
+        100.0,
+        start,
+    )?;
+    let engine = MonteCarloAutocallableEngine::default();
+    assert!(matches!(
+        scalar_quote(&note, engine, &context, &BatchWork(Cell::new(2))),
+        Err(Error::InvalidInput(message)) if message.contains("path and note visits")
+    ));
+    let work = BatchWork(Cell::new(3));
+    let (price, seed) = scalar_quote(&note, engine, &context, &work)?;
+    assert!((price - 1.02).abs() < 1e-14);
+    assert_eq!(seed, None);
+    assert_eq!(work.0.get(), 0);
+
+    let expiry = context.replace(PricingContextChanges {
+        valuation_time: Some(end),
+        ..Default::default()
+    })?;
+    let (price, seed) = scalar_quote(&note, engine, &expiry, &work)?;
+    assert!((price - 1.01).abs() < 1e-14);
+    assert_eq!(seed, None);
+    Ok(())
 }
 
 #[test]
@@ -363,7 +413,7 @@ fn deterministic_portfolio_charges_schedule_work_before_replay() -> Result<()> {
         100.0,
         start,
     )?;
-    let work = BatchWork(Cell::new(20));
+    let work = BatchWork(Cell::new(30));
     let price = price_deterministic(&[&note], &context, vec![0.0], &work)?;
     assert!((price[0] - (1.0 + 0.06 * 7.0 / 365.0)).abs() < 1e-14);
     assert!(matches!(
@@ -470,7 +520,9 @@ fn scalar_quote<T: AutocallableTerms>(
     context: &PricingContext,
     work: &BatchWork,
 ) -> Result<(f64, Option<u64>)> {
-    match engine.prepare_sample::<_, 1>(note, context)? {
+    match engine
+        .prepare_sample_on_grid::<_, 1>(note, context, None, |visits| work.charge_visits(visits))?
+    {
         Sample::Fixed(price) => Ok((price, None)),
         Sample::Path(plan) => {
             let (price, seed) = sample_scalar(&plan, engine.settings, work)?;
