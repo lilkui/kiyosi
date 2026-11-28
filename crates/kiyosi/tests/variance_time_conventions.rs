@@ -229,8 +229,14 @@ fn all_days_365_matches_natural_clock_for_barriers_and_continuations() -> Result
     assert!((barrier.price(&option, &business)? - expected).abs() <= 1e-10);
     let natural_solution = barrier.solve(&option, &natural, 99.0..=101.0)?;
     let business_solution = barrier.solve(&option, &business, 99.0..=101.0)?;
-    assert_eq!(natural_solution.query_work(), 0);
-    assert_eq!(business_solution.query_work(), 0);
+    assert_eq!(
+        kiyosi::binding_support::finite_difference_solution_query_work(&natural_solution),
+        0
+    );
+    assert_eq!(
+        kiyosi::binding_support::finite_difference_solution_query_work(&business_solution),
+        0
+    );
     assert!((business_solution.price(100.0)? - natural_solution.price(100.0)?).abs() <= 1e-10);
 
     let binary = BinaryBarrierOption::cash(

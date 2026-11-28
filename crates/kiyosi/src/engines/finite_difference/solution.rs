@@ -144,8 +144,7 @@ impl FiniteDifferenceSolution {
     }
 
     /// Estimates per-spot work for dispatching cancellable queries.
-    #[doc(hidden)]
-    pub fn query_work(&self) -> usize {
+    pub(crate) fn query_work(&self) -> usize {
         self.query_work
     }
 

@@ -147,7 +147,7 @@ mod numerics;
 mod risk;
 mod time;
 
-/// Shares pricing input limits and defaults with language bindings.
+/// Shares pricing input limits, defaults, and work estimates with language bindings.
 #[doc(hidden)]
 pub mod binding_support {
     pub use crate::engines::finite_difference::{
@@ -161,6 +161,13 @@ pub mod binding_support {
         DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
     };
     pub use crate::time::variance_time_convention_from_inputs;
+
+    /// Estimates per-spot work for dispatching cancellable solution queries.
+    pub fn finite_difference_solution_query_work(
+        solution: &crate::FiniteDifferenceSolution,
+    ) -> usize {
+        solution.query_work()
+    }
 }
 
 pub use cancellation::CancellationToken;

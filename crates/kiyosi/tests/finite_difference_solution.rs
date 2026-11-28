@@ -521,7 +521,10 @@ fn saved_business_time_vanilla_grid_queries_are_bounded() -> Result<()> {
     let engine = FiniteDifferenceVanillaEngine::default();
     let solution = engine.solve(&option, &context, 80.0..=120.0)?;
     let result = solution.price_with_greeks(100.0, GreeksRequest::new([Greek::Delta]), None)?;
-    assert_eq!(solution.query_work(), 0);
+    assert_eq!(
+        kiyosi::binding_support::finite_difference_solution_query_work(&solution),
+        0
+    );
     close(result.price(), engine.price(&option, &context)?, 0.001);
     assert!((0.5..0.6).contains(&result.require(Greek::Delta)?));
     Ok(())
@@ -544,7 +547,10 @@ fn saved_deterministic_american_uses_dense_exercise_intervals() -> Result<()> {
     let engine = FiniteDifferenceVanillaEngine::default();
     let solution = engine.solve(&option, &context, 80.0..=120.0)?;
     let delta = GreeksRequest::new([Greek::Delta]);
-    assert_eq!(solution.query_work(), 1200);
+    assert_eq!(
+        kiyosi::binding_support::finite_difference_solution_query_work(&solution),
+        1200
+    );
     close(solution.price(110.0)?, 10.0, 1e-12);
     close(
         solution
@@ -643,7 +649,10 @@ fn saved_absorbing_heston_american_reports_its_exercise_intervals() -> Result<()
     let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
     let engine = FiniteDifferenceHestonVanillaEngine::default();
     let solution = engine.solve(&option, &context, 80.0..=120.0)?;
-    assert_eq!(solution.query_work(), 1200);
+    assert_eq!(
+        kiyosi::binding_support::finite_difference_solution_query_work(&solution),
+        1200
+    );
     let values = solution.price_many(&[90.0, 110.0, 90.0])?;
     let expected = [10.0, 0.0, 10.0];
     assert_eq!(values.len(), expected.len(), "Heston batch result count");
