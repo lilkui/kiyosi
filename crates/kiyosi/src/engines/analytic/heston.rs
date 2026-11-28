@@ -283,7 +283,12 @@ impl AnalyticHestonEuropeanEngine {
             return Err(computation());
         }
         let variance = integrated_variance(model, time);
-        if !variance.is_finite() || variance <= 0.0 {
+        let deviation = if deterministic && !variance.is_normal() {
+            deterministic_deviation(model, time)
+        } else {
+            variance.sqrt()
+        };
+        if !deviation.is_finite() || deviation <= 0.0 {
             return Err(computation());
         }
         let log_moneyness = context.log_forward_moneyness(end, strike, dividend - risk);
@@ -292,7 +297,7 @@ impl AnalyticHestonEuropeanEngine {
             strike,
             log_moneyness,
             (dividend, risk),
-            variance.sqrt(),
+            deviation,
             1.0,
             sign,
         )?;
@@ -398,12 +403,7 @@ pub(crate) fn integrated_variance(model: &HestonParameters, time: f64) -> f64 {
     let rate = model.mean_reversion_speed();
     let x = rate * time;
     if x < 0.01 {
-        let mut term = 0.5;
-        let mut sum = term;
-        for n in 3..=12 {
-            term *= -x / f64::from(n);
-            sum += term;
-        }
+        let sum = small_reversion_coefficient(x);
         let transient = time * (1.0 - x * sum);
         let growth_time = time * (time * sum);
         // Preserve kappa*theta before kappa*T/2 can underflow.
@@ -418,6 +418,34 @@ pub(crate) fn integrated_variance(model: &HestonParameters, time: f64) -> f64 {
     let complement = 1.0 + (-x).exp_m1() / x;
     let transient = -(-x).exp_m1() / rate;
     model.initial_variance() * transient + model.long_run_variance() * (complement * time)
+}
+
+fn small_reversion_coefficient(x: f64) -> f64 {
+    let mut term = 0.5;
+    let mut sum = term;
+    for n in 3..=12 {
+        term *= -x / f64::from(n);
+        sum += term;
+    }
+    sum
+}
+
+fn deterministic_deviation(model: &HestonParameters, time: f64) -> f64 {
+    let rate = model.mean_reversion_speed();
+    let x = rate * time;
+    // Take square roots before restoring the scale of the two variance terms.
+    let (initial_weight, long_run_weight) = if x < 0.01 {
+        let sum = small_reversion_coefficient(x);
+        (
+            time * (1.0 - x * sum),
+            rate.ln().midpoint(sum.ln()).exp() * time,
+        )
+    } else {
+        let change = -(-x).exp_m1();
+        (change / rate, ((1.0 - change / x) * time).sqrt())
+    };
+    (model.initial_variance().sqrt() * initial_weight.sqrt())
+        .hypot(model.long_run_variance().sqrt() * long_run_weight)
 }
 
 // Compute the small remainders directly: subtracting one loses short-time variance.

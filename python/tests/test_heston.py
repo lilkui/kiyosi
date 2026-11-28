@@ -208,6 +208,29 @@ def test_default_heston_refines_near_zero_call_prices():
     assert 0 <= price <= 1e-8
 
 
+def test_deterministic_heston_preserves_subnormal_integrated_variance():
+    variance = math.ulp(0.0)
+    snapshot = context(
+        model(
+            risk_free_rate=0,
+            dividend_yield=0,
+            initial_variance=variance,
+            long_run_variance=variance,
+            mean_reversion_speed=0,
+            vol_of_vol=0,
+        )
+    )
+    instrument = option(expiry_time=START + timedelta(days=1))
+    expected = 100 * math.sqrt(variance) / math.sqrt(365 * math.tau)
+    engine = AnalyticHestonEuropeanEngine()
+    assert engine.price(instrument, snapshot) == pytest.approx(
+        expected, rel=1e-12, abs=0
+    )
+    assert engine.price_strikes(instrument, snapshot, strikes=(100,)) == pytest.approx(
+        (expected,), rel=1e-12, abs=0
+    )
+
+
 def test_deterministic_variance_prices_survive_overflowing_discounted_legs():
     parameters = model(risk_free_rate=-0.75, dividend_yield=-0.75, vol_of_vol=0)
     snapshot = context(parameters, spot_price=1e308)

@@ -217,6 +217,29 @@ fn default_heston_refines_near_zero_call_prices() -> Result<()> {
 }
 
 #[test]
+fn deterministic_heston_preserves_subnormal_integrated_variance() -> Result<()> {
+    let start = dates().0;
+    let end = start.add_days(1)?;
+    let variance = f64::from_bits(1);
+    let market = context(HestonParameters::new(HestonParameterInputs {
+        risk_free_rate: 0.0.into(),
+        dividend_yield: 0.0.into(),
+        initial_variance: variance,
+        long_run_variance: variance,
+        mean_reversion_speed: 0.0,
+        vol_of_vol: 0.0,
+        correlation: 0.0,
+    })?);
+    let call = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let expected =
+        100.0 * variance.sqrt() * start.years_until(end).sqrt() / std::f64::consts::TAU.sqrt();
+    let engine = AnalyticHestonEuropeanEngine::default();
+    assert!((engine.price(&call, &market)? / expected - 1.0).abs() < 1e-12);
+    assert!((engine.price_strikes(&call, &market, &[100.0])?[0] / expected - 1.0).abs() < 1e-12);
+    Ok(())
+}
+
+#[test]
 fn deterministic_variance_prices_survive_overflowing_discounted_legs() -> Result<()> {
     let (start, end) = dates();
     let engine = AnalyticHestonEuropeanEngine::default();
