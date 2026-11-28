@@ -6,6 +6,10 @@ Choose an engine for the contract and model. Check grid and integration-domain
 convergence separately; Monte Carlo sampling uncertainty excludes discretization
 bias. Solver tolerances constrain the engine's price curve, not pricing accuracy.
 
+Engines with strike batches expose ``price_strikes(instrument, context, strikes=...)``.
+The instrument supplies the template terms. Each engine documents its supported
+templates and how it shares calculations across strikes.
+
 Engines with configurable constructor fields support ``replace(**changes)`` to
 create a validated engine. Omitted controls default to the source engine's values.
 

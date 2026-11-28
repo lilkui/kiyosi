@@ -44,10 +44,10 @@ def sampling_estimates(
     )
     asian = MonteCarloAsianEngine()
     assert_type(
-        asian.price_arithmetic_strikes(arithmetic, context, strikes=iter([90, 100])),
+        asian.price_strikes(arithmetic, context, strikes=iter([90, 100])),
         tuple[float, ...],
     )
-    asian.price_arithmetic_strikes(geometric, context, strikes=[90])  # ty: ignore[invalid-argument-type]
+    asian.price_strikes(geometric, context, strikes=[90])  # ty: ignore[invalid-argument-type]
     assert_type(asian.price_with_seed(arithmetic, context), tuple[float, int | None])
     assert_type(
         asian.price_with_statistics(geometric, context).uncertainty_status,

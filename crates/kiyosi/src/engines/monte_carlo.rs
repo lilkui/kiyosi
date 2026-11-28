@@ -52,8 +52,8 @@ pub use digital::MonteCarloDigitalEngine;
 
 /// Checks the workspace limit shared by the American and arithmetic Asian strike batches.
 ///
-/// See [`MonteCarloVanillaEngine::price_american_strikes`] and
-/// [`MonteCarloAsianEngine::price_arithmetic_strikes`] for pricing examples.
+/// See [`MonteCarloVanillaEngine::price_strikes`] and
+/// [`MonteCarloAsianEngine::price_strikes`] for pricing examples.
 ///
 /// # Errors
 ///

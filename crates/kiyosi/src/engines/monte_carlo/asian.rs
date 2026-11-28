@@ -222,7 +222,7 @@ impl MonteCarloAsianEngine {
     ///     sampling: MonteCarloSettings { path_count: 4096, seed: Some(7), ..Default::default() },
     ///     ..Default::default()
     /// })?;
-    /// let prices = engine.price_arithmetic_strikes(&option, &context, &[95.0, 105.0])?;
+    /// let prices = engine.price_strikes(&option, &context, &[95.0, 105.0])?;
     /// assert!(prices[0] > prices[1]);
     /// # Ok(()) }
     /// ```
@@ -237,7 +237,7 @@ impl MonteCarloAsianEngine {
     /// # Panics
     ///
     /// Propagates worker panics after parallel work has finished.
-    pub fn price_arithmetic_strikes(
+    pub fn price_strikes(
         &self,
         template: &ArithmeticAveragePriceOption,
         context: &PricingContext,

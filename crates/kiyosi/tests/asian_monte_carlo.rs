@@ -69,7 +69,7 @@ fn arithmetic_strike_batches_replay_scalar_prices() -> Result<()> {
             },
             step_count: 16,
         })?;
-        let prices = engine.price_arithmetic_strikes(&option, &market, &strikes)?;
+        let prices = engine.price_strikes(&option, &market, &strikes)?;
         let reference = strikes
             .iter()
             .map(|&strike| {
@@ -85,12 +85,9 @@ fn arithmetic_strike_batches_replay_scalar_prices() -> Result<()> {
         assert_eq!(prices, reference);
         assert_eq!(prices[0], 0.0);
         assert!(prices[1] > prices[0]);
-        assert_eq!(
-            engine.price_arithmetic_strikes(&option, &market, &[])?,
-            [] as [f64; 0],
-        );
+        assert_eq!(engine.price_strikes(&option, &market, &[])?, [] as [f64; 0],);
         assert!(matches!(
-            engine.price_arithmetic_strikes(&option, &market, &[105.0, f64::NAN]),
+            engine.price_strikes(&option, &market, &[105.0, f64::NAN]),
             Err(Error::InvalidInput(_))
         ));
         let invalid_history = option.replace(AveragePriceOptionChanges {
@@ -98,7 +95,7 @@ fn arithmetic_strike_batches_replay_scalar_prices() -> Result<()> {
             ..Default::default()
         })?;
         assert!(matches!(
-            engine.price_arithmetic_strikes(&invalid_history, &market, &[]),
+            engine.price_strikes(&invalid_history, &market, &[]),
             Err(Error::MissingHistory(_))
         ));
     }
@@ -129,7 +126,7 @@ fn duplicate_arithmetic_strikes_share_the_path_work_budget() -> Result<()> {
     let expected = engine.price(&option, &context)?;
     assert!(expected > 0.0);
     let strikes = vec![100.0; 8192];
-    let prices = engine.price_arithmetic_strikes(&option, &context, &strikes)?;
+    let prices = engine.price_strikes(&option, &context, &strikes)?;
     assert_eq!(prices, vec![expected; 8192]);
     Ok(())
 }

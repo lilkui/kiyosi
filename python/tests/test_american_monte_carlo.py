@@ -42,10 +42,10 @@ def test_american_strike_batch_caps_combined_exercise_work():
     engine = MonteCarloVanillaEngine(path_count=100_000, step_count=100, seed=42)
     strikes = tuple(range(50, 152))
     with pytest.raises(InvalidInputError, match="one billion simulated path steps"):
-        engine.price_american_strikes(put, market(), strikes=strikes)
-    assert len(
-        engine.price_american_strikes(put, market(sigma=0), strikes=strikes)
-    ) == len(strikes)
+        engine.price_strikes(put, market(), strikes=strikes)
+    assert len(engine.price_strikes(put, market(sigma=0), strikes=strikes)) == len(
+        strikes
+    )
 
 
 def test_american_strike_batch_stops_reading_at_workspace_limit():
@@ -56,9 +56,7 @@ def test_american_strike_batch_stops_reading_at_workspace_limit():
         pytest.fail("read past the first strike exceeding the workspace limit")
 
     with pytest.raises(InvalidInputError, match="strike batch workspace"):
-        MonteCarloVanillaEngine().price_american_strikes(
-            contract(), market(), strikes=strikes()
-        )
+        MonteCarloVanillaEngine().price_strikes(contract(), market(), strikes=strikes())
 
 
 @pytest.mark.parametrize("sampling", ("pseudo_random", "sobol"))
@@ -560,14 +558,11 @@ def test_american_monte_carlo_strike_batch_replays_scalar_paths(sampling, path_c
         max_active_workers=2,
     )
     put = contract()
-    prices = engine.price_american_strikes(put, snapshot, strikes=iter(strikes))
+    prices = engine.price_strikes(put, snapshot, strikes=iter(strikes))
     assert prices == tuple(engine.price(contract(strike=k), snapshot) for k in strikes)
-    assert (
-        engine.price_american_strikes(put, snapshot, strikes=[100] * 64)
-        == (prices[0],) * 64
-    )
+    assert engine.price_strikes(put, snapshot, strikes=[100] * 64) == (prices[0],) * 64
     serial = engine.replace(max_active_workers=1)
-    assert prices == serial.price_american_strikes(put, snapshot, strikes=strikes)
-    assert engine.price_american_strikes(put, snapshot, strikes=()) == ()
+    assert prices == serial.price_strikes(put, snapshot, strikes=strikes)
+    assert engine.price_strikes(put, snapshot, strikes=()) == ()
     with pytest.raises(InvalidInputError):
-        engine.price_american_strikes(put, snapshot, strikes=(100, -1))
+        engine.price_strikes(put, snapshot, strikes=(100, -1))

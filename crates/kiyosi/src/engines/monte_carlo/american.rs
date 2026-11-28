@@ -682,7 +682,7 @@ impl MonteCarloVanillaEngine {
     ///     sampling: MonteCarloSettings { path_count: 4096, seed: Some(42), ..Default::default() },
     ///     ..Default::default()
     /// })?;
-    /// let prices = engine.price_american_strikes(&put, &market, &[90.0, 110.0])?;
+    /// let prices = engine.price_strikes(&put, &market, &[90.0, 110.0])?;
     /// assert!(prices[0] < prices[1]);
     /// # Ok(()) }
     /// ```
@@ -697,7 +697,7 @@ impl MonteCarloVanillaEngine {
     /// # Panics
     ///
     /// Propagates panics after parallel sampling finishes.
-    pub fn price_american_strikes(
+    pub fn price_strikes(
         &self,
         option: &AmericanOption,
         context: &PricingContext,

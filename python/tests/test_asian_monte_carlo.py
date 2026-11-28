@@ -48,20 +48,18 @@ def test_arithmetic_strike_batch_replays_scalar_prices(sampling, paths):
         antithetic=True,
         max_active_workers=2,
     )
-    prices = engine.price_arithmetic_strikes(contract, quote, strikes=iter(strikes))
+    prices = engine.price_strikes(contract, quote, strikes=iter(strikes))
     assert prices == tuple(
         engine.price(contract.replace(strike=k), quote) for k in strikes
     )
     assert prices[0] == 0 < prices[1] == prices[-1]
-    assert engine.price_arithmetic_strikes(contract, quote, strikes=[]) == ()
+    assert engine.price_strikes(contract, quote, strikes=[]) == ()
     with pytest.raises(MissingHistoryError):
-        engine.price_arithmetic_strikes(
-            contract.replace(realized_average=None), quote, strikes=[]
-        )
+        engine.price_strikes(contract.replace(realized_average=None), quote, strikes=[])
     with pytest.raises(InvalidInputError, match="strike"):
-        engine.price_arithmetic_strikes(contract, quote, strikes=[105, -1])
+        engine.price_strikes(contract, quote, strikes=[105, -1])
     with pytest.raises(TypeError):
-        engine.price_arithmetic_strikes(contract, quote, strikes=[105, True])
+        engine.price_strikes(contract, quote, strikes=[105, True])
 
 
 def test_duplicate_arithmetic_strikes_share_the_path_work_budget():
@@ -73,7 +71,7 @@ def test_duplicate_arithmetic_strikes_share_the_path_work_budget():
     expected = engine.price(contract, quote)
     assert expected > 0
     assert (
-        engine.price_arithmetic_strikes(contract, quote, strikes=[100] * 8192)
+        engine.price_strikes(contract, quote, strikes=[100] * 8192)
         == (expected,) * 8192
     )
 
@@ -87,7 +85,7 @@ def test_arithmetic_strike_batch_stops_reading_at_workspace_limit():
 
     contract = option(ArithmeticAveragePriceOption)
     with pytest.raises(InvalidInputError, match="strike batch workspace"):
-        pricing.MonteCarloAsianEngine().price_arithmetic_strikes(
+        pricing.MonteCarloAsianEngine().price_strikes(
             contract, market(), strikes=strikes()
         )
 

@@ -235,10 +235,10 @@ def american_quadrature_strike_types(
 ) -> None:
     engine = QuadratureVanillaEngine()
     assert_type(
-        engine.price_american_strikes(american, context, strikes=iter([90, 100])),
+        engine.price_strikes(american, context, strikes=iter([90, 100])),
         tuple[float, ...],
     )
-    engine.price_american_strikes(european, context, strikes=[90])  # ty: ignore[invalid-argument-type]
+    engine.price_strikes(european, context, strikes=[90])  # ty: ignore[invalid-argument-type]
 
 
 def american_monte_carlo_strike_types(
@@ -246,7 +246,7 @@ def american_monte_carlo_strike_types(
 ) -> None:
     engine = MonteCarloVanillaEngine()
     assert_type(
-        engine.price_american_strikes(american, context, strikes=iter([90, 100])),
+        engine.price_strikes(american, context, strikes=iter([90, 100])),
         tuple[float, ...],
     )
-    engine.price_american_strikes(european, context, strikes=[90])  # ty: ignore[invalid-argument-type]
+    engine.price_strikes(european, context, strikes=[90])  # ty: ignore[invalid-argument-type]

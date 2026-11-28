@@ -545,10 +545,10 @@ def test_american_quadrature_strike_batch_matches_scalar_continuation(
     context = make_market(dividend=0.06, volatility=0.25)
     engine = QuadratureVanillaEngine()
     strikes = (110, 75, 100, 130, 75)
-    prices = engine.price_american_strikes(option, context, strikes=iter(strikes))
+    prices = engine.price_strikes(option, context, strikes=iter(strikes))
     expected = tuple(engine.price(option.replace(strike=k), context) for k in strikes)
     assert prices == pytest.approx(expected, abs=5e-11, rel=0)
     assert prices[1] == prices[4]
-    assert engine.price_american_strikes(option, context, strikes=()) == ()
+    assert engine.price_strikes(option, context, strikes=()) == ()
     with pytest.raises(InvalidInputError):
-        engine.price_american_strikes(option, context, strikes=(100, -1))
+        engine.price_strikes(option, context, strikes=(100, -1))

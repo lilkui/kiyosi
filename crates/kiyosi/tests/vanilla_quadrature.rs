@@ -343,7 +343,7 @@ fn american_quadrature_strike_batch_matches_scalar_continuation() -> Result<()> 
     let strikes = [110.0, 75.0, 100.0, 130.0, 75.0];
     for kind in [OptionType::Call, OptionType::Put] {
         let option = AmericanOption::new(kind, 100.0, start, end)?;
-        let prices = engine.price_american_strikes(&option, &context, &strikes)?;
+        let prices = engine.price_strikes(&option, &context, &strikes)?;
         assert_eq!(prices.len(), strikes.len(), "strike quote count");
         assert_eq!(prices[1].to_bits(), prices[4].to_bits());
         for (strike, price) in strikes.into_iter().zip(prices) {
@@ -352,11 +352,11 @@ fn american_quadrature_strike_batch_matches_scalar_continuation() -> Result<()> 
             assert!((price - expected).abs() < 5e-11, "{price} vs {expected}");
         }
         assert_eq!(
-            engine.price_american_strikes(&option, &context, &[])?,
+            engine.price_strikes(&option, &context, &[])?,
             Vec::<f64>::new()
         );
         assert!(matches!(
-            engine.price_american_strikes(&option, &context, &[100.0, -1.0]),
+            engine.price_strikes(&option, &context, &[100.0, -1.0]),
             Err(Error::InvalidInput(_))
         ));
     }

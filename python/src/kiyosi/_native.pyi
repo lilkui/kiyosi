@@ -2511,7 +2511,7 @@ class QuadratureVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
     def integration_standard_deviations(self) -> float:
         """Return the integration extent in standard deviations."""
 
-    def price_american_strikes(
+    def price_strikes(
         self,
         instrument: AmericanOption,
         context: PricingContext,
@@ -4190,7 +4190,7 @@ class MonteCarloVanillaEngine(
             If representations, Greek names or keyword arguments are invalid.
         """
 
-    def price_american_strikes(
+    def price_strikes(
         self,
         instrument: AmericanOption,
         context: PricingContext,
@@ -4842,7 +4842,7 @@ class MonteCarloAsianEngine(
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
-    def price_arithmetic_strikes(
+    def price_strikes(
         self,
         instrument: ArithmeticAveragePriceOption,
         context: PricingContext,

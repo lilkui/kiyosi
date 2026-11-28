@@ -192,7 +192,7 @@ quadrature_engine!(
             clippy::needless_pass_by_value,
             reason = "PyO3 owns the extracted inputs."
         )]
-        fn price_american_strikes<'py>(
+        fn price_strikes<'py>(
             &self,
             py: Python<'py>,
             #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
@@ -204,8 +204,7 @@ quadrature_engine!(
         ) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
             let instrument = &instrument.0;
             let prices = domain(crate::cancellation::run(py, || {
-                self.0
-                    .price_american_strikes(instrument, &context.0, &strikes)
+                self.0.price_strikes(instrument, &context.0, &strikes)
             })?)?;
             crate::conversions::python_tuple(py, prices, Ok)
         }

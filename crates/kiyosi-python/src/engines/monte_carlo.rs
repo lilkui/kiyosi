@@ -404,7 +404,7 @@ sampling_settings!(
         ///     If interrupted or entropy retrieval or worker creation fails.
         #[pyo3(signature = (instrument, context, *, strikes))]
         #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns the extracted inputs.")]
-        fn price_american_strikes<'py>(
+        fn price_strikes<'py>(
             &self,
             py: Python<'py>,
             #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, crate::instruments::american::AmericanOption>,
@@ -414,7 +414,7 @@ sampling_settings!(
             let strikes = strike_batch(strikes)?;
             let instrument = &instrument.0;
             let prices = domain(crate::cancellation::run(py, || {
-                self.0.price_american_strikes(instrument, &context.0, &strikes)
+                self.0.price_strikes(instrument, &context.0, &strikes)
             })?)?;
             crate::conversions::python_tuple(py, prices, Ok)
         }
@@ -601,7 +601,7 @@ sampling_settings!(
         /// replay results from an engine configured without a seed.
         #[pyo3(signature = (instrument, context, *, strikes))]
         #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns the extracted instrument.")]
-        fn price_arithmetic_strikes<'py>(
+        fn price_strikes<'py>(
             &self,
             py: Python<'py>,
             #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, asian::ArithmeticAveragePriceOption>,
@@ -611,7 +611,7 @@ sampling_settings!(
             let strikes = strike_batch(strikes)?;
             let instrument = &instrument.0;
             let prices = domain(crate::cancellation::run(py, || {
-                self.0.price_arithmetic_strikes(instrument, &context.0, &strikes)
+                self.0.price_strikes(instrument, &context.0, &strikes)
             })?)?;
             crate::conversions::python_tuple(py, prices, Ok)
         }

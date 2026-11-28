@@ -161,7 +161,7 @@ impl QuadratureVanillaEngine {
     ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start,
     /// )?;
     /// let prices = QuadratureVanillaEngine::default()
-    ///     .price_american_strikes(&put, &market, &[90.0, 110.0])?;
+    ///     .price_strikes(&put, &market, &[90.0, 110.0])?;
     /// assert!(prices[0] < prices[1]);
     /// # Ok(()) }
     /// ```
@@ -170,7 +170,7 @@ impl QuadratureVanillaEngine {
     ///
     /// Propagates invalid input, unsupported market, numerical and
     /// cancellation errors. A failed request returns no partial prices.
-    pub fn price_american_strikes(
+    pub fn price_strikes(
         &self,
         option: &AmericanOption,
         context: &PricingContext,

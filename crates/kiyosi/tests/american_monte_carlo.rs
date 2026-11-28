@@ -32,12 +32,12 @@ fn american_strike_batch_caps_combined_exercise_work() -> Result<()> {
     })?;
     let strikes: Vec<_> = (50..152).map(f64::from).collect();
     assert!(matches!(
-        engine.price_american_strikes(&put, &market(0.05, 0.02, 0.2, 100.0), &strikes),
+        engine.price_strikes(&put, &market(0.05, 0.02, 0.2, 100.0), &strikes),
         Err(Error::InvalidInput(message)) if message.contains("one billion simulated path steps")
     ));
     assert_eq!(
         engine
-            .price_american_strikes(&put, &market(0.05, 0.02, 0.0, 100.0), &strikes)?
+            .price_strikes(&put, &market(0.05, 0.02, 0.0, 100.0), &strikes)?
             .len(),
         strikes.len()
     );
@@ -977,14 +977,14 @@ fn american_monte_carlo_strike_batch_replays_scalar_paths() -> Result<()> {
             step_count: 32,
         };
         let engine = MonteCarloVanillaEngine::new(settings)?;
-        let prices = engine.price_american_strikes(&template, &snapshot, &strikes)?;
+        let prices = engine.price_strikes(&template, &snapshot, &strikes)?;
         let expected = strikes
             .iter()
             .map(|&strike| engine.price(&option(OptionType::Put, strike), &snapshot))
             .collect::<Result<Vec<_>>>()?;
         assert_eq!(prices, expected);
         assert_eq!(
-            engine.price_american_strikes(&template, &snapshot, &[100.0; 64])?,
+            engine.price_strikes(&template, &snapshot, &[100.0; 64])?,
             vec![expected[0]; 64]
         );
         let serial = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
@@ -996,14 +996,14 @@ fn american_monte_carlo_strike_batch_replays_scalar_paths() -> Result<()> {
         })?;
         assert_eq!(
             prices,
-            serial.price_american_strikes(&template, &snapshot, &strikes)?
+            serial.price_strikes(&template, &snapshot, &strikes)?
         );
         assert_eq!(
-            engine.price_american_strikes(&template, &snapshot, &[])?,
+            engine.price_strikes(&template, &snapshot, &[])?,
             Vec::<f64>::new()
         );
         assert!(matches!(
-            engine.price_american_strikes(&template, &snapshot, &[100.0, -1.0]),
+            engine.price_strikes(&template, &snapshot, &[100.0, -1.0]),
             Err(Error::InvalidInput(_))
         ));
     }
