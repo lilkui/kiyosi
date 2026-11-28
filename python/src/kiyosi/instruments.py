@@ -46,11 +46,12 @@ Numerical time sensitivities hold supplied history fixed.
 ``None`` clears nullable fields to unknown. Terms and history are validated
 together, and each omitted history field retains its value independently.
 
-Use ``SnowballObservation`` for snowball knock-out coupons.
+Read and replace snowball knock-out terms through ``autocall_observations``,
+whose records keep each observation time, knock-out level and coupon together.
 Phoenix uses separate ``KnockOutObservation`` and ``CouponObservation`` records,
 passed through ``knock_out_observations`` and ``coupon_observations``. Each list
 is nonempty and strictly ordered; their times and thresholds are independent.
-``knock_out_times`` and ``coupon_times`` return the respective timestamps.
+``knock_out_times`` and ``coupon_times`` provide direct timestamp queries.
 Knock-in monitoring is defined independently by ``knock_in_observation`` and
 ``knock_in_observation_schedule``.
 
@@ -86,7 +87,8 @@ Edit a preset's observation and maturity coupons together:
 >>> edited = note.with_coupon(
 ...     first_observation_coupon=0.15, quote_convention="shift_maturity_coupon",
 ... )
->>> round(edited.knock_out_coupon_rates[0], 6), round(edited.maturity_coupon_rate, 6)
+>>> first = edited.autocall_observations[0]
+>>> round(first.coupon_rate, 6), round(edited.maturity_coupon_rate, 6)
 (0.15, 0.15)
 >>> note.maturity_coupon_rate
 0.12

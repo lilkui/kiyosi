@@ -26,3 +26,5 @@
 - 需要采样不确定性时使用 `price_with_statistics`。只需记录本次采样种子时使用 `price_with_seed`。美式香草 Monte Carlo 支持记录种子和使用独立路径估计行权收益的 `price_american_out_of_sample`。
 
 引擎方法文档列出监控方式、时间约定、曲线覆盖、历史状态和工作量限制。传递障碍或触碰合约的观察安排时，优先使用其 `observation_schedule`，它同时携带观察时点和日历。复用模型利率时，读取 `risk_free_curve` 或 `dividend_curve` 以保留曲线覆盖。[观察日程示例](../examples/python/barrier_option.py) · [曲线示例](../examples/python/rate_curves.py)
+
+用 `implied_snowball_coupon` 或 `implied_phoenix_coupon` 求报价，再用 `note.with_coupon(**quote)` 将报价应用到新合约。雪球报价是首个观察日的年化票息，并包含到期票息联动约定。Phoenix 报价是每次满足派息条件时支付的票息率。[雪球示例](../examples/python/snowball.py) · [Phoenix 示例](../examples/python/phoenix.py)

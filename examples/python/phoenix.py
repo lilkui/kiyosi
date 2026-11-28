@@ -48,16 +48,24 @@ standard = PhoenixOption.standard(
     effective_time=start,
     expiry_time=end,
 )
-# 工厂生成六次派息观察与四次敲出观察，合约本身只保存两份列表。
-assert standard.coupon_times == tuple(times)
-assert standard.knock_out_times == tuple(times)[2:]
+# 工厂生成六次票息观察与四次敲出观察。
+assert tuple(observation.time for observation in standard.coupon_observations) == tuple(
+    times
+)
+assert (
+    tuple(observation.time for observation in standard.knock_out_observations)
+    == tuple(times)[2:]
+)
 
 # 敲出与派息使用独立的观察列表。4 月 15 日只观察敲出。
 custom = standard.replace(
     knock_out_observations=[KnockOutObservation(datetime(2025, 4, 15, 15), 103)],
 )
 assert custom.coupon_observations == standard.coupon_observations
-assert custom.knock_out_times[0] not in custom.coupon_times
+knock_out_time = custom.knock_out_observations[0].time
+assert all(
+    observation.time != knock_out_time for observation in custom.coupon_observations
+)
 
 # 首次敲出观察时，障碍为 103，此后每次敲出观察递减 1。
 step_down = PhoenixOption.step_down(
@@ -97,7 +105,7 @@ for name, note in (
     quote = implied_phoenix_coupon(
         engine, note, context, target, lower_bound=0, upper_bound=0.5
     )
-    quoted = note.replace(**quote)
+    quoted = note.with_coupon(**quote)
     coupon = quote["coupon_per_period"]
     repriced = engine.price(quoted, context)
     print(f"{name} 平价票息：{coupon:.4%}（每期），回代价格：{repriced:.8f}")

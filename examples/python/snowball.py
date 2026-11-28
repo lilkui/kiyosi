@@ -35,7 +35,10 @@ note = SnowballOption.standard(
 edited = note.with_coupon(
     first_observation_coupon=0.15, quote_convention="shift_maturity_coupon"
 )
-assert all(abs(coupon - 0.15) < 1e-14 for coupon in edited.knock_out_coupon_rates)
+assert all(
+    abs(observation.coupon_rate - 0.15) < 1e-14
+    for observation in edited.autocall_observations
+)
 assert abs(edited.maturity_coupon_rate - 0.15) < 1e-14
 
 # 波动率使用交易时间，利率和连续股息率使用自然时间。
