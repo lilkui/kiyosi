@@ -1690,11 +1690,11 @@ pub(super) fn average(
         );
     }
     terms.coverage(context)?;
-    let average = terms.deterministic_average(context, geometric)?;
-    checked(scaled_cash(
-        (terms.sign() * (average - terms.terms.strike())).max(0.0),
+    terms.deterministic_average(context, geometric)?.price(
+        terms.terms.strike(),
+        terms.sign(),
         discount(context, terms.terms.expiry_time())?,
-    ))
+    )
 }
 
 #[cfg(test)]

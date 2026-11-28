@@ -317,6 +317,15 @@ pub(crate) fn log_narrow_interval_mass(center: f64, width: f64) -> Option<f64> {
     None
 }
 
+pub(crate) fn log_add(a: f64, b: f64) -> f64 {
+    let high = a.max(b);
+    if high == f64::NEG_INFINITY {
+        high
+    } else {
+        high + (-(a - b).abs()).exp().ln_1p()
+    }
+}
+
 pub(crate) fn log_difference(high: f64, low: f64) -> f64 {
     if high == -INF {
         return -INF;

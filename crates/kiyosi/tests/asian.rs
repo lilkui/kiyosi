@@ -43,6 +43,81 @@ fn continuous_asian_prices_match_existing_independent_references() {
 }
 
 #[test]
+fn deterministic_asian_discounts_an_overflowing_average() -> Result<()> {
+    let (start, end) = dates();
+    let arithmetic_market = PricingContext::new(
+        BlackScholesMertonParameters::new(720.0, 0.0, 0.0)?,
+        100.0,
+        start,
+    )?;
+    let geometric_market = PricingContext::new(
+        BlackScholesMertonParameters::new(720.0, -880.0, 0.0)?,
+        100.0,
+        start,
+    )?;
+    let simulation = MonteCarloAsianEngine::default();
+    for direction in [OptionType::Call, OptionType::Put] {
+        let arithmetic =
+            ArithmeticAveragePriceOption::new(direction, 100.0, start, start, end, None)?;
+        let geometric =
+            GeometricAveragePriceOption::new(direction, 100.0, start, start, end, None)?;
+        // The strike's discounted value is negligible at this rate.
+        for (price, expected) in [
+            (
+                TurnbullWakemanArithmeticAveragePriceEngine
+                    .price(&arithmetic, &arithmetic_market)?,
+                100.0 / 720.0,
+            ),
+            (
+                simulation.price(&arithmetic, &arithmetic_market)?,
+                100.0 / 720.0,
+            ),
+            (
+                AnalyticGeometricAveragePriceEngine.price(&geometric, &geometric_market)?,
+                100.0 * 80.0_f64.exp(),
+            ),
+            (
+                simulation.price(&geometric, &geometric_market)?,
+                100.0 * 80.0_f64.exp(),
+            ),
+        ] {
+            if direction == OptionType::Call {
+                assert!(
+                    (price / expected - 1.0).abs() < 1e-12,
+                    "{price} vs {expected}"
+                );
+            } else {
+                assert_eq!(price, 0.0);
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn deterministic_asian_preserves_subnormal_intrinsic_value() -> Result<()> {
+    let (start, end) = dates();
+    let spot = f64::from_bits(f64::MIN_POSITIVE.to_bits() - 1);
+    let strike = f64::from_bits(spot.to_bits() - 1);
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.0, 0.0, 0.0)?,
+        spot,
+        start,
+    )?;
+    let arithmetic =
+        ArithmeticAveragePriceOption::new(OptionType::Call, strike, start, start, end, None)?;
+    let geometric =
+        GeometricAveragePriceOption::new(OptionType::Call, strike, start, start, end, None)?;
+    for price in [
+        TurnbullWakemanArithmeticAveragePriceEngine.price(&arithmetic, &context)?,
+        AnalyticGeometricAveragePriceEngine.price(&geometric, &context)?,
+    ] {
+        assert_eq!(price.to_bits(), 1);
+    }
+    Ok(())
+}
+
+#[test]
 fn arithmetic_asian_preserves_one_microsecond_of_history() -> Result<()> {
     let (start, _) = dates();
     let at = start.add_micros(1)?;

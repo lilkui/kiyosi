@@ -15,6 +15,77 @@ from kiyosi.pricing import implied_volatility, numerical_greeks
 
 
 @pytest.mark.parametrize(
+    "option_class, analytic_engine, dividend, call_price",
+    [
+        (
+            ArithmeticAveragePriceOption,
+            pricing.TurnbullWakemanArithmeticAveragePriceEngine,
+            0,
+            100 / 720,
+        ),
+        (
+            GeometricAveragePriceOption,
+            pricing.AnalyticGeometricAveragePriceEngine,
+            -880,
+            100 * math.exp(80),
+        ),
+    ],
+    ids=["arithmetic", "geometric"],
+)
+def test_deterministic_asian_discounts_an_overflowing_average(
+    option_class, analytic_engine, dividend, call_price
+):
+    start = datetime(2025, 1, 1)
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=720, dividend_yield=dividend, volatility=0
+        ),
+        spot_price=100,
+        valuation_time=start,
+    )
+    for direction, expected in (("call", call_price), ("put", 0.0)):
+        option = option_class(
+            option_type=direction,
+            strike=100,
+            effective_time=start,
+            averaging_start_time=start,
+            expiry_time=start + timedelta(days=365),
+        )
+        for engine in (analytic_engine(), pricing.MonteCarloAsianEngine()):
+            assert engine.price(option, context) == pytest.approx(
+                expected, rel=1e-12, abs=0
+            )
+
+
+def test_deterministic_asian_preserves_subnormal_intrinsic_value():
+    spot = math.nextafter(float.fromhex("0x1p-1022"), 0)
+    strike = math.nextafter(spot, 0)
+    start = datetime(2025, 1, 1)
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=0
+        ),
+        spot_price=spot,
+        valuation_time=start,
+    )
+    for option_class, engine in (
+        (
+            ArithmeticAveragePriceOption,
+            pricing.TurnbullWakemanArithmeticAveragePriceEngine(),
+        ),
+        (GeometricAveragePriceOption, pricing.AnalyticGeometricAveragePriceEngine()),
+    ):
+        option = option_class(
+            option_type="call",
+            strike=strike,
+            effective_time=start,
+            averaging_start_time=start,
+            expiry_time=start + timedelta(days=365),
+        )
+        assert engine.price(option, context) == spot - strike
+
+
+@pytest.mark.parametrize(
     "years,expected", [(1, 9.227005508153953), (10, 30.166761281088156)]
 )
 def test_geometric_microsecond_window_preserves_carry(years, expected):

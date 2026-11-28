@@ -1,6 +1,6 @@
 use crate::engines::curve::Curve;
 use crate::instruments::asian::AverageTerms;
-use crate::numerics::{checked, log_ratio, scaled_cash};
+use crate::numerics::{checked, log_add, log_ratio, scaled_cash};
 use crate::{
     ArithmeticAveragePriceOption, AveragePriceOptionChanges, Error, GeometricAveragePriceOption,
     Greek, GreeksRequest, PricingContext, PricingEngine, PricingResult, Result,
@@ -896,15 +896,6 @@ fn log_average_forward(
         );
     }
     mean
-}
-
-fn log_add(a: f64, b: f64) -> f64 {
-    let high = a.max(b);
-    if high == f64::NEG_INFINITY {
-        high
-    } else {
-        high + (-(a - b).abs()).exp().ln_1p()
-    }
 }
 
 fn positive_difference(a: f64, b: f64) -> f64 {

@@ -1,4 +1,7 @@
-use crate::numerics::checked;
+use crate::numerics::{
+    Sum, checked, discounted_product, finite_price, log_add, log_difference, log_mean_exponential,
+    log_ratio, scaled_cash,
+};
 use crate::{
     Error, EuropeanOption, OptionType, PricingContext, Result, Timestamp,
     instruments::OptionContract,
@@ -12,6 +15,48 @@ pub(crate) struct AverageTerms {
     pub(crate) terms: EuropeanOption,
     pub(crate) averaging_start: Timestamp,
     pub(crate) realized: Option<f64>,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum DeterministicAverage {
+    Cash(f64),
+    Log(f64),
+}
+
+impl DeterministicAverage {
+    fn distance(self, strike: f64) -> f64 {
+        match self {
+            Self::Cash(average) => average - strike,
+            Self::Log(log_average) => log_average - strike.ln(),
+        }
+    }
+
+    pub(crate) fn price(self, strike: f64, sign: f64, log_discount: f64) -> Result<f64> {
+        let price = match self {
+            Self::Cash(average) => {
+                let payoff = (sign * (average - strike)).max(0.0);
+                if log_discount == 0.0 {
+                    payoff
+                } else {
+                    scaled_cash(payoff, log_discount)
+                }
+            }
+            Self::Log(log_average) => {
+                let log_strike = strike.ln();
+                let (received, paid) = if sign > 0.0 {
+                    (log_average, log_strike)
+                } else {
+                    (log_strike, log_average)
+                };
+                if received <= paid {
+                    0.0
+                } else {
+                    (log_difference(received, paid) + log_discount).exp()
+                }
+            }
+        };
+        checked(price)
+    }
 }
 
 impl AverageTerms {
@@ -91,7 +136,7 @@ impl AverageTerms {
         &self,
         context: &PricingContext,
         geometric: bool,
-    ) -> Result<f64> {
+    ) -> Result<DeterministicAverage> {
         let model = context.bsm_parameters()?;
         let valuation = context.valuation_time();
         let expiry = self.terms.expiry_time();
@@ -103,13 +148,37 @@ impl AverageTerms {
         let mut times = vec![start, expiry];
         for curve in [model.risk_free_curve(), model.dividend_curve()] {
             let nodes = curve.nodes_after(start);
-            times.extend_from_slice(&nodes[..nodes.partition_point(|&time| time < expiry)]);
+            for chunk in nodes[..nodes.partition_point(|&time| time < expiry)].chunks(1024) {
+                crate::cancellation::check()?;
+                times.extend_from_slice(chunk);
+            }
         }
         times.sort_unstable();
         times.dedup();
         let prior_weight = self.averaging_start.years_until(start) / self.period();
-        let mut total = crate::numerics::Sum::default();
-        let mut cumulative = crate::numerics::Sum::default();
+        let spot = context.spot_price();
+        let mut total = Sum::default();
+        let mut log_total = None;
+        let mut add_cash = |amount: f64, weight: f64, growth: f64| {
+            if let Some(log) = &mut log_total {
+                *log = log_add(*log, amount.ln() + weight.ln() + growth);
+            } else {
+                let term = if growth == 0.0 {
+                    amount * weight
+                } else {
+                    discounted_product(amount, weight, growth)
+                };
+                let subtotal = total.total();
+                if term > 0.0 && (subtotal + term).is_finite() {
+                    total.add(term);
+                } else {
+                    // Keep the average in log units when cash units lose its scale.
+                    log_total = Some(log_add(subtotal.ln(), amount.ln() + weight.ln() + growth));
+                }
+            }
+        };
+        let mut log_growth = Sum::default();
+        let mut cumulative = Sum::default();
         cumulative.add(carry(valuation, start)?);
         for pair in times.windows(2) {
             crate::cancellation::check()?;
@@ -118,32 +187,34 @@ impl AverageTerms {
             cumulative.add(delta);
             let weight = pair[0].years_until(pair[1]) / self.period();
             if geometric {
-                total.add(a.midpoint(cumulative.total()) * weight);
+                log_growth.add(a.midpoint(cumulative.total()) * weight);
             } else {
-                total.add(crate::numerics::discounted_product(
-                    context.spot_price(),
-                    weight,
-                    a + crate::numerics::log_mean_exponential(delta),
-                ));
+                add_cash(spot, weight, a + log_mean_exponential(delta));
             }
         }
         if geometric {
             if prior_weight > 0.0 {
-                total.add(
-                    prior_weight
-                        * crate::numerics::log_ratio(
-                            self.realized.unwrap_or(0.0),
-                            context.spot_price(),
-                        ),
-                );
+                log_growth.add(prior_weight * log_ratio(self.realized.unwrap_or(0.0), spot));
             }
-            checked(crate::numerics::scaled_cash(
-                context.spot_price(),
-                total.total(),
-            ))
+            let growth = log_growth.total();
+            let average = if growth == 0.0 {
+                spot
+            } else {
+                scaled_cash(spot, growth)
+            };
+            if average.is_finite() && average > 0.0 {
+                Ok(DeterministicAverage::Cash(average))
+            } else {
+                finite_price(spot.ln() + growth).map(DeterministicAverage::Log)
+            }
         } else {
-            total.add(self.realized.unwrap_or(0.0) * prior_weight);
-            checked(total.total())
+            if prior_weight > 0.0 {
+                add_cash(self.realized.unwrap_or(0.0), prior_weight, 0.0);
+            }
+            match log_total {
+                Some(log) => finite_price(log).map(DeterministicAverage::Log),
+                None => checked(total.total()).map(DeterministicAverage::Cash),
+            }
         }
     }
 
@@ -298,18 +369,21 @@ macro_rules! average_option {
                     && context.valuation_time() < self.expiry_time()
                     && self.0.period() > 0.0
                 {
-                    let average = |spot| -> Result<f64> {
+                    let distance = |spot| -> Result<f64> {
                         let bumped = context.replace(crate::PricingContextChanges {
                             spot_price: Some(spot),
                             ..Default::default()
                         })?;
-                        self.0.deterministic_average(&bumped, $geometric)
+                        Ok(self
+                            .0
+                            .deterministic_average(&bumped, $geometric)?
+                            .distance(self.strike()))
                     };
-                    return average(context.spot_price() - radius)
+                    return distance(context.spot_price() - radius)
                         .and_then(|low| {
-                            average(context.spot_price() + radius).map(|high| (low, high))
+                            distance(context.spot_price() + radius).map(|high| (low, high))
                         })
-                        .is_ok_and(|(low, high)| low <= self.strike() && self.strike() <= high);
+                        .is_ok_and(|(low, high)| low <= 0.0 && high >= 0.0);
                 }
                 self.realized_average().is_none()
                     && self.0.terms.at_spot_discontinuity(context, radius)
