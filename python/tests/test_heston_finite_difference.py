@@ -110,6 +110,22 @@ def test_automatic_american_surface_uses_an_independent_mesh_for_short_tenors():
         assert rows[0] == pytest.approx((expected,), rel=0, abs=1e-6)
 
 
+def test_european_heston_surface_resolves_startup_grid_cutoff():
+    short = START + timedelta(microseconds=23)
+    next_expiry = START + timedelta(microseconds=24)
+    template = option()
+    market = context(model())
+    analytic = AnalyticHestonEuropeanEngine()
+    rows = FiniteDifferenceHestonVanillaEngine().price_surface(
+        template, market, expiries=(short, next_expiry, END, short), strikes=(100,)
+    )
+    assert rows[0] == rows[3]
+    assert rows[0][0] < rows[1][0]
+    for expiry, row in zip((short, next_expiry), rows[:2], strict=True):
+        expected = analytic.price(option(expiry_time=expiry), market)
+        assert row == pytest.approx((expected,), abs=1e-8, rel=0)
+
+
 def test_european_surface_matches_analytic_prices_and_preserves_both_input_orders():
     engine = FiniteDifferenceHestonVanillaEngine()
     analytic = AnalyticHestonEuropeanEngine()

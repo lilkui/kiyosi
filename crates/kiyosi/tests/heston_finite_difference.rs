@@ -73,6 +73,27 @@ fn european_surface_matches_analytic_prices_and_preserves_both_input_orders() ->
 }
 
 #[test]
+fn european_heston_surface_resolves_startup_grid_cutoff() -> kiyosi::Result<()> {
+    let (start, end) = dates();
+    let short = start.add_micros(23)?;
+    let next = start.add_micros(24)?;
+    let expiries = [short, next, end, short];
+    let market = context(0.3, -0.7);
+    let template = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let engine = FiniteDifferenceHestonVanillaEngine::default();
+    let analytic = AnalyticHestonEuropeanEngine::default();
+    let rows = engine.price_surface(&template, &market, &expiries, &[100.0])?;
+    assert_eq!(rows[0], rows[3]);
+    for (&expiry, row) in expiries[..2].iter().zip(&rows) {
+        let call = EuropeanOption::new(OptionType::Call, 100.0, start, expiry)?;
+        let expected = analytic.price(&call, &market)?;
+        assert!((row[0] - expected).abs() < 1e-8, "{} vs {expected}", row[0]);
+    }
+    assert!(rows[0][0] < rows[1][0]);
+    Ok(())
+}
+
+#[test]
 fn american_surface_matches_scalar_expiries_and_preserves_order() -> kiyosi::Result<()> {
     let (start, end) = dates();
     let market = context(0.3, -0.7);

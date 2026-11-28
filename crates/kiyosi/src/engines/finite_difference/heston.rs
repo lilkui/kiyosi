@@ -21,6 +21,8 @@ use super::edge_weights::{self, EdgeWeights};
 mod american_surface;
 use american_surface::AmericanSurface;
 
+const EUROPEAN_STARTUP_STEPS: i32 = 24;
+
 /// Configures fixed Heston grids; see [`FiniteDifferenceHestonVanillaEngine::new`].
 ///
 /// Counts specify intervals, not nodes. Curve knots are added to the time grid.
@@ -268,18 +270,30 @@ impl FiniteDifferenceHestonVanillaEngine {
         let live = ordered.partition_point(|&expiry| expiry <= valuation);
         let absorbing = model.initial_variance() == 0.0
             && (model.mean_reversion_speed() == 0.0 || model.long_run_variance() == 0.0);
-        let surface = if ordered.len() - live < 2 || absorbing {
-            ordered[live..]
-                .iter()
-                .try_fold(Vec::new(), |mut prices, &expiry| {
-                    prices.extend(self.price_european_strikes(
-                        &contract(expiry, first)?,
-                        context,
-                        strikes,
-                    )?);
-                    Ok::<_, crate::Error>(prices)
-                })?
+        let remaining = &ordered[live..];
+        // The shared forward grid needs 24 resolvable startup steps before its first quote.
+        let short = remaining.partition_point(|&expiry| {
+            valuation.micros_until(expiry) < i64::from(EUROPEAN_STARTUP_STEPS)
+        });
+        let independent = if absorbing || remaining.len() - short < 2 {
+            remaining.len()
         } else {
+            short
+        };
+        let budget = RollbackWork::default();
+        let mut surface = Vec::new();
+        for &expiry in &remaining[..independent] {
+            let option = contract(expiry, first)?;
+            surface.extend(price_strikes(
+                &option,
+                context,
+                Payoff::vanilla(option.option_type(), first, false),
+                self.settings,
+                strikes,
+                &budget,
+            )?);
+        }
+        if independent < remaining.len() {
             if self
                 .settings
                 .asset_upper_boundary
@@ -289,25 +303,27 @@ impl FiniteDifferenceHestonVanillaEngine {
                     "Heston asset boundary must exceed spot and strike",
                 ));
             }
-            let times = ordered[live..]
+            let times = remaining[independent..]
                 .iter()
                 .map(|&expiry| valuation.years_until(expiry))
                 .collect::<Vec<_>>();
             let option = contract(end, first)?;
             let payoff = Payoff::vanilla(option.option_type(), first, false);
-            prepare_batch(
-                &option,
-                context,
-                payoff,
-                self.settings,
-                context.spot_price().min(strike_range[0]),
-                rest,
-                &times,
-                None,
-                None,
-            )?
-            .1
-        };
+            surface.extend(
+                prepare_batch(
+                    &option,
+                    context,
+                    payoff,
+                    self.settings,
+                    context.spot_price().min(strike_range[0]),
+                    rest,
+                    &times,
+                    None,
+                    Some(&budget),
+                )?
+                .1,
+            );
+        }
         expiries
             .iter()
             .map(|expiry| {
@@ -791,12 +807,12 @@ fn prepare_batch(
     if let Some(surface) = &exercise_surface {
         surface.extend_grid(&mut events, time);
     }
-    if let Some(&first) = expiries
-        .first()
-        .filter(|&&first| first >= 24.0 / 31_536_000_000_000.0)
-    {
+    if let Some(&first) = expiries.first() {
         // Preserve resolution of the initial point mass for short first expiries.
-        events.extend((1..24).map(|index| first * f64::from(index) / 24.0));
+        events.extend(
+            (1..EUROPEAN_STARTUP_STEPS)
+                .map(|index| first * f64::from(index) / f64::from(EUROPEAN_STARTUP_STEPS)),
+        );
     }
     let times = time_grid(
         time,
