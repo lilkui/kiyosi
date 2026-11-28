@@ -1,12 +1,13 @@
+use crate::TurnbullWakemanArithmeticAveragePriceEngine;
 use crate::engines::curve::Curve;
 use crate::instruments::asian::AverageTerms;
 use crate::numerics::{checked, log_add, log_ratio, scaled_cash};
 use crate::{
-    ArithmeticAveragePriceOption, AveragePriceOptionChanges, Error, GeometricAveragePriceOption,
-    Greek, GreeksRequest, PricingContext, PricingEngine, PricingResult, Result,
+    ArithmeticAveragePriceOption, AveragePriceOptionChanges, BlackScholesMertonParameters, Error,
+    GeometricAveragePriceOption, Greek, GreeksRequest, PricingContext, PricingEngine,
+    PricingResult, Result,
     engines::{MonteCarloEstimate, MonteCarloSampling, MonteCarloSettings},
 };
-use crate::{Timestamp, TurnbullWakemanArithmeticAveragePriceEngine};
 
 const STRIKE_TILE: usize = 32;
 
@@ -225,8 +226,35 @@ impl MonteCarloAsianEngine {
         stochastic: bool,
     ) -> Result<Vec<f64>> {
         let option = &template.0;
-        let shared = stochastic && option.period() > 0.0;
         let valuation = context.valuation_time();
+        let expiry = option.terms.expiry_time();
+        if !stochastic && valuation < expiry && !strikes.is_empty() {
+            let sign = option.sign();
+            if option.period() == 0.0 {
+                return strikes
+                    .iter()
+                    .map(|&strike| {
+                        crate::cancellation::check()?;
+                        let payoff = crate::engines::Payoff::vanilla(
+                            option.terms.option_type(),
+                            strike,
+                            false,
+                        );
+                        crate::engines::deterministic::vanilla_to_expiry(payoff, context, expiry)
+                    })
+                    .collect();
+            }
+            let average = option.deterministic_average(context, false)?;
+            let discount = crate::engines::deterministic::discount(context, expiry)?;
+            return strikes
+                .iter()
+                .map(|&strike| {
+                    crate::cancellation::check()?;
+                    average.price(strike, sign, discount)
+                })
+                .collect();
+        }
+        let shared = stochastic && option.period() > 0.0;
         let sampled = |strike| option.adjusted_strike_for(valuation, strike) > 0.0;
         let mut first = None;
         let mut active_tiles = 0;
@@ -247,6 +275,19 @@ impl MonteCarloAsianEngine {
                 ..Default::default()
             })
         };
+        let reuse_affine = shared && has_rate_nodes(context.bsm_parameters()?);
+        let mut affine = None;
+        let mut scalar = |engine: &Self, strike| {
+            if reuse_affine && !sampled(strike) {
+                let average = match affine {
+                    Some(value) => value,
+                    None => *affine.insert(ArithmeticAffine::new(option, context)?),
+                };
+                average.price(option, context.spot_price(), strike)
+            } else {
+                engine.price(&contract(strike)?, context)
+            }
+        };
         let mut prices = Vec::new();
         prices.try_reserve_exact(strikes.len()).map_err(|_| {
             Error::ComputationFailure("cannot reserve Asian strike batch output".into())
@@ -261,7 +302,7 @@ impl MonteCarloAsianEngine {
             };
             for &strike in strikes {
                 crate::cancellation::check()?;
-                prices.push(engine.price(&contract(strike)?, context)?);
+                prices.push(scalar(&engine, strike)?);
             }
             return Ok(prices);
         };
@@ -296,7 +337,7 @@ impl MonteCarloAsianEngine {
             for (value, &strike) in values.into_iter().zip(chunk) {
                 prices.push(match value {
                     Some(price) if price >= 0.0 => crate::numerics::finite_price(price)?,
-                    _ => engine.price(&contract(strike)?, context)?,
+                    _ => scalar(&engine, strike)?,
                 });
             }
         }
@@ -356,6 +397,22 @@ impl MonteCarloAsianEngine {
         let start = o.averaging_start;
         let expiry = o.terms.expiry_time();
         let single = o.period() == 0.0;
+        let flat = !has_rate_nodes(model);
+        if !geometric && !single && o.adjusted_strike(valuation) <= 0.0 {
+            let average = ArithmeticAffine::new(o, context)?;
+            let price = if flat {
+                TurnbullWakemanArithmeticAveragePriceEngine
+                    .price(&ArithmeticAveragePriceOption(o.clone()), context)?
+            } else {
+                average.price(o, context.spot_price(), o.terms.strike())?
+            };
+            let delta = if o.sign() > 0.0 {
+                average.forward_log.exp()
+            } else {
+                0.0
+            };
+            return Ok(Prepared::Known(result([price, delta, 0.0], request)?));
+        }
         let lead = if single {
             0.0
         } else {
@@ -373,8 +430,6 @@ impl MonteCarloAsianEngine {
             0.0
         };
         let sigma = model.volatility();
-        let flat =
-            model.risk_free_curve().nodes().is_empty() && model.dividend_curve().nodes().is_empty();
         let (rate, dividend) = if flat || geometric {
             (model.flat_risk_free_rate()?, model.flat_dividend_yield()?)
         } else {
@@ -395,29 +450,6 @@ impl MonteCarloAsianEngine {
             Some([risk, dividend]) => -risk.log_factor(from, to) + dividend.log_factor(from, to),
             None => rate * (to - from) - dividend * (to - from),
         };
-        if !geometric && !single && o.adjusted_strike(valuation) <= 0.0 {
-            let log_mean = log_average_forward(model, valuation, lead, future, carry_between);
-            let first = if o.sign() > 0.0 {
-                (log_discount + weight.ln() + log_mean).exp()
-            } else {
-                0.0
-            };
-            let accrued = prior_weight
-                .mul_add(o.realized.unwrap_or(0.0), -o.terms.strike())
-                .max(0.0);
-            let price = if flat {
-                TurnbullWakemanArithmeticAveragePriceEngine
-                    .price(&ArithmeticAveragePriceOption(o.clone()), context)?
-            } else if o.sign() > 0.0 {
-                checked(
-                    scaled_cash(context.spot_price(), log_discount + weight.ln() + log_mean)
-                        + scaled_cash(accrued, log_discount),
-                )?
-            } else {
-                0.0
-            };
-            return Ok(Prepared::Known(result([price, first, 0.0], request)?));
-        }
         if geometric || single {
             let variance_time = if single { tau } else { lead + future / 3.0 };
             let moneyness = if single {
@@ -868,34 +900,74 @@ macro_rules! asian_pricing {
 asian_pricing!(GeometricAveragePriceOption, true);
 asian_pricing!(ArithmeticAveragePriceOption, false);
 
-fn log_average_forward(
-    model: &crate::BlackScholesMertonParameters,
-    valuation: Timestamp,
-    lead: f64,
-    future: f64,
-    carry: impl Fn(f64, f64) -> f64,
-) -> f64 {
-    let mut times = vec![lead, lead + future];
-    for curve in [model.risk_free_curve(), model.dividend_curve()] {
-        times.extend(
-            curve
-                .nodes()
-                .iter()
-                .map(|&n| valuation.years_until(n))
-                .filter(|&t| t > lead && t < lead + future),
-        );
+fn has_rate_nodes(model: &BlackScholesMertonParameters) -> bool {
+    !model.risk_free_curve().nodes().is_empty() || !model.dividend_curve().nodes().is_empty()
+}
+
+#[derive(Clone, Copy)]
+struct ArithmeticAffine {
+    prior_weight: f64,
+    log_discount: f64,
+    forward_log: f64,
+}
+
+impl ArithmeticAffine {
+    fn new(option: &AverageTerms, context: &PricingContext) -> Result<Self> {
+        let valuation = context.valuation_time();
+        let expiry = option.terms.expiry_time();
+        let future = valuation.years_until(expiry);
+        let model = context.bsm_parameters()?;
+        let risk_free = model.risk_free_curve();
+        let dividend = model.dividend_curve();
+        let log_discount = risk_free.log_factor(valuation, expiry)?;
+        let log_mean = if has_rate_nodes(model) {
+            let risk = Curve::new(risk_free, valuation, expiry)?;
+            let yield_curve = Curve::new(dividend, valuation, expiry)?;
+            let carry = |from, to| -risk.log_factor(from, to) + yield_curve.log_factor(from, to);
+            let mut times = vec![0.0, future];
+            for curve in [risk_free, dividend] {
+                let nodes = curve.nodes_after(valuation);
+                let end = nodes.partition_point(|&time| time < expiry);
+                for chunk in nodes[..end].chunks(1024) {
+                    crate::cancellation::check()?;
+                    times.extend(chunk.iter().map(|&time| valuation.years_until(time)));
+                }
+            }
+            times.sort_unstable_by(f64::total_cmp);
+            times.dedup();
+            let mut mean = f64::NEG_INFINITY;
+            for pair in times.windows(2) {
+                crate::cancellation::check()?;
+                let growth = crate::numerics::log_mean_exponential(carry(pair[0], pair[1]));
+                mean = log_add(
+                    mean,
+                    carry(0.0, pair[0]) + growth + ((pair[1] - pair[0]) / future).ln(),
+                );
+            }
+            mean
+        } else {
+            let carry =
+                model.flat_risk_free_rate()? * future - model.flat_dividend_yield()? * future;
+            crate::numerics::log_mean_exponential(carry)
+        };
+        let period = option.period();
+        Ok(Self {
+            prior_weight: option.averaging_start.years_until(valuation) / period,
+            log_discount,
+            forward_log: log_discount + (future / period).ln() + log_mean,
+        })
     }
-    times.sort_by(f64::total_cmp);
-    times.dedup();
-    let mut mean = f64::NEG_INFINITY;
-    for pair in times.windows(2) {
-        let growth = crate::numerics::log_mean_exponential(carry(pair[0], pair[1]));
-        mean = log_add(
-            mean,
-            carry(0.0, pair[0]) + growth + ((pair[1] - pair[0]) / future).ln(),
-        );
+
+    fn price(self, option: &AverageTerms, spot: f64, strike: f64) -> Result<f64> {
+        if option.sign() < 0.0 {
+            return Ok(0.0);
+        }
+        let accrued = self
+            .prior_weight
+            .mul_add(option.realized.unwrap_or(0.0), -strike)
+            .max(0.0);
+        checked(scaled_cash(spot, self.forward_log) + scaled_cash(accrued, self.log_discount))
     }
-    mean
 }
 
 fn positive_difference(a: f64, b: f64) -> f64 {

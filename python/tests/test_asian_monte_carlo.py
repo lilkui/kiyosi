@@ -62,6 +62,34 @@ def test_arithmetic_strike_batch_replays_scalar_prices(sampling, paths):
         engine.price_strikes(contract, quote, strikes=[105, True])
 
 
+@pytest.mark.parametrize("sigma", [0.0, 0.2], ids=["deterministic", "seasoned"])
+@pytest.mark.parametrize("direction", ["call", "put"])
+def test_arithmetic_strike_batch_reuses_dated_average_cashflows(sigma, direction):
+    expiry = START + timedelta(days=360)
+    valuation = START + timedelta(days=180)
+    curve = RateTermStructure(
+        reference_time=START,
+        times=[START + timedelta(days=day) for day in range(1, 361)],
+        factors=[math.exp(-0.03 * (day / 360) ** 2) for day in range(1, 361)],
+    )
+    context = market(100, sigma, valuation, rate=curve, dividend=curve)
+    contract = option(ArithmeticAveragePriceOption, direction, realized=300).replace(
+        expiry_time=expiry
+    )
+    engine = pricing.MonteCarloAsianEngine(
+        path_count=1024, step_count=16, seed=42, max_active_workers=1
+    )
+    strikes = [80, 160, 150, 210, 80]
+    prices = engine.price_strikes(contract, context, strikes=strikes)
+    assert prices == tuple(
+        engine.price(contract.replace(strike=strike), context) for strike in strikes
+    )
+    discount = curve.factor(valuation, expiry)
+    for price, strike in ((prices[0], 80), (prices[2], 150)):
+        expected = (200 - strike) * discount if direction == "call" else 0
+        assert price == pytest.approx(expected, rel=0, abs=1e-12)
+
+
 def test_duplicate_arithmetic_strikes_share_the_path_work_budget():
     engine = pricing.MonteCarloAsianEngine(
         path_count=131_072, step_count=2, seed=7, max_active_workers=1

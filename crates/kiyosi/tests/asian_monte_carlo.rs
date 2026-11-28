@@ -104,6 +104,65 @@ fn arithmetic_strike_batches_replay_scalar_prices() -> Result<()> {
 }
 
 #[test]
+fn arithmetic_strike_batch_reuses_dated_average_cashflows() -> Result<()> {
+    let start = date(1, 1);
+    let expiry = start.add_days(360)?;
+    let valuation = start.add_days(180)?;
+    let nodes = (1..=360)
+        .map(|day| start.add_days(day))
+        .collect::<Result<Vec<_>>>()?;
+    let factors = (1..=360)
+        .map(|day| (-0.03 * (f64::from(day) / 360.0).powi(2)).exp())
+        .collect();
+    let curve = RateTermStructure::new(start, nodes, factors)?;
+    let discount = curve.factor(valuation, expiry)?;
+    let engine = MonteCarloAsianEngine::new(MonteCarloGridSettings {
+        sampling: MonteCarloSettings {
+            path_count: 1024,
+            seed: Some(42),
+            max_active_workers: 1,
+            ..Default::default()
+        },
+        step_count: 16,
+    })?;
+    let strikes = [80.0, 160.0, 150.0, 210.0, 80.0];
+    for volatility in [0.0, 0.2] {
+        let market = PricingContext::new(
+            BlackScholesMertonParameters::new(curve.clone(), curve.clone(), volatility)?,
+            100.0,
+            valuation,
+        )?;
+        for direction in [OptionType::Call, OptionType::Put] {
+            let option = ArithmeticAveragePriceOption::new(
+                direction,
+                100.0,
+                start,
+                start,
+                expiry,
+                Some(300.0),
+            )?;
+            let prices = engine.price_strikes(&option, &market, &strikes)?;
+            for (&strike, &price) in strikes.iter().zip(&prices) {
+                let adjusted = option.replace(AveragePriceOptionChanges {
+                    strike: Some(strike),
+                    ..Default::default()
+                })?;
+                assert_eq!(price, engine.price(&adjusted, &market)?);
+            }
+            for (price, strike) in [(prices[0], 80.0), (prices[2], 150.0)] {
+                let expected = if direction == OptionType::Call {
+                    (200.0 - strike) * discount
+                } else {
+                    0.0
+                };
+                assert!((price - expected).abs() < 1e-12, "{price} vs {expected}");
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn duplicate_arithmetic_strikes_share_the_path_work_budget() -> Result<()> {
     let start = date(1, 1);
     let option = ArithmeticAveragePriceOption::new(
