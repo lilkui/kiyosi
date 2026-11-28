@@ -128,15 +128,15 @@ def test_autocallable_observation_iterable_polls_signals_before_consuming_record
     from operator import length_hint
 
     from kiyosi.instruments import (
-        AutocallableObservation,
         KnockInObservation,
+        SnowballObservation,
         SnowballOption,
     )
     from kiyosi.market import TradingCalendar
 
     start = datetime(2025, 1, 1)
     end = datetime(2026, 1, 1)
-    record = AutocallableObservation.snowball(end, 110, coupon_rate=0.08)
+    record = SnowballObservation(end, 110, coupon_rate=0.08)
     # Leave time for the virtual CPU timer to fire even on fast builds.
     count = 8_000_000
     records = repeat(record, count)
@@ -361,7 +361,7 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 from time import process_time
                 from kiyosi.instruments import (
                     Accumulator, AmericanOption, BarrierOption, KnockInObservation,
-                    RangeAccrualOption, SnowballOption, autocallable_observations,
+                    RangeAccrualOption, SnowballOption, SnowballObservation,
                 )
                 from kiyosi.market import (
                     BlackScholesMertonParameters, HestonParameters, LocalVolatilitySurface, PricingContext,
@@ -411,7 +411,7 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                         upper_strike=100, lower_strike=60, effective_time=start_time,
                         expiry_time=long_end, calendar=calendar,
                         knock_in_observation=KnockInObservation.every_trading_day(time()),
-                        autocall_observations=autocallable_observations(
+                        autocall_observations=SnowballObservation.from_columns(
                             [long_end], [110], knock_out_coupon_rates=[0.08]),
                     )
                     operation = lambda: note.knock_in_observation_schedule

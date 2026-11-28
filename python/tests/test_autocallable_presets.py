@@ -10,11 +10,11 @@ from datetime import time as clock_time
 import pytest
 from kiyosi import InvalidInputError
 from kiyosi.instruments import (
-    AutocallableObservation,
     CouponObservation,
     KnockInObservation,
     KnockOutObservation,
     PhoenixOption,
+    SnowballObservation,
     SnowballOption,
 )
 from kiyosi.market import TradingCalendar
@@ -145,7 +145,7 @@ def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_obser
             "datetime": datetime_module,
             "PhoenixOption": PhoenixOption,
             "KnockInObservation": KnockInObservation,
-            "AutocallableObservation": AutocallableObservation,
+            "SnowballObservation": SnowballObservation,
             "KnockOutObservation": KnockOutObservation,
             "CouponObservation": CouponObservation,
             "TradingCalendar": TradingCalendar,
@@ -259,7 +259,7 @@ def test_phoenix_periodic_coupon_signature_getter_and_repr_roundtrip(subtests):
                 "datetime": datetime_module,
                 "PhoenixOption": PhoenixOption,
                 "KnockInObservation": KnockInObservation,
-                "AutocallableObservation": AutocallableObservation,
+                "SnowballObservation": SnowballObservation,
                 "KnockOutObservation": KnockOutObservation,
                 "CouponObservation": CouponObservation,
                 "TradingCalendar": TradingCalendar,

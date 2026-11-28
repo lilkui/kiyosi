@@ -99,7 +99,7 @@ macro_rules! snowball_properties {
             /// Knock-in monitoring is available through knock_in_observation_schedule.
             #[getter]
             fn autocall_observations<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-                python_tuple(py, self.0.autocall_observations(), |&r| Ok(AutocallableObservation(r)))
+                python_tuple(py, self.0.autocall_observations(), |&r| Ok(SnowballObservation(r)))
             },
             /// Return a copy of the contractual knock-out and coupon observation times.
             ///
@@ -273,23 +273,37 @@ impl KnockInObservation {
     }
 }
 
-pub(crate) fn records(values: &Bound<'_, PyAny>) -> PyResult<Vec<kiyosi::AutocallableObservation>> {
+pub(crate) fn records(values: &Bound<'_, PyAny>) -> PyResult<Vec<kiyosi::SnowballObservation>> {
     collect_values(values, |item| {
-        Ok(item.extract::<PyRef<'_, AutocallableObservation>>()?.0)
+        Ok(item.extract::<PyRef<'_, SnowballObservation>>()?.0)
     })
 }
 
 /// Snowball knock-out observation with a finite annual coupon.
 ///
+/// Parameters
+/// ----------
+/// time : datetime.datetime
+///     Exact observation timestamp.
+/// knock_out_level : float
+///     Positive finite inclusive knock-out threshold.
+/// coupon_rate : float
+///     Finite signed annual knock-out coupon; supply zero explicitly for no
+///     coupon.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If the level is nonpositive or non-finite, or the coupon is non-finite.
+///
 /// Notes
 /// -----
-/// Construct with snowball(time, knock_out_level, coupon_rate=...).
 /// Numeric terms are validated in Rust; the note validates ordering, life bounds
 /// and calendar compatibility. Phoenix uses KnockOutObservation and CouponObservation.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
-pub(crate) struct AutocallableObservation(pub kiyosi::AutocallableObservation);
-value_methods!(@documented AutocallableObservation, AutocallableObservationChanges,
+pub(crate) struct SnowballObservation(pub kiyosi::SnowballObservation);
+value_methods!(@documented SnowballObservation, SnowballObservationChanges,
     [time, knock_out_level, coupon_rate],
     {
         time: time.map(timestamp).transpose()?,
@@ -312,7 +326,7 @@ value_methods!(@documented AutocallableObservation, AutocallableObservationChang
         ///
         /// Returns
         /// -------
-        /// AutocallableObservation
+        /// SnowballObservation
         ///     Validated copy. The note checks schedule constraints.
         ///
         /// Raises
@@ -322,35 +336,97 @@ value_methods!(@documented AutocallableObservation, AutocallableObservationChang
         /// TypeError
         ///     If a field has an invalid representation.
     ], {
-    /// Create a snowball observation with an annual knock-out coupon.
-    ///
-    /// Parameters
-    /// ----------
-    /// time : datetime.datetime
-    ///     Exact observation timestamp.
-    /// knock_out_level : float
-    ///     Positive finite inclusive knock-out threshold.
-    /// coupon_rate : float
-    ///     Finite signed annual knock-out coupon; supply zero explicitly for no
-    ///     coupon.
-    ///
-    /// Raises
-    /// ------
-    /// InvalidInputError
-    ///     If the level is nonpositive or non-finite, or the coupon is non-finite.
-    ///
-    #[staticmethod]
+    #[new]
     #[pyo3(signature = (time, knock_out_level, *, coupon_rate))]
-    fn snowball(
+    fn new(
         time: &Bound<'_, PyAny>,
         knock_out_level: &Bound<'_, PyAny>,
         coupon_rate: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        Ok(Self(domain(kiyosi::AutocallableObservation::snowball(
+        Ok(Self(domain(kiyosi::SnowballObservation::new(
             timestamp(time)?,
             real(knock_out_level)?,
             real(coupon_rate)?,
         ))?))
+    }
+    /// Combine parallel sequences into validated snowball observation records.
+    ///
+    /// Parameters
+    /// ----------
+    /// autocall_times : iterable of datetime.datetime
+    ///     Knock-out and coupon observation times; the note checks ordering and life
+    ///     bounds.
+    /// knock_out_levels : iterable of float
+    ///     Positive inclusive knock-out levels, one per observation timestamp.
+    /// knock_out_coupon_rates : iterable of float
+    ///     Explicit annual snowball coupons, including zero for no coupon.
+    ///
+    /// Returns
+    /// -------
+    /// list of SnowballObservation
+    ///     Observation records.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInputError
+    ///     If sequence lengths differ or numeric levels or coupons are invalid.
+    /// TypeError
+    ///     If an argument is missing or a value has an invalid representation.
+    ///
+    /// Notes
+    /// -----
+    /// The note constructor validates ordering, life bounds and calendar compatibility.
+    ///
+    /// Passing an ObservationSchedule copies its timestamps into the records;
+    /// the records carry no calendar. Pass calendar=schedule.calendar to the note
+    /// constructor to preserve its observation calendar. Raw note constructors require
+    /// an explicit calendar, including for daily knock-in monitoring.
+    ///
+    /// Examples
+    /// --------
+    /// Forward a schedule's custom calendar when constructing a snowball:
+    ///
+    /// >>> from datetime import datetime, time
+    /// >>> from kiyosi import instruments as ins, market
+    /// >>> start, end = datetime(2025, 1, 2, 15), datetime(2025, 1, 10, 15)
+    /// >>> calendar = market.TradingCalendar.custom(
+    /// ...     base=market.TradingCalendar.weekdays(),
+    /// ...     closed_dates=[datetime(2025, 1, 6).date()],
+    /// ... )
+    /// >>> schedule = market.ObservationSchedule(
+    /// ...     times=[end], start_time=start, end_time=end, calendar=calendar,
+    /// ... )
+    /// >>> records = ins.SnowballObservation.from_columns(
+    /// ...     schedule, [110], knock_out_coupon_rates=[0.1],
+    /// ... )
+    /// >>> note = ins.SnowballOption(
+    /// ...     maturity_coupon_rate=0.1, initial_spot=100, knock_in_level=80,
+    /// ...     upper_strike=100, lower_strike=0,
+    /// ...     knock_in_observation=ins.KnockInObservation.every_trading_day(time(15)),
+    /// ...     effective_time=start, expiry_time=end, autocall_observations=records,
+    /// ...     calendar=schedule.calendar,
+    /// ... )
+    /// >>> note.calendar == schedule.calendar
+    /// True
+    /// >>> len(note.knock_in_observation_schedule)
+    /// 6
+    ///
+    #[staticmethod]
+    #[pyo3(signature = (autocall_times, knock_out_levels, *, knock_out_coupon_rates))]
+    fn from_columns(
+        autocall_times: &Bound<'_, PyAny>,
+        knock_out_levels: &Bound<'_, PyAny>,
+        knock_out_coupon_rates: &Bound<'_, PyAny>,
+    ) -> PyResult<Vec<Self>> {
+        let times = timestamps(autocall_times)?;
+        let levels = reals(knock_out_levels)?;
+        let coupons = reals(knock_out_coupon_rates)?;
+        Ok(
+            domain(kiyosi::SnowballObservation::from_columns(&times, &levels, &coupons))?
+                .into_iter()
+                .map(Self)
+                .collect(),
+        )
     }
     /// Return exact observation time.
     #[getter]
@@ -461,86 +537,6 @@ phoenix_observation!(
     "One Phoenix coupon observation with a nonnegative inclusive threshold."
 );
 
-/// Combine parallel sequences into validated snowball observation records.
-///
-/// Parameters
-/// ----------
-/// autocall_times : iterable of datetime.datetime
-///     Knock-out and coupon observation times; the note checks ordering and life
-///     bounds.
-/// knock_out_levels : iterable of float
-///     Positive inclusive knock-out levels, one per observation timestamp.
-/// knock_out_coupon_rates : iterable of float
-///     Explicit annual snowball coupons, including zero for no coupon.
-///
-/// Returns
-/// -------
-/// list of AutocallableObservation
-///     Observation records.
-///
-/// Raises
-/// ------
-/// InvalidInputError
-///     If sequence lengths differ or numeric levels or coupons are invalid.
-/// TypeError
-///     If an argument is missing or a value has an invalid representation.
-///
-/// Notes
-/// -----
-/// The note constructor validates ordering, life bounds and calendar compatibility.
-///
-/// Passing an ObservationSchedule copies its timestamps into the records;
-/// the records carry no calendar. Pass calendar=schedule.calendar to the note
-/// constructor to preserve its observation calendar. Raw note constructors require
-/// an explicit calendar, including for daily knock-in monitoring.
-///
-/// Examples
-/// --------
-/// Forward a schedule's custom calendar when constructing a snowball:
-///
-/// >>> from datetime import datetime, time
-/// >>> from kiyosi import instruments as ins, market
-/// >>> start, end = datetime(2025, 1, 2, 15), datetime(2025, 1, 10, 15)
-/// >>> calendar = market.TradingCalendar.custom(
-/// ...     base=market.TradingCalendar.weekdays(),
-/// ...     closed_dates=[datetime(2025, 1, 6).date()],
-/// ... )
-/// >>> schedule = market.ObservationSchedule(
-/// ...     times=[end], start_time=start, end_time=end, calendar=calendar,
-/// ... )
-/// >>> records = ins.autocallable_observations(
-/// ...     schedule, [110], knock_out_coupon_rates=[0.1],
-/// ... )
-/// >>> note = ins.SnowballOption(
-/// ...     maturity_coupon_rate=0.1, initial_spot=100, knock_in_level=80,
-/// ...     upper_strike=100, lower_strike=0,
-/// ...     knock_in_observation=ins.KnockInObservation.every_trading_day(time(15)),
-/// ...     effective_time=start, expiry_time=end, autocall_observations=records,
-/// ...     calendar=schedule.calendar,
-/// ... )
-/// >>> note.calendar == schedule.calendar
-/// True
-/// >>> len(note.knock_in_observation_schedule)
-/// 6
-///
-#[pyfunction]
-#[pyo3(signature = (autocall_times, knock_out_levels, *, knock_out_coupon_rates))]
-pub(crate) fn autocallable_observations(
-    autocall_times: &Bound<'_, PyAny>,
-    knock_out_levels: &Bound<'_, PyAny>,
-    knock_out_coupon_rates: &Bound<'_, PyAny>,
-) -> PyResult<Vec<AutocallableObservation>> {
-    let times = timestamps(autocall_times)?;
-    let levels = reals(knock_out_levels)?;
-    let coupons = reals(knock_out_coupon_rates)?;
-    Ok(
-        domain(kiyosi::autocallable_observations(&times, &levels, &coupons))?
-            .into_iter()
-            .map(AutocallableObservation)
-            .collect(),
-    )
-}
-
 /// Snowball with knock-out coupons and capped knock-in downside loss.
 ///
 /// Parameters
@@ -561,7 +557,7 @@ pub(crate) fn autocallable_observations(
 ///     Inclusive contract start.
 /// expiry_time : datetime.datetime
 ///     Inclusive expiry time.
-/// autocall_observations : iterable of AutocallableObservation
+/// autocall_observations : iterable of SnowballObservation
 ///     Nonempty, strictly ordered knock-out and coupon observations within life.
 /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
 ///     Events strictly before valuation. None is unknown; no_event means no prior
@@ -769,7 +765,7 @@ snowball_preset! {
         ///     A note knocked out before valuation is settled and has zero value.
         /// effective_time, expiry_time : datetime.datetime, optional
         ///     Inclusive contract start and expiry timestamps.
-        /// autocall_observations : iterable of AutocallableObservation, optional
+        /// autocall_observations : iterable of SnowballObservation, optional
         ///     Product-specific knock-out and coupon observations, in time order.
         /// calendar : TradingCalendar, optional
         ///     Owned contractual observation calendar, defaulting to the instance's calendar.
@@ -1009,7 +1005,7 @@ times, stages may have no autocall_observations, and rates need not decrease."
 ///     Inclusive contract start.
 /// expiry_time : datetime.datetime
 ///     Inclusive expiry time.
-/// autocall_observations : iterable of AutocallableObservation
+/// autocall_observations : iterable of SnowballObservation
 ///     Nonempty, strictly ordered knock-out and coupon observations within life.
 /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
 ///     Events strictly before valuation. None is unknown; no_event means no prior
@@ -1079,7 +1075,7 @@ snowball_properties! {
     ///     A note knocked out before valuation is settled and has zero value.
     /// effective_time, expiry_time : datetime.datetime, optional
     ///     Inclusive contract start and expiry timestamps.
-    /// autocall_observations : iterable of AutocallableObservation, optional
+    /// autocall_observations : iterable of SnowballObservation, optional
     ///     Product-specific knock-out and coupon observations, in time order.
     /// calendar : TradingCalendar, optional
     ///     Owned contractual observation calendar, defaulting to the instance's calendar.
@@ -1149,7 +1145,7 @@ snowball_properties! {
 ///     Inclusive contract start.
 /// expiry_time : datetime.datetime
 ///     Inclusive expiry time.
-/// autocall_observations : iterable of AutocallableObservation
+/// autocall_observations : iterable of SnowballObservation
 ///     Nonempty, strictly ordered knock-out and coupon observations within life.
 /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
 ///     Events strictly before valuation. None is unknown; no_event means no prior
@@ -1224,7 +1220,7 @@ snowball_properties! {
     ///     A note knocked out before valuation is settled and has zero value.
     /// effective_time, expiry_time : datetime.datetime, optional
     ///     Inclusive contract start and expiry timestamps.
-    /// autocall_observations : iterable of AutocallableObservation, optional
+    /// autocall_observations : iterable of SnowballObservation, optional
     ///     Product-specific knock-out and coupon observations, in time order.
     /// calendar : TradingCalendar, optional
     ///     Owned contractual observation calendar, defaulting to the instance's calendar.

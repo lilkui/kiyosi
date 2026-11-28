@@ -13,7 +13,7 @@ from kiyosi import (
 from kiyosi.instruments import (
     BinarySnowballOption,
     KnockInObservation,
-    autocallable_observations,
+    SnowballObservation,
 )
 from kiyosi.market import (
     RateTermStructure,
@@ -36,7 +36,7 @@ def test_daily_knock_in_market_greeks_match_price_bumps():
     note = snowball(
         knock_in_level=95,
         knock_in_observation=KnockInObservation.every_trading_day(clock_time(0)),
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [datetime(2025, 2, 3), datetime(2025, 3, 3), END],
             [110, 108, 105],
             knock_out_coupon_rates=[0.08] * 3,
@@ -133,7 +133,7 @@ def test_native_spot_greeks_survive_infeasible_scalar_bumps(coupon, shift):
         maturity_coupon_rate=0,
         effective_time=START,
         expiry_time=END,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [END], [100], knock_out_coupon_rates=[coupon]
         ),
     )
@@ -160,7 +160,7 @@ def test_explicit_uniform_log_grid_checks_stencil_stability():
         maturity_coupon_rate=0,
         effective_time=START,
         expiry_time=end,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [datetime(2025, 2, 3), end],
             [100, 100],
             knock_out_coupon_rates=[0.1, 0.1],
@@ -223,7 +223,7 @@ def test_fixed_prices_and_unidentifiable_parameters_validate_first():
         maturity_coupon_rate=0,
         effective_time=START,
         expiry_time=END,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [END], [110], knock_out_coupon_rates=[0]
         ),
     )

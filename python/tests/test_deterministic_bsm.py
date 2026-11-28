@@ -69,17 +69,13 @@ def test_structured_knock_out_uses_exact_quoted_forward():
         effective_time=start,
         expiry_time=end,
         knock_in_observation=KnockInObservation.at_expiry(),
-        autocall_observations=[
-            ins.AutocallableObservation.snowball(end, 128, coupon_rate=0.2)
-        ],
+        autocall_observations=[ins.SnowballObservation(end, 128, coupon_rate=0.2)],
     )
     downside = note.replace(
         maturity_coupon_rate=0.2,
         knock_in_level=128,
         upper_strike=140,
-        autocall_observations=[
-            ins.AutocallableObservation.snowball(end, 150, coupon_rate=0)
-        ],
+        autocall_observations=[ins.SnowballObservation(end, 150, coupon_rate=0)],
     )
     phoenix = ins.PhoenixOption(
         calendar=calendar,
@@ -164,9 +160,7 @@ def test_structured_knock_out_preserves_a_forward_just_below_the_barrier():
     note = ins.BinarySnowballOption(
         **terms,
         maturity_coupon_rate=0.12,
-        autocall_observations=[
-            ins.AutocallableObservation.snowball(fixing, 100, coupon_rate=0.2)
-        ],
+        autocall_observations=[ins.SnowballObservation(fixing, 100, coupon_rate=0.2)],
     )
     accumulator = ins.Accumulator(
         **terms,
@@ -494,7 +488,7 @@ def cases():
         ("AnalyticDoubleTouchEngine", "FiniteDifferenceDoubleTouchEngine"),
         10,
     )
-    obs = ins.autocallable_observations([END], [120], knock_out_coupon_rates=[0])
+    obs = ins.SnowballObservation.from_columns([END], [120], knock_out_coupon_rates=[0])
     note = dict(life, autocall_observations=obs)
     downside = {
         "initial_spot": 100,
@@ -1085,7 +1079,7 @@ def test_future_structured_events_discount_coupons_and_settle_accumulated_units(
         effective_time=START,
         expiry_time=end,
         maturity_coupon_rate=0.1,
-        autocall_observations=ins.autocallable_observations(
+        autocall_observations=ins.SnowballObservation.from_columns(
             [middle, end], [105, 105], knock_out_coupon_rates=[0.1, 0.1]
         ),
         calendar=calendar,
@@ -1156,7 +1150,7 @@ def test_expiry_only_knock_in_ignores_earlier_recovered_breaches(family):
         upper_strike=100,
         lower_strike=0,
         knock_in_observation=KnockInObservation.at_expiry(),
-        autocall_observations=ins.autocallable_observations(
+        autocall_observations=ins.SnowballObservation.from_columns(
             [START + timedelta(days=30), end],
             [300, 300],
             knock_out_coupon_rates=[0] * 2,

@@ -33,7 +33,7 @@ fn portfolio_prices_replay_scalar_paths() -> Result<()> {
     terms.knock_in_level = 90.0;
     let second = SnowballOption::new(terms.clone())?;
     let early = SnowballOption::new(SnowballTerms {
-        autocall_observations: autocallable_observations(
+        autocall_observations: SnowballObservation::from_columns(
             &[date(2, 3), date(3, 3), date(4, 1)],
             &[85.0; 3],
             &[0.08; 3],
@@ -203,7 +203,7 @@ fn binary_price_and_uncertainty_match_an_independent_terminal_portfolio() {
         0.0,
         date(1, 1),
         end,
-        autocallable_observations(&[end], &[100.0], &[0.1]).unwrap(),
+        SnowballObservation::from_columns(&[end], &[100.0], &[0.1]).unwrap(),
         TradingCalendar::weekdays(),
     ))
     .unwrap();
@@ -238,7 +238,7 @@ fn shared_coupon_endpoints_replay_scalar_paths_and_detect_different_grids() -> R
         100.0,
         start,
         end,
-        autocallable_observations(&[date(2, 3), end], &[105.0, 110.0], &[0.08, 0.09])?,
+        SnowballObservation::from_columns(&[date(2, 3), end], &[105.0, 110.0], &[0.08, 0.09])?,
         KnockInObservation::EveryTradingDay {
             observation_clock_time: start.time_of_day(),
         },
@@ -278,7 +278,7 @@ fn scalar_price_survives_confidence_interval_overflow() {
         0.0,
         start,
         end,
-        autocallable_observations(&[end], &[100.0], &[1.5e308]).unwrap(),
+        SnowballObservation::from_columns(&[end], &[100.0], &[1.5e308]).unwrap(),
         TradingCalendar::weekdays(),
     );
     terms.principal_redemption_ratio = 0.0;
@@ -325,7 +325,7 @@ fn discounted_cashflows_preserve_representable_values_beyond_discount_range() {
             0.0,
             start,
             end,
-            autocallable_observations(&[end], &[100.0], &[0.0]).unwrap(),
+            SnowballObservation::from_columns(&[end], &[100.0], &[0.0]).unwrap(),
             TradingCalendar::weekdays(),
         );
         terms.principal_redemption_ratio = principal;
@@ -385,7 +385,8 @@ fn sampling_settings_counts_and_threads_preserve_prices_and_uncertainty() {
         0.02,
         date(1, 1),
         date(4, 1),
-        autocallable_observations(&[date(2, 3), date(4, 1)], &[101.0, 105.0], &[0.08; 2]).unwrap(),
+        SnowballObservation::from_columns(&[date(2, 3), date(4, 1)], &[101.0, 105.0], &[0.08; 2])
+            .unwrap(),
         TradingCalendar::weekdays(),
     ))
     .unwrap();
@@ -466,7 +467,7 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
         60.0,
         date(1, 1),
         end,
-        autocallable_observations(&[date(2, 3), end], &[103.0, 105.0], &[0.08; 2]).unwrap(),
+        SnowballObservation::from_columns(&[date(2, 3), end], &[103.0, 105.0], &[0.08; 2]).unwrap(),
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (end).time_of_day(),
         },
@@ -555,7 +556,7 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
         60.0,
         date(1, 1),
         end,
-        autocallable_observations(&[end], &[100.0], &[0.0]).unwrap(),
+        SnowballObservation::from_columns(&[end], &[100.0], &[0.0]).unwrap(),
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (end).time_of_day(),
         },
@@ -590,7 +591,8 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
         60.0,
         date(1, 1),
         date(4, 1),
-        autocallable_observations(&[date(2, 3), date(4, 1)], &[110.0; 2], &[0.08; 2]).unwrap(),
+        SnowballObservation::from_columns(&[date(2, 3), date(4, 1)], &[110.0; 2], &[0.08; 2])
+            .unwrap(),
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (date(4, 1)).time_of_day(),
         },
@@ -694,7 +696,7 @@ fn sobol_dimension_limit_applies_only_to_remaining_simulation_dates() {
         60.0,
         start,
         end,
-        autocallable_observations(&[end], &[1e100], &[0.08]).unwrap(),
+        SnowballObservation::from_columns(&[end], &[1e100], &[0.08]).unwrap(),
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (end).time_of_day(),
         },
@@ -752,7 +754,7 @@ fn daily_monitoring_and_all_variants_agree_with_quadrature() {
 
     let start = date(1, 1);
     let end = date(4, 1);
-    let observations = autocallable_observations(
+    let observations = SnowballObservation::from_columns(
         &[date(2, 3), date(3, 3), end],
         &[110.0, 108.0, 105.0],
         &[0.08; 3],
@@ -853,7 +855,7 @@ fn shared_daily_grid_prices_staggered_cash_flows() -> Result<()> {
     let first = SnowballOption::new(terms.clone())?;
     let second = SnowballOption::new(SnowballTerms {
         knock_in_level: 95.0,
-        autocall_observations: autocallable_observations(
+        autocall_observations: SnowballObservation::from_columns(
             &[date(2, 4), date(3, 4), date(4, 1)],
             &[106.0, 103.0, 99.0],
             &[0.12, 0.09, 0.06],
@@ -887,7 +889,7 @@ fn shared_daily_grid_prices_staggered_cash_flows() -> Result<()> {
         parallel.price_many_on_shared_grid(&notes, &context)?
     );
     let off_clock = SnowballOption::new(SnowballTerms {
-        autocall_observations: autocallable_observations(
+        autocall_observations: SnowballObservation::from_columns(
             &[date(2, 3).add_micros(1)?, date(3, 3), date(4, 1)],
             &[103.0, 108.0, 105.0],
             &[0.08; 3],
@@ -933,7 +935,7 @@ fn shared_daily_grid_settles_notes_at_their_own_maturities() -> Result<()> {
     let long = SnowballOption::new(terms.clone())?;
     let short = SnowballOption::new(SnowballTerms {
         expiry_time: date(3, 4),
-        autocall_observations: autocallable_observations(
+        autocall_observations: SnowballObservation::from_columns(
             &[date(2, 3), date(3, 4)],
             &[110.0, 105.0],
             &[0.08; 2],
@@ -1049,7 +1051,7 @@ fn mixed_knock_out_strips_match_individual_first_passages() -> Result<()> {
     ]
     .map(|(level, upper_strike)| {
         SnowballOption::new(SnowballTerms {
-            autocall_observations: autocallable_observations(
+            autocall_observations: SnowballObservation::from_columns(
                 &[date(2, 3), date(3, 3), date(4, 1)],
                 &[level; 3],
                 &[0.08, 0.09, 0.10],

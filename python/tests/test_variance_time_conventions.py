@@ -702,7 +702,7 @@ def test_saved_snowball_keeps_a_single_surviving_unknocked_spot():
         upper_strike=100,
         lower_strike=50,
         knock_in_observation=ins.KnockInObservation.every_trading_day(time(12)),
-        autocall_observations=ins.autocallable_observations(
+        autocall_observations=ins.SnowballObservation.from_columns(
             [fixing], [knock_out], knock_out_coupon_rates=[0.05]
         ),
     )
@@ -772,7 +772,7 @@ def test_snowball_coupon_keeps_natural_day_accrual_on_closed_dates(kind):
         lower_strike=60,
         knock_in_observation=ins.KnockInObservation.at_expiry(),
         maturity_coupon_rate=0.06,
-        autocall_observations=ins.autocallable_observations(
+        autocall_observations=ins.SnowballObservation.from_columns(
             [end], [120], knock_out_coupon_rates=[0.08]
         ),
         calendar=TradingCalendar.all_days(),

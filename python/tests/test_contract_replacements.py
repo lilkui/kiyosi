@@ -158,9 +158,7 @@ def contract_inputs():
             "principal_redemption_ratio": 1,
             "effective_time": START,
             "expiry_time": END,
-            "autocall_observations": [
-                i.AutocallableObservation.snowball(END, 110, coupon_rate=0)
-            ],
+            "autocall_observations": [i.SnowballObservation(END, 110, coupon_rate=0)],
         },
     )
     yield (
@@ -196,9 +194,7 @@ def contract_inputs():
             "principal_redemption_ratio": 1,
             "effective_time": START,
             "expiry_time": END,
-            "autocall_observations": [
-                i.AutocallableObservation.snowball(END, 110, coupon_rate=0)
-            ],
+            "autocall_observations": [i.SnowballObservation(END, 110, coupon_rate=0)],
         },
     )
     yield (
@@ -213,9 +209,7 @@ def contract_inputs():
             "principal_redemption_ratio": 1,
             "effective_time": START,
             "expiry_time": END,
-            "autocall_observations": [
-                i.AutocallableObservation.snowball(END, 110, coupon_rate=0)
-            ],
+            "autocall_observations": [i.SnowballObservation(END, 110, coupon_rate=0)],
         },
     )
     yield (
@@ -283,9 +277,7 @@ UPDATES = {
     "observation_clock_time": clock_time(1, 2, 3, 456789),
     "barrier_state": None,
     "principal_redemption_ratio": 0.9,
-    "autocall_observations": [
-        i.AutocallableObservation.snowball(END, 115, coupon_rate=0)
-    ],
+    "autocall_observations": [i.SnowballObservation(END, 115, coupon_rate=0)],
     "maturity_coupon_rate": 0.15,
     "minimum_coupon_rate": 0.03,
     "coupon_rate": 0.15,

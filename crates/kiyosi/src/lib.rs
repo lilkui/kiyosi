@@ -194,15 +194,14 @@ pub use instruments::asian::{
     GeometricAveragePriceOption,
 };
 pub use instruments::autocallable::{
-    AutocallableBarrierState, AutocallableNote, AutocallableObservation,
-    AutocallableObservationChanges, AutocallableTerms, BinarySnowballOption,
+    AutocallableBarrierState, AutocallableNote, AutocallableTerms, BinarySnowballOption,
     BinarySnowballOptionChanges, BinarySnowballTerms, CouponObservation,
     DEFAULT_AUTOCALLABLE_REBATE_RATE, DEFAULT_PHOENIX_LOCKOUT_PERIODS,
     DEFAULT_PRINCIPAL_REDEMPTION_RATIO, KnockInObservation, KnockOutObservation, PhoenixOption,
     PhoenixOptionChanges, PhoenixPreset, PhoenixPresetTerms, PhoenixTerms, SnowballCouponTerms,
-    SnowballOption, SnowballOptionChanges, SnowballPreset, SnowballPresetTerms, SnowballTerms,
-    TernarySnowballOption, TernarySnowballOptionChanges, TernarySnowballTerms,
-    autocallable_observations,
+    SnowballObservation, SnowballObservationChanges, SnowballOption, SnowballOptionChanges,
+    SnowballPreset, SnowballPresetTerms, SnowballTerms, TernarySnowballOption,
+    TernarySnowballOptionChanges, TernarySnowballTerms,
 };
 pub use instruments::barrier::{
     BarrierOption, BarrierOptionChanges, BarrierOptionTerms, BarrierTouchState, BarrierType,

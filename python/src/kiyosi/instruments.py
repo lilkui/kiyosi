@@ -45,7 +45,7 @@ Numerical time sensitivities hold supplied history fixed.
 ``None`` clears nullable fields to unknown. Terms and history are validated
 together, and each omitted history field retains its value independently.
 
-Use ``AutocallableObservation.snowball`` for snowball knock-out coupons.
+Use ``SnowballObservation`` for snowball knock-out coupons.
 Phoenix uses separate ``KnockOutObservation`` and ``CouponObservation`` records,
 passed through ``knock_out_observations`` and ``coupon_observations``. Each list
 is nonempty and strictly ordered; their times and thresholds are independent.
@@ -117,7 +117,6 @@ from ._native import (
     AmericanOption,
     ArithmeticAveragePriceOption,
     AssetOrNothingOption,
-    AutocallableObservation,
     BarrierOption,
     BinaryBarrierOption,
     BinarySnowballOption,
@@ -131,10 +130,10 @@ from ._native import (
     KnockOutObservation,
     PhoenixOption,
     RangeAccrualOption,
+    SnowballObservation,
     SnowballOption,
     TernarySnowballOption,
     TouchOption,
-    autocallable_observations,
 )
 
 OptionType = Literal["call", "put"]
@@ -144,7 +143,6 @@ __all__ = [
     "AmericanOption",
     "ArithmeticAveragePriceOption",
     "AssetOrNothingOption",
-    "AutocallableObservation",
     "BarrierOption",
     "BinaryBarrierOption",
     "BinarySnowballOption",
@@ -159,8 +157,8 @@ __all__ = [
     "OptionType",
     "PhoenixOption",
     "RangeAccrualOption",
+    "SnowballObservation",
     "SnowballOption",
     "TernarySnowballOption",
     "TouchOption",
-    "autocallable_observations",
 ]

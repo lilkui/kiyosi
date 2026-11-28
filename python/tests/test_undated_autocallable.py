@@ -7,8 +7,8 @@ import pytest
 from kiyosi import InvalidInputError, MissingHistoryError
 from kiyosi.instruments import (
     KnockInObservation,
+    SnowballObservation,
     SnowballOption,
-    autocallable_observations,
 )
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -32,7 +32,7 @@ def contract(state):
         effective_time=START,
         expiry_time=END,
         knock_in_observation=KnockInObservation.every_trading_day(time()),
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [EVENT, END], [110, 110], knock_out_coupon_rates=[0.08, 0.08]
         ),
         barrier_state=state,

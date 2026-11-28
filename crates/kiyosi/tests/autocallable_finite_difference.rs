@@ -47,7 +47,7 @@ fn saved_snowball_does_not_replay_the_closed_prefix_at_each_fixing_level() -> Re
         40.0,
         start,
         end,
-        autocallable_observations(&times, &levels, &[0.05; 500])?,
+        SnowballObservation::from_columns(&times, &levels, &[0.05; 500])?,
         KnockInObservation::EveryTradingDay {
             observation_clock_time: TimeOfDay::new(0, 0, 0, 0)?,
         },
@@ -98,7 +98,7 @@ fn scalar_fixed_snowball_consults_the_future_calendar_once() -> Result<()> {
         100.0,
         start,
         expiry,
-        vec![AutocallableObservation::snowball(expiry, 110.0, 0.0)?],
+        vec![SnowballObservation::new(expiry, 110.0, 0.0)?],
         KnockInObservation::EveryTradingDay {
             observation_clock_time: TimeOfDay::new(0, 0, 0, 0)?,
         },
@@ -125,7 +125,7 @@ fn terminal_binary_matches_independent_cash_and_digital_portfolio() {
         0.0,
         date(1, 1),
         end,
-        autocallable_observations(&[end], &[100.0], &[0.1]).unwrap(),
+        SnowballObservation::from_columns(&[end], &[100.0], &[0.1]).unwrap(),
         TradingCalendar::weekdays(),
     ))
     .unwrap();
@@ -157,7 +157,7 @@ fn past_knock_out_levels_do_not_size_the_grid() -> Result<()> {
             0.1,
             start,
             end,
-            autocallable_observations(&[start, end], &[past_level, 100.0], &[0.5; 2])?,
+            SnowballObservation::from_columns(&[start, end], &[past_level, 100.0], &[0.5; 2])?,
             TradingCalendar::all_days(),
         );
         terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
@@ -197,7 +197,7 @@ fn monitoring_modes_and_all_variants_agree_with_quadrature() {
 
     let start = date(1, 1);
     let end = date(4, 1);
-    let observations = autocallable_observations(
+    let observations = SnowballObservation::from_columns(
         &[date(2, 3), date(3, 3), end],
         &[110.0, 108.0, 105.0],
         &[0.08; 3],
@@ -388,7 +388,7 @@ fn defaults_validation_history_and_node_curves_are_preserved() {
         60.0,
         start,
         end,
-        autocallable_observations(&[date(2, 3), end], &[110.0; 2], &[0.08; 2]).unwrap(),
+        SnowballObservation::from_columns(&[date(2, 3), end], &[110.0; 2], &[0.08; 2]).unwrap(),
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (end).time_of_day(),
         },
@@ -540,7 +540,7 @@ fn current_threshold_greeks_and_fixed_node_curve_identifiability() {
         0.0,
         start,
         end,
-        autocallable_observations(&[end], &[110.0], &[0.0]).unwrap(),
+        SnowballObservation::from_columns(&[end], &[110.0], &[0.0]).unwrap(),
         TradingCalendar::weekdays(),
     ))
     .unwrap();
@@ -572,7 +572,7 @@ fn binary_domains_use_actual_levels_in_small_price_units() {
             0.0,
             start,
             end,
-            autocallable_observations(&[end], &[level], &[0.1]).unwrap(),
+            SnowballObservation::from_columns(&[end], &[level], &[0.1]).unwrap(),
             TradingCalendar::weekdays(),
         ))
         .unwrap();
@@ -612,7 +612,7 @@ fn native_spot_greeks_do_not_require_a_feasible_scalar_bump() {
             0.0,
             start,
             end,
-            autocallable_observations(&[end], &[100.0], &[coupon]).unwrap(),
+            SnowballObservation::from_columns(&[end], &[100.0], &[coupon]).unwrap(),
             TradingCalendar::weekdays(),
         ))
         .unwrap();
@@ -647,7 +647,7 @@ fn explicit_uniform_log_grid_checks_stencil_stability() {
         0.0,
         start,
         end,
-        autocallable_observations(&[date(2, 3), end], &[100.0; 2], &[0.1; 2]).unwrap(),
+        SnowballObservation::from_columns(&[date(2, 3), end], &[100.0; 2], &[0.1; 2]).unwrap(),
         TradingCalendar::weekdays(),
     ))
     .unwrap();

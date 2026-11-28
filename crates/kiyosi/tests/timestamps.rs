@@ -21,7 +21,7 @@ fn scheduled_time_stencils_exclude_inclusive_events_and_allow_gaps() -> Result<(
         0.1,
         start,
         end,
-        autocallable_observations(&times, &[110.0; 3], &[0.1; 3])?,
+        SnowballObservation::from_columns(&times, &[110.0; 3], &[0.1; 3])?,
         TradingCalendar::weekdays(),
     );
     note_terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
@@ -228,7 +228,7 @@ fn closed_date_settlement_preserves_open_date_observations() -> Result<()> {
             &[observation]
         );
 
-        let records = vec![AutocallableObservation::snowball(observation, 110.0, 0.0)?];
+        let records = vec![SnowballObservation::new(observation, 110.0, 0.0)?];
         let mut terms = SnowballTerms::new(
             0.12,
             100.0,
@@ -515,7 +515,7 @@ fn daily_history_uses_specified_clock_and_inclusive_start() {
         0.0,
         time(6, 9, 0),
         time(7, 15, 0),
-        vec![AutocallableObservation::snowball(time(7, 15, 0), 110.0, 0.0).unwrap()],
+        vec![SnowballObservation::new(time(7, 15, 0), 110.0, 0.0).unwrap()],
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (time(7, 15, 0)).time_of_day(),
         },
@@ -657,7 +657,7 @@ fn empty_daily_windows_are_valid_except_for_range_accrual() -> Result<()> {
         0.0,
         start,
         end,
-        vec![AutocallableObservation::snowball(end, 1000.0, 0.0)?],
+        vec![SnowballObservation::new(end, 1000.0, 0.0)?],
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: clock,
         },
@@ -732,11 +732,7 @@ fn off_clock_maturity_settles_without_additional_knock_in_in_every_engine() -> R
         0.0,
         time(6, 9, 0),
         time(6, 18, 0),
-        vec![AutocallableObservation::snowball(
-            time(6, 10, 0),
-            1000.0,
-            0.0,
-        )?],
+        vec![SnowballObservation::new(time(6, 10, 0), 1000.0, 0.0)?],
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: clock,
         },
@@ -826,11 +822,7 @@ fn knock_in_observation_replacement_switches_rule_and_clock_atomically() -> Resu
         0.0,
         time(6, 9, 0),
         time(7, 18, 0),
-        vec![AutocallableObservation::snowball(
-            time(7, 15, 0),
-            110.0,
-            0.0,
-        )?],
+        vec![SnowballObservation::new(time(7, 15, 0), 110.0, 0.0)?],
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: clock,
         },
@@ -896,7 +888,7 @@ fn autocallable_explicit_events_do_not_trigger_daily_knock_in() {
         0.0,
         start,
         expiry,
-        vec![AutocallableObservation::snowball(time(6, 10, 0), 1000.0, 0.0).unwrap()],
+        vec![SnowballObservation::new(time(6, 10, 0), 1000.0, 0.0).unwrap()],
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (expiry).time_of_day(),
         },
@@ -930,14 +922,14 @@ fn autocallable_explicit_events_do_not_trigger_daily_knock_in() {
         0.0,
         start,
         expiry,
-        vec![AutocallableObservation::snowball(time(6, 10, 0), 110.0, 0.0).unwrap()],
+        vec![SnowballObservation::new(time(6, 10, 0), 110.0, 0.0).unwrap()],
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (expiry).time_of_day(),
         },
         TradingCalendar::weekdays(),
     );
     terms.autocall_observations[0] = terms.autocall_observations[0]
-        .replace(AutocallableObservationChanges {
+        .replace(SnowballObservationChanges {
             coupon_rate: Some(0.12),
             ..Default::default()
         })
@@ -1113,7 +1105,7 @@ fn contract_schedules_expose_effective_observations() -> Result<()> {
         assert_eq!(changed.accumulation_schedule()?.times(), &[start, last]);
     }
 
-    let observations = vec![AutocallableObservation::snowball(expiry, 110.0, 0.0)?];
+    let observations = vec![SnowballObservation::new(expiry, 110.0, 0.0)?];
     let terms = SnowballTerms::new(
         0.1,
         100.0,

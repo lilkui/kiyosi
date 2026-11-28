@@ -90,7 +90,7 @@ fn scheduled_quadrature_rejects_excessive_rollback_work() -> Result<()> {
         0.0,
         start,
         end,
-        vec![AutocallableObservation::snowball(end, 140.0, 0.08)?],
+        vec![SnowballObservation::new(end, 140.0, 0.08)?],
         KnockInObservation::EveryTradingDay {
             observation_clock_time: clock,
         },

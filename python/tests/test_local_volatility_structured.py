@@ -53,7 +53,7 @@ def market(spot=101):
 
 def contracts():
     dates = {"effective_time": START, "expiry_time": END}
-    observations = ins.autocallable_observations(
+    observations = ins.SnowballObservation.from_columns(
         OBSERVATIONS, KNOCK_OUT_LEVELS, knock_out_coupon_rates=[0.08] * 3
     )
     common = dict(dates, autocall_observations=observations)

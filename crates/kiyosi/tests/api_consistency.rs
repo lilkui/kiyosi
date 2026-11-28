@@ -9,7 +9,7 @@ fn autocallable_calendars_control_knock_in_after_record_conversion() -> Result<(
     let calendar =
         TradingCalendar::custom(TradingCalendar::weekdays(), vec![at.date()], vec![], None)?;
     let schedule = ObservationSchedule::new(vec![end], start, end, &calendar)?;
-    let records = autocallable_observations(schedule.times(), &[110.0], &[0.1])?;
+    let records = SnowballObservation::from_columns(schedule.times(), &[110.0], &[0.1])?;
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(0.05, 0.02, 0.0)?,
         79.999,
@@ -257,7 +257,7 @@ fn observation_terms_control_cashflows() -> Result<()> {
     let start = Date::new(2025, 1, 2)?.start_of_day();
     let end = start.add_days(365)?;
     assert!(matches!(
-        autocallable_observations(&[end], &[110.0], &[]),
+        SnowballObservation::from_columns(&[end], &[110.0], &[]),
         Err(Error::InvalidInput(_))
     ));
     let context = PricingContext::new(
@@ -271,7 +271,7 @@ fn observation_terms_control_cashflows() -> Result<()> {
             0.12,
             start,
             end,
-            vec![AutocallableObservation::snowball(end, 110.0, coupon)?],
+            vec![SnowballObservation::new(end, 110.0, coupon)?],
             TradingCalendar::weekdays(),
         ))?
         .replace(BinarySnowballOptionChanges {
@@ -563,7 +563,7 @@ fn structured_contract_calendars_control_observations_and_survive_replacement() 
         0.0,
         start,
         end,
-        vec![AutocallableObservation::snowball(end, 110.0, 0.0)?],
+        vec![SnowballObservation::new(end, 110.0, 0.0)?],
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (end).time_of_day(),
         },
@@ -997,17 +997,17 @@ fn observation_construction_validates_numeric_terms_before_note_creation() -> Re
     let time = Date::new(2026, 1, 1)?.start_of_day();
     for level in [0.0, -1.0, f64::NAN, f64::INFINITY] {
         assert!(matches!(
-            AutocallableObservation::snowball(time, level, 0.0),
+            SnowballObservation::new(time, level, 0.0),
             Err(Error::InvalidInput(_))
         ));
         assert!(matches!(
-            autocallable_observations(&[time], &[level], &[0.0]),
+            SnowballObservation::from_columns(&[time], &[level], &[0.0]),
             Err(Error::InvalidInput(_))
         ));
     }
     for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         assert!(matches!(
-            autocallable_observations(&[time], &[110.0], &[invalid]),
+            SnowballObservation::from_columns(&[time], &[110.0], &[invalid]),
             Err(Error::InvalidInput(_))
         ));
     }
@@ -1017,11 +1017,11 @@ fn observation_construction_validates_numeric_terms_before_note_creation() -> Re
             Err(Error::InvalidInput(_))
         ));
     }
-    let records = autocallable_observations(&[time], &[110.0], &[-0.01])?;
+    let records = SnowballObservation::from_columns(&[time], &[110.0], &[-0.01])?;
     assert_eq!(records[0].coupon_rate(), -0.01);
-    let edited = AutocallableObservation::snowball(time, 110.0, 0.0)?;
+    let edited = SnowballObservation::new(time, 110.0, 0.0)?;
     assert!(matches!(
-        edited.replace(AutocallableObservationChanges {
+        edited.replace(SnowballObservationChanges {
             coupon_rate: Some(f64::NAN),
             ..Default::default()
         }),
@@ -1675,7 +1675,7 @@ fn contractual_calendars_are_validated_before_pricing() -> Result<()> {
         0.1,
         start,
         end,
-        autocallable_observations(&[closed], &[110.0], &[0.0])?,
+        SnowballObservation::from_columns(&[closed], &[110.0], &[0.0])?,
         TradingCalendar::weekdays(),
     );
     assert!(matches!(
@@ -1839,7 +1839,7 @@ fn structured_engines_require_curve_coverage_only_for_remaining_cashflows() -> R
         0.1,
         start,
         expiry,
-        autocallable_observations(
+        SnowballObservation::from_columns(
             &[start.add_days(1)?, start.add_days(2)?, expiry],
             &[120.0; 3],
             &[0.0; 3],
@@ -1952,7 +1952,7 @@ fn accumulator_settlement_requires_a_strictly_prior_knock_out_observation() -> R
 fn snowball_coupon_diagnostics_identify_the_supplied_field() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = start.add_days(365)?;
-    let observations = autocallable_observations(&[end], &[110.0], &[0.0])?;
+    let observations = SnowballObservation::from_columns(&[end], &[110.0], &[0.0])?;
     for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         let binary = BinarySnowballOption::new(BinarySnowballTerms::new(
             invalid,
@@ -2544,14 +2544,14 @@ fn greek_methods_check_curve_support_without_rejecting_asian_settlement() -> Res
 #[test]
 fn observation_replacement_preserves_validity_and_original_values() -> Result<()> {
     let time = Date::new(2026, 1, 1)?.start_of_day();
-    let original = AutocallableObservation::snowball(time, 110.0, -0.01)?;
+    let original = SnowballObservation::new(time, 110.0, -0.01)?;
     let phoenix = CouponObservation::new(time, 90.0)?;
     assert!(matches!(
         phoenix.replace(None, Some(-1.0)),
         Err(Error::InvalidInput(_))
     ));
     assert_eq!(phoenix.coupon_barrier_level(), 90.0);
-    let changed = original.replace(AutocallableObservationChanges {
+    let changed = original.replace(SnowballObservationChanges {
         time: Some(time.add_days(1)?),
         knock_out_level: Some(120.0),
         coupon_rate: Some(0.08),
@@ -2561,15 +2561,15 @@ fn observation_replacement_preserves_validity_and_original_values() -> Result<()
     assert_eq!(changed.coupon_rate(), 0.08);
     assert_eq!(original.replace(Default::default())?, original);
     for changes in [
-        AutocallableObservationChanges {
+        SnowballObservationChanges {
             knock_out_level: Some(0.0),
             ..Default::default()
         },
-        AutocallableObservationChanges {
+        SnowballObservationChanges {
             knock_out_level: Some(f64::INFINITY),
             ..Default::default()
         },
-        AutocallableObservationChanges {
+        SnowballObservationChanges {
             coupon_rate: Some(f64::NAN),
             ..Default::default()
         },

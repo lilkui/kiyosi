@@ -424,7 +424,7 @@ fn saved_autocallable_batch_reuses_closed_variance_horizon() -> Result<()> {
         0.02,
         start,
         end,
-        autocallable_observations(&[end], &[110.0], &[0.04])?,
+        SnowballObservation::from_columns(&[end], &[110.0], &[0.04])?,
         TradingCalendar::all_days(),
     ))?;
     let context = PricingContext::new(model, 100.0, start)?;

@@ -68,7 +68,7 @@ fn coupon_solvers_reprice_local_volatility_quotes() -> Result<()> {
         0.06,
         start,
         end,
-        autocallable_observations(&[end], &[110.0], &[0.08])?,
+        SnowballObservation::from_columns(&[end], &[110.0], &[0.08])?,
         TradingCalendar::weekdays(),
     ))?;
     for convention in [
@@ -148,7 +148,7 @@ fn monte_carlo_coupon_solvers_require_a_replayable_seed() -> Result<()> {
         0.06,
         date(1, 1),
         date(4, 1),
-        autocallable_observations(&[date(4, 1)], &[110.0], &[0.08])?,
+        SnowballObservation::from_columns(&[date(4, 1)], &[110.0], &[0.08])?,
         TradingCalendar::weekdays(),
     ))?;
     let quote = engine.price(&note.with_coupon(0.12, convention)?, &context)?;
@@ -249,7 +249,7 @@ fn ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons() -> Resu
                 80.0,
                 date(1, 1),
                 date(4, 1),
-                autocallable_observations(&[date(4, 1)], &[110.0], &[anchor])?,
+                SnowballObservation::from_columns(&[date(4, 1)], &[110.0], &[anchor])?,
                 kiyosi::KnockInObservation::EveryTradingDay {
                     observation_clock_time: (date(4, 1)).time_of_day(),
                 },
@@ -320,7 +320,7 @@ fn ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons() -> Resu
             80.0,
             date(1, 1),
             date(4, 1),
-            autocallable_observations(&[date(4, 1)], &[110.0], &[0.05])?,
+            SnowballObservation::from_columns(&[date(4, 1)], &[110.0], &[0.05])?,
             kiyosi::KnockInObservation::EveryTradingDay {
                 observation_clock_time: (date(4, 1)).time_of_day(),
             },
@@ -358,8 +358,12 @@ fn binary() -> BinarySnowballOption {
         0.06,
         date(1, 1),
         date(4, 1),
-        autocallable_observations(&[date(2, 3), date(4, 1)], &[110.0, 105.0], &[0.08, 0.12])
-            .unwrap(),
+        SnowballObservation::from_columns(
+            &[date(2, 3), date(4, 1)],
+            &[110.0, 105.0],
+            &[0.08, 0.12],
+        )
+        .unwrap(),
         TradingCalendar::weekdays(),
     ))
     .unwrap()
@@ -377,13 +381,13 @@ fn binary_quote_recovers_schedule_shift_and_maturity_conventions() {
     ] {
         let mut terms = note.terms().clone();
         terms.autocall_observations[0] = terms.autocall_observations[0]
-            .replace(AutocallableObservationChanges {
+            .replace(SnowballObservationChanges {
                 coupon_rate: Some(0.18),
                 ..Default::default()
             })
             .unwrap();
         terms.autocall_observations[1] = terms.autocall_observations[1]
-            .replace(AutocallableObservationChanges {
+            .replace(SnowballObservationChanges {
                 coupon_rate: Some(0.22),
                 ..Default::default()
             })
@@ -892,7 +896,7 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
         0.06,
         date(1, 1),
         date(4, 1),
-        autocallable_observations(&[date(4, 1)], &[110.0], &[0.08]).unwrap(),
+        SnowballObservation::from_columns(&[date(4, 1)], &[110.0], &[0.08]).unwrap(),
         TradingCalendar::weekdays(),
     ))
     .unwrap();
@@ -1046,7 +1050,7 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
         implied_phoenix_coupon(&engine, &phoenix, &current, quote, Default::default()).unwrap();
     let rate = solved;
     assert!((rate - 0.18).abs() < 1e-8);
-    let records = autocallable_observations(&[date(4, 1)], &[110.0], &[0.08]).unwrap();
+    let records = SnowballObservation::from_columns(&[date(4, 1)], &[110.0], &[0.08]).unwrap();
     let mut terms = SnowballTerms::new(
         0.06,
         100.0,
@@ -1093,8 +1097,12 @@ fn coupon_endpoints_can_change_daily_knock_in_layers() {
         100.0,
         date(1, 1),
         date(1, 13),
-        autocallable_observations(&[date(1, 7), date(1, 13)], &[110.0, 110.0], &[0.073, 0.083])
-            .unwrap(),
+        SnowballObservation::from_columns(
+            &[date(1, 7), date(1, 13)],
+            &[110.0, 110.0],
+            &[0.073, 0.083],
+        )
+        .unwrap(),
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (date(1, 13)).time_of_day(),
         },

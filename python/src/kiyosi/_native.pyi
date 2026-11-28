@@ -7033,12 +7033,26 @@ class KnockInObservation:
     def observation_clock_time(self) -> time | None:
         """Return the owned daily clock, or None for expiry-only observation."""
 
-class AutocallableObservation:
+class SnowballObservation:
     """Snowball knock-out observation with a finite annual coupon.
+
+    Parameters
+    ----------
+    time : datetime.datetime
+        Exact observation timestamp.
+    knock_out_level : float
+        Positive finite inclusive knock-out threshold.
+    coupon_rate : float
+        Finite signed annual knock-out coupon; supply zero explicitly for no
+        coupon.
+
+    Raises
+    ------
+    InvalidInputError
+        If the level is nonpositive or non-finite, or the coupon is non-finite.
 
     Notes
     -----
-    Construct with snowball(time, knock_out_level, coupon_rate=...).
     Numeric terms are validated in Rust; the note validates ordering, life bounds
     and calendar compatibility. Phoenix uses KnockOutObservation and CouponObservation.
     """
@@ -7065,7 +7079,7 @@ class AutocallableObservation:
 
         Returns
         -------
-        AutocallableObservation
+        SnowballObservation
             Validated copy. The note checks schedule constraints.
 
         Raises
@@ -7076,29 +7090,9 @@ class AutocallableObservation:
             If a field has an invalid representation.
         """
 
-    def __new__(cls, _token: Never, /) -> Self: ...
-    @staticmethod
-    def snowball(
-        time: datetime, knock_out_level: _Real, *, coupon_rate: _Real
-    ) -> AutocallableObservation:
-        """Create a snowball observation with an annual knock-out coupon.
-
-        Parameters
-        ----------
-        time : datetime.datetime
-            Exact observation timestamp.
-        knock_out_level : float
-            Positive finite inclusive knock-out threshold.
-        coupon_rate : float
-            Finite signed annual knock-out coupon; supply zero explicitly for no
-            coupon.
-
-        Raises
-        ------
-        InvalidInputError
-            If the level is nonpositive or non-finite, or the coupon is non-finite.
-        """
-
+    def __init__(
+        self, time: datetime, knock_out_level: _Real, *, coupon_rate: _Real
+    ) -> None: ...
     @property
     def time(self) -> datetime:
         """Return exact observation time."""
@@ -7111,74 +7105,75 @@ class AutocallableObservation:
     def coupon_rate(self) -> float:
         """Return the finite annual snowball coupon rate."""
 
-def autocallable_observations(
-    autocall_times: Iterable[datetime],
-    knock_out_levels: Iterable[_Real],
-    *,
-    knock_out_coupon_rates: Iterable[_Real],
-) -> list[AutocallableObservation]:
-    """Combine parallel sequences into validated snowball observation records.
+    @staticmethod
+    def from_columns(
+        autocall_times: Iterable[datetime],
+        knock_out_levels: Iterable[_Real],
+        *,
+        knock_out_coupon_rates: Iterable[_Real],
+    ) -> list[SnowballObservation]:
+        """Combine parallel sequences into validated snowball observation records.
 
-    Parameters
-    ----------
-    autocall_times : iterable of datetime.datetime
-        Knock-out and coupon observation times; the note checks ordering and life
-        bounds.
-    knock_out_levels : iterable of float
-        Positive inclusive knock-out levels, one per observation timestamp.
-    knock_out_coupon_rates : iterable of float
-        Explicit annual snowball coupons, including zero for no coupon.
+        Parameters
+        ----------
+        autocall_times : iterable of datetime.datetime
+            Knock-out and coupon observation times; the note checks ordering and life
+            bounds.
+        knock_out_levels : iterable of float
+            Positive inclusive knock-out levels, one per observation timestamp.
+        knock_out_coupon_rates : iterable of float
+            Explicit annual snowball coupons, including zero for no coupon.
 
-    Returns
-    -------
-    list of AutocallableObservation
-        Observation records.
+        Returns
+        -------
+        list of SnowballObservation
+            Observation records.
 
-    Raises
-    ------
-    InvalidInputError
-        If sequence lengths differ or numeric levels or coupons are invalid.
-    TypeError
-        If an argument is missing or a value has an invalid representation.
+        Raises
+        ------
+        InvalidInputError
+            If sequence lengths differ or numeric levels or coupons are invalid.
+        TypeError
+            If an argument is missing or a value has an invalid representation.
 
-    Notes
-    -----
-    The note constructor validates ordering, life bounds and calendar compatibility.
+        Notes
+        -----
+        The note constructor validates ordering, life bounds and calendar compatibility.
 
-    Passing an ObservationSchedule copies its timestamps into the records;
-    the records carry no calendar. Pass calendar=schedule.calendar to the note
-    constructor to preserve its observation calendar. Raw note constructors require
-    an explicit calendar, including for daily knock-in monitoring.
+        Passing an ObservationSchedule copies its timestamps into the records;
+        the records carry no calendar. Pass calendar=schedule.calendar to the note
+        constructor to preserve its observation calendar. Raw note constructors require
+        an explicit calendar, including for daily knock-in monitoring.
 
-    Examples
-    --------
-    Forward a schedule's custom calendar when constructing a snowball:
+        Examples
+        --------
+        Forward a schedule's custom calendar when constructing a snowball:
 
-    >>> from datetime import datetime, time
-    >>> from kiyosi import instruments as ins, market
-    >>> start, end = datetime(2025, 1, 2, 15), datetime(2025, 1, 10, 15)
-    >>> calendar = market.TradingCalendar.custom(
-    ...     base=market.TradingCalendar.weekdays(),
-    ...     closed_dates=[datetime(2025, 1, 6).date()],
-    ... )
-    >>> schedule = market.ObservationSchedule(
-    ...     times=[end], start_time=start, end_time=end, calendar=calendar,
-    ... )
-    >>> records = ins.autocallable_observations(
-    ...     schedule, [110], knock_out_coupon_rates=[0.1],
-    ... )
-    >>> note = ins.SnowballOption(
-    ...     maturity_coupon_rate=0.1, initial_spot=100, knock_in_level=80,
-    ...     upper_strike=100, lower_strike=0,
-    ...     knock_in_observation=ins.KnockInObservation.every_trading_day(time(15)),
-    ...     effective_time=start, expiry_time=end, autocall_observations=records,
-    ...     calendar=schedule.calendar,
-    ... )
-    >>> note.calendar == schedule.calendar
-    True
-    >>> len(note.knock_in_observation_schedule)
-    6
-    """
+        >>> from datetime import datetime, time
+        >>> from kiyosi import instruments as ins, market
+        >>> start, end = datetime(2025, 1, 2, 15), datetime(2025, 1, 10, 15)
+        >>> calendar = market.TradingCalendar.custom(
+        ...     base=market.TradingCalendar.weekdays(),
+        ...     closed_dates=[datetime(2025, 1, 6).date()],
+        ... )
+        >>> schedule = market.ObservationSchedule(
+        ...     times=[end], start_time=start, end_time=end, calendar=calendar,
+        ... )
+        >>> records = ins.SnowballObservation.from_columns(
+        ...     schedule, [110], knock_out_coupon_rates=[0.1],
+        ... )
+        >>> note = ins.SnowballOption(
+        ...     maturity_coupon_rate=0.1, initial_spot=100, knock_in_level=80,
+        ...     upper_strike=100, lower_strike=0,
+        ...     knock_in_observation=ins.KnockInObservation.every_trading_day(time(15)),
+        ...     effective_time=start, expiry_time=end, autocall_observations=records,
+        ...     calendar=schedule.calendar,
+        ... )
+        >>> note.calendar == schedule.calendar
+        True
+        >>> len(note.knock_in_observation_schedule)
+        6
+        """
 
 class SnowballOption:
     """Snowball with knock-out coupons and capped knock-in downside loss.
@@ -7201,7 +7196,7 @@ class SnowballOption:
         Inclusive contract start.
     expiry_time : datetime.datetime
         Inclusive expiry time.
-    autocall_observations : iterable of AutocallableObservation
+    autocall_observations : iterable of SnowballObservation
         Nonempty, strictly ordered knock-out and coupon observations within life.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Events strictly before valuation. None is unknown; no_event means no prior
@@ -7258,7 +7253,7 @@ class SnowballOption:
         annual_rebate_rate: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
-        autocall_observations: Iterable[AutocallableObservation] | EllipsisType = ...,
+        autocall_observations: Iterable[SnowballObservation] | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement.
@@ -7289,7 +7284,7 @@ class SnowballOption:
             A note knocked out before valuation is settled and has zero value.
         effective_time, expiry_time : datetime.datetime, optional
             Inclusive contract start and expiry timestamps.
-        autocall_observations : iterable of AutocallableObservation, optional
+        autocall_observations : iterable of SnowballObservation, optional
             Product-specific knock-out and coupon observations, in time order.
         calendar : TradingCalendar, optional
             Owned contractual observation calendar, defaulting to the instance's calendar.
@@ -7345,7 +7340,7 @@ class SnowballOption:
         knock_in_observation: KnockInObservation,
         effective_time: datetime,
         expiry_time: datetime,
-        autocall_observations: Iterable[AutocallableObservation],
+        autocall_observations: Iterable[SnowballObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_redemption_ratio: _Real = ...,
         rebate_rate: _Real = ...,
@@ -7353,7 +7348,7 @@ class SnowballOption:
         calendar: TradingCalendar,
     ) -> None: ...
     @property
-    def autocall_observations(self) -> tuple[AutocallableObservation, ...]:
+    def autocall_observations(self) -> tuple[SnowballObservation, ...]:
         """Return owned copies of the contractual knock-out and coupon observations.
 
         Knock-in monitoring is available through knock_in_observation_schedule.
@@ -9067,7 +9062,7 @@ class BinarySnowballOption:
         Inclusive contract start.
     expiry_time : datetime.datetime
         Inclusive expiry time.
-    autocall_observations : iterable of AutocallableObservation
+    autocall_observations : iterable of SnowballObservation
         Nonempty, strictly ordered knock-out and coupon observations within life.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Events strictly before valuation. None is unknown; no_event means no prior
@@ -9118,7 +9113,7 @@ class BinarySnowballOption:
         annual_rebate_rate: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
-        autocall_observations: Iterable[AutocallableObservation] | EllipsisType = ...,
+        autocall_observations: Iterable[SnowballObservation] | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement.
@@ -9145,7 +9140,7 @@ class BinarySnowballOption:
             A note knocked out before valuation is settled and has zero value.
         effective_time, expiry_time : datetime.datetime, optional
             Inclusive contract start and expiry timestamps.
-        autocall_observations : iterable of AutocallableObservation, optional
+        autocall_observations : iterable of SnowballObservation, optional
             Product-specific knock-out and coupon observations, in time order.
         calendar : TradingCalendar, optional
             Owned contractual observation calendar, defaulting to the instance's calendar.
@@ -9196,7 +9191,7 @@ class BinarySnowballOption:
         maturity_coupon_rate: _Real,
         effective_time: datetime,
         expiry_time: datetime,
-        autocall_observations: Iterable[AutocallableObservation],
+        autocall_observations: Iterable[SnowballObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_redemption_ratio: _Real = ...,
         rebate_rate: _Real = ...,
@@ -9204,7 +9199,7 @@ class BinarySnowballOption:
         calendar: TradingCalendar,
     ) -> None: ...
     @property
-    def autocall_observations(self) -> tuple[AutocallableObservation, ...]:
+    def autocall_observations(self) -> tuple[SnowballObservation, ...]:
         """Return owned copies of the contractual knock-out and coupon observations.
 
         Knock-in monitoring is available through knock_in_observation_schedule.
@@ -9274,7 +9269,7 @@ class TernarySnowballOption:
         Inclusive contract start.
     expiry_time : datetime.datetime
         Inclusive expiry time.
-    autocall_observations : iterable of AutocallableObservation
+    autocall_observations : iterable of SnowballObservation
         Nonempty, strictly ordered knock-out and coupon observations within life.
     barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         Events strictly before valuation. None is unknown; no_event means no prior
@@ -9328,7 +9323,7 @@ class TernarySnowballOption:
         annual_rebate_rate: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
-        autocall_observations: Iterable[AutocallableObservation] | EllipsisType = ...,
+        autocall_observations: Iterable[SnowballObservation] | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement.
@@ -9357,7 +9352,7 @@ class TernarySnowballOption:
             A note knocked out before valuation is settled and has zero value.
         effective_time, expiry_time : datetime.datetime, optional
             Inclusive contract start and expiry timestamps.
-        autocall_observations : iterable of AutocallableObservation, optional
+        autocall_observations : iterable of SnowballObservation, optional
             Product-specific knock-out and coupon observations, in time order.
         calendar : TradingCalendar, optional
             Owned contractual observation calendar, defaulting to the instance's calendar.
@@ -9411,7 +9406,7 @@ class TernarySnowballOption:
         knock_in_observation: KnockInObservation,
         effective_time: datetime,
         expiry_time: datetime,
-        autocall_observations: Iterable[AutocallableObservation],
+        autocall_observations: Iterable[SnowballObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_redemption_ratio: _Real = ...,
         rebate_rate: _Real = ...,
@@ -9419,7 +9414,7 @@ class TernarySnowballOption:
         calendar: TradingCalendar,
     ) -> None: ...
     @property
-    def autocall_observations(self) -> tuple[AutocallableObservation, ...]:
+    def autocall_observations(self) -> tuple[SnowballObservation, ...]:
         """Return owned copies of the contractual knock-out and coupon observations.
 
         Knock-in monitoring is available through knock_in_observation_schedule.

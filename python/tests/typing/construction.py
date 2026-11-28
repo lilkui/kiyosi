@@ -5,17 +5,16 @@ from typing import Literal, assert_type
 
 from kiyosi.instruments import (
     Accumulator,
-    AutocallableObservation,
     BinaryBarrierOption,
     CouponObservation,
     DoubleTouchOption,
     KnockInObservation,
     KnockOutObservation,
     PhoenixOption,
+    SnowballObservation,
     SnowballOption,
     TernarySnowballOption,
     TouchOption,
-    autocallable_observations,
 )
 from kiyosi.market import (
     PricingContext,
@@ -108,22 +107,22 @@ def snowball_quote_application(note: SnowballOption, context: PricingContext) ->
 
 
 def observation_records(at: datetime) -> None:
-    record = AutocallableObservation.snowball(at, 110, coupon_rate=0)
+    record = SnowballObservation(at, 110, coupon_rate=0)
     assert_type(record.coupon_rate, float)
-    assert_type(record.replace(coupon_rate=record.coupon_rate), AutocallableObservation)
+    assert_type(record.replace(coupon_rate=record.coupon_rate), SnowballObservation)
     assert_type(
         CouponObservation(at, 0),
         CouponObservation,
     )
     assert_type(
-        autocallable_observations([at], [110], knock_out_coupon_rates=[0]),
-        list[AutocallableObservation],
+        SnowballObservation.from_columns([at], [110], knock_out_coupon_rates=[0]),
+        list[SnowballObservation],
     )
     assert_type(
         KnockOutObservation(at, 110).replace(knock_out_level=120),
         KnockOutObservation,
     )
-    autocallable_observations([at], [110])  # ty: ignore[missing-argument]
+    SnowballObservation.from_columns([at], [110])  # ty: ignore[missing-argument]
     record.replace(coupon_rate=None)  # ty: ignore[invalid-argument-type]
 
 
@@ -389,7 +388,7 @@ def settlement_replacement_types(
 
 def expiry_only_snowballs() -> None:
     start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
-    observations = [AutocallableObservation.snowball(end, 110, coupon_rate=0)]
+    observations = [SnowballObservation(end, 110, coupon_rate=0)]
     assert_type(
         SnowballOption(
             calendar=TradingCalendar.weekdays(),

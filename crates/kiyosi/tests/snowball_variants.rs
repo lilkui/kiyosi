@@ -15,8 +15,8 @@ fn market(spot: f64, valuation: Timestamp) -> PricingContext {
     )
     .unwrap()
 }
-fn observations() -> Vec<AutocallableObservation> {
-    autocallable_observations(&[date(4, 1)], &[110.0], &[0.08]).unwrap()
+fn observations() -> Vec<SnowballObservation> {
+    SnowballObservation::from_columns(&[date(4, 1)], &[110.0], &[0.08]).unwrap()
 }
 
 #[test]
@@ -24,7 +24,7 @@ fn autocallable_construction_stops_calendar_validation_on_cancellation() -> Resu
     let start = date(1, 1);
     let end = start.add_days(10_000)?;
     let observations = (1..=10_000)
-        .map(|day| AutocallableObservation::snowball(start.add_days(day)?, 110.0, 0.05))
+        .map(|day| SnowballObservation::new(start.add_days(day)?, 110.0, 0.05))
         .collect::<Result<Vec<_>>>()?;
     let token = CancellationToken::default();
     let calls = Arc::new(AtomicUsize::new(0));
@@ -65,7 +65,7 @@ fn fixed_snowball_payment_needs_only_the_risk_curve() -> Result<()> {
         0.0,
         start,
         end,
-        vec![AutocallableObservation::snowball(end, 120.0, 0.0)?],
+        vec![SnowballObservation::new(end, 120.0, 0.0)?],
         TradingCalendar::weekdays(),
     ))?;
     let short_dividend = RateTermStructure::bounded_flat(0.0, start, start)?;
@@ -95,7 +95,7 @@ fn quadrature_covers_drift_into_future_knock_out() {
         0.0,
         date(1, 1),
         end,
-        autocallable_observations(&[date(6, 30), end], &[110.0; 2], &[0.2; 2]).unwrap(),
+        SnowballObservation::from_columns(&[date(6, 30), end], &[110.0; 2], &[0.2; 2]).unwrap(),
         TradingCalendar::weekdays(),
     ))
     .unwrap();
@@ -133,7 +133,7 @@ fn quadrature_covers_drift_below_future_knock_out() {
         0.0,
         date(1, 1),
         end,
-        autocallable_observations(&[end], &[110.0], &[0.2]).unwrap(),
+        SnowballObservation::from_columns(&[end], &[110.0], &[0.2]).unwrap(),
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (end).time_of_day(),
         },
@@ -398,7 +398,7 @@ fn every_preset_expands_to_explicit_validated_terms() {
             lower,
             date(1, 1),
             date(4, 1),
-            autocallable_observations(&dates, &levels, &coupons).unwrap(),
+            SnowballObservation::from_columns(&dates, &levels, &coupons).unwrap(),
             mode,
             TradingCalendar::weekdays(),
         );
@@ -423,7 +423,8 @@ fn fixed_coupon_variants_match_independent_terminal_digital_portfolios() {
     let time = 90.0 / 365.0;
     for spot in [60.0, 80.0, 100.0, 120.0] {
         for coupon in [-0.2, 0.0, 0.08] {
-            let records = autocallable_observations(&[date(4, 1)], &[110.0], &[coupon]).unwrap();
+            let records =
+                SnowballObservation::from_columns(&[date(4, 1)], &[110.0], &[coupon]).unwrap();
             let mut binary = BinarySnowballTerms::new(
                 0.06,
                 date(1, 1),
@@ -564,7 +565,7 @@ fn ternary_daily_layers_converge_and_retain_recovered_knock_in_history() {
         95.0,
         date(1, 1),
         date(4, 1),
-        autocallable_observations(
+        SnowballObservation::from_columns(
             &[date(2, 3), date(3, 3), date(4, 1)],
             &[110.0, 108.0, 105.0],
             &[0.08; 3],
@@ -710,8 +711,8 @@ fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction()
     }
     for bad in [
         Vec::new(),
-        vec![AutocallableObservation::snowball(date(4, 2), 110.0, 0.0).unwrap()],
-        vec![AutocallableObservation::snowball(date(4, 1), 110.0, 0.0).unwrap(); 2],
+        vec![SnowballObservation::new(date(4, 2), 110.0, 0.0).unwrap()],
+        vec![SnowballObservation::new(date(4, 1), 110.0, 0.0).unwrap(); 2],
     ] {
         assert!(matches!(
             BinarySnowballOption::new(BinarySnowballTerms::new(

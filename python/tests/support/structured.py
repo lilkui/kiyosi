@@ -60,7 +60,7 @@ def contract(row):
             ],
         )
     else:
-        common["autocall_observations"] = instruments.autocallable_observations(
+        common["autocall_observations"] = instruments.SnowballObservation.from_columns(
             [common["expiry_time"]],
             [number("knock_out_level")],
             knock_out_coupon_rates=[number("coupon_rate")],

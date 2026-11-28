@@ -16,7 +16,7 @@ from kiyosi.instruments import (
     CouponObservation,
     KnockInObservation,
     KnockOutObservation,
-    autocallable_observations,
+    SnowballObservation,
 )
 from kiyosi.market import (
     RateTermStructure,
@@ -113,7 +113,7 @@ def test_shared_portfolio_coupon_strips_match_two_lane_quotes(sampling):
 def test_portfolio_prices_replay_scalar_paths(sampling):
     note = contract(
         knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [datetime(2025, 2, 3), datetime(2025, 3, 3), END],
             [103, 108, 105],
             knock_out_coupon_rates=[0.08] * 3,
@@ -127,7 +127,7 @@ def test_portfolio_prices_replay_scalar_paths(sampling):
         engine.price(item, context) for item in notes
     )
     early = note.replace(
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [datetime(2025, 2, 3), datetime(2025, 3, 3), END],
             [85] * 3,
             knock_out_coupon_rates=[0.08] * 3,
@@ -324,7 +324,7 @@ def test_current_phoenix_coupon_paid_once_and_weekend_does_not_knock_in():
         maturity_coupon_rate=0.12,
         knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         barrier_state="no_event",
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [datetime(2025, 1, 6)], [120], knock_out_coupon_rates=[0.12]
         ),
     )
@@ -407,7 +407,7 @@ def test_solvers_reject_fixed_cashflows_and_preserve_state():
         maturity_coupon_rate=0,
         effective_time=START,
         expiry_time=END,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [END], [110], knock_out_coupon_rates=[0]
         ),
     )
@@ -476,7 +476,7 @@ def test_sobol_dimension_limit_uses_remaining_monitoring_dates():
     fields = {
         "expiry_time": end,
         "knock_in_level": 1e-100,
-        "autocall_observations": autocallable_observations(
+        "autocall_observations": SnowballObservation.from_columns(
             [end], [1e100], knock_out_coupon_rates=[0.08]
         ),
     }
@@ -536,7 +536,7 @@ def test_batched_phoenix_spot_and_market_greeks_replay_scalar_stencils(sampling)
 def test_shared_daily_grid_prices_staggered_cash_flows():
     first = contract(
         knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [datetime(2025, 2, 3), datetime(2025, 3, 3), END],
             [103, 108, 105],
             knock_out_coupon_rates=[0.08] * 3,
@@ -544,7 +544,7 @@ def test_shared_daily_grid_prices_staggered_cash_flows():
     )
     second = first.replace(
         knock_in_level=95,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [datetime(2025, 2, 4), datetime(2025, 3, 4), END],
             [106, 103, 99],
             knock_out_coupon_rates=[0.12, 0.09, 0.06],
@@ -560,7 +560,7 @@ def test_shared_daily_grid_prices_staggered_cash_flows():
         notes, context, shared_grid=True
     )
     off_clock = first.replace(
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [datetime(2025, 2, 3, 1), datetime(2025, 3, 3), END],
             [103, 108, 105],
             knock_out_coupon_rates=[0.08] * 3,
@@ -594,7 +594,7 @@ def test_shared_daily_grid_settles_notes_at_their_own_maturities():
     long = contract(
         knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         knock_in_level=95,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [datetime(2025, 2, 3), datetime(2025, 3, 3), END],
             [110, 108, 105],
             knock_out_coupon_rates=[0.08] * 3,
@@ -603,7 +603,7 @@ def test_shared_daily_grid_settles_notes_at_their_own_maturities():
     short_end = datetime(2025, 3, 4)
     short = long.replace(
         expiry_time=short_end,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [datetime(2025, 2, 3), short_end],
             [110, 105],
             knock_out_coupon_rates=[0.08] * 2,
@@ -663,7 +663,7 @@ def test_mixed_knock_out_strips_match_individual_first_passages(sampling):
         contract(
             knock_in_observation=daily,
             upper_strike=upper_strike,
-            autocall_observations=autocallable_observations(
+            autocall_observations=SnowballObservation.from_columns(
                 dates, [level] * 3, knock_out_coupon_rates=(0.08, 0.09, 0.1)
             ),
         )

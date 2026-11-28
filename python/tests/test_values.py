@@ -45,9 +45,7 @@ def values():
         "knock_in_level": 80,
         "upper_strike": 100,
         "lower_strike": 0,
-        "autocall_observations": [
-            i.AutocallableObservation.snowball(END, 110, coupon_rate=0)
-        ],
+        "autocall_observations": [i.SnowballObservation(END, 110, coupon_rate=0)],
         **life,
     }
     yield from (
@@ -83,7 +81,7 @@ def values():
             spot_price=100,
             valuation_time=START,
         ),
-        i.AutocallableObservation.snowball(END, 110, coupon_rate=0),
+        i.SnowballObservation(END, 110, coupon_rate=0),
         i.KnockOutObservation(END, 110),
         i.CouponObservation(END, 0),
         i.EuropeanOption(**vanilla),
@@ -194,7 +192,7 @@ def test_owned_collection_properties_reject_silent_edits():
     )
     with pytest.raises(TypeError):
         surface.values[0][0] = 0.5
-    observation = i.AutocallableObservation.snowball(END, 110, coupon_rate=0.1)
+    observation = i.SnowballObservation(END, 110, coupon_rate=0.1)
     note = i.BinarySnowballOption(
         calendar=m.TradingCalendar.weekdays(),
         maturity_coupon_rate=0.1,
@@ -333,9 +331,7 @@ def test_repr_and_engine_replacement_ignore_constructor_only_parameters(
         ),
         i.BinarySnowballOption(
             maturity_coupon_rate=0.1,
-            autocall_observations=[
-                i.AutocallableObservation.snowball(END, 110, coupon_rate=0.1)
-            ],
+            autocall_observations=[i.SnowballObservation(END, 110, coupon_rate=0.1)],
             effective_time=START,
             expiry_time=END,
             calendar=m.TradingCalendar.weekdays(),
@@ -461,9 +457,7 @@ def test_repr_bounds_large_contract_schedules(subtests):
     from datetime import timedelta
 
     times = [START + timedelta(days=n) for n in range(1000)]
-    observations = [
-        i.AutocallableObservation.snowball(time, 110, coupon_rate=0) for time in times
-    ]
+    observations = [i.SnowballObservation(time, 110, coupon_rate=0) for time in times]
     for original in values():
         if isinstance(original, i.Accumulator):
             option = original.replace(

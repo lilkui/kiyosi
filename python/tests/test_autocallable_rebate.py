@@ -79,7 +79,7 @@ def test_terminal_rebate_adds_to_principal_and_existing_coupons(factory, flat, a
         )
     else:
         fields["autocall_observations"] = [
-            instruments.AutocallableObservation.snowball(end, 110, coupon_rate=0.08)
+            instruments.SnowballObservation(end, 110, coupon_rate=0.08)
         ]
     plain = factory(**fields)
     rebated = plain.replace(rebate_rate=flat, annual_rebate_rate=annual)

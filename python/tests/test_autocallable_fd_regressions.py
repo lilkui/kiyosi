@@ -20,9 +20,9 @@ from kiyosi.instruments import (
     KnockInObservation,
     KnockOutObservation,
     PhoenixOption,
+    SnowballObservation,
     SnowballOption,
     TernarySnowballOption,
-    autocallable_observations,
 )
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -64,7 +64,7 @@ def test_finite_difference_greek_workspaces_preserve_independent_prices(subtests
         barrier_state="no_event",
         effective_time=start,
         expiry_time=end,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [datetime(2025, 1, 3), end],
             [110, 105],
             knock_out_coupon_rates=[0.08, 0.08],
@@ -111,7 +111,7 @@ def test_past_knock_out_levels_do_not_size_the_grid(upper):
         effective_time=start,
         expiry_time=end,
         barrier_state="no_event",
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [start, end], [10_000_000, 100], knock_out_coupon_rates=[0.5, 0.5]
         ),
     )
@@ -144,7 +144,7 @@ def test_automatic_domains_converge_to_volatile_terminal_portfolios(subtests):
         maturity_coupon_rate=0,
         effective_time=start,
         expiry_time=end,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [end], [100], knock_out_coupon_rates=[0.1]
         ),
     )
@@ -294,7 +294,7 @@ def test_finite_difference_volatility_trials_refresh_operators_and_isolate_reque
     }
     coupons = {
         "maturity_coupon_rate": 0.06,
-        "autocall_observations": autocallable_observations(
+        "autocall_observations": SnowballObservation.from_columns(
             autocall_times, knock_out_levels, knock_out_coupon_rates=[0.08] * 3
         ),
     }
@@ -422,7 +422,7 @@ def test_coupon_endpoint_batches_preserve_layer_changes_and_isolation(subtests, 
     }
     coupons = {
         "maturity_coupon_rate": 0.073,
-        "autocall_observations": autocallable_observations(
+        "autocall_observations": SnowballObservation.from_columns(
             autocall_times,
             knock_out_levels,
             knock_out_coupon_rates=[0.073, 0.083],
@@ -537,7 +537,7 @@ def test_coupon_endpoint_batches_preserve_layer_changes_and_isolation(subtests, 
                     alternate_terms["coupon_per_period"] = 0.12
                 else:
                     alternate_terms["autocall_observations"] = (
-                        autocallable_observations(
+                        SnowballObservation.from_columns(
                             autocall_times,
                             knock_out_levels,
                             knock_out_coupon_rates=[0.12, 0.13],
@@ -628,7 +628,7 @@ def test_autocallable_requests_revalidate_contracts_and_calendars(subtests):
     }
     coupons = {
         "maturity_coupon_rate": 0.06,
-        "autocall_observations": autocallable_observations(
+        "autocall_observations": SnowballObservation.from_columns(
             autocall_times,
             knock_out_levels,
             knock_out_coupon_rates=[0.08] * len(dates),
@@ -784,7 +784,7 @@ def test_irrelevant_knock_in_events_preserve_spot_and_time_greeks(subtests):
         knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         effective_time=start,
         expiry_time=end,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [end], [110], knock_out_coupon_rates=[0]
         ),
     )
@@ -844,7 +844,7 @@ def test_default_time_greeks_respect_remaining_knock_in_events(state, reference_
         effective_time=start,
         expiry_time=end,
         knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [end], [110], knock_out_coupon_rates=[0.08]
         ),
     )
@@ -891,7 +891,7 @@ def test_expiry_only_knock_in_matches_analytic_terminal_portfolios(subtests, sch
         initial_spot=100,
         upper_strike=100,
         lower_strike=60,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             autocall_times, knock_out_levels, knock_out_coupon_rates=[0.06]
         ),
     )
@@ -916,7 +916,7 @@ def test_expiry_only_knock_in_matches_analytic_terminal_portfolios(subtests, sch
         **common,
         maturity_coupon_rate=0.06,
         minimum_coupon_rate=0.02,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             autocall_times, knock_out_levels, knock_out_coupon_rates=[0.06]
         ),
     )
@@ -987,7 +987,7 @@ def test_protected_snowball_uses_observation_paths_with_stochastic_knock_out(sub
         "lower_strike": 100,
         "effective_time": start,
         "expiry_time": end,
-        "autocall_observations": autocallable_observations(
+        "autocall_observations": SnowballObservation.from_columns(
             [middle, end], [110, 104], knock_out_coupon_rates=[0.08, 0.08]
         ),
     }
@@ -1064,7 +1064,7 @@ def test_fixed_finite_difference_autocallables_retain_rate_sensitivity():
         maturity_coupon_rate=0,
         effective_time=start,
         expiry_time=end,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [end], [110], knock_out_coupon_rates=[0]
         ),
     )

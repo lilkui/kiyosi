@@ -190,7 +190,7 @@ pub(crate) fn fixed_value_at<T: AutocallableTerms>(
 mod tests {
     use super::*;
     use crate::{
-        AutocallableObservation, BlackScholesMertonParameters, Date, KnockInObservation,
+        BlackScholesMertonParameters, Date, KnockInObservation, SnowballObservation,
         SnowballOption, SnowballTerms, TimeOfDay, TradingCalendar,
     };
 
@@ -217,7 +217,7 @@ mod tests {
             Date::new(2020, 1, 1)?.start_of_day(),
             expiry,
             [now, sunday, expiry]
-                .map(|at| AutocallableObservation::snowball(at, 110.0, 0.1))
+                .map(|at| SnowballObservation::new(at, 110.0, 0.1))
                 .into_iter()
                 .collect::<Result<_>>()?,
             KnockInObservation::EveryTradingDay {

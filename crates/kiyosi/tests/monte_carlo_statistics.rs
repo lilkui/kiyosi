@@ -654,7 +654,7 @@ fn generic_statistics_keep_existing_monte_carlo_estimators_available() {
         0.1,
         start,
         end,
-        autocallable_observations(&[end], &[110.0], &[0.1]).unwrap(),
+        SnowballObservation::from_columns(&[end], &[110.0], &[0.1]).unwrap(),
         TradingCalendar::weekdays(),
     ))
     .unwrap();

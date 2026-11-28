@@ -12,7 +12,7 @@ fn supplied_autocallable_state_is_undated_and_retained_on_term_edits() -> Result
         60.0,
         start,
         expiry,
-        vec![AutocallableObservation::snowball(expiry, 110.0, 0.08)?],
+        vec![SnowballObservation::new(expiry, 110.0, 0.08)?],
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: start.time_of_day(),
         },
@@ -55,8 +55,8 @@ fn valuation_observations_use_current_spot_and_supplied_prior_state() -> Result<
         start,
         expiry,
         vec![
-            AutocallableObservation::snowball(event, 110.0, 0.08)?,
-            AutocallableObservation::snowball(expiry, 110.0, 0.08)?,
+            SnowballObservation::new(event, 110.0, 0.08)?,
+            SnowballObservation::new(expiry, 110.0, 0.08)?,
         ],
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: start.time_of_day(),

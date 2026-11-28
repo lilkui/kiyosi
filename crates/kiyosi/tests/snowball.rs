@@ -13,7 +13,7 @@ fn terms() -> SnowballTerms {
         60.0,
         date(1, 1),
         date(4, 1),
-        vec![AutocallableObservation::snowball(date(4, 1), 110.0, 0.0).unwrap()],
+        vec![SnowballObservation::new(date(4, 1), 110.0, 0.0).unwrap()],
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (date(4, 1)).time_of_day(),
         },
@@ -37,7 +37,7 @@ fn current_settlement_preserves_strict_knock_in_and_inclusive_knock_out() {
     t.barrier_state = Some(AutocallableBarrierState::NoEvent);
 
     t.autocall_observations[0] = t.autocall_observations[0]
-        .replace(AutocallableObservationChanges {
+        .replace(SnowballObservationChanges {
             coupon_rate: Some(0.08),
             ..Default::default()
         })
@@ -70,7 +70,7 @@ fn invalid_terms_and_history_fail_without_changing_the_note() {
         Error::InvalidInput(_)
     ));
     assert!(matches!(
-        autocallable_observations(&[date(4, 1)], &[], &[0.0]).unwrap_err(),
+        SnowballObservation::from_columns(&[date(4, 1)], &[], &[0.0]).unwrap_err(),
         Error::InvalidInput(_)
     ));
     let note = SnowballOption::new(terms()).unwrap();
@@ -129,7 +129,8 @@ fn terminal_portfolios_preserve_signed_coupons_affine_tails_and_principal() {
                 t.lower_strike = lower;
                 t.principal_redemption_ratio = principal;
                 t.autocall_observations =
-                    autocallable_observations(&[t.expiry_time], &[100.0], &[coupon]).unwrap();
+                    SnowballObservation::from_columns(&[t.expiry_time], &[100.0], &[coupon])
+                        .unwrap();
                 let ctx = market(100.0, date(1, 1));
                 let put = |strike| {
                     AnalyticEuropeanEngine
@@ -197,7 +198,7 @@ fn multi_observation_affine_tails_preserve_cash_asset_and_greeks() {
 
             t.barrier_state = history;
 
-            t.autocall_observations = autocallable_observations(
+            t.autocall_observations = SnowballObservation::from_columns(
                 &[date(1, 3), date(1, 6), date(1, 7)],
                 &[110.0; 3],
                 &[0.0; 3],
@@ -241,7 +242,7 @@ fn daily_monitoring_converges_and_prices_recovery_risk() {
         t.knock_in_level = 95.0;
         t.knock_in_observation = mode;
 
-        t.autocall_observations = autocallable_observations(
+        t.autocall_observations = SnowballObservation::from_columns(
             &[date(2, 3), date(3, 3), date(4, 1)],
             &[110.0, 108.0, 105.0],
             &[0.08; 3],
@@ -303,7 +304,7 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
     t.barrier_state = Some(AutocallableBarrierState::NoEvent);
 
     t.autocall_observations[0] = t.autocall_observations[0]
-        .replace(AutocallableObservationChanges {
+        .replace(SnowballObservationChanges {
             time: Some(date(2, 3)),
             ..Default::default()
         })
@@ -334,9 +335,12 @@ fn prepared_pricing_rebuilds_when_the_calendar_changes_monitoring_dates() {
     let mut t = terms();
     t.expiry_time = date(1, 20);
     t.knock_in_level = 95.0;
-    t.autocall_observations =
-        autocallable_observations(&[date(1, 8), date(1, 20)], &[110.0, 105.0], &[0.08, 0.08])
-            .unwrap();
+    t.autocall_observations = SnowballObservation::from_columns(
+        &[date(1, 8), date(1, 20)],
+        &[110.0, 105.0],
+        &[0.08, 0.08],
+    )
+    .unwrap();
     let note = SnowballOption::new(t).unwrap();
     let engine = QuadratureAutocallableEngine::new(QuadratureSettings {
         asset_step_count: 128,

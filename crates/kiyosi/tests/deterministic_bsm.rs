@@ -117,7 +117,7 @@ fn structured_knock_out_uses_exact_quoted_forward() -> Result<()> {
         60.0,
         start,
         end,
-        vec![AutocallableObservation::snowball(end, 128.0, 0.2)?],
+        vec![SnowballObservation::new(end, 128.0, 0.2)?],
         KnockInObservation::AtExpiry,
         calendar.clone(),
     ))?;
@@ -162,7 +162,7 @@ fn structured_knock_out_preserves_a_forward_just_below_the_barrier() -> Result<(
         0.12,
         start,
         end,
-        vec![AutocallableObservation::snowball(fixing, 100.0, 0.2)?],
+        vec![SnowballObservation::new(fixing, 100.0, 0.2)?],
         calendar.clone(),
     ))?;
     let accumulator = Accumulator::new(AccumulatorTerms {
@@ -478,7 +478,7 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
             &FiniteDifferenceDoubleTouchEngine::default(),
         ],
     )?;
-    let observations = autocallable_observations(&[end], &[120.0], &[0.0])?;
+    let observations = SnowballObservation::from_columns(&[end], &[120.0], &[0.0])?;
     macro_rules! note {
         ($option:expr, $expected:expr) => {
             verify(
@@ -954,7 +954,7 @@ fn deterministic_structured_events_keep_monitoring_modes_and_settlement_units() 
         0.1,
         start,
         end,
-        autocallable_observations(&[middle, end], &[105.0, 105.0], &[0.1, 0.1])?,
+        SnowballObservation::from_columns(&[middle, end], &[105.0, 105.0], &[0.1, 0.1])?,
         TradingCalendar::all_days(),
     );
     let note = BinarySnowballOption::new(terms)?;
@@ -1024,7 +1024,7 @@ fn deterministic_structured_events_keep_monitoring_modes_and_settlement_units() 
         0.0,
         start,
         end,
-        autocallable_observations(&[start.add_days(30)?, end], &[300.0, 300.0], &[0.0; 2])?,
+        SnowballObservation::from_columns(&[start.add_days(30)?, end], &[300.0, 300.0], &[0.0; 2])?,
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: (end).time_of_day(),
         },

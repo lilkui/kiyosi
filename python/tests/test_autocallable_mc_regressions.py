@@ -12,9 +12,9 @@ from kiyosi.instruments import (
     KnockInObservation,
     KnockOutObservation,
     PhoenixOption,
+    SnowballObservation,
     SnowballOption,
     TernarySnowballOption,
-    autocallable_observations,
 )
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -33,7 +33,7 @@ def test_scalar_price_survives_confidence_interval_overflow():
         principal_redemption_ratio=0,
         effective_time=start,
         expiry_time=end,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [end], [100], knock_out_coupon_rates=[1.5e308]
         ),
     )
@@ -67,7 +67,7 @@ def test_shared_spot_simulations_match_separate_seeded_prices(subtests):
                 calendar=TradingCalendar.weekdays(),
                 maturity_coupon_rate=0.05,
                 **terms,
-                autocall_observations=autocallable_observations(
+                autocall_observations=SnowballObservation.from_columns(
                     autocall_times,
                     knock_out_levels,
                     knock_out_coupon_rates=[0.08] * 3,
@@ -96,7 +96,7 @@ def test_shared_spot_simulations_match_separate_seeded_prices(subtests):
                         upper_strike=100,
                         lower_strike=60,
                         **common,
-                        autocall_observations=autocallable_observations(
+                        autocall_observations=SnowballObservation.from_columns(
                             autocall_times,
                             knock_out_levels,
                             knock_out_coupon_rates=[0.08] * 3,
@@ -133,7 +133,7 @@ def test_shared_spot_simulations_match_separate_seeded_prices(subtests):
                         maturity_coupon_rate=0.06,
                         minimum_coupon_rate=0.02,
                         **common,
-                        autocall_observations=autocallable_observations(
+                        autocall_observations=SnowballObservation.from_columns(
                             autocall_times,
                             knock_out_levels,
                             knock_out_coupon_rates=[0.08] * 3,
@@ -212,7 +212,7 @@ def test_irrelevant_knock_in_events_preserve_spot_and_time_greeks(subtests):
         knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         effective_time=start,
         expiry_time=end,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [end], [110], knock_out_coupon_rates=[0]
         ),
     )
@@ -272,7 +272,7 @@ def test_default_time_greeks_respect_remaining_knock_in_events(state, reference_
         effective_time=start,
         expiry_time=end,
         knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [end], [110], knock_out_coupon_rates=[0.08]
         ),
     )
@@ -297,7 +297,7 @@ def test_fixed_implied_volatility_preserves_non_finite_pricing_errors(subtests):
         principal_redemption_ratio=1e308,
         effective_time=start,
         expiry_time=end,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [end], [110], knock_out_coupon_rates=[1e308]
         ),
     )
@@ -338,7 +338,7 @@ def test_contract_calendar_controls_daily_monte_carlo_observations(subtests):
             "maturity_coupon_rate": 0.04,
             "effective_time": start,
             "expiry_time": end,
-            "autocall_observations": autocallable_observations(
+            "autocall_observations": SnowballObservation.from_columns(
                 observations,
                 [110] * len(observations),
                 knock_out_coupon_rates=[0.08] * len(observations),
@@ -401,7 +401,7 @@ def test_current_knockouts_pay_only_contractual_coupon(subtests):
         "effective_time": START,
         "expiry_time": END,
     }
-    observations = autocallable_observations(
+    observations = SnowballObservation.from_columns(
         [FIRST, MIDDLE, END],
         [100, 100, 100],
         knock_out_coupon_rates=[-0.365, 100, 100],
@@ -472,7 +472,7 @@ def test_historical_knockin_and_terminal_caps(subtests, spot, expected):
     snowball = SnowballOption(
         **common,
         maturity_coupon_rate=5,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [END], [110], knock_out_coupon_rates=[100]
         ),
     )

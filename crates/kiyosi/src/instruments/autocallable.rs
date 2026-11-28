@@ -59,9 +59,9 @@ pub enum AutocallableBarrierState {
 /// Constructors and replacements validate numeric terms. Note construction also
 /// validates ordering, life bounds and product-specific coupon constraints.
 /// Fields are private so every public record has valid numeric terms. See
-/// [`Self::snowball`] and [`Self::replace`].
+/// [`Self::new`] and [`Self::replace`].
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct AutocallableObservation {
+pub struct SnowballObservation {
     /// Sets the exact observation time.
     time: Timestamp,
     /// Sets the positive inclusive knock-out threshold.
@@ -71,9 +71,9 @@ pub struct AutocallableObservation {
 
 /// Selects observation replacements. Absent fields default to the source values.
 ///
-/// See [`AutocallableObservation::replace`] for an example.
+/// See [`SnowballObservation::replace`] for an example.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct AutocallableObservationChanges {
+pub struct SnowballObservationChanges {
     /// Replaces the exact observation timestamp.
     pub time: Option<Timestamp>,
     /// Replaces the positive finite knock-out threshold.
@@ -82,7 +82,7 @@ pub struct AutocallableObservationChanges {
     pub coupon_rate: Option<f64>,
 }
 
-impl AutocallableObservation {
+impl SnowballObservation {
     /// Creates a snowball observation with an annual knock-out coupon.
     ///
     /// A zero rate explicitly selects no knock-out coupon.
@@ -95,14 +95,14 @@ impl AutocallableObservation {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{AutocallableObservation, Date};
+    /// use kiyosi::{Date, SnowballObservation};
     /// # fn main() -> kiyosi::Result<()> {
     /// let time = Date::new(2026, 1, 1)?.start_of_day();
-    /// let record = AutocallableObservation::snowball(time, 110.0, 0.08)?;
+    /// let record = SnowballObservation::new(time, 110.0, 0.08)?;
     /// assert_eq!(record.coupon_rate(), 0.08);
     /// # Ok(()) }
     /// ```
-    pub fn snowball(time: Timestamp, knock_out_level: f64, coupon_rate: f64) -> Result<Self> {
+    pub fn new(time: Timestamp, knock_out_level: f64, coupon_rate: f64) -> Result<Self> {
         let record = Self {
             time,
             knock_out_level,
@@ -112,45 +112,89 @@ impl AutocallableObservation {
         Ok(record)
     }
 
+    /// Associates parallel sequences with explicit snowball knock-out coupons.
+    ///
+    /// Numeric terms are validated here. Ordering, life bounds and product-specific
+    /// constraints are validated when constructing a note.
+    /// Supply one annual rate per observation, using zero for observations that pay no coupon.
+    ///
+    /// Records carry no calendar. When passing [`crate::ObservationSchedule::times`],
+    /// also pass [`crate::ObservationSchedule::calendar`] to the note's terms
+    /// constructor, such as [`SnowballTerms::new`], to preserve its observation calendar.
+    /// Note terms require an explicit calendar, including for daily knock-in monitoring.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for unequal sequence lengths or numeric terms rejected by
+    /// [`SnowballObservation::new`].
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{Date, SnowballObservation};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let times = [Date::new(2026, 1, 1)?.start_of_day()];
+    /// let records = SnowballObservation::from_columns(&times, &[110.0], &[0.08])?;
+    /// assert_eq!(records[0].coupon_rate(), 0.08);
+    /// # Ok(()) }
+    /// ```
+    pub fn from_columns(
+        times: &[Timestamp],
+        levels: &[f64],
+        coupon_rates: &[f64],
+    ) -> Result<Vec<Self>> {
+        if times.len() != levels.len() || coupon_rates.len() != times.len() {
+            return Err(Error::InvalidInput(
+                "observation sequence lengths differ".into(),
+            ));
+        }
+        times
+            .iter()
+            .zip(levels)
+            .zip(coupon_rates)
+            .map(|((&time, &level), &rate)| Self::new(time, level, rate))
+            .collect()
+    }
+
     /// Returns a validated copy with the supplied fields applied.
     ///
     /// # Errors
     ///
-    /// Reuses the numeric validation in [`Self::snowball`]. The note validates schedule
+    /// Reuses the numeric validation in [`Self::new`]. The note validates schedule
     /// and product constraints.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{AutocallableObservation, AutocallableObservationChanges, Date};
+    /// use kiyosi::{Date, SnowballObservation, SnowballObservationChanges};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let record = AutocallableObservation::snowball(Date::new(2026, 1, 1)?.start_of_day(), 110.0, 0.0)?;
-    /// let changed = record.replace(AutocallableObservationChanges {
+    /// let record = SnowballObservation::new(Date::new(2026, 1, 1)?.start_of_day(), 110.0, 0.0)?;
+    /// let changed = record.replace(SnowballObservationChanges {
     ///     coupon_rate: Some(0.08), ..Default::default()
     /// })?;
     /// assert_eq!(changed.coupon_rate(), 0.08);
     /// assert_eq!(record.coupon_rate(), 0.0);
     /// # Ok(()) }
     /// ```
-    pub fn replace(&self, changes: AutocallableObservationChanges) -> Result<Self> {
-        Self::snowball(
+    pub fn replace(&self, changes: SnowballObservationChanges) -> Result<Self> {
+        Self::new(
             changes.time.unwrap_or(self.time),
             changes.knock_out_level.unwrap_or(self.knock_out_level),
             changes.coupon_rate.unwrap_or(self.coupon_rate),
         )
     }
 
-    /// Returns the exact timestamp; see [`Self::snowball`].
+    /// Returns the exact timestamp; see [`Self::new`].
     pub fn time(&self) -> Timestamp {
         self.time
     }
-    /// Returns the positive finite knock-out threshold; see [`Self::snowball`].
+    /// Returns the positive finite knock-out threshold; see [`Self::new`].
     pub fn knock_out_level(&self) -> f64 {
         self.knock_out_level
     }
     /// Returns the annual snowball coupon rate.
     ///
-    /// See [`Self::snowball`] for an example.
+    /// See [`Self::new`] for an example.
     pub fn coupon_rate(&self) -> f64 {
         self.coupon_rate
     }
@@ -160,50 +204,6 @@ impl AutocallableObservation {
         finite(self.coupon_rate, false, "coupon_rate")?;
         Ok(())
     }
-}
-
-/// Associates parallel sequences with explicit snowball knock-out coupons.
-///
-/// Numeric terms are validated here. Ordering, life bounds and product-specific
-/// constraints are validated when constructing a note.
-/// Supply one annual rate per observation, using zero for observations that pay no coupon.
-///
-/// Records carry no calendar. When passing [`crate::ObservationSchedule::times`],
-/// also pass [`crate::ObservationSchedule::calendar`] to the note's terms
-/// constructor, such as [`SnowballTerms::new`], to preserve its observation calendar.
-/// Note terms require an explicit calendar, including for daily knock-in monitoring.
-///
-/// # Errors
-///
-/// Returns [`Error::InvalidInput`] for unequal sequence lengths or numeric terms rejected by
-/// [`AutocallableObservation::snowball`].
-///
-/// # Examples
-///
-/// ```rust
-/// use kiyosi::{Date, autocallable_observations};
-/// # fn main() -> kiyosi::Result<()> {
-/// let times = [Date::new(2026, 1, 1)?.start_of_day()];
-/// let records = autocallable_observations(&times, &[110.0], &[0.08])?;
-/// assert_eq!(records[0].coupon_rate(), 0.08);
-/// # Ok(()) }
-/// ```
-pub fn autocallable_observations(
-    times: &[Timestamp],
-    levels: &[f64],
-    coupon_rates: &[f64],
-) -> Result<Vec<AutocallableObservation>> {
-    if times.len() != levels.len() || coupon_rates.len() != times.len() {
-        return Err(Error::InvalidInput(
-            "observation sequence lengths differ".into(),
-        ));
-    }
-    times
-        .iter()
-        .zip(levels)
-        .zip(coupon_rates)
-        .map(|((&time, &level), &rate)| AutocallableObservation::snowball(time, level, rate))
-        .collect()
 }
 
 /// Owns one exact Phoenix observation time and its positive inclusive knock-out threshold.
@@ -351,7 +351,7 @@ pub struct SnowballTerms {
     /// Sets the inclusive settlement time; expiry-only knock-in requires an open date.
     pub expiry_time: Timestamp,
     /// Supplies nonempty, strictly ordered knock-out and coupon observations within life.
-    pub autocall_observations: Vec<AutocallableObservation>,
+    pub autocall_observations: Vec<SnowballObservation>,
 }
 impl SnowballTerms {
     /// Creates input terms with explicit knock-in observation, unknown history and unit principal.
@@ -370,7 +370,7 @@ impl SnowballTerms {
         lower_strike: f64,
         effective_time: Timestamp,
         expiry_time: Timestamp,
-        autocall_observations: Vec<AutocallableObservation>,
+        autocall_observations: Vec<SnowballObservation>,
         knock_in_observation: KnockInObservation,
         calendar: TradingCalendar,
     ) -> Self {
@@ -497,7 +497,7 @@ pub struct BinarySnowballTerms {
     /// Sets the inclusive settlement time, which may fall on a closed date.
     pub expiry_time: Timestamp,
     /// Supplies nonempty, strictly ordered knock-out and coupon observations within life.
-    pub autocall_observations: Vec<AutocallableObservation>,
+    pub autocall_observations: Vec<SnowballObservation>,
 }
 impl BinarySnowballTerms {
     /// Creates input terms with unknown history and unit principal.
@@ -508,7 +508,7 @@ impl BinarySnowballTerms {
         maturity_coupon_rate: f64,
         effective_time: Timestamp,
         expiry_time: Timestamp,
-        autocall_observations: Vec<AutocallableObservation>,
+        autocall_observations: Vec<SnowballObservation>,
         calendar: TradingCalendar,
     ) -> Self {
         Self {
@@ -557,7 +557,7 @@ pub struct TernarySnowballTerms {
     /// Sets the inclusive settlement time; expiry-only knock-in requires an open date.
     pub expiry_time: Timestamp,
     /// Supplies nonempty, strictly ordered knock-out and coupon observations within life.
-    pub autocall_observations: Vec<AutocallableObservation>,
+    pub autocall_observations: Vec<SnowballObservation>,
 }
 impl TernarySnowballTerms {
     /// Creates input terms with explicit knock-in observation, unknown history and unit principal.
@@ -574,7 +574,7 @@ impl TernarySnowballTerms {
         knock_in_level: f64,
         effective_time: Timestamp,
         expiry_time: Timestamp,
-        autocall_observations: Vec<AutocallableObservation>,
+        autocall_observations: Vec<SnowballObservation>,
         knock_in_observation: KnockInObservation,
         calendar: TradingCalendar,
     ) -> Self {
@@ -631,7 +631,7 @@ macro_rules! snowball_coupon {
         impl sealed::SnowballCoupon for $terms {
             fn with_coupon(&self, coupon: f64, convention: crate::CouponQuoteConvention) -> Result<Self> {
                 let mut terms = self.clone();
-                let shift = coupon - terms.autocall_observations.first().map_or(0.0, AutocallableObservation::coupon_rate);
+                let shift = coupon - terms.autocall_observations.first().map_or(0.0, SnowballObservation::coupon_rate);
                 for chunk in terms.autocall_observations.chunks_mut(1024) {
                     crate::cancellation::check()?;
                     for record in chunk {
@@ -699,8 +699,8 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
 
 mod sealed {
     use super::{
-        AutocallableBarrierState, AutocallableObservation, CouponObservation, KnockInObservation,
-        KnockOutObservation, Timestamp,
+        AutocallableBarrierState, CouponObservation, KnockInObservation, KnockOutObservation,
+        SnowballObservation, Timestamp,
     };
     pub trait Terms {
         fn view(&self) -> View<'_>;
@@ -744,7 +744,7 @@ mod sealed {
         pub annual_rebate_rate: f64,
         pub effective_time: Timestamp,
         pub expiry_time: Timestamp,
-        pub autocall_observations: &'a [AutocallableObservation],
+        pub autocall_observations: &'a [SnowballObservation],
         pub knock_out_observations: &'a [KnockOutObservation],
         pub coupon_observations: &'a [CouponObservation],
     }
@@ -940,7 +940,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// })?;
     /// assert_eq!(known.knock_out_observations(), note.knock_out_observations());
     /// assert_eq!(note.barrier_state(), None);
-    /// let records = autocallable_observations(&[end], &[110.0], &[0.08])?;
+    /// let records = SnowballObservation::from_columns(&[end], &[110.0], &[0.08])?;
     /// let binary = BinarySnowballOption::new(BinarySnowballTerms::new(
     ///     0.06, start, end, records.clone(), kiyosi::TradingCalendar::weekdays()))?;
     /// let ternary = TernarySnowballOption::new(TernarySnowballTerms::new(
@@ -1082,7 +1082,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{AutocallableObservation, Date, KnockInObservation, SnowballOption, SnowballTerms, TimeOfDay};
+    /// use kiyosi::{SnowballObservation, Date, KnockInObservation, SnowballOption, SnowballTerms, TimeOfDay};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 6)?.start_of_day();
     /// let end = start.add_days(2)?;
@@ -1091,7 +1091,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// };
     /// let note = SnowballOption::new(SnowballTerms::new(
     ///     0.1, 100.0, 80.0, 100.0, 0.0, start, end,
-    ///     vec![AutocallableObservation::snowball(end, 110.0, 0.0)?], knock_in_observation, kiyosi::TradingCalendar::weekdays()))?;
+    ///     vec![SnowballObservation::new(end, 110.0, 0.0)?], knock_in_observation, kiyosi::TradingCalendar::weekdays()))?;
     /// assert_eq!(note.knock_in_observation_schedule()?.map(|s| s.len()), Some(3));
     /// # Ok(()) }
     /// ```
@@ -1742,7 +1742,7 @@ pub struct SnowballOptionChanges {
     /// Replaces [`expiry_time`](SnowballTerms::expiry_time).
     pub expiry_time: Option<Timestamp>,
     /// Replaces [`autocall_observations`](SnowballTerms::autocall_observations).
-    pub autocall_observations: Option<Vec<AutocallableObservation>>,
+    pub autocall_observations: Option<Vec<SnowballObservation>>,
 }
 
 impl SnowballOption {
@@ -1914,7 +1914,7 @@ pub struct BinarySnowballOptionChanges {
     /// Replaces [`expiry_time`](BinarySnowballTerms::expiry_time).
     pub expiry_time: Option<Timestamp>,
     /// Replaces [`autocall_observations`](BinarySnowballTerms::autocall_observations).
-    pub autocall_observations: Option<Vec<AutocallableObservation>>,
+    pub autocall_observations: Option<Vec<SnowballObservation>>,
 }
 
 impl BinarySnowballOption {
@@ -1977,7 +1977,7 @@ pub struct TernarySnowballOptionChanges {
     /// Replaces [`expiry_time`](TernarySnowballTerms::expiry_time).
     pub expiry_time: Option<Timestamp>,
     /// Replaces [`autocall_observations`](TernarySnowballTerms::autocall_observations).
-    pub autocall_observations: Option<Vec<AutocallableObservation>>,
+    pub autocall_observations: Option<Vec<SnowballObservation>>,
 }
 
 impl TernarySnowballOption {
@@ -2021,7 +2021,7 @@ impl TernarySnowballOption {
 
 impl<T: SnowballCouponTerms> AutocallableNote<T> {
     /// Borrows the contractual snowball observations; see [`Self::new`].
-    pub fn autocall_observations(&self) -> &[AutocallableObservation] {
+    pub fn autocall_observations(&self) -> &[SnowballObservation] {
         self.view().autocall_observations
     }
 }

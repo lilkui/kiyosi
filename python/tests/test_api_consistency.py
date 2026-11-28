@@ -156,7 +156,7 @@ def test_autocallable_constructors_require_an_explicit_observation_clock(subtest
         "knock_in_level": 80,
         "calendar": market.TradingCalendar.weekdays(),
     }
-    snowball = ins.AutocallableObservation.snowball(end, 110, coupon_rate=0.1)
+    snowball = ins.SnowballObservation(end, 110, coupon_rate=0.1)
     phoenix = ins.KnockOutObservation(end, 110)
     for cls, extra in (
         (
@@ -247,7 +247,7 @@ def test_autocallable_calendars_control_knock_in_after_record_conversion():
     schedule = market.ObservationSchedule(
         times=[end], start_time=start, end_time=end, calendar=calendar
     )
-    records = ins.autocallable_observations(
+    records = ins.SnowballObservation.from_columns(
         autocall_times=schedule, knock_out_levels=[110], knock_out_coupon_rates=[0.1]
     )
     context = market.PricingContext(
@@ -301,15 +301,15 @@ def test_autocallable_calendars_control_knock_in_after_record_conversion():
 def test_observation_terms_control_cashflows():
     start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
     with pytest.raises(TypeError):
-        ins.AutocallableObservation(end, 110)
+        ins.SnowballObservation(end, 110)
     with pytest.raises(TypeError):
-        ins.autocallable_observations([end], [110])
+        ins.SnowballObservation.from_columns([end], [110])
     with pytest.raises(TypeError):
-        ins.autocallable_observations([end], [110], knock_out_coupon_rates=None)
+        ins.SnowballObservation.from_columns([end], [110], knock_out_coupon_rates=None)
     with pytest.raises(InvalidInputError):
-        ins.autocallable_observations([end], [110], knock_out_coupon_rates=[])
+        ins.SnowballObservation.from_columns([end], [110], knock_out_coupon_rates=[])
     with pytest.raises(TypeError):
-        ins.autocallable_observations(
+        ins.SnowballObservation.from_columns(
             [end], [110], knock_out_coupon_rates=[0], coupon_barrier_levels=[0]
         )
     context = market.PricingContext(
@@ -329,7 +329,7 @@ def test_observation_terms_control_cashflows():
             effective_time=start,
             expiry_time=end,
             autocall_observations=[
-                ins.AutocallableObservation.snowball(end, 110, coupon_rate=coupon)
+                ins.SnowballObservation(end, 110, coupon_rate=coupon)
             ],
             barrier_state="no_event",
         )
@@ -578,7 +578,7 @@ def test_snowball_coupon_diagnostics_identify_the_supplied_field(subtests, inval
         "calendar": market.TradingCalendar.weekdays(),
         "effective_time": start,
         "expiry_time": end,
-        "autocall_observations": ins.autocallable_observations(
+        "autocall_observations": ins.SnowballObservation.from_columns(
             [end], [110], knock_out_coupon_rates=[0]
         ),
     }
@@ -654,7 +654,7 @@ def test_structured_engines_require_curve_coverage_only_for_remaining_cashflows(
         effective_time=start,
         expiry_time=end,
         barrier_state="no_event",
-        autocall_observations=ins.autocallable_observations(
+        autocall_observations=ins.SnowballObservation.from_columns(
             [datetime(2025, 1, 2), valuation, end],
             [120, 120, 120],
             knock_out_coupon_rates=[0] * 3,
@@ -682,7 +682,7 @@ def test_structured_engines_require_curve_coverage_only_for_remaining_cashflows(
             ),
             note.replace(
                 barrier_state=note.barrier_state,
-                autocall_observations=ins.autocallable_observations(
+                autocall_observations=ins.SnowballObservation.from_columns(
                     [datetime(2025, 1, 2), valuation, end],
                     [150, 150, 150],
                     knock_out_coupon_rates=[0] * 3,
@@ -840,7 +840,7 @@ def test_contractual_calendars_are_validated_before_pricing(subtests):
                 life,
                 maturity_coupon_rate=0.1,
                 autocall_observations=[
-                    ins.AutocallableObservation.snowball(closed, 110, coupon_rate=0)
+                    ins.SnowballObservation(closed, 110, coupon_rate=0)
                 ],
             ),
         ),
@@ -1160,23 +1160,23 @@ def test_observation_construction_validates_numeric_terms_before_note_creation(
     for level in (0, -1, float("nan"), float("inf")):
         with subtests.test(level=level):
             with pytest.raises(InvalidInputError):
-                ins.AutocallableObservation.snowball(time, level, coupon_rate=0)
+                ins.SnowballObservation(time, level, coupon_rate=0)
             with pytest.raises(InvalidInputError):
-                ins.autocallable_observations(
+                ins.SnowballObservation.from_columns(
                     [time], [level], knock_out_coupon_rates=[0]
                 )
     for rate in (math.nan, math.inf, -math.inf):
         with subtests.test(rate=rate):
             with pytest.raises(InvalidInputError):
-                ins.AutocallableObservation.snowball(time, 110, coupon_rate=rate)
+                ins.SnowballObservation(time, 110, coupon_rate=rate)
             with pytest.raises(InvalidInputError):
-                ins.autocallable_observations(
+                ins.SnowballObservation.from_columns(
                     [time], [110], knock_out_coupon_rates=[rate]
                 )
     for barrier in (-1, math.nan, math.inf):
         with subtests.test(barrier=barrier), pytest.raises(InvalidInputError):
             ins.CouponObservation(time, barrier)
-    records = ins.autocallable_observations(
+    records = ins.SnowballObservation.from_columns(
         [time], [110], knock_out_coupon_rates=[-0.01]
     )
     assert records[0].coupon_rate == -0.01
@@ -2157,7 +2157,7 @@ def test_active_greek_controls_rejects_invalid_method():
 @pytest.mark.parametrize("value", (0, 0.08))
 def test_observation_coupon_getters_roundtrip_without_placeholder_values(value):
     at = datetime(2026, 1, 1)
-    record = ins.AutocallableObservation.snowball(at, 110, coupon_rate=value)
+    record = ins.SnowballObservation(at, 110, coupon_rate=value)
     assert record.coupon_rate == value
     assert not hasattr(record, "coupon_barrier_level")
     assert not hasattr(record, "kind")
@@ -2174,7 +2174,7 @@ def test_observation_coupon_getters_roundtrip_without_placeholder_values(value):
 
 def test_independent_observation_types_reject_mixed_records():
     start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
-    snowball = ins.AutocallableObservation.snowball(end, 110, coupon_rate=0)
+    snowball = ins.SnowballObservation(end, 110, coupon_rate=0)
     coupon = ins.CouponObservation(end, 0)
     with pytest.raises(TypeError):
         ins.BinarySnowballOption(
@@ -2202,7 +2202,7 @@ def test_independent_observation_types_reject_mixed_records():
 
 def test_observation_replacement_preserves_validity_and_original_values(subtests):
     time = datetime(2026, 1, 1)
-    original = ins.AutocallableObservation.snowball(time, 110, coupon_rate=-0.01)
+    original = ins.SnowballObservation(time, 110, coupon_rate=-0.01)
     phoenix = ins.CouponObservation(time, 90)
     assert "CouponObservation" in repr(phoenix)
     with pytest.raises(TypeError):

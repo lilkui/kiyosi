@@ -1,7 +1,7 @@
 use super::{
-    AutocallableBarrierState, AutocallableObservation, DEFAULT_AUTOCALLABLE_REBATE_RATE,
-    DEFAULT_PHOENIX_LOCKOUT_PERIODS, DEFAULT_PRINCIPAL_REDEMPTION_RATIO, KnockInObservation,
-    PhoenixOption, PhoenixTerms, SnowballOption, SnowballTerms,
+    AutocallableBarrierState, DEFAULT_AUTOCALLABLE_REBATE_RATE, DEFAULT_PHOENIX_LOCKOUT_PERIODS,
+    DEFAULT_PRINCIPAL_REDEMPTION_RATIO, KnockInObservation, PhoenixOption, PhoenixTerms,
+    SnowballObservation, SnowballOption, SnowballTerms,
 };
 use crate::TradingCalendar;
 use crate::error::finite;
@@ -200,7 +200,7 @@ impl SnowballPresetTerms {
             .into_iter()
             .map(|date| {
                 crate::cancellation::check()?;
-                Ok(AutocallableObservation {
+                Ok(SnowballObservation {
                     time: date,
                     knock_out_level: self.knock_out_level,
                     coupon_rate: self.coupon_rate,
@@ -245,7 +245,7 @@ impl SnowballPresetTerms {
                 terms.maturity_coupon_rate = terms
                     .autocall_observations
                     .last()
-                    .map_or(0.0, AutocallableObservation::coupon_rate);
+                    .map_or(0.0, SnowballObservation::coupon_rate);
             }
             SnowballPreset::DualCoupon {
                 maturity_coupon_rate,

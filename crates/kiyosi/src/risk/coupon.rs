@@ -89,7 +89,7 @@ impl Default for ImpliedCouponSettings {
 /// let start = Date::new(2025, 1, 1)?.start_of_day();
 /// let end = Date::new(2025, 4, 1)?.start_of_day();
 /// let note = BinarySnowballOption::new(BinarySnowballTerms::new(0.06, start, end,
-///     autocallable_observations(&[end], &[110.0], &[0.08])?, kiyosi::TradingCalendar::weekdays()))?;
+///     SnowballObservation::from_columns(&[end], &[110.0], &[0.08])?, kiyosi::TradingCalendar::weekdays()))?;
 /// let market = PricingContext::new(
 ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.3)?, 100.0, start.into())?;
 /// let engine = QuadratureAutocallableEngine::default();

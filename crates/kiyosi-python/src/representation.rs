@@ -108,12 +108,9 @@ pub(crate) fn calendar_preview(
     }
 }
 
-pub(crate) fn observation(
-    py: Python<'_>,
-    value: &kiyosi::AutocallableObservation,
-) -> PyResult<String> {
+pub(crate) fn observation(py: Python<'_>, value: &kiyosi::SnowballObservation) -> PyResult<String> {
     Ok(format!(
-        "AutocallableObservation.snowball({}, {:?}, coupon_rate={:?})",
+        "SnowballObservation({}, {:?}, coupon_rate={:?})",
         python_timestamp(py, value.time())?.repr()?,
         value.knock_out_level(),
         value.coupon_rate(),
@@ -122,7 +119,7 @@ pub(crate) fn observation(
 
 pub(crate) fn observations(
     py: Python<'_>,
-    values: &[kiyosi::AutocallableObservation],
+    values: &[kiyosi::SnowballObservation],
 ) -> PyResult<String> {
     preview(values, |value| observation(py, value))
 }

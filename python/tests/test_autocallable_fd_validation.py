@@ -8,7 +8,7 @@ from kiyosi import (
     MissingHistoryError,
     pricing,
 )
-from kiyosi.instruments import AutocallableObservation, BinarySnowballOption
+from kiyosi.instruments import BinarySnowballOption, SnowballObservation
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
@@ -24,9 +24,7 @@ def test_autocallable_engines_share_domain_validation_precedence(subtests, histo
         "barrier_state": history,
         "effective_time": start,
         "autocall_observations": [
-            AutocallableObservation.snowball(
-                datetime(2025, 1, 2), 110, coupon_rate=0.08
-            )
+            SnowballObservation(datetime(2025, 1, 2), 110, coupon_rate=0.08)
         ],
     }
     with pytest.raises(InvalidInputError):
@@ -36,7 +34,7 @@ def test_autocallable_engines_share_domain_validation_precedence(subtests, histo
                 fields
                 | {
                     "autocall_observations": [
-                        AutocallableObservation.snowball(end, 110, coupon_rate=0)
+                        SnowballObservation(end, 110, coupon_rate=0)
                     ]
                 }
             ),

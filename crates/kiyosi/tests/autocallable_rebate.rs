@@ -1,12 +1,11 @@
 use kiyosi::{
-    AnalyticDigitalEngine, AutocallableBarrierState, AutocallableNote, AutocallableObservation,
-    AutocallableTerms, BinarySnowballOption, BinarySnowballTerms, BlackScholesMertonParameters,
-    CouponObservation, CouponQuoteConvention, Date, DigitalOption, Error,
-    FiniteDifferenceAutocallableEngine, KnockInObservation, KnockOutObservation,
-    MonteCarloAutocallableEngine, MonteCarloSettings, OptionType, PhoenixOption,
-    PhoenixOptionChanges, PhoenixTerms, PricingContext, PricingEngine,
-    QuadratureAutocallableEngine, SnowballOption, SnowballOptionChanges, SnowballTerms,
-    TernarySnowballOption, TernarySnowballTerms, Timestamp, TradingCalendar,
+    AnalyticDigitalEngine, AutocallableBarrierState, AutocallableNote, AutocallableTerms,
+    BinarySnowballOption, BinarySnowballTerms, BlackScholesMertonParameters, CouponObservation,
+    CouponQuoteConvention, Date, DigitalOption, Error, FiniteDifferenceAutocallableEngine,
+    KnockInObservation, KnockOutObservation, MonteCarloAutocallableEngine, MonteCarloSettings,
+    OptionType, PhoenixOption, PhoenixOptionChanges, PhoenixTerms, PricingContext, PricingEngine,
+    QuadratureAutocallableEngine, SnowballObservation, SnowballOption, SnowballOptionChanges,
+    SnowballTerms, TernarySnowballOption, TernarySnowballTerms, Timestamp, TradingCalendar,
 };
 
 fn start() -> Timestamp {
@@ -35,7 +34,7 @@ fn snowball() -> SnowballTerms {
         60.0,
         start(),
         end(),
-        vec![AutocallableObservation::snowball(end(), 110.0, 0.08).unwrap()],
+        vec![SnowballObservation::new(end(), 110.0, 0.08).unwrap()],
         KnockInObservation::AtExpiry,
         TradingCalendar::weekdays(),
     )
@@ -128,10 +127,9 @@ fn rebates_settle_once_at_early_knockout_and_zero_lifetime() {
     let mut terms = snowball();
     terms.rebate_rate = 0.02;
     terms.annual_rebate_rate = 0.06;
-    terms.autocall_observations.insert(
-        0,
-        AutocallableObservation::snowball(middle, 110.0, 0.08).unwrap(),
-    );
+    terms
+        .autocall_observations
+        .insert(0, SnowballObservation::new(middle, 110.0, 0.08).unwrap());
     let note = SnowballOption::new(terms).unwrap();
     assert_prices(
         &note,
@@ -260,7 +258,7 @@ fn stochastic_early_exit_rebates_match_an_independent_digital_portfolio() {
         0.0,
         start(),
         end(),
-        vec![AutocallableObservation::snowball(middle, 110.0, 0.0).unwrap()],
+        vec![SnowballObservation::new(middle, 110.0, 0.0).unwrap()],
         TradingCalendar::weekdays(),
     );
     terms.rebate_rate = 0.02;

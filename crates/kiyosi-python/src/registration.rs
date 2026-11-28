@@ -153,11 +153,10 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
             .getattr("Literal")?
             .get_item(pyo3::types::PyTuple::new(py, names)?)?,
     )?;
-    module.add_class::<instruments::autocallable::AutocallableObservation>()?;
+    module.add_class::<instruments::autocallable::SnowballObservation>()?;
     module.add_class::<instruments::autocallable::KnockOutObservation>()?;
     module.add_class::<instruments::autocallable::CouponObservation>()?;
     module.add_class::<instruments::autocallable::KnockInObservation>()?;
-    register_functions!(instruments::autocallable::autocallable_observations,);
     module.add_class::<engines::monte_carlo::MonteCarloEstimate>()?;
     register_functions!(engines::monte_carlo::configure_monte_carlo_pool,);
     module.add_class::<BlackScholesMertonParameters>()?;

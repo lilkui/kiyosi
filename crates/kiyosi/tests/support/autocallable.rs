@@ -6,7 +6,7 @@ pub fn multi_event_terms(
     let date = |month, day| Date::new(2025, month, day).unwrap().start_of_day();
     let start = date(1, 1);
     let end = date(4, 1);
-    let observations = autocallable_observations(
+    let observations = SnowballObservation::from_columns(
         &[date(2, 3), date(3, 3), end],
         &[110.0, 108.0, 105.0],
         &[0.08; 3],

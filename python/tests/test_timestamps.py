@@ -17,9 +17,9 @@ from kiyosi.instruments import (
     KnockOutObservation,
     PhoenixOption,
     RangeAccrualOption,
+    SnowballObservation,
     SnowballOption,
     TernarySnowballOption,
-    autocallable_observations,
 )
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -116,7 +116,7 @@ def test_closed_date_settlement_preserves_open_date_observations():
             upper_strike=100,
             lower_strike=0,
             knock_in_observation=KnockInObservation.every_trading_day(clock_time(15)),
-            autocall_observations=autocallable_observations(
+            autocall_observations=SnowballObservation.from_columns(
                 [observation], [110], knock_out_coupon_rates=[0]
             ),
             barrier_state="no_event",
@@ -211,7 +211,7 @@ def test_contract_schedules_expose_effective_observations(subtests):
         changed = accumulator.replace(knock_out_observation_times=explicit)
         assert list(changed.knock_out_observation_schedule) == explicit
         assert list(changed.accumulation_schedule) == [start, last]
-    observations = autocallable_observations(
+    observations = SnowballObservation.from_columns(
         [expiry], [110], knock_out_coupon_rates=[0]
     )
     terms = dict(
@@ -342,7 +342,7 @@ def test_time_inputs_reject_dates_timezones_and_lost_precision(subtests):
             lambda value=value: market(value),
             lambda value=value: accumulator(effective_time=value),
             lambda value=value: RateTermStructure.flat(0.02, reference_time=value),
-            lambda value=value: autocallable_observations(
+            lambda value=value: SnowballObservation.from_columns(
                 [value], [110], knock_out_coupon_rates=[0]
             ),
             lambda value=value: ObservationSchedule.fixed_interval(
@@ -512,7 +512,7 @@ def test_daily_history_uses_observation_clock_and_inclusive_start(subtests):
         lower_strike=0,
         effective_time=time(6, 9),
         expiry_time=time(7, 15),
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [time(7, 15)], [110], knock_out_coupon_rates=[0]
         ),
     )
@@ -555,7 +555,7 @@ def test_autocallable_explicit_events_do_not_trigger_daily_knock_in(subtests):
         lower_strike=0,
         effective_time=time(6, 9),
         expiry_time=time(6, 15),
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [time(6, 10)], [1000], knock_out_coupon_rates=[0]
         ),
     )
@@ -576,7 +576,7 @@ def test_autocallable_explicit_events_do_not_trigger_daily_knock_in(subtests):
             )
     note = note.replace(
         maturity_coupon_rate=0,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [time(6, 10)], [110], knock_out_coupon_rates=[0.12]
         ),
     )

@@ -14,7 +14,7 @@ fn autocallable_history_respects_the_first_daily_observation_on_sparse_calendars
         0.0,
         start,
         end,
-        vec![AutocallableObservation::snowball(end, 110.0, 0.0)?],
+        vec![SnowballObservation::new(end, 110.0, 0.0)?],
         kiyosi::KnockInObservation::EveryTradingDay {
             observation_clock_time: TimeOfDay::new(12, 0, 0, 0)?,
         },
@@ -77,7 +77,7 @@ fn autocallable_terms_roundtrip_preserves_history() -> Result<()> {
     let start = Date::new(2025, 1, 2)?.start_of_day();
     let end = start.add_days(8)?;
     let clock = TimeOfDay::new(15, 0, 0, 0)?;
-    let records = vec![AutocallableObservation::snowball(end, 110.0, 0.0)?];
+    let records = vec![SnowballObservation::new(end, 110.0, 0.0)?];
     check!(SnowballTerms::new(
         0.1,
         100.0,
@@ -149,8 +149,8 @@ fn supplied_history_survives_schedule_edits() -> Result<()> {
         start,
         end,
         vec![
-            AutocallableObservation::snowball(past, 110.0, 0.0)?,
-            AutocallableObservation::snowball(end, 110.0, 0.0)?,
+            SnowballObservation::new(past, 110.0, 0.0)?,
+            SnowballObservation::new(end, 110.0, 0.0)?,
         ],
         TradingCalendar::weekdays(),
     );
@@ -159,8 +159,8 @@ fn supplied_history_survives_schedule_edits() -> Result<()> {
     let updated = original.replace(BinarySnowballOptionChanges {
         autocall_observations: Some(vec![
             original.autocall_observations()[0],
-            AutocallableObservation::snowball(at, 110.0, 0.0)?,
-            AutocallableObservation::snowball(future, 110.0, 0.0)?,
+            SnowballObservation::new(at, 110.0, 0.0)?,
+            SnowballObservation::new(future, 110.0, 0.0)?,
             original.autocall_observations()[1],
         ]),
         ..Default::default()
@@ -185,11 +185,7 @@ fn settled_history_must_be_possible_at_valuation() -> Result<()> {
         0.1,
         start,
         end,
-        vec![AutocallableObservation::snowball(
-            start.add_days(1)?,
-            110.0,
-            0.0,
-        )?],
+        vec![SnowballObservation::new(start.add_days(1)?, 110.0, 0.0)?],
         TradingCalendar::weekdays(),
     ))?;
     let engine = QuadratureAutocallableEngine::default();

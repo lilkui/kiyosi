@@ -56,7 +56,7 @@ impl QuadratureAutocallableEngine {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let end = Date::new(2025, 4, 1)?.start_of_day();
     /// let terms = SnowballTerms::new(0.08, 100.0, 80.0, 100.0, 0.0, start, end,
-    ///     autocallable_observations(&[end], &[110.0], &[0.08])?, KnockInObservation::AtExpiry, kiyosi::TradingCalendar::weekdays());
+    ///     SnowballObservation::from_columns(&[end], &[110.0], &[0.08])?, KnockInObservation::AtExpiry, kiyosi::TradingCalendar::weekdays());
     /// let note = SnowballOption::new(terms)?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
     ///     100.0, start.into())?;

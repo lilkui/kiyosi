@@ -126,7 +126,7 @@ fn constant_surface_matches_every_autocallable_variant_and_knock_in_mode() {
     let engine = FiniteDifferenceAutocallableEngine::new(settings()).unwrap();
     let start = date(1, 1);
     let end = date(4, 1);
-    let observations = autocallable_observations(
+    let observations = SnowballObservation::from_columns(
         &[date(2, 3), date(3, 3), end],
         &[110.0, 108.0, 105.0],
         &[0.08; 3],
@@ -204,7 +204,7 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
         0.02,
         start,
         end,
-        autocallable_observations(&[date(2, 3), end], &[110.0; 2], &[0.08; 2]).unwrap(),
+        SnowballObservation::from_columns(&[date(2, 3), end], &[110.0; 2], &[0.08; 2]).unwrap(),
         TradingCalendar::weekdays(),
     ))
     .unwrap();
@@ -238,7 +238,7 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
         0.0,
         start,
         end,
-        autocallable_observations(&[end], &[110.0], &[0.0]).unwrap(),
+        SnowballObservation::from_columns(&[end], &[110.0], &[0.0]).unwrap(),
         TradingCalendar::weekdays(),
     ))
     .unwrap();
@@ -383,7 +383,7 @@ fn early_surface_knots_survive_autocallable_time_refinement() {
         0.0,
         start,
         end,
-        autocallable_observations(&[end], &[100.0], &[coupon]).unwrap(),
+        SnowballObservation::from_columns(&[end], &[100.0], &[coupon]).unwrap(),
         TradingCalendar::weekdays(),
     ))
     .unwrap();
@@ -466,7 +466,7 @@ fn skewed_multievent_prices_supply_fixed_surface_delta_and_gamma() {
         60.0,
         start,
         end,
-        autocallable_observations(
+        SnowballObservation::from_columns(
             &[date(2, 3), date(3, 3), end],
             &[110.0, 108.0, 105.0],
             &[0.08; 3],
@@ -498,7 +498,7 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
         ..settings()
     };
     let engine = FiniteDifferenceAutocallableEngine::new(settings).unwrap();
-    let observations = autocallable_observations(
+    let observations = SnowballObservation::from_columns(
         &[date(2, 3), date(3, 3), end],
         &[110.0, 108.0, 105.0],
         &[0.08; 3],

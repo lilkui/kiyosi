@@ -55,7 +55,7 @@ fn fd_rejects_pre_effective_valuations_before_calendar_search() -> Result<()> {
         0.06,
         start,
         expiry,
-        vec![AutocallableObservation::snowball(expiry, 110.0, 0.08)?],
+        vec![SnowballObservation::new(expiry, 110.0, 0.08)?],
         TradingCalendar::weekdays(),
     ))?;
     let assert_rejected = |product: &str, price| {

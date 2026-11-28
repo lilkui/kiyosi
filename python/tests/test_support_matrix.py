@@ -194,7 +194,7 @@ def terminal_cases():
         )
     common = dict(
         dates,
-        autocall_observations=ins.autocallable_observations(
+        autocall_observations=ins.SnowballObservation.from_columns(
             [dates["expiry_time"]], [120], knock_out_coupon_rates=[0.08]
         ),
     )

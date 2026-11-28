@@ -17,6 +17,7 @@ from kiyosi import (
 from kiyosi.instruments import (
     BinarySnowballOption,
     KnockInObservation,
+    SnowballObservation,
     SnowballOption,
     TernarySnowballOption,
 )
@@ -33,7 +34,7 @@ from kiyosi.pricing import (
     numerical_greeks,
 )
 from support.assertions import assert_decimal_equal, assert_rejection
-from test_snowball import END, START, autocallable_observations, market, structured
+from test_snowball import END, START, market, structured
 
 
 def test_fixed_snowball_payment_needs_only_the_risk_curve():
@@ -42,7 +43,7 @@ def test_fixed_snowball_payment_needs_only_the_risk_curve():
         maturity_coupon_rate=0,
         effective_time=START,
         expiry_time=END,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [END], [120], knock_out_coupon_rates=[0]
         ),
     )
@@ -88,7 +89,7 @@ def test_quadrature_covers_drift_into_future_knock_out():
         maturity_coupon_rate=0,
         effective_time=START,
         expiry_time=end,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [datetime(2025, 6, 30), end],
             [110, 110],
             knock_out_coupon_rates=[0.2, 0.2],
@@ -119,7 +120,7 @@ def test_quadrature_covers_drift_below_future_knock_out():
         effective_time=START,
         expiry_time=end,
         knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [end], [110], knock_out_coupon_rates=[0.2]
         ),
     )
@@ -162,7 +163,7 @@ def test_fixed_terminal_regions_and_no_binary_monitoring():
         "principal_redemption_ratio": 0.5,
         "effective_time": START,
         "expiry_time": END,
-        "autocall_observations": autocallable_observations(
+        "autocall_observations": SnowballObservation.from_columns(
             [END], [110], knock_out_coupon_rates=[0.08]
         ),
     }
@@ -204,7 +205,7 @@ def make_fixed(kind, **changes):
         "maturity_coupon_rate": 0.06,
         "effective_time": START,
         "expiry_time": END,
-        "autocall_observations": autocallable_observations(
+        "autocall_observations": SnowballObservation.from_columns(
             [END], [110], knock_out_coupon_rates=[0.08]
         ),
     }
@@ -230,7 +231,7 @@ def test_existing_quantlib_terminal_portfolios(subtests):
                 "barrier_state": inputs["history"],
                 "principal_redemption_ratio": inputs["principal_redemption_ratio"],
                 "maturity_coupon_rate": inputs["maturity_coupon_rate"],
-                "autocall_observations": autocallable_observations(
+                "autocall_observations": SnowballObservation.from_columns(
                     [datetime.fromisoformat(inputs["expiry_time"])],
                     [110],
                     knock_out_coupon_rates=[inputs["coupon_rate"]],
@@ -400,7 +401,7 @@ def test_all_eight_presets_match_explicit_terms(subtests):
                 principal_redemption_ratio=0.5,
                 effective_time=START,
                 expiry_time=END,
-                autocall_observations=autocallable_observations(
+                autocall_observations=SnowballObservation.from_columns(
                     dates, levels, knock_out_coupon_rates=coupons
                 ),
             )
@@ -461,7 +462,7 @@ def test_native_representations_validation_timing_and_ownership():
             == note
         )
         assert note.autocall_observations == (
-            instruments.AutocallableObservation.snowball(END, 110, coupon_rate=0.08),
+            instruments.SnowballObservation(END, 110, coupon_rate=0.08),
         )
         for field in ("maturity_coupon_rate", "principal_redemption_ratio"):
             for value in (True, "0.1", object()):
@@ -692,7 +693,7 @@ def test_fixed_variants_support_greeks_solving_current_events_and_concurrent_rea
     note = make_fixed(
         kind,
         barrier_state="no_event",
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [middle, END], [110, 105], knock_out_coupon_rates=[0.08, 0.06]
         ),
     )
@@ -734,7 +735,7 @@ def test_fixed_variants_support_greeks_solving_current_events_and_concurrent_rea
     fixed = make_fixed(
         kind,
         maturity_coupon_rate=0,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [END], [110], knock_out_coupon_rates=[0]
         ),
         **({"minimum_coupon_rate": 0} if kind is TernarySnowballOption else {}),
@@ -769,7 +770,7 @@ def test_multi_event_convergence_for_fixed_variants_and_both_monitoring_modes(
     ctx = market()
     note = make_fixed(
         kind,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             dates, [110, 108, 105], knock_out_coupon_rates=[0.08] * 3
         ),
         **(
@@ -805,7 +806,7 @@ def test_signed_coupon_and_one_second_digital_regressions():
                     kind,
                     expiry_time=end,
                     maturity_coupon_rate=0,
-                    autocall_observations=autocallable_observations(
+                    autocall_observations=SnowballObservation.from_columns(
                         [end], [100], knock_out_coupon_rates=[coupon]
                     ),
                     **(
@@ -836,7 +837,7 @@ def test_signed_coupon_and_one_second_digital_regressions():
         BinarySnowballOption,
         expiry_time=end,
         maturity_coupon_rate=0,
-        autocall_observations=autocallable_observations(
+        autocall_observations=SnowballObservation.from_columns(
             [end], [100], knock_out_coupon_rates=[0.1]
         ),
     )

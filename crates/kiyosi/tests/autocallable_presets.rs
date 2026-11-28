@@ -477,7 +477,7 @@ fn stage_cutoffs_are_inclusive_and_coupon_uses_the_whole_holding_period() {
         assert_eq!(
             note.autocall_observations()
                 .iter()
-                .map(AutocallableObservation::coupon_rate)
+                .map(SnowballObservation::coupon_rate)
                 .collect::<Vec<_>>(),
             rates
         );
@@ -489,7 +489,7 @@ fn stage_cutoffs_are_inclusive_and_coupon_uses_the_whole_holding_period() {
             0.0,
             date(1, 1),
             date(4, 1),
-            autocallable_observations(&dates, &[110.0; 5], &rates).unwrap(),
+            SnowballObservation::from_columns(&dates, &[110.0; 5], &rates).unwrap(),
             kiyosi::KnockInObservation::EveryTradingDay {
                 observation_clock_time: (date(4, 1)).time_of_day(),
             },

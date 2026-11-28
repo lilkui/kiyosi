@@ -703,7 +703,7 @@ def test_autocallable_clocks_follow_monitoring_mode(cls, extra):
         "effective_time": start,
         "expiry_time": end,
         "autocall_observations": [
-            instruments.AutocallableObservation.snowball(end, 110, coupon_rate=0)
+            instruments.SnowballObservation(end, 110, coupon_rate=0)
         ],
     }
     if cls is instruments.PhoenixOption:
@@ -898,6 +898,10 @@ def test_installed_version_and_typed_exports():
     assert (package / "py.typed").is_file()
     assert pricing.PricingResult is _native.PricingResult
     assert not hasattr(kiyosi, "PricingResult")
+    assert instruments.SnowballObservation is _native.SnowballObservation
+    assert not hasattr(_native, "AutocallableObservation")
+    assert not hasattr(_native, "autocallable_observations")
+    assert not hasattr(instruments.SnowballObservation, "snowball")
     stub = ast.parse((package / "_native.pyi").read_text(encoding="utf-8"))
     declarations = {
         node.name: node

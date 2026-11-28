@@ -16,11 +16,11 @@ from kiyosi import (
     UnsupportedOperationError,
 )
 from kiyosi.instruments import (
-    AutocallableObservation,
     CouponObservation,
     KnockInObservation,
     KnockOutObservation,
     PhoenixOption,
+    SnowballObservation,
 )
 from kiyosi.market import (
     LocalVolatilityParameters,
@@ -443,9 +443,7 @@ def test_core_validation_order_errors_and_history():
     assert_rejection(
         TypeError,
         contract,
-        knock_out_observations=[
-            AutocallableObservation.snowball(END, 110, coupon_rate=0.1)
-        ],
+        knock_out_observations=[SnowballObservation(END, 110, coupon_rate=0.1)],
     )
     engine = QuadratureAutocallableEngine()
     unknown = contract(
