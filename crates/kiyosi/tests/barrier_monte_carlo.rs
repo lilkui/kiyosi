@@ -773,7 +773,7 @@ fn settings_applicability_and_failure_categories_preserve_inputs() {
         ));
     }
     assert_eq!(
-        MonteCarloBarrierEngine::default().sampling_settings(),
+        MonteCarloBarrierEngine::default().settings(),
         MonteCarloSettings::default()
     );
     let engine = MonteCarloBarrierEngine::new(MonteCarloSettings {

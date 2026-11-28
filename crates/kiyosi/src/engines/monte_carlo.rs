@@ -1024,16 +1024,11 @@ impl MonteCarloVanillaEngine {
     /// let mut settings = engine.settings();
     /// settings.sampling.path_count = 4096;
     /// let changed = MonteCarloVanillaEngine::new(settings)?;
-    /// assert_eq!(changed.step_count(), 100);
+    /// assert_eq!(changed.settings().step_count, 100);
     /// # Ok(()) }
     /// ```
     pub fn settings(&self) -> MonteCarloGridSettings {
         self.settings
-    }
-
-    /// Returns the American exercise interval count; see [`Self::settings`].
-    pub fn step_count(&self) -> i32 {
-        self.settings.step_count
     }
 
     /// Returns a discounted sample mean, or intrinsic value at expiry.

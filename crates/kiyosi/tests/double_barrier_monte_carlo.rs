@@ -393,7 +393,7 @@ fn scheduled_dates_and_unobserved_expiry_leg_match_finite_difference() {
 #[test]
 fn thread_and_sampling_contracts_preserve_exact_samples_and_pairing() {
     assert_eq!(
-        MonteCarloBarrierEngine::default().sampling_settings(),
+        MonteCarloBarrierEngine::default().settings(),
         MonteCarloSettings::default()
     );
     for scheduled in [false, true] {

@@ -206,7 +206,7 @@ fn prepared_vanilla_request_replays_prices_without_mutating_engine() {
 fn terminal_prices_match_analytic_references_and_ignore_validated_steps() {
     let defaults = MonteCarloVanillaEngine::default().settings().sampling;
     assert_eq!(defaults.path_count, 131_072);
-    assert_eq!(MonteCarloVanillaEngine::default().step_count(), 50);
+    assert_eq!(MonteCarloVanillaEngine::default().settings().step_count, 50);
     assert_eq!(defaults.max_active_workers, 0);
     assert_eq!(defaults.seed, None);
     for (direction, expected) in [
@@ -514,8 +514,8 @@ fn settings_validate_boundaries_before_committing_an_engine() {
             .unwrap();
             assert_eq!(vanilla.settings().sampling, settings);
             assert_eq!(asian.settings().sampling, settings);
-            assert_eq!(vanilla.step_count(), steps);
-            assert_eq!(asian.step_count(), steps);
+            assert_eq!(vanilla.settings().step_count, steps);
+            assert_eq!(asian.settings().step_count, steps);
         }
     }
 }
@@ -1276,7 +1276,7 @@ fn antithetic_companion_failures_preserve_engine_and_inputs() {
             path_count: 2,
             ..one.settings().sampling
         },
-        step_count: one.step_count(),
+        step_count: one.settings().step_count,
     })
     .unwrap();
     let baseline = pair.price(&option, &market()).unwrap();
@@ -1361,10 +1361,10 @@ fn resolved_seed_engines_preserve_configuration_and_replay() -> Result<()> {
         ($engine:expr) => {{
             let original = $engine;
             let seeded = original.with_resolved_seed()?;
-            assert_eq!(original.sampling_settings().seed, None);
-            let seed = seeded.sampling_settings().seed.expect("resolved seed");
+            assert_eq!(original.settings().seed, None);
+            let seed = seeded.settings().seed.expect("resolved seed");
             assert_eq!(
-                seeded.sampling_settings(),
+                seeded.settings(),
                 MonteCarloSettings {
                     seed: Some(seed),
                     ..settings
@@ -1387,8 +1387,8 @@ fn resolved_seed_engines_preserve_configuration_and_replay() -> Result<()> {
         step_count: 100,
     })?
     .with_resolved_seed()?;
-    assert_eq!(vanilla.step_count(), 100);
-    assert_eq!(asian.step_count(), 100);
+    assert_eq!(vanilla.settings().step_count, 100);
+    assert_eq!(asian.settings().step_count, 100);
     assert_eq!(vanilla.with_resolved_seed()?, vanilla);
     assert_eq!(asian.with_resolved_seed()?, asian);
     let price = vanilla.price(&contract(OptionType::Call), &market())?;

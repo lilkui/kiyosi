@@ -330,7 +330,7 @@ fn sampling_combinations_preserve_threads_seeds_and_exact_odd_paths() {
                         max_active_workers: threads,
                         ..engine.settings().sampling
                     },
-                    step_count: engine.step_count(),
+                    step_count: engine.settings().step_count,
                 })
                 .unwrap();
                 assert_eq!(parallel.price(&put, &context).unwrap(), price);
@@ -340,7 +340,7 @@ fn sampling_combinations_preserve_threads_seeds_and_exact_odd_paths() {
                     seed: Some(u64::MAX),
                     ..engine.settings().sampling
                 },
-                step_count: engine.step_count(),
+                step_count: engine.settings().step_count,
             })
             .unwrap();
             assert_ne!(changed.price(&put, &context).unwrap(), price);
@@ -364,7 +364,7 @@ fn sampling_combinations_preserve_threads_seeds_and_exact_odd_paths() {
                     path_count: paths + 1,
                     ..engine.settings().sampling
                 },
-                step_count: engine.step_count(),
+                step_count: engine.settings().step_count,
             })
             .unwrap()
             .price(&put, &context)
@@ -417,7 +417,7 @@ fn terminal_only_call_preserves_price_and_immediate_exercise_floor() {
                         path_count: 1,
                         ..engine.settings().sampling
                     },
-                    step_count: engine.step_count(),
+                    step_count: engine.settings().step_count,
                 })
                 .unwrap();
                 assert_eq!(
@@ -791,14 +791,15 @@ fn monte_carlo_step_counts_are_intervals_with_two_required_for_american_exercise
     .unwrap();
     let price = two.price(&put, &context).unwrap();
     assert!(price > 0.0 && price < 100.0);
-    assert_eq!(two.step_count(), 2);
+    assert_eq!(two.settings().step_count, 2);
     assert_eq!(
         MonteCarloAsianEngine::new(MonteCarloGridSettings {
             sampling: settings,
             step_count: 2
         })
         .unwrap()
-        .step_count(),
+        .settings()
+        .step_count,
         2
     );
     let one = MonteCarloVanillaEngine::new(MonteCarloGridSettings {

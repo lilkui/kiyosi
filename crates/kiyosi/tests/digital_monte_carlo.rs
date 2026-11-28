@@ -282,7 +282,7 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
                 Error::UnsupportedOperation(_)
             ));
             assert!(engine.price(&option, &base).unwrap().is_finite());
-            assert_eq!(engine.sampling_settings().seed, Some(42));
+            assert_eq!(engine.settings().seed, Some(42));
         }
     }
 }
@@ -369,7 +369,7 @@ fn odd_paths_and_shared_sample_sensitivities_and_solves_retain_seed() {
             for max_active_workers in [1, 4] {
                 let other = MonteCarloDigitalEngine::new(MonteCarloSettings {
                     max_active_workers,
-                    ..engine.sampling_settings()
+                    ..engine.settings()
                 })
                 .unwrap();
                 assert_eq!(
@@ -426,7 +426,7 @@ fn odd_paths_and_shared_sample_sensitivities_and_solves_retain_seed() {
     ));
     let seeded = MonteCarloDigitalEngine::new(MonteCarloSettings {
         seed: Some(42),
-        ..unseeded.sampling_settings()
+        ..unseeded.settings()
     })
     .unwrap();
     // The fixed analytic quote falls between attainable sampled cash payouts.
@@ -441,13 +441,13 @@ fn odd_paths_and_shared_sample_sensitivities_and_solves_retain_seed() {
         solved,
         Err(Error::NonConvergence(message)) if message.contains("without matching the observed price")
     ));
-    assert_eq!(unseeded.sampling_settings().seed, None);
+    assert_eq!(unseeded.settings().seed, None);
 }
 
 #[test]
 fn settings_reuse_vanilla_validation_and_cash_sampling_variance() {
     assert_eq!(
-        MonteCarloDigitalEngine::default().sampling_settings(),
+        MonteCarloDigitalEngine::default().settings(),
         MonteCarloVanillaEngine::default().settings().sampling
     );
     for settings in [

@@ -78,7 +78,7 @@ impl MonteCarloAutocallableEngine {
     /// let estimate = engine.price_with_statistics(&note, &context)?;
     /// assert!((estimate.price() - 1.0).abs() < 0.02);
     /// assert!(estimate.standard_error().is_some());
-    /// assert_eq!(engine.sampling_settings().path_count, 4096);
+    /// assert_eq!(engine.settings().path_count, 4096);
     /// let result = engine.price_with_greeks(&note, &context,
     ///     GreeksRequest::new([Greek::Rho]))?;
     /// assert!(result.has(Greek::Rho));
@@ -90,7 +90,7 @@ impl MonteCarloAutocallableEngine {
     }
 
     /// Returns owned sampling settings. See [`Self::new`].
-    pub fn sampling_settings(&self) -> MonteCarloSettings {
+    pub fn settings(&self) -> MonteCarloSettings {
         self.settings
     }
 
@@ -1092,7 +1092,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
         crate::engines::flat_rates(context).map(|_| ())
     }
     fn validate_solver_seed(&self) -> Result<()> {
-        self.sampling_settings().validate_solver_seed()
+        self.settings().validate_solver_seed()
     }
 
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<AutocallableNote<T>> + '_>>> {

@@ -66,7 +66,7 @@ impl MonteCarloBarrierEngine {
     }
 
     /// Returns owned settings. See [`Self::new`] for configuration examples.
-    pub fn sampling_settings(&self) -> MonteCarloSettings {
+    pub fn settings(&self) -> MonteCarloSettings {
         self.settings
     }
 
@@ -141,7 +141,7 @@ impl MonteCarloBarrierEngine {
     ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]))?;
     /// assert!(result.price() > 0.0);
     /// assert!(result.has(Greek::Delta));
-    /// assert_eq!(engine.sampling_settings().path_count, 32768);
+    /// assert_eq!(engine.settings().path_count, 32768);
     /// let estimate = engine.price_with_statistics(&option, &context)?;
     /// assert_eq!(estimate.standard_error(), None); // Sobol omits sampling uncertainty.
     /// let tuned = engine.price_with_greeks_with_settings(&option, &context,
@@ -619,7 +619,7 @@ macro_rules! barrier_pricing {
                 MonteCarloEstimate::from_sampling(
                     result.price(),
                     error,
-                    self.sampling_settings(),
+                    self.settings(),
                     result.seed(),
                 )
             }
@@ -627,7 +627,7 @@ macro_rules! barrier_pricing {
                 crate::engines::flat_rates(context).map(|_| ())
             }
             fn validate_solver_seed(&self) -> Result<()> {
-                self.sampling_settings().validate_solver_seed()
+                self.settings().validate_solver_seed()
             }
 
             fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<$option> + '_>>> {

@@ -149,7 +149,7 @@ macro_rules! sampling_settings {
         kiyosi::$engine::new(kiyosi::MonteCarloGridSettings { sampling: $settings, step_count: $step })
     };
     (@sampling $engine:expr, []) => {
-        $engine.sampling_settings()
+        $engine.settings()
     };
     (@sampling $engine:expr, [$step:ident]) => {
         $engine.settings().sampling
@@ -264,7 +264,7 @@ macro_rules! sampling_settings {
             ];
 
             #[new]
-            #[pyo3(signature = (*, path_count=kiyosi::MonteCarloSettings::default().path_count, $($step=kiyosi::$engine::default().$step(),)? seed=kiyosi::MonteCarloSettings::default().seed, max_active_workers=kiyosi::MonteCarloSettings::default().max_active_workers, sampling=kiyosi::MonteCarloSettings::default().sampling, antithetic=kiyosi::MonteCarloSettings::default().antithetic))]
+            #[pyo3(signature = (*, path_count=kiyosi::MonteCarloSettings::default().path_count, $($step=kiyosi::$engine::default().settings().$step,)? seed=kiyosi::MonteCarloSettings::default().seed, max_active_workers=kiyosi::MonteCarloSettings::default().max_active_workers, sampling=kiyosi::MonteCarloSettings::default().sampling, antithetic=kiyosi::MonteCarloSettings::default().antithetic))]
             fn new(
                 #[pyo3(from_py_with = integer)] path_count: i32,
                 $(#[pyo3(from_py_with = integer)] $step: i32,)?
@@ -311,7 +311,7 @@ macro_rules! sampling_settings {
                 /// Return the configured grid size.
                 #[getter]
                 fn $step(&self) -> i32 {
-                    self.0.$step()
+                    self.0.settings().$step
                 }
             )?
             /// Return the unsigned 64-bit seed, or None for system entropy.

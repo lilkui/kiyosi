@@ -47,7 +47,7 @@ impl MonteCarloDigitalEngine {
     }
 
     /// Returns owned settings. See [`Self::new`] for configuration examples.
-    pub fn sampling_settings(&self) -> MonteCarloSettings {
+    pub fn settings(&self) -> MonteCarloSettings {
         self.settings
     }
 
@@ -103,7 +103,7 @@ impl MonteCarloDigitalEngine {
         MonteCarloEstimate::from_sampling(
             result.price(),
             standard_error,
-            self.sampling_settings(),
+            self.settings(),
             result.seed(),
         )
     }
@@ -304,7 +304,7 @@ impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
         crate::engines::flat_rates(context).map(|_| ())
     }
     fn validate_solver_seed(&self) -> Result<()> {
-        self.sampling_settings().validate_solver_seed()
+        self.settings().validate_solver_seed()
     }
 
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<DigitalOption> + '_>>> {

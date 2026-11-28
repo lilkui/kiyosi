@@ -208,8 +208,8 @@ fn monte_carlo_coupon_solvers_require_a_replayable_seed() -> Result<()> {
         let solved = implied_phoenix_coupon(&engine, &note, &context, quote, Default::default())?;
         assert!((engine.price(&note.with_coupon(solved)?, &context)? - quote).abs() <= 1e-8);
     }
-    assert!(engine.sampling_settings().seed.is_some());
-    assert_eq!(unseeded.sampling_settings().seed, None);
+    assert!(engine.settings().seed.is_some());
+    assert_eq!(unseeded.settings().seed, None);
     Ok(())
 }
 

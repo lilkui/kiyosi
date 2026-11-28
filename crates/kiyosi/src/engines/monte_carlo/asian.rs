@@ -78,11 +78,6 @@ impl MonteCarloAsianEngine {
         self.settings
     }
 
-    /// Returns the arithmetic-average integration interval count; see [`Self::settings`].
-    pub fn step_count(&self) -> i32 {
-        self.settings.step_count
-    }
-
     /// Returns a discounted average-payoff estimate, or realized settlement at expiry.
     ///
     /// Cancellation follows [`crate::CancellationToken`]. Recoverable entropy
