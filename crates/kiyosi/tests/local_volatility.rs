@@ -113,6 +113,20 @@ fn stationary_skew_is_reused_across_scheme_weights_and_rate_knots() -> Result<()
 }
 
 #[test]
+fn surface_keeps_owned_row_allocations() -> Result<()> {
+    let (start, end) = dates();
+    let rows = vec![vec![0.2, 0.4], vec![0.4, 0.8]];
+    let row_addresses = [rows[0].as_ptr(), rows[1].as_ptr()];
+    let surface = LocalVolatilitySurface::new(vec![start, end], vec![80.0, 120.0], rows)?;
+    assert!(surface.values().map(<[f64]>::as_ptr).eq(row_addresses));
+    assert_eq!(
+        surface.values().collect::<Vec<_>>(),
+        [[0.2, 0.4], [0.4, 0.8]]
+    );
+    Ok(())
+}
+
+#[test]
 fn surface_interpolates_sigma_and_flat_price_tails_without_time_extrapolation() {
     let s = surface(vec![vec![0.2, 0.4], vec![0.4, 0.8]]);
     let (a, b) = dates();

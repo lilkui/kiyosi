@@ -44,7 +44,7 @@ pub struct LocalVolatilitySurface {
     times: Arc<[Timestamp]>,
     years: Arc<[f64]>,
     spots: Arc<[f64]>,
-    values: Arc<Vec<f64>>,
+    values: Arc<[Box<[f64]>]>,
     row_groups: Arc<[usize]>,
     extrema: Arc<[[f64; 2]]>,
 }
@@ -136,18 +136,18 @@ impl LocalVolatilitySurface {
                 "times collapse in floating-point year fractions".into(),
             ));
         }
-        let mut table = Vec::with_capacity(times.len() * spots.len());
-        for row in values {
-            for chunk in row.chunks(1024) {
+        let values = values
+            .into_iter()
+            .map(|row| {
                 cancellation::check()?;
-                table.extend_from_slice(chunk);
-            }
-        }
+                Ok(row.into_boxed_slice())
+            })
+            .collect::<Result<_>>()?;
         Ok(Self {
             times: times.into(),
             years: years.into(),
             spots: spots.into(),
-            values: Arc::new(table),
+            values,
             row_groups: row_groups.into(),
             extrema: extrema.into(),
         })
@@ -165,7 +165,7 @@ impl LocalVolatilitySurface {
 
     /// Borrows the volatility rows; see [`Self::new`] for their layout.
     pub fn values(&self) -> impl ExactSizeIterator<Item = &[f64]> {
-        self.values.chunks(self.spots.len())
+        self.values.iter().map(Box::as_ref)
     }
 
     /// Returns the largest supplied volatility; see [`Self::new`] for units.
@@ -238,9 +238,7 @@ impl LocalVolatilitySurface {
         if weight >= 1.0 {
             return Ok(self.extrema[rows + row + 1][1]);
         }
-        let columns = self.spots.len();
-        let pair = &self.values[row * columns..(row + 2) * columns];
-        let (left, right) = pair.split_at(columns);
+        let (left, right) = (&self.values[row], &self.values[row + 1]);
         let mut maximum = 0.0_f64;
         for (left, right) in left.chunks(1024).zip(right.chunks(1024)) {
             cancellation::check()?;
@@ -291,8 +289,8 @@ impl LocalVolatilitySurface {
     }
 
     fn at_spot(&self, row: usize, (column, weight): (usize, f64)) -> f64 {
-        let offset = row * self.spots.len() + column;
-        interpolate(self.values[offset], self.values[offset + 1], weight)
+        let values = &self.values[row];
+        interpolate(values[column], values[column + 1], weight)
     }
 }
 
