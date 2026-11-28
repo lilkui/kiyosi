@@ -20,7 +20,7 @@ use common::Request;
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     if std::env::args().len() == 2 && std::env::args().nth(1).as_deref() == Some("--info") {
         println!(
-            "{{\"library\":\"kiyosi\",\"version\":\"{}\",\"families\":[\"european_bsm\",\"digital_bsm\",\"geometric_asian_bsm\",\"arithmetic_asian_bsm\",\"fd_bsm\",\"fd_local_vol\",\"single_barrier_bsm\",\"binary_barrier_bsm\",\"touch_bsm\",\"double_barrier_bsm\",\"double_touch_bsm\",\"quadrature_vanilla\",\"quadrature_digital\",\"crr_vanilla\",\"crr_barrier\",\"mc_european_bsm\",\"mc_barrier_bsm\",\"mc_american_bsm\",\"heston_analytic\",\"heston_fd_european\",\"heston_fd_american\"]}}",
+            "{{\"library\":\"kiyosi\",\"version\":\"{}\",\"skip_warmup\":true,\"families\":[\"european_bsm\",\"digital_bsm\",\"geometric_asian_bsm\",\"arithmetic_asian_bsm\",\"fd_bsm\",\"fd_local_vol\",\"single_barrier_bsm\",\"binary_barrier_bsm\",\"touch_bsm\",\"double_barrier_bsm\",\"double_touch_bsm\",\"quadrature_vanilla\",\"quadrature_digital\",\"crr_vanilla\",\"crr_barrier\",\"mc_european_bsm\",\"mc_barrier_bsm\",\"mc_american_bsm\",\"heston_analytic\",\"heston_fd_european\",\"heston_fd_american\"]}}",
             env!("CARGO_PKG_VERSION")
         );
         return Ok(());
@@ -31,6 +31,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     if iterations == 0 {
         return Err("iterations must be positive".into());
     }
+    let warmup_iterations = match request.take_optional("skip_warmup").as_deref() {
+        None => 3,
+        Some("true") => 0,
+        Some(_) => return Err("skip_warmup requires true".into()),
+    };
     let price = match family.as_str() {
         "mc_american_bsm" => american_monte_carlo::prepare(&mut request)?,
         "mc_european_bsm" => monte_carlo::prepare(&mut request, false)?,
@@ -55,7 +60,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     };
     request.finish()?;
     let mut result = 0.0;
-    for _ in 0..3 {
+    for _ in 0..warmup_iterations {
         black_box(black_box(&price)()?);
     }
     let start = Instant::now();
@@ -67,7 +72,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         return Err("nonfinite native price".into());
     }
     println!(
-        "{{\"price\":{result:e},\"elapsed_ns\":{elapsed},\"iterations\":{iterations},\"warmup_iterations\":3}}"
+        "{{\"price\":{result:e},\"elapsed_ns\":{elapsed},\"iterations\":{iterations},\"warmup_iterations\":{warmup_iterations}}}"
     );
     Ok(())
 }

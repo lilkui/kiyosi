@@ -22,12 +22,14 @@ class MonteCarloReportTests(unittest.TestCase):
                 executable,
                 "import json,sys\n"
                 "if sys.argv[1:] == ['--info']:\n"
-                " print(json.dumps({'version':'1.44','families':['mc_european_bsm']}))\n"
+                " print(json.dumps({'version':'1.44','families':['mc_european_bsm'],'skip_warmup':True}))\n"
                 "else:\n"
                 " p=dict(x.split('=',1) for x in sys.argv[1:])\n"
                 " seed=int(p['seed'])\n"
+                " warmups=0 if p.get('skip_warmup')=='true' else 3\n"
+                " assert seed==1729 or warmups==0\n"
                 f" price=10 if seed==1729 else 10+{bias}+({noise} if seed%2 else -{noise})\n"
-                " print(json.dumps({'price':price,'elapsed_ns':100000000,'iterations':int(p['iterations']),'warmup_iterations':3}))\n",
+                " print(json.dumps({'price':price,'elapsed_ns':100000000,'iterations':int(p['iterations']),'warmup_iterations':warmups}))\n",
             )
             case = {
                 "id": "mc-fixture",
@@ -131,12 +133,13 @@ class MonteCarloReportTests(unittest.TestCase):
         for backend in data["backends"].values():
             self.assertAlmostEqual(backend["seed_ensemble"]["rmse"] / 1e155, 1)
 
-    def test_passing_ensemble_retains_every_seed_and_fifteen_timing_pairs(self):
+    def test_seed_checks_skip_warmups_and_keep_fifteen_warmed_timing_pairs(self):
         result, data = self.fixture(noise=0.02)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         self.assertEqual(data["status"], "passed")
         self.assertEqual(data["ratio"], 1)
         for backend in data["backends"].values():
+            self.assertEqual(backend["warmup"]["warmup_iterations"], 0)
             ensemble = backend["seed_ensemble"]
             self.assertEqual(
                 [row["seed"] for row in ensemble["samples"]], list(range(1, 33))
@@ -144,6 +147,8 @@ class MonteCarloReportTests(unittest.TestCase):
             self.assertAlmostEqual(ensemble["signed_bias"], 0)
             self.assertAlmostEqual(ensemble["rmse"], 0.02)
             self.assertEqual(len(backend["timing"]["samples"]), 15)
+            for batch in backend["timing"]["adaptation"] + backend["timing"]["samples"]:
+                self.assertEqual(batch["warmup_iterations"], 3)
 
 
 class MonteCarloNativeTests(unittest.TestCase):

@@ -258,11 +258,11 @@ def build(args):
     return rust_executable, evidence
 
 
-def native(executable, case, backend, iterations):
+def native(executable, case, backend, iterations, *, warmup=True):
     """Invoke the public native batch protocol outside its timed region."""
     inputs = case["inputs"]
     profile = case["profiles"][backend]
-    if set(inputs) & set(profile) or {"family", "iterations"} & (
+    if set(inputs) & set(profile) or {"family", "iterations", "skip_warmup"} & (
         set(inputs) | set(profile)
     ):
         raise ValueError(f"overlapping native parameters: {case['id']}")
@@ -272,6 +272,8 @@ def native(executable, case, backend, iterations):
         **inputs,
         **profile,
     }
+    if not warmup:
+        parameters["skip_warmup"] = "true"
     if any(
         type(value) not in (int, float, str)
         or (type(value) in (int, float) and not finite_number(value))
@@ -296,7 +298,7 @@ def native(executable, case, backend, iterations):
         or type(result.get("elapsed_ns")) is not int
         or result["elapsed_ns"] <= 0
         or type(result.get("warmup_iterations")) is not int
-        or result["warmup_iterations"] != 3
+        or result["warmup_iterations"] != (3 if warmup else 0)
     ):
         raise ValueError(f"invalid native result: {backend}/{case['id']}: {result}")
     return result
@@ -318,7 +320,7 @@ def accuracy(price, reference, budget):
     return result
 
 
-def seed_ensemble(case, reference, executable, backend):
+def seed_ensemble(case, reference, executable, backend, *, warmup=True):
     """Measure empirical error and sampling dispersion outside timing."""
     policy = case["mc_validation"]
     seeds = policy["seeds"]
@@ -360,7 +362,7 @@ def seed_ensemble(case, reference, executable, backend):
         if offset is not None and "calibration_seed" in profile:
             validation_profile["calibration_seed"] = seed + offset
         validation_case = {**case, "profiles": {backend: validation_profile}}
-        batch = native(executable, validation_case, backend, 1)
+        batch = native(executable, validation_case, backend, 1, warmup=warmup)
         signed_error = batch["price"] - reference["value"]
         if not finite_number(signed_error):
             raise ValueError(f"price error overflowed for {backend} seed {seed}")
@@ -431,7 +433,13 @@ def measure(case, reference, executables, args, info):
             result["status"] = "unsupported"
             raise ValueError("missing native family " + ", ".join(missing))
         for backend in BACKENDS:
-            batch = native(executables[backend], case, backend, 1)
+            batch = native(
+                executables[backend],
+                case,
+                backend,
+                1,
+                warmup=info[backend].get("skip_warmup") is not True,
+            )
             result["backends"][backend] = {
                 "accuracy": accuracy(batch["price"], reference, budget),
                 "warmup": batch,
@@ -446,7 +454,11 @@ def measure(case, reference, executables, args, info):
                 raise ValueError("Monte Carlo cases require mc_validation")
             for backend in BACKENDS:
                 result["backends"][backend]["seed_ensemble"] = seed_ensemble(
-                    case, reference, executables[backend], backend
+                    case,
+                    reference,
+                    executables[backend],
+                    backend,
+                    warmup=info[backend].get("skip_warmup") is not True,
                 )
             ensembles = [
                 value["seed_ensemble"] for value in result["backends"].values()

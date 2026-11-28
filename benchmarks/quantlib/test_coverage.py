@@ -130,7 +130,7 @@ class CoverageTests(unittest.TestCase):
     def test_fd_call_policy_uses_baseline_capabilities_for_both_runs(self):
         references = load_entries(HERE / "references")
 
-        def native(_executable, case, backend, iterations):
+        def native(_executable, case, backend, iterations, *, warmup=True):
             price = references[case["id"]]["value"]
             if backend == "kiyosi":
                 price -= 0.00001

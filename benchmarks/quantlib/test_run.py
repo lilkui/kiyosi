@@ -273,6 +273,7 @@ class NativeRustTests(unittest.TestCase):
         data = json.loads(result.stdout)
         self.assertAlmostEqual(data["price"], 9.227005508154036, places=11)
         self.assertEqual(data["iterations"], 100)
+        self.assertEqual(data["warmup_iterations"], 3)
         self.assertGreater(data["elapsed_ns"], 0)
 
     def test_unknown_native_family_is_rejected(self):
@@ -292,6 +293,7 @@ class NativeRustTests(unittest.TestCase):
                 str(self.executable),
                 "family=european_bsm",
                 "iterations=1",
+                "skip_warmup=true",
                 "option=call",
                 "valuation=2025-01-01",
                 "expiry=2026-01-01",
@@ -304,7 +306,9 @@ class NativeRustTests(unittest.TestCase):
             timeout=120,
         )
         expected = 7.965567455405801e-20
-        self.assertAlmostEqual(json.loads(result)["price"] / expected, 1.0, places=14)
+        data = json.loads(result)
+        self.assertAlmostEqual(data["price"] / expected, 1.0, places=14)
+        self.assertEqual(data["warmup_iterations"], 0)
 
 
 class ReportWriteTests(unittest.TestCase):

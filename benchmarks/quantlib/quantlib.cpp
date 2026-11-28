@@ -21,7 +21,7 @@ int main(int argc, char** argv) {
         if (argc == 2 && std::string(argv[1]) == "--info") {
             std::cout << "{\"library\":\"QuantLib\",\"version\":\"" << QL_VERSION
                       << "\",\"runtime_version\":\"unavailable: QuantLib exposes no runtime version API"
-                      << "\",\"families\":[\"european_bsm\",\"digital_bsm\",\"geometric_asian_bsm\",\"arithmetic_asian_bsm\",\"fd_bsm\",\"fd_local_vol\",\"single_barrier_bsm\",\"binary_barrier_bsm\",\"touch_bsm\",\"double_barrier_bsm\",\"double_touch_bsm\",\"quadrature_vanilla\",\"quadrature_digital\",\"crr_vanilla\",\"crr_barrier\",\"mc_european_bsm\",\"mc_barrier_bsm\",\"mc_american_bsm\",\"heston_analytic\",\"heston_fd_european\",\"heston_fd_american\"]}\n";
+                      << "\",\"skip_warmup\":true,\"families\":[\"european_bsm\",\"digital_bsm\",\"geometric_asian_bsm\",\"arithmetic_asian_bsm\",\"fd_bsm\",\"fd_local_vol\",\"single_barrier_bsm\",\"binary_barrier_bsm\",\"touch_bsm\",\"double_barrier_bsm\",\"double_touch_bsm\",\"quadrature_vanilla\",\"quadrature_digital\",\"crr_vanilla\",\"crr_barrier\",\"mc_european_bsm\",\"mc_barrier_bsm\",\"mc_american_bsm\",\"heston_analytic\",\"heston_fd_european\",\"heston_fd_american\"]}\n";
             return 0;
         }
         bench::Request request(argc, argv);
@@ -31,6 +31,11 @@ int main(int argc, char** argv) {
         if (count.empty() || count.front() == '-') throw std::runtime_error("iterations must be positive");
         const auto iterations = std::stoull(count, &end);
         if (end != count.size() || iterations == 0) throw std::runtime_error("iterations must be positive integer");
+        int warmup_iterations = 3;
+        if (request.values.count("skip_warmup")) {
+            if (request.take("skip_warmup") != "true") throw std::runtime_error("skip_warmup requires true");
+            warmup_iterations = 0;
+        }
         bench::Price price;
         if (family == "mc_american_bsm") price = bench::american_monte_carlo(request);
         else if (family == "mc_european_bsm") price = bench::monte_carlo(request, false);
@@ -50,7 +55,7 @@ int main(int argc, char** argv) {
         else throw std::runtime_error("unknown family: " + family);
         request.finish();
         volatile double result = 0;
-        for (int i = 0; i < 3; ++i) result = price();
+        for (int i = 0; i < warmup_iterations; ++i) result = price();
         const auto start = std::chrono::steady_clock::now();
         for (std::uint64_t i = 0; i < iterations; ++i) {
             std::atomic_signal_fence(std::memory_order_seq_cst);
@@ -59,7 +64,7 @@ int main(int argc, char** argv) {
         const auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count();
         if (!std::isfinite(result)) throw std::runtime_error("nonfinite native price");
         std::cout << std::setprecision(17) << "{\"price\":" << result << ",\"elapsed_ns\":" << elapsed
-                  << ",\"iterations\":" << iterations << ",\"warmup_iterations\":3}\n";
+                  << ",\"iterations\":" << iterations << ",\"warmup_iterations\":" << warmup_iterations << "}\n";
     } catch (const std::exception& error) {
         std::cerr << "QuantLib benchmark: " << error.what() << '\n';
         return 1;

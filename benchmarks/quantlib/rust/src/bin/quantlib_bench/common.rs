@@ -20,9 +20,12 @@ impl Request {
     }
 
     pub fn take(&mut self, key: &str) -> Result<String, Failure> {
-        self.0
-            .remove(key)
+        self.take_optional(key)
             .ok_or_else(|| format!("missing parameter: {key}").into())
+    }
+
+    pub fn take_optional(&mut self, key: &str) -> Option<String> {
+        self.0.remove(key)
     }
 
     pub fn number<T: FromStr>(&mut self, key: &str) -> Result<T, Failure>
