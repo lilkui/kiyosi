@@ -94,13 +94,7 @@ impl LocalVolatilitySurface {
     /// Return copied volatility rows, indexed by time then price.
     #[getter]
     fn values<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-        PyTuple::new(
-            py,
-            self.0
-                .values()
-                .map(|row| python_tuple(py, row, Ok))
-                .collect::<PyResult<Vec<_>>>()?,
-        )
+        python_tuple(py, self.0.values(), |row| python_tuple(py, row, Ok))
     }
     /// Return the largest supplied annualized volatility.
     #[getter]

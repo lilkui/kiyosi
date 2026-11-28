@@ -164,7 +164,7 @@ impl LocalVolatilitySurface {
     }
 
     /// Borrows the volatility rows; see [`Self::new`] for their layout.
-    pub fn values(&self) -> impl Iterator<Item = &[f64]> {
+    pub fn values(&self) -> impl ExactSizeIterator<Item = &[f64]> {
         self.values.chunks(self.spots.len())
     }
 
