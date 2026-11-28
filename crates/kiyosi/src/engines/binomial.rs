@@ -809,6 +809,9 @@ fn native(
     if !up_squared.is_finite() || !node_spot.is_normal() {
         return Err(unstable());
     }
+    if let Some(budget) = budget.filter(|_| no_early_exercise) {
+        budget.charge(steps as u64 + 1)?;
+    }
     let mut values = Vec::with_capacity(steps + 1);
     let log_moneyness = log_ratio(spot, payoff.strike);
     for node in 0..=steps {
@@ -917,6 +920,29 @@ fn native(
 fn rollback_nodes(steps: usize) -> u64 {
     let steps = steps as u64;
     steps * (steps + 1) / 2
+}
+
+#[cfg(test)]
+#[test]
+fn european_terminal_sum_charges_every_node_to_the_batch_budget() -> Result<()> {
+    let start = crate::Date::new(2025, 1, 1)?.start_of_day();
+    let option = EuropeanOption::new(OptionType::Call, 650.0, start, start.add_days(365)?)?;
+    let context = PricingContext::new(
+        crate::BlackScholesMertonParameters::new(0.03, 0.02, 0.2)?,
+        100.0,
+        start,
+    )?;
+    let engine = CoxRossRubinsteinVanillaEngine::default();
+    let payoff = Payoff::vanilla(option.option_type(), option.strike(), false);
+    let budget = RollbackWork::default();
+    budget.charge(1_000_000_000 - 257)?;
+    let price = engine.price_vanilla(&option, payoff, &context, Some(&budget))?;
+    assert!(price > 0.0);
+    assert!(matches!(
+        engine.price_vanilla(&option, payoff, &context, Some(&budget)),
+        Err(Error::InvalidInput(message)) if message.contains("one billion grid updates")
+    ));
+    Ok(())
 }
 
 fn tree_result(
