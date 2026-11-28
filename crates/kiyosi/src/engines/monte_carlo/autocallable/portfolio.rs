@@ -9,6 +9,7 @@ use super::{
     MonteCarloSettings, PathPlan, PathStep, PricingContext, Result, Sample, SkippingPath,
     check_path_step, scaled_value, transition, unstable,
 };
+use crate::engines::deterministic;
 use crate::instruments::autocallable::PortfolioVariation;
 use crate::numerics::Sum;
 use crate::{ObservationSchedule, TimeOfDay, Timestamp, TradingCalendar};
@@ -30,6 +31,10 @@ struct BatchWork(Cell<u64>);
 impl BatchWork {
     fn charge(&self, settings: MonteCarloSettings, visits_per_path: u64) -> Result<()> {
         let visits = u64::from(settings.path_count.unsigned_abs()).saturating_mul(visits_per_path);
+        self.charge_visits(visits)
+    }
+
+    fn charge_visits(&self, visits: u64) -> Result<()> {
         self.0.set(self.0.get().checked_sub(visits).ok_or_else(|| {
             Error::InvalidInput(
                 "autocallable Monte Carlo batch exceeds one billion estimated path and note visits"
@@ -190,6 +195,9 @@ pub(super) fn price_many<T: AutocallableTerms>(
         .try_reserve_exact(notes.len())
         .map_err(|_| Error::ComputationFailure("cannot reserve Monte Carlo batch output".into()))?;
     prices.resize(notes.len(), 0.0);
+    if !notes.is_empty() && deterministic::enabled(context) {
+        return price_deterministic(notes, context, prices, &work);
+    }
     let mut groups: Vec<Vec<IndexedPlan<'_, T>>> = Vec::new();
     let mut index_by_grid: HashMap<u64, Vec<usize>> = HashMap::new();
     let mut daily_grids = DailyGrids::default();
@@ -296,6 +304,85 @@ pub(super) fn price_many<T: AutocallableTerms>(
         &work,
     )?;
     Ok(prices)
+}
+
+fn price_deterministic<T: AutocallableTerms>(
+    notes: &[&AutocallableNote<T>],
+    context: &PricingContext,
+    mut prices: Vec<f64>,
+    work: &BatchWork,
+) -> Result<Vec<f64>> {
+    crate::engines::flat_rates(context)?;
+    let valuation = context.valuation_time();
+    for (note, price) in notes.iter().zip(&mut prices) {
+        crate::cancellation::check()?;
+        *price = deterministic::autocallable_with_work_check(note, context, || {
+            let events = note.events();
+            let future = events.len() - events.partition_point(|event| event.time() <= valuation);
+            let days = if note.view().daily_knock_in() {
+                valuation
+                    .date()
+                    .days_until(note.expiry_time().date())
+                    .unsigned_abs()
+                    + 1
+            } else {
+                0
+            };
+            // Each date can be visited during both schedule construction and replay.
+            work.charge_visits(2 * (days + future as u64 + 1))
+        })?;
+    }
+    Ok(prices)
+}
+
+#[test]
+fn deterministic_portfolio_charges_schedule_work_before_replay() -> Result<()> {
+    use crate::{
+        BlackScholesMertonParameters, Date, KnockInObservation, PricingContextChanges,
+        SnowballObservation, SnowballOption, SnowballTerms,
+    };
+
+    let start = Date::new(2025, 1, 2)?.start_of_day();
+    let end = start.add_days(7)?;
+    let note = SnowballOption::new(SnowballTerms::new(
+        0.06,
+        100.0,
+        80.0,
+        100.0,
+        60.0,
+        start,
+        end,
+        vec![SnowballObservation::new(end, 110.0, 0.08)?],
+        KnockInObservation::EveryTradingDay {
+            observation_clock_time: start.time_of_day(),
+        },
+        TradingCalendar::all_days(),
+    ))?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.0, 0.0, 0.0)?,
+        100.0,
+        start,
+    )?;
+    let work = BatchWork(Cell::new(20));
+    let price = price_deterministic(&[&note], &context, vec![0.0], &work)?;
+    assert!((price[0] - (1.0 + 0.06 * 7.0 / 365.0)).abs() < 1e-14);
+    assert!(matches!(
+        price_deterministic(&[&note], &context, vec![0.0], &work),
+        Err(Error::InvalidInput(message)) if message.contains("path and note visits")
+    ));
+    let expired = note.replace(crate::SnowballOptionChanges {
+        barrier_state: Some(Some(crate::AutocallableBarrierState::NoEvent)),
+        ..Default::default()
+    })?;
+    let expiry = context.replace(PricingContextChanges {
+        valuation_time: Some(end),
+        ..Default::default()
+    })?;
+    assert_eq!(
+        price_deterministic(&[&expired], &expiry, vec![0.0], &work)?,
+        price
+    );
+    Ok(())
 }
 
 fn grid_key(steps: &[PathStep], shared: bool, bridge: bool) -> Result<(u64, usize)> {

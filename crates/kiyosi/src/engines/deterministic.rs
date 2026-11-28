@@ -1146,8 +1146,16 @@ pub(super) fn autocallable<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
     context: &PricingContext,
 ) -> Result<f64> {
+    autocallable_with_work_check(note, context, || Ok(()))
+}
+
+pub(super) fn autocallable_with_work_check<T: AutocallableTerms>(
+    note: &AutocallableNote<T>,
+    context: &PricingContext,
+    check_work: impl FnOnce() -> Result<()>,
+) -> Result<f64> {
     validate(note, context)?;
-    let state = autocallable_through(note, context, note.expiry_time())?;
+    let state = autocallable_through_checked(note, context, note.expiry_time(), None, check_work)?;
     finite(state.settlement.ok_or_else(invalid)?)
 }
 
@@ -1261,10 +1269,21 @@ pub(super) fn autocallable_through_prepared<T: AutocallableTerms>(
     horizon: Timestamp,
     prepared: Option<&[AutocallableFixing]>,
 ) -> Result<Initial> {
+    autocallable_through_checked(note, context, horizon, prepared, || Ok(()))
+}
+
+fn autocallable_through_checked<T: AutocallableTerms>(
+    note: &AutocallableNote<T>,
+    context: &PricingContext,
+    horizon: Timestamp,
+    prepared: Option<&[AutocallableFixing]>,
+    check_work: impl FnOnce() -> Result<()>,
+) -> Result<Initial> {
     let mut state = initial(note, context);
     if state.settlement.is_some() || horizon == context.valuation_time() {
         return Ok(state);
     }
+    check_work()?;
     if horizon == note.expiry_time() {
         if let Some(value) = fixed_value(note, context, state.knocked_in) {
             state.settlement = Some(finite(state.coupon + value)?);

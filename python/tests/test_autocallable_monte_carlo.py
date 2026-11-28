@@ -53,6 +53,19 @@ def test_autocallable_batches_bound_per_note_path_work(shared_grid):
         engine.price_many((contract(),) * 100, market(), shared_grid=shared_grid)
 
 
+@pytest.mark.parametrize("shared_grid", (False, True))
+def test_zero_volatility_portfolio_matches_scalar_prices(shared_grid):
+    note = contract(
+        knock_in_observation=KnockInObservation.every_trading_day(clock_time())
+    )
+    notes = (note, note.replace(maturity_coupon_rate=0.09), note)
+    context = market(volatility=0)
+    engine = MC(path_count=1, seed=42)
+    assert engine.price_many(notes, context, shared_grid=shared_grid) == tuple(
+        engine.price(note, context) for note in notes
+    )
+
+
 def test_portfolio_reduction_replays_across_waves():
     first = contract(
         knock_in_observation=KnockInObservation.every_trading_day(clock_time())
