@@ -289,16 +289,12 @@ impl DoubleTouchOption {
         changes: DoubleTouchOptionChanges,
         times: Option<Vec<Timestamp>>,
     ) -> Result<Self> {
-        let replacement = if times.is_some() {
-            Some(None)
-        } else {
-            changes.observation_schedule
-        };
         let (observation_schedule, calendar) = replace_schedule(
             self.observation_schedule(),
             self.calendar(),
-            replacement,
+            changes.observation_schedule,
             changes.calendar,
+            times.is_some(),
         );
         let updated = Self::cash_with_observation_times(
             DoubleTouchOptionTerms {

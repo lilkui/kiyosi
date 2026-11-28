@@ -101,6 +101,22 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
     }
     assert_eq!(owned.replace(Default::default())?, owned);
     assert_eq!(option.calendar(), &TradingCalendar::all_days());
+    let raw_times = schedule.times().to_vec();
+    let replace_raw = |calendar| {
+        binding_support::barrier_monitoring::replace_barrier(
+            &owned,
+            BarrierOptionChanges {
+                calendar,
+                ..Default::default()
+            },
+            Some(raw_times.clone()),
+        )
+    };
+    assert_eq!(replace_raw(None)?, owned);
+    assert!(matches!(
+        replace_raw(Some(TradingCalendar::weekdays())),
+        Err(Error::InvalidInput(message)) if message.contains("not a trading day")
+    ));
 
     macro_rules! check {
         ($option:expr, $engine:expr, $changes:expr) => {{

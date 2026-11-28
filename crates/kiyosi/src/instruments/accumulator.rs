@@ -741,6 +741,7 @@ impl Accumulator {
             self.calendar(),
             changes.knock_out_observation_schedule,
             changes.calendar,
+            raw_times.is_some(),
         );
         Self::new_with_observation_times(
             AccumulatorTerms {

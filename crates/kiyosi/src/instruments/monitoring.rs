@@ -69,11 +69,14 @@ pub(crate) fn replace_schedule(
     current_calendar: &TradingCalendar,
     replacement: Option<Option<ObservationSchedule>>,
     calendar: Option<TradingCalendar>,
+    replacing_with_raw_times: bool,
 ) -> (Option<ObservationSchedule>, Option<TradingCalendar>) {
-    match replacement {
-        Some(Some(schedule)) => (Some(schedule), calendar),
-        Some(None) => (None, calendar.or_else(|| Some(current_calendar.clone()))),
-        None => {
+    match (replacing_with_raw_times, replacement) {
+        (false, Some(Some(schedule))) => (Some(schedule), calendar),
+        (true, _) | (false, Some(None)) => {
+            (None, calendar.or_else(|| Some(current_calendar.clone())))
+        }
+        (false, None) => {
             let calendar = calendar.or_else(|| current.is_none().then(|| current_calendar.clone()));
             (current.cloned(), calendar)
         }

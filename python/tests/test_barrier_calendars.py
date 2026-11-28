@@ -170,6 +170,9 @@ def test_barrier_calendars_are_owned_and_preserved_by_replacement(subtests):
             assert owned.replace() == owned
             continuous = owned.replace(observation_schedule=None)
             assert continuous.calendar == market.TradingCalendar.all_days()
+            assert (
+                continuous.replace(observation_schedule=list(schedule.times)) == owned
+            )
             weekdays = continuous.replace(calendar=market.TradingCalendar.weekdays())
             assert weekdays.replace(observation_schedule=schedule) == owned
             assert (
@@ -179,6 +182,11 @@ def test_barrier_calendars_are_owned_and_preserved_by_replacement(subtests):
             with pytest.raises(InvalidInputError, match="not a trading day"):
                 owned.replace(
                     observation_schedule=schedule,
+                    calendar=market.TradingCalendar.weekdays(),
+                )
+            with pytest.raises(InvalidInputError, match="not a trading day"):
+                continuous.replace(
+                    observation_schedule=list(schedule.times),
                     calendar=market.TradingCalendar.weekdays(),
                 )
             with pytest.raises(InvalidInputError, match="within life bounds"):

@@ -591,16 +591,12 @@ impl BinaryBarrierOption {
         changes: BinaryBarrierOptionChanges,
         times: Option<Vec<Timestamp>>,
     ) -> Result<Self> {
-        let replacement = if times.is_some() {
-            Some(None)
-        } else {
-            changes.observation_schedule
-        };
         let (observation_schedule, calendar) = super::monitoring::replace_schedule(
             self.observation_schedule(),
             self.calendar(),
-            replacement,
+            changes.observation_schedule,
             changes.calendar,
+            times.is_some(),
         );
         let terms = BinaryBarrierTerms {
             calendar,
@@ -675,16 +671,12 @@ impl TouchOption {
         changes: TouchOptionChanges,
         times: Option<Vec<Timestamp>>,
     ) -> Result<Self> {
-        let replacement = if times.is_some() {
-            Some(None)
-        } else {
-            changes.observation_schedule
-        };
         let (observation_schedule, calendar) = super::monitoring::replace_schedule(
             self.observation_schedule(),
             self.calendar(),
-            replacement,
+            changes.observation_schedule,
             changes.calendar,
+            times.is_some(),
         );
         let terms = TouchOptionTerms {
             calendar,
