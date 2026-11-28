@@ -12,9 +12,9 @@ use crate::instruments::autocallable::pricing::{
 use crate::numerics::log_ratio;
 use crate::risk::analytics::CouponPricer;
 use crate::{
-    AutocallableNote, AutocallableTerms, Error, Greek, GreeksRequest, NumericalShiftSettings,
-    OptionContract, PricingContext, PricingContextChanges, PricingEngine, PricingResult, Result,
-    Timestamp,
+    Error, Greek, GreeksRequest, NumericalShiftSettings, PricingContext, PricingContextChanges,
+    PricingEngine, PricingResult, Result, Timestamp,
+    instruments::{AutocallableNote, AutocallableTerms, OptionContract},
 };
 
 mod portfolio;
@@ -65,6 +65,7 @@ impl MonteCarloAutocallableEngine {
     ///
     /// ```rust
     /// use kiyosi::*;
+    /// use kiyosi::engines::MonteCarloSettings;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let end = Date::new(2025, 4, 1)?.start_of_day();

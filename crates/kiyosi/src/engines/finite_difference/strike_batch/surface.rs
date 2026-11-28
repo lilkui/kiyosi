@@ -11,7 +11,7 @@ use crate::engines::finite_difference::{
     edge_weights::{BYTES_PER_STEP, EdgeWeights},
     unstable, validate_finite_difference_surface_size,
 };
-use crate::{Error, FiniteDifferenceSettings, ModelParameters, Timestamp};
+use crate::{Error, ModelParameters, Timestamp, engines::FiniteDifferenceSettings};
 
 impl FiniteDifferenceVanillaEngine {
     pub(in crate::engines::finite_difference) fn price_european_surface(

@@ -1,6 +1,6 @@
 use crate::{
-    BlackScholesMertonParameterChanges, Error, OptionContract, PricingContext,
-    PricingContextChanges, PricingEngine, Result,
+    BlackScholesMertonParameterChanges, Error, PricingContext, PricingContextChanges,
+    PricingEngine, Result, instruments::OptionContract,
 };
 
 /// Configures a nonnegative volatility bracket and convergence tolerances.

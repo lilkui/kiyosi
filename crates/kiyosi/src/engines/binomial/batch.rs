@@ -26,8 +26,8 @@ impl CoxRossRubinsteinVanillaEngine {
     /// # Examples
     ///
     /// ```
-    /// use kiyosi::{AmericanOption, BinomialVanilla, BlackScholesMertonParameters,
-    ///     CoxRossRubinsteinVanillaEngine, Date, OptionType, PricingContext};
+    /// use kiyosi::{AmericanOption, BlackScholesMertonParameters, CoxRossRubinsteinVanillaEngine,
+    ///     Date, OptionType, PricingContext, engines::BinomialVanilla};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let put = AmericanOption::new(OptionType::Put, 100.0, start, start.add_days(365)?)?;
@@ -52,7 +52,7 @@ impl CoxRossRubinsteinVanillaEngine {
         context: &PricingContext,
     ) -> Result<Vec<f64>> {
         const LANES: usize = 4;
-        super::super::validate_contract_batch_size(options.len())?;
+        crate::binding_support::validate_contract_batch_size(options.len())?;
         let budget = RollbackWork::default();
         let scalar = |option| match option {
             BinomialVanilla::European(option) => self.price_vanilla(

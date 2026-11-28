@@ -12,8 +12,8 @@ use super::{
 };
 use crate::risk::numerical::symmetric_shift;
 use crate::{
-    AmericanOption, BlackScholesMertonParameterChanges, Greek, OptionContract,
-    PricingContextChanges, VanillaOptionChanges,
+    AmericanOption, BlackScholesMertonParameterChanges, Greek, PricingContextChanges,
+    VanillaOptionChanges, instruments::OptionContract,
 };
 
 const WORKSPACE_BUDGET: usize = 1 << 30;
@@ -646,6 +646,7 @@ impl MonteCarloVanillaEngine {
     ///
     /// ```
     /// use kiyosi::*;
+    /// use kiyosi::engines::{MonteCarloGridSettings, MonteCarloSettings};
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let end = start.add_days(365)?;
@@ -1724,7 +1725,7 @@ fn solve_quadratic(samples: [[f64; 4]; 3]) -> Option<[f64; 3]> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{BlackScholesMertonParameters, Date, MonteCarloSettings};
+    use crate::{BlackScholesMertonParameters, Date, engines::MonteCarloSettings};
 
     #[test]
     fn cache_retention_limit_does_not_trigger_path_replay() -> Result<()> {
@@ -1777,7 +1778,7 @@ mod tests {
             100.0,
             start,
         )?;
-        let engine = MonteCarloVanillaEngine::new(crate::MonteCarloGridSettings {
+        let engine = MonteCarloVanillaEngine::new(crate::engines::MonteCarloGridSettings {
             sampling: MonteCarloSettings {
                 path_count: 2048,
                 seed: Some(42),
@@ -1813,7 +1814,7 @@ mod tests {
             Date::new(2026, 1, 1).unwrap().start_of_day(),
         )
         .unwrap();
-        let engine = MonteCarloVanillaEngine::new(crate::MonteCarloGridSettings {
+        let engine = MonteCarloVanillaEngine::new(crate::engines::MonteCarloGridSettings {
             sampling: MonteCarloSettings {
                 path_count: 2048,
                 seed: Some(42),

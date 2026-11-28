@@ -122,6 +122,7 @@ impl QuadratureVanillaEngine {
     ///
     /// ```rust
     /// use kiyosi::*;
+    /// use kiyosi::engines::QuadratureVanillaSettings;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let end = Date::new(2026, 1, 1)?.start_of_day();

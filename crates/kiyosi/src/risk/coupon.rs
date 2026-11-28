@@ -1,6 +1,6 @@
 use crate::{
-    AutocallableNote, Error, PhoenixOption, PricingContext, PricingEngine, Result,
-    SnowballCouponTerms,
+    Error, PhoenixOption, PricingContext, PricingEngine, Result,
+    instruments::{AutocallableNote, SnowballCouponTerms},
 };
 
 /// Selects how a snowball maturity coupon follows its quoted observation coupon.

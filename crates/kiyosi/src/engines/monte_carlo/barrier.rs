@@ -5,9 +5,10 @@ use crate::instruments::monitoring::validate_life;
 use crate::numerics::log_ratio;
 use crate::{
     AnalyticEuropeanEngine, BarrierOption, DoubleBarrierOption, Greek, GreeksRequest,
-    MonteCarloEstimate, MonteCarloSampling, MonteCarloSettings, NumericalShiftSettings,
-    ObservationMode, OptionContract, OptionType, PricingContext, PricingEngine, PricingResult,
-    RebateTiming, Result,
+    NumericalShiftSettings, ObservationMode, OptionType, PricingContext, PricingEngine,
+    PricingResult, RebateTiming, Result,
+    engines::{MonteCarloEstimate, MonteCarloSampling, MonteCarloSettings},
+    instruments::OptionContract,
 };
 
 #[derive(Clone, Copy)]
@@ -89,6 +90,7 @@ enum Contract<'a> {
 ///
 /// ```rust
 /// use kiyosi::*;
+/// use kiyosi::engines::{MonteCarloSampling, MonteCarloSettings};
 /// # fn main() -> Result<()> {
 /// let start = Date::new(2025, 1, 1)?.start_of_day();
 /// let option = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call, 100.0,

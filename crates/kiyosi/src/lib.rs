@@ -11,11 +11,13 @@
 //! [`implied_phoenix_coupon`] solve for inputs that reproduce a quoted price.
 //! Monte Carlo engines can also report the sampling seed and, for supported
 //! contracts, [sampling statistics][`PricingEngine::price_with_statistics`].
+//! Find algorithm-specific controls and results in [`engines`] and contract
+//! presets and extension types in [`instruments`].
 //!
 //! For batches, choose the operation by the input that varies. Engines with
 //! `price_many` accept existing contracts. Use `price_strikes` to vary the
-//! strike, or [`VanillaBatchEngine::price_surface`] to vary strike and expiry.
-//! Use [`FiniteDifferenceEngine::solve`] to reuse a solution across spot prices.
+//! strike, or [`engines::VanillaBatchEngine::price_surface`] to vary strike and expiry.
+//! Use [`engines::FiniteDifferenceEngine::solve`] to reuse a solution across spot prices.
 //!
 //! # Conventions
 //!
@@ -101,9 +103,9 @@
 //! Distinct and shared instances support concurrent reads and pricing. Mutation
 //! requires exclusive Rust access. Parallel Monte Carlo calls share a library-owned
 //! Rayon pool with per-call buffers and worker caps; serial calls use the calling
-//! thread. [`configure_monte_carlo_pool`] caps created workers before initialization.
+//! thread. [`engines::configure_monte_carlo_pool`] caps created workers before initialization.
 //! Kiyosi's Monte Carlo pool is independent of the application's global Rayon pool.
-//! [`FiniteDifferenceSolution`] owns immutable query state; clones and shared
+//! [`engines::FiniteDifferenceSolution`] owns immutable query state; clones and shared
 //! instances permit concurrent spot queries after the source inputs are dropped.
 //! Its queries do not perform rollback or mutate the saved numerical solution.
 //! Custom calendar predicates must return stable answers throughout the calendar's
@@ -140,9 +142,9 @@
 //! ```
 
 mod cancellation;
-mod engines;
+pub mod engines;
 mod error;
-mod instruments;
+pub mod instruments;
 mod market;
 mod numerics;
 mod risk;
@@ -155,7 +157,6 @@ pub mod binding_support {
         validate_finite_difference_strike_batch_size, validate_finite_difference_surface_size,
     };
     pub use crate::engines::monte_carlo::validate_monte_carlo_strike_batch_size;
-    pub use crate::engines::validate_contract_batch_size;
     pub use crate::instruments::asian::DEFAULT_REALIZED_AVERAGE;
     pub use crate::instruments::autocallable::{
         DEFAULT_AUTOCALLABLE_REBATE_RATE, DEFAULT_PHOENIX_LOCKOUT_PERIODS,
@@ -164,9 +165,25 @@ pub mod binding_support {
     pub use crate::instruments::monitoring::binding as barrier_monitoring;
     pub use crate::time::variance_time_convention_from_inputs;
 
+    /// Checks the input count for CRR and autocallable Monte Carlo contract batches.
+    ///
+    /// See [`crate::CoxRossRubinsteinVanillaEngine::price_many`] for a batch example.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::Error::InvalidInput`] above 1,048,576 contracts.
+    pub fn validate_contract_batch_size(count: usize) -> crate::Result<()> {
+        if count > 1 << 20 {
+            return Err(crate::Error::InvalidInput(
+                "contract batch exceeds 1,048,576 instruments".into(),
+            ));
+        }
+        Ok(())
+    }
+
     /// Estimates per-spot work for dispatching cancellable solution queries.
     pub fn finite_difference_solution_query_work(
-        solution: &crate::FiniteDifferenceSolution,
+        solution: &crate::engines::FiniteDifferenceSolution,
     ) -> usize {
         solution.query_work()
     }
@@ -183,33 +200,25 @@ pub use engines::analytic::digital::AnalyticDigitalEngine;
 pub use engines::analytic::double_barrier::AnalyticDoubleBarrierEngine;
 pub use engines::analytic::double_touch::AnalyticDoubleTouchEngine;
 pub use engines::analytic::european::AnalyticEuropeanEngine;
-pub use engines::analytic::heston::{AnalyticHestonEuropeanEngine, HestonIntegrationSettings};
+pub use engines::analytic::heston::AnalyticHestonEuropeanEngine;
 pub use engines::analytic::range_accrual::AnalyticRangeAccrualEngine;
 pub use engines::binomial::{
-    BinomialSettings, BinomialVanilla, CoxRossRubinsteinBarrierEngine,
-    CoxRossRubinsteinDigitalEngine, CoxRossRubinsteinVanillaEngine,
+    CoxRossRubinsteinBarrierEngine, CoxRossRubinsteinDigitalEngine, CoxRossRubinsteinVanillaEngine,
 };
-pub use engines::finite_difference::heston::{
-    FiniteDifferenceHestonVanillaEngine, HestonFiniteDifferenceSettings,
-};
+pub use engines::finite_difference::heston::FiniteDifferenceHestonVanillaEngine;
 pub use engines::finite_difference::{
     FiniteDifferenceAccumulatorEngine, FiniteDifferenceAutocallableEngine,
     FiniteDifferenceBarrierEngine, FiniteDifferenceBinaryBarrierEngine,
     FiniteDifferenceDigitalEngine, FiniteDifferenceDoubleBarrierEngine,
-    FiniteDifferenceDoubleTouchEngine, FiniteDifferenceEngine, FiniteDifferenceScheme,
-    FiniteDifferenceSettings, FiniteDifferenceSolution, FiniteDifferenceVanillaEngine,
-    VanillaBatchEngine,
+    FiniteDifferenceDoubleTouchEngine, FiniteDifferenceVanillaEngine,
 };
 pub use engines::monte_carlo::{
     MonteCarloAccumulatorEngine, MonteCarloAsianEngine, MonteCarloAutocallableEngine,
-    MonteCarloBarrierEngine, MonteCarloDigitalEngine, MonteCarloEstimate, MonteCarloGridSettings,
-    MonteCarloSampling, MonteCarloSettings, MonteCarloUncertaintyStatus, MonteCarloVanillaEngine,
-    configure_monte_carlo_pool,
+    MonteCarloBarrierEngine, MonteCarloDigitalEngine, MonteCarloVanillaEngine,
 };
 pub use engines::quadrature::{
     QuadratureAccumulatorEngine, QuadratureAutocallableEngine, QuadratureBarrierEngine,
-    QuadratureDigitalEngine, QuadratureSettings, QuadratureVanillaEngine,
-    QuadratureVanillaSettings,
+    QuadratureDigitalEngine, QuadratureVanillaEngine,
 };
 pub use error::{Error, Result};
 pub use instruments::accumulator::{Accumulator, AccumulatorChanges, AccumulatorTerms};
@@ -217,12 +226,11 @@ pub use instruments::asian::{
     ArithmeticAveragePriceOption, AveragePriceOptionChanges, GeometricAveragePriceOption,
 };
 pub use instruments::autocallable::{
-    AutocallableBarrierState, AutocallableNote, AutocallableTerms, BinarySnowballOption,
-    BinarySnowballOptionChanges, BinarySnowballTerms, CouponObservation, KnockInObservation,
-    KnockOutObservation, PhoenixOption, PhoenixOptionChanges, PhoenixPreset, PhoenixPresetTerms,
-    PhoenixTerms, SnowballCouponTerms, SnowballObservation, SnowballObservationChanges,
-    SnowballOption, SnowballOptionChanges, SnowballPreset, SnowballPresetTerms, SnowballTerms,
-    TernarySnowballOption, TernarySnowballOptionChanges, TernarySnowballTerms,
+    AutocallableBarrierState, BinarySnowballOption, BinarySnowballOptionChanges,
+    BinarySnowballTerms, CouponObservation, KnockInObservation, KnockOutObservation, PhoenixOption,
+    PhoenixOptionChanges, PhoenixTerms, SnowballObservation, SnowballObservationChanges,
+    SnowballOption, SnowballOptionChanges, SnowballTerms, TernarySnowballOption,
+    TernarySnowballOptionChanges, TernarySnowballTerms,
 };
 pub(crate) use instruments::barrier::ObservationMode;
 pub use instruments::barrier::{
@@ -243,8 +251,8 @@ pub use instruments::range_accrual::{
     RangeAccrualOption, RangeAccrualOptionChanges, RangeAccrualTerms,
 };
 pub use instruments::vanilla::{
-    AmericanOption, DigitalOption, DigitalOptionChanges, EuropeanOption, OptionContract,
-    OptionType, VanillaOptionChanges,
+    AmericanOption, DigitalOption, DigitalOptionChanges, EuropeanOption, OptionType,
+    VanillaOptionChanges,
 };
 pub use market::{
     BlackScholesMertonParameterChanges, BlackScholesMertonParameters, HestonParameterChanges,

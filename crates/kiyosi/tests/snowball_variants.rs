@@ -1,3 +1,7 @@
+use kiyosi::engines::QuadratureSettings;
+use kiyosi::instruments::{
+    AutocallableNote, AutocallableTerms, SnowballPreset, SnowballPresetTerms,
+};
 use kiyosi::*;
 use std::sync::{
     Arc,

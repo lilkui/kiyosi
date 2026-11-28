@@ -124,14 +124,14 @@ engine_methods!(
         ];
 
         #[new]
-        #[pyo3(signature = (*, absolute_tolerance=kiyosi::HestonIntegrationSettings::default().absolute_tolerance, relative_tolerance=kiyosi::HestonIntegrationSettings::default().relative_tolerance, max_evaluations=kiyosi::HestonIntegrationSettings::default().max_evaluations))]
+        #[pyo3(signature = (*, absolute_tolerance=kiyosi::engines::HestonIntegrationSettings::default().absolute_tolerance, relative_tolerance=kiyosi::engines::HestonIntegrationSettings::default().relative_tolerance, max_evaluations=kiyosi::engines::HestonIntegrationSettings::default().max_evaluations))]
         fn new(
             #[pyo3(from_py_with = real)] absolute_tolerance: f64,
             #[pyo3(from_py_with = real)] relative_tolerance: f64,
             #[pyo3(from_py_with = integer_usize)] max_evaluations: usize,
         ) -> PyResult<Self> {
             Ok(Self(domain(kiyosi::AnalyticHestonEuropeanEngine::new(
-                kiyosi::HestonIntegrationSettings {
+                kiyosi::engines::HestonIntegrationSettings {
                     absolute_tolerance,
                     relative_tolerance,
                     max_evaluations,

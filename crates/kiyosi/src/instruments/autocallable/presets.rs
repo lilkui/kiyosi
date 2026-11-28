@@ -159,7 +159,7 @@ impl SnowballPresetTerms {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{Date, SnowballPreset, SnowballPresetTerms};
+    /// use kiyosi::{Date, instruments::{SnowballPreset, SnowballPresetTerms}};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let end = Date::new(2026, 1, 1)?.start_of_day();
@@ -425,7 +425,7 @@ impl PhoenixPresetTerms {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{Date, PhoenixPreset, PhoenixPresetTerms};
+    /// use kiyosi::{Date, instruments::{PhoenixPreset, PhoenixPresetTerms}};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let end = Date::new(2026, 1, 1)?.start_of_day();

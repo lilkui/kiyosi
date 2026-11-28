@@ -1,8 +1,8 @@
 use kiyosi::PricingEngine;
 use kiyosi::{
-    AmericanOption, BarrierOption, BarrierOptionTerms, BarrierType, BinomialSettings,
-    BlackScholesMertonParameters, CoxRossRubinsteinBarrierEngine, CoxRossRubinsteinVanillaEngine,
-    EuropeanOption, PricingContext,
+    AmericanOption, BarrierOption, BarrierOptionTerms, BarrierType, BlackScholesMertonParameters,
+    CoxRossRubinsteinBarrierEngine, CoxRossRubinsteinVanillaEngine, EuropeanOption, PricingContext,
+    engines::BinomialSettings,
 };
 
 use super::common::{Failure, Price, Request};

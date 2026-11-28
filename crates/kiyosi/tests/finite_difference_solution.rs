@@ -1,3 +1,4 @@
+use kiyosi::engines::{FiniteDifferenceEngine, FiniteDifferenceSettings, FiniteDifferenceSolution};
 use kiyosi::*;
 use std::sync::{
     Arc,

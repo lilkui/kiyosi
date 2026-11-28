@@ -2,6 +2,12 @@
 mod schedule_fixture;
 use schedule_fixture::schedule as fixture_schedule;
 
+use kiyosi::engines::{
+    BinomialSettings, FiniteDifferenceSettings, HestonFiniteDifferenceSettings,
+    HestonIntegrationSettings, MonteCarloSampling, MonteCarloSettings, QuadratureSettings,
+    QuadratureVanillaSettings,
+};
+use kiyosi::instruments::OptionContract;
 use kiyosi::*;
 
 #[test]

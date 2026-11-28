@@ -215,7 +215,7 @@ impl ShortPricing {
 }
 
 fn expiry_short_pricing(
-    option: &impl kiyosi::OptionContract,
+    option: &impl kiyosi::instruments::OptionContract,
     context: &kiyosi::PricingContext,
 ) -> ShortPricing {
     if context.valuation_time() == option.expiry_time() {
@@ -225,7 +225,7 @@ fn expiry_short_pricing(
     }
 }
 
-pub(crate) fn evaluate<I: kiyosi::OptionContract + Sync, R: Send>(
+pub(crate) fn evaluate<I: kiyosi::instruments::OptionContract + Sync, R: Send>(
     py: Python<'_>,
     engine: &(impl kiyosi::PricingEngine<I> + Sync),
     instrument: &I,
@@ -262,7 +262,7 @@ pub(crate) trait PricingRequest<R>: Copy + Sync {
     fn is_short(self, _short_pricing: bool) -> bool {
         false
     }
-    fn evaluate<I: kiyosi::OptionContract>(
+    fn evaluate<I: kiyosi::instruments::OptionContract>(
         self,
         engine: &impl kiyosi::PricingEngine<I>,
         instrument: &I,
@@ -279,7 +279,7 @@ impl PricingRequest<f64> for ScalarRequest {
         short_pricing && self.is_scalar_price()
     }
 
-    fn evaluate<I: kiyosi::OptionContract>(
+    fn evaluate<I: kiyosi::instruments::OptionContract>(
         self,
         engine: &impl kiyosi::PricingEngine<I>,
         instrument: &I,
@@ -342,7 +342,7 @@ impl PricingRequest<kiyosi::PricingResult> for NativeGreeksRequest {
         short_pricing
     }
 
-    fn evaluate<I: kiyosi::OptionContract>(
+    fn evaluate<I: kiyosi::instruments::OptionContract>(
         self,
         engine: &impl kiyosi::PricingEngine<I>,
         instrument: &I,
@@ -359,7 +359,7 @@ pub(crate) struct StatisticsRequest;
 pub(crate) struct SeededPriceRequest;
 
 impl PricingRequest<(f64, Option<u64>)> for SeededPriceRequest {
-    fn evaluate<I: kiyosi::OptionContract>(
+    fn evaluate<I: kiyosi::instruments::OptionContract>(
         self,
         engine: &impl kiyosi::PricingEngine<I>,
         instrument: &I,
@@ -369,19 +369,19 @@ impl PricingRequest<(f64, Option<u64>)> for SeededPriceRequest {
     }
 }
 
-impl PricingRequest<kiyosi::MonteCarloEstimate> for StatisticsRequest {
-    fn evaluate<I: kiyosi::OptionContract>(
+impl PricingRequest<kiyosi::engines::MonteCarloEstimate> for StatisticsRequest {
+    fn evaluate<I: kiyosi::instruments::OptionContract>(
         self,
         engine: &impl kiyosi::PricingEngine<I>,
         instrument: &I,
         context: &kiyosi::PricingContext,
-    ) -> kiyosi::Result<kiyosi::MonteCarloEstimate> {
+    ) -> kiyosi::Result<kiyosi::engines::MonteCarloEstimate> {
         engine.price_with_statistics(instrument, context)
     }
 }
 
 impl PricingRequest<kiyosi::PricingResult> for NumericalGreeksRequest {
-    fn evaluate<I: kiyosi::OptionContract>(
+    fn evaluate<I: kiyosi::instruments::OptionContract>(
         self,
         engine: &impl kiyosi::PricingEngine<I>,
         instrument: &I,
@@ -399,7 +399,7 @@ impl PricingRequest<kiyosi::GreekMethod> for GreekMethodRequest {
         true
     }
 
-    fn evaluate<I: kiyosi::OptionContract>(
+    fn evaluate<I: kiyosi::instruments::OptionContract>(
         self,
         engine: &impl kiyosi::PricingEngine<I>,
         instrument: &I,

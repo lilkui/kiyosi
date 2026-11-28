@@ -119,8 +119,9 @@ impl AnalyticHestonEuropeanEngine {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{PricingEngine, AnalyticHestonEuropeanEngine, Date, EuropeanOption, HestonParameters,
-    ///     HestonIntegrationSettings, OptionType, PricingContext};
+    /// use kiyosi::engines::HestonIntegrationSettings;
+    /// use kiyosi::{AnalyticHestonEuropeanEngine, Date, EuropeanOption, HestonParameters,
+    ///     OptionType, PricingContext, PricingEngine};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = EuropeanOption::new(OptionType::Call, 100.0, start.add_days(31)?,
@@ -316,7 +317,7 @@ impl PricingEngine for AnalyticHestonEuropeanEngine {
     ///
     /// Validates model applicability, permitted valuation bounds and rate/dividend
     /// coverage in that order. Valuation may precede the effective time, with curves
-    /// covering valuation through expiry; see [`crate::OptionContract::valuation_start`].
+    /// covering valuation through expiry; see [`crate::instruments::OptionContract::valuation_start`].
     /// Initial variance is at valuation. See [`Self::new`] for an example.
     ///
     /// # Errors

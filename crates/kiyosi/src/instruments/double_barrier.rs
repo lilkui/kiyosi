@@ -1,7 +1,7 @@
 use crate::{
     BarrierOption, BarrierOptionTerms, BarrierTouchState, BarrierType, EuropeanOption,
-    ObservationMode, ObservationSchedule, OptionContract, OptionType, PricingContext, RebateTiming,
-    Result, Timestamp, TradingCalendar,
+    ObservationMode, ObservationSchedule, OptionType, PricingContext, RebateTiming, Result,
+    Timestamp, TradingCalendar, instruments::OptionContract,
 };
 
 /// Activation by either boundary; see [`DoubleBarrierOption::new`].

@@ -1,3 +1,4 @@
+use kiyosi::engines::QuadratureSettings;
 use kiyosi::*;
 
 fn dates() -> (Timestamp, Timestamp) {

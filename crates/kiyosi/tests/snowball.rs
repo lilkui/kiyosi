@@ -1,3 +1,4 @@
+use kiyosi::engines::QuadratureSettings;
 use kiyosi::*;
 
 fn date(month: u32, day: u32) -> Timestamp {

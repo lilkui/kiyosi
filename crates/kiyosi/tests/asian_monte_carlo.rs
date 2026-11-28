@@ -1,3 +1,4 @@
+use kiyosi::engines::{MonteCarloGridSettings, MonteCarloSampling, MonteCarloSettings};
 use kiyosi::*;
 
 #[test]

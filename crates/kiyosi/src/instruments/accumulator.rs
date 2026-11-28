@@ -1,6 +1,6 @@
 use crate::{
-    Error, ObservationSchedule, OptionContract, OptionType, PricingContext, Result, TimeOfDay,
-    Timestamp, TradingCalendar,
+    Error, ObservationSchedule, OptionType, PricingContext, Result, TimeOfDay, Timestamp,
+    TradingCalendar, instruments::OptionContract,
 };
 
 /// Supplies accumulator terms; see [`Accumulator::new`] for validation and usage.
@@ -119,7 +119,8 @@ impl Accumulator {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{Accumulator, AccumulatorChanges, AccumulatorTerms, Date, OptionType, OptionContract};
+    /// use kiyosi::{Accumulator, AccumulatorChanges, AccumulatorTerms, Date, OptionType,
+    ///     instruments::OptionContract};
     /// # fn main() -> kiyosi::Result<()> {
     /// let option = Accumulator::new(AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0,
     ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 2, 3)?.start_of_day(), kiyosi::TimeOfDay::new(0, 0, 0, 0)?))?;

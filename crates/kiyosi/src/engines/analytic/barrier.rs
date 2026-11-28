@@ -235,7 +235,7 @@ fn analytic_price(option: &BarrierOption, context: &PricingContext) -> Result<f6
             let payoff = crate::engines::quadrature::continuous_barrier_price(
                 option,
                 context,
-                crate::QuadratureSettings {
+                crate::engines::QuadratureSettings {
                     // Include representable tails when the quadrature can use the exact paying interval.
                     integration_standard_deviations: if upper == call
                         && barrier_strike.abs() <= width

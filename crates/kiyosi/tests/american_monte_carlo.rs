@@ -1,3 +1,6 @@
+use kiyosi::engines::{
+    BinomialSettings, MonteCarloGridSettings, MonteCarloSampling, MonteCarloSettings,
+};
 use kiyosi::*;
 
 fn option(direction: OptionType, strike: f64) -> AmericanOption {

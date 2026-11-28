@@ -66,13 +66,13 @@ macro_rules! with_barrier {
 pub(crate) fn configure_monte_carlo_pool(
     #[pyo3(from_py_with = integer)] max_workers: i32,
 ) -> PyResult<()> {
-    domain(kiyosi::configure_monte_carlo_pool(max_workers))
+    domain(kiyosi::engines::configure_monte_carlo_pool(max_workers))
 }
 
-fn sampling(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::MonteCarloSampling> {
+fn sampling(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::engines::MonteCarloSampling> {
     match value.extract::<&str>()? {
-        "pseudo_random" => Ok(kiyosi::MonteCarloSampling::PseudoRandom),
-        "sobol" => Ok(kiyosi::MonteCarloSampling::Sobol),
+        "pseudo_random" => Ok(kiyosi::engines::MonteCarloSampling::PseudoRandom),
+        "sobol" => Ok(kiyosi::engines::MonteCarloSampling::Sobol),
         _ => Err(PyValueError::new_err("unknown Monte Carlo sampling")),
     }
 }
@@ -83,10 +83,10 @@ fn strike_batch(value: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
     })
 }
 
-pub(crate) fn sampling_name(value: kiyosi::MonteCarloSampling) -> &'static str {
+pub(crate) fn sampling_name(value: kiyosi::engines::MonteCarloSampling) -> &'static str {
     match value {
-        kiyosi::MonteCarloSampling::PseudoRandom => "pseudo_random",
-        kiyosi::MonteCarloSampling::Sobol => "sobol",
+        kiyosi::engines::MonteCarloSampling::PseudoRandom => "pseudo_random",
+        kiyosi::engines::MonteCarloSampling::Sobol => "sobol",
     }
 }
 
@@ -146,7 +146,7 @@ macro_rules! sampling_settings {
         kiyosi::$engine::new($settings)
     };
     (@new $engine:ident, $settings:expr, [$step:ident]) => {
-        kiyosi::$engine::new(kiyosi::MonteCarloGridSettings { sampling: $settings, step_count: $step })
+        kiyosi::$engine::new(kiyosi::engines::MonteCarloGridSettings { sampling: $settings, step_count: $step })
     };
     (@sampling $engine:expr, []) => {
         $engine.settings()
@@ -264,16 +264,16 @@ macro_rules! sampling_settings {
             ];
 
             #[new]
-            #[pyo3(signature = (*, path_count=kiyosi::MonteCarloSettings::default().path_count, $($step=kiyosi::$engine::default().settings().$step,)? seed=kiyosi::MonteCarloSettings::default().seed, max_active_workers=kiyosi::MonteCarloSettings::default().max_active_workers, sampling=kiyosi::MonteCarloSettings::default().sampling, antithetic=kiyosi::MonteCarloSettings::default().antithetic))]
+            #[pyo3(signature = (*, path_count=kiyosi::engines::MonteCarloSettings::default().path_count, $($step=kiyosi::$engine::default().settings().$step,)? seed=kiyosi::engines::MonteCarloSettings::default().seed, max_active_workers=kiyosi::engines::MonteCarloSettings::default().max_active_workers, sampling=kiyosi::engines::MonteCarloSettings::default().sampling, antithetic=kiyosi::engines::MonteCarloSettings::default().antithetic))]
             fn new(
                 #[pyo3(from_py_with = integer)] path_count: i32,
                 $(#[pyo3(from_py_with = integer)] $step: i32,)?
                 #[pyo3(from_py_with = crate::conversions::optional_seed)] seed: Option<u64>,
                 #[pyo3(from_py_with = integer)] max_active_workers: i32,
-                #[pyo3(from_py_with = sampling)] sampling: kiyosi::MonteCarloSampling,
+                #[pyo3(from_py_with = sampling)] sampling: kiyosi::engines::MonteCarloSampling,
                 #[pyo3(from_py_with = boolean)] antithetic: bool,
             ) -> PyResult<Self> {
-                let settings = kiyosi::MonteCarloSettings {
+                let settings = kiyosi::engines::MonteCarloSettings {
                     path_count,
                     seed,
                     max_active_workers,
@@ -473,7 +473,7 @@ sampling_settings!(
 ///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
-pub(crate) struct MonteCarloEstimate(kiyosi::MonteCarloEstimate);
+pub(crate) struct MonteCarloEstimate(kiyosi::engines::MonteCarloEstimate);
 
 #[pymethods]
 impl MonteCarloEstimate {

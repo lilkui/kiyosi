@@ -1,3 +1,5 @@
+use kiyosi::engines::{BinomialSettings, BinomialVanilla};
+use kiyosi::instruments::OptionContract;
 use kiyosi::*;
 
 #[test]

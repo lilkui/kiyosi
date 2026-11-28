@@ -1,7 +1,7 @@
 use super::monitoring::Monitoring;
 use crate::{
-    Error, EuropeanOption, ObservationSchedule, OptionContract, OptionType, PricingContext, Result,
-    SettlementTiming, Timestamp, TradingCalendar,
+    Error, EuropeanOption, ObservationSchedule, OptionType, PricingContext, Result,
+    SettlementTiming, Timestamp, TradingCalendar, instruments::OptionContract,
 };
 
 /// Direction and activation behavior; see [`BarrierOption::new`].

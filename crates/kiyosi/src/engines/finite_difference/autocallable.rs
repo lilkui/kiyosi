@@ -16,7 +16,10 @@ use crate::instruments::autocallable::pricing::{
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{scaled_cash, scaled_signed_cash};
 use crate::risk::analytics::CouponPricer;
-use crate::{AutocallableBarrierState, AutocallableNote, AutocallableTerms, Timestamp};
+use crate::{
+    AutocallableBarrierState, Timestamp,
+    instruments::{AutocallableNote, AutocallableTerms},
+};
 
 impl FiniteDifferenceAutocallableEngine {}
 impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>

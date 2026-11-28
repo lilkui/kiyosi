@@ -1,7 +1,8 @@
 use super::monitoring::{Monitoring, MonitoringInput, replace_schedule, validate_upper};
 use crate::{
     BarrierTouchState, BarrierType, DoubleBarrierType, Error, ObservationMode, ObservationSchedule,
-    OptionContract, PricingContext, Result, SettlementTiming, Timestamp, TradingCalendar,
+    PricingContext, Result, SettlementTiming, Timestamp, TradingCalendar,
+    instruments::OptionContract,
 };
 
 /// Cash double-touch inputs; see [`DoubleTouchOption::cash`] for validation and usage.

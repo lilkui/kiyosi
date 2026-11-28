@@ -1,8 +1,9 @@
 use std::cmp::Ordering;
 
 use crate::{
-    BarrierTouchState, BarrierType, Error, ObservationMode, ObservationSchedule, OptionContract,
-    OptionType, PricingContext, Result, SettlementTiming, Timestamp, TradingCalendar,
+    BarrierTouchState, BarrierType, Error, ObservationMode, ObservationSchedule, OptionType,
+    PricingContext, Result, SettlementTiming, Timestamp, TradingCalendar,
+    instruments::OptionContract,
 };
 
 pub(crate) fn validate_upper(lower: f64, upper: f64) -> Result<()> {
@@ -456,7 +457,7 @@ impl OptionContract for Monitoring {
 }
 
 pub(crate) fn validate_life(
-    option: &impl crate::OptionContract,
+    option: &impl crate::instruments::OptionContract,
     context: &PricingContext,
 ) -> Result<()> {
     let time = context.valuation_time();

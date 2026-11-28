@@ -1,12 +1,12 @@
 use kiyosi::PricingEngine;
-use kiyosi::VanillaBatchEngine;
+use kiyosi::engines::VanillaBatchEngine;
 
 use kiyosi::Timestamp;
 use kiyosi::{
     AmericanOption, AnalyticHestonEuropeanEngine, Date, Error, EuropeanOption,
-    FiniteDifferenceHestonVanillaEngine, Greek, GreekStatus, GreeksRequest,
-    HestonFiniteDifferenceSettings, HestonParameters, OptionType, PricingContext,
-    RateTermStructure, TradingCalendar,
+    FiniteDifferenceHestonVanillaEngine, Greek, GreekStatus, GreeksRequest, HestonParameters,
+    OptionType, PricingContext, RateTermStructure, TradingCalendar,
+    engines::HestonFiniteDifferenceSettings,
 };
 
 fn dates() -> (Timestamp, Timestamp) {
@@ -204,7 +204,7 @@ fn heston_strike_batches_match_independent_prices_in_input_order() -> kiyosi::Re
 
 #[test]
 fn absorbing_heston_preserves_quoted_forward_payoffs() -> kiyosi::Result<()> {
-    use kiyosi::{FiniteDifferenceEngine, HestonParameterInputs, PricingContextChanges};
+    use kiyosi::{HestonParameterInputs, PricingContextChanges, engines::FiniteDifferenceEngine};
 
     let (start, end) = dates();
     let strike = 1e17;
@@ -260,7 +260,7 @@ fn context(xi: f64, correlation: f64) -> PricingContext {
 
 #[test]
 fn heston_grid_resolves_low_integrated_variance() -> kiyosi::Result<()> {
-    use kiyosi::FiniteDifferenceEngine;
+    use kiyosi::engines::FiniteDifferenceEngine;
 
     let start = Date::new(2025, 1, 6)?.start_of_day();
     let model = HestonParameters::new(kiyosi::HestonParameterInputs {

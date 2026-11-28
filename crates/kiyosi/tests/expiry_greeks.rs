@@ -1,3 +1,5 @@
+use kiyosi::engines::MonteCarloSettings;
+use kiyosi::instruments::OptionContract;
 use kiyosi::*;
 
 fn context(spot: f64) -> Result<PricingContext> {

@@ -1,7 +1,8 @@
 use kiyosi::{
     AmericanOption, AnalyticHestonEuropeanEngine, EuropeanOption,
-    FiniteDifferenceHestonVanillaEngine, HestonFiniteDifferenceSettings, HestonIntegrationSettings,
-    HestonParameterInputs, HestonParameters, PricingContext, PricingEngine,
+    FiniteDifferenceHestonVanillaEngine, HestonParameterInputs, HestonParameters, PricingContext,
+    PricingEngine,
+    engines::{HestonFiniteDifferenceSettings, HestonIntegrationSettings},
 };
 
 use super::common::{Failure, Price, Request};

@@ -1,7 +1,7 @@
 use crate::conversions::integer;
 use crate::engines::binomial;
 use crate::error::domain;
-use kiyosi::VanillaBatchEngine;
+use kiyosi::engines::VanillaBatchEngine;
 use pyo3::{prelude::*, types::PyTuple};
 
 /// Finite-difference prices for European and American options under Heston.
@@ -240,7 +240,7 @@ engine_methods!(
         ];
 
         #[new]
-        #[pyo3(signature = (*, asset_step_count=kiyosi::HestonFiniteDifferenceSettings::default().asset_step_count, variance_step_count=kiyosi::HestonFiniteDifferenceSettings::default().variance_step_count, time_step_count=kiyosi::HestonFiniteDifferenceSettings::default().time_step_count, asset_upper_boundary=kiyosi::HestonFiniteDifferenceSettings::default().asset_upper_boundary, variance_upper_boundary=kiyosi::HestonFiniteDifferenceSettings::default().variance_upper_boundary))]
+        #[pyo3(signature = (*, asset_step_count=kiyosi::engines::HestonFiniteDifferenceSettings::default().asset_step_count, variance_step_count=kiyosi::engines::HestonFiniteDifferenceSettings::default().variance_step_count, time_step_count=kiyosi::engines::HestonFiniteDifferenceSettings::default().time_step_count, asset_upper_boundary=kiyosi::engines::HestonFiniteDifferenceSettings::default().asset_upper_boundary, variance_upper_boundary=kiyosi::engines::HestonFiniteDifferenceSettings::default().variance_upper_boundary))]
         fn new(
             #[pyo3(from_py_with = integer)] asset_step_count: i32,
             #[pyo3(from_py_with = integer)] variance_step_count: i32,
@@ -250,7 +250,7 @@ engine_methods!(
         ) -> PyResult<Self> {
             Ok(Self(domain(
                 kiyosi::FiniteDifferenceHestonVanillaEngine::new(
-                    kiyosi::HestonFiniteDifferenceSettings {
+                    kiyosi::engines::HestonFiniteDifferenceSettings {
                         asset_step_count,
                         variance_step_count,
                         time_step_count,

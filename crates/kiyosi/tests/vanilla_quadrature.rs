@@ -1,3 +1,7 @@
+use kiyosi::engines::{
+    BinomialSettings, MonteCarloGridSettings, MonteCarloSampling, MonteCarloSettings,
+    QuadratureVanillaSettings,
+};
 use kiyosi::*;
 
 fn dates() -> (Timestamp, Timestamp) {

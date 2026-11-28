@@ -1,6 +1,8 @@
 #[path = "support/autocallable.rs"]
 mod autocallable_support;
 
+use kiyosi::engines::FiniteDifferenceSettings;
+use kiyosi::instruments::OptionContract;
 use kiyosi::*;
 
 fn date(month: u32, day: u32) -> Timestamp {

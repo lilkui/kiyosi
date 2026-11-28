@@ -8,29 +8,29 @@ use crate::instruments::binary_barrier;
 use crate::instruments::digital;
 use crate::instruments::double_barrier;
 use crate::instruments::double_touch;
-use kiyosi::VanillaBatchEngine;
+use kiyosi::engines::VanillaBatchEngine;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 pub(crate) mod heston;
 pub(crate) mod solution;
 
-fn scheme(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::FiniteDifferenceScheme> {
+fn scheme(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::engines::FiniteDifferenceScheme> {
     match value.extract::<&str>()? {
-        "explicit_euler" => Ok(kiyosi::FiniteDifferenceScheme::ExplicitEuler),
-        "implicit_euler" => Ok(kiyosi::FiniteDifferenceScheme::ImplicitEuler),
-        "crank_nicolson" => Ok(kiyosi::FiniteDifferenceScheme::CrankNicolson),
-        "rannacher" => Ok(kiyosi::FiniteDifferenceScheme::Rannacher),
+        "explicit_euler" => Ok(kiyosi::engines::FiniteDifferenceScheme::ExplicitEuler),
+        "implicit_euler" => Ok(kiyosi::engines::FiniteDifferenceScheme::ImplicitEuler),
+        "crank_nicolson" => Ok(kiyosi::engines::FiniteDifferenceScheme::CrankNicolson),
+        "rannacher" => Ok(kiyosi::engines::FiniteDifferenceScheme::Rannacher),
         _ => Err(PyValueError::new_err("unknown finite-difference scheme")),
     }
 }
 
-pub(crate) fn scheme_name(value: kiyosi::FiniteDifferenceScheme) -> &'static str {
+pub(crate) fn scheme_name(value: kiyosi::engines::FiniteDifferenceScheme) -> &'static str {
     match value {
-        kiyosi::FiniteDifferenceScheme::ExplicitEuler => "explicit_euler",
-        kiyosi::FiniteDifferenceScheme::ImplicitEuler => "implicit_euler",
-        kiyosi::FiniteDifferenceScheme::CrankNicolson => "crank_nicolson",
-        kiyosi::FiniteDifferenceScheme::Rannacher => "rannacher",
+        kiyosi::engines::FiniteDifferenceScheme::ExplicitEuler => "explicit_euler",
+        kiyosi::engines::FiniteDifferenceScheme::ImplicitEuler => "implicit_euler",
+        kiyosi::engines::FiniteDifferenceScheme::CrankNicolson => "crank_nicolson",
+        kiyosi::engines::FiniteDifferenceScheme::Rannacher => "rannacher",
     }
 }
 
@@ -163,10 +163,10 @@ macro_rules! fd_engine {
                 fn new(
                     #[pyo3(from_py_with = integer)] asset_step_count: i32,
                     #[pyo3(from_py_with = integer)] time_step_count: i32,
-                    #[pyo3(from_py_with = scheme)] scheme: kiyosi::FiniteDifferenceScheme,
+                    #[pyo3(from_py_with = scheme)] scheme: kiyosi::engines::FiniteDifferenceScheme,
                     #[pyo3(from_py_with = crate::conversions::optional_real)] asset_upper_boundary: Option<f64>,
                 ) -> PyResult<Self> {
-                    Ok(Self(domain(kiyosi::$name::new(kiyosi::FiniteDifferenceSettings {
+                    Ok(Self(domain(kiyosi::$name::new(kiyosi::engines::FiniteDifferenceSettings {
                         asset_step_count,
                         time_step_count,
                         scheme,

@@ -1,3 +1,7 @@
+use kiyosi::engines::{FiniteDifferenceSettings, MonteCarloSettings, QuadratureSettings};
+use kiyosi::instruments::{
+    AutocallableNote, SnowballCouponTerms, SnowballPreset, SnowballPresetTerms,
+};
 use kiyosi::*;
 
 #[test]

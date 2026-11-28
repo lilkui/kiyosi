@@ -1,9 +1,9 @@
 //! Offline domain, space and time refinement for the benchmark American put.
 
 use kiyosi::{
-    AmericanOption, BlackScholesMertonParameters, Date, FiniteDifferenceScheme,
-    FiniteDifferenceSettings, FiniteDifferenceVanillaEngine, OptionType, PricingContext,
-    PricingEngine,
+    AmericanOption, BlackScholesMertonParameters, Date, FiniteDifferenceVanillaEngine, OptionType,
+    PricingContext, PricingEngine,
+    engines::{FiniteDifferenceScheme, FiniteDifferenceSettings},
 };
 
 fn main() -> kiyosi::Result<()> {

@@ -1,3 +1,4 @@
+use kiyosi::instruments::AutocallableNote;
 use kiyosi::*;
 
 #[test]

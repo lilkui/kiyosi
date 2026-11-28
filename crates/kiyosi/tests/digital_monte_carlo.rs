@@ -1,3 +1,4 @@
+use kiyosi::engines::{MonteCarloSampling, MonteCarloSettings};
 use kiyosi::*;
 
 const CASH_PAYOUT: f64 = 10.0;

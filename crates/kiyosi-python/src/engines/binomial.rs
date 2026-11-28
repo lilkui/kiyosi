@@ -84,11 +84,11 @@ macro_rules! binomial_engine {
                 const _STATE_FIELDS: &'static [&'static str] = &["step_count"];
 
                 #[new]
-                #[pyo3(signature = (*, step_count=kiyosi::BinomialSettings::default().step_count))]
+                #[pyo3(signature = (*, step_count=kiyosi::engines::BinomialSettings::default().step_count))]
                 fn new(
                     #[pyo3(from_py_with = integer)] step_count: i32,
                 ) -> PyResult<Self> {
-                    Ok(Self(domain(kiyosi::$name::new(kiyosi::BinomialSettings { step_count }))?))
+                    Ok(Self(domain(kiyosi::$name::new(kiyosi::engines::BinomialSettings { step_count }))?))
                 }
             }
         );
@@ -171,14 +171,14 @@ binomial_engine!(
         const _STATE_FIELDS: &'static [&'static str] = &["step_count", "rollback_tolerance"];
 
         #[new]
-        #[pyo3(signature = (*, step_count=kiyosi::BinomialSettings::default().step_count,
+        #[pyo3(signature = (*, step_count=kiyosi::engines::BinomialSettings::default().step_count,
             rollback_tolerance=None))]
         fn new(
             #[pyo3(from_py_with = integer)] step_count: i32,
             #[pyo3(from_py_with = crate::conversions::optional_real)] rollback_tolerance: Option<f64>,
         ) -> PyResult<Self> {
             Ok(Self(domain(kiyosi::CoxRossRubinsteinVanillaEngine::new(
-                kiyosi::BinomialSettings { step_count }
+                kiyosi::engines::BinomialSettings { step_count }
             ).and_then(|engine| engine.with_rollback_tolerance(rollback_tolerance)))?))
         }
 
@@ -232,8 +232,8 @@ binomial_engine!(
                 return Ok(pyo3::types::PyTuple::empty(py));
             }
             let contracts: Vec<_> = instruments.iter().map(|instrument| match instrument {
-                VanillaInstrument::European(option) => kiyosi::BinomialVanilla::European(&option.0),
-                VanillaInstrument::American(option) => kiyosi::BinomialVanilla::American(&option.0),
+                VanillaInstrument::European(option) => kiyosi::engines::BinomialVanilla::European(&option.0),
+                VanillaInstrument::American(option) => kiyosi::engines::BinomialVanilla::American(&option.0),
             }).collect();
             let context = &context.0;
             let prices = domain(crate::cancellation::run(py, || {

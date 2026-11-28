@@ -3,9 +3,9 @@ use kiyosi::{
     AmericanOption, BarrierOption, BarrierOptionTerms, BarrierType, BinaryBarrierOption,
     BinaryBarrierTerms, BlackScholesMertonParameters, DigitalOption, EuropeanOption,
     FiniteDifferenceBarrierEngine, FiniteDifferenceBinaryBarrierEngine,
-    FiniteDifferenceDigitalEngine, FiniteDifferenceScheme, FiniteDifferenceSettings,
-    FiniteDifferenceVanillaEngine, PricingContext, PricingEngine, SettlementTiming, Timestamp,
-    TouchOption, TouchOptionTerms,
+    FiniteDifferenceDigitalEngine, FiniteDifferenceVanillaEngine, PricingContext, PricingEngine,
+    SettlementTiming, Timestamp, TouchOption, TouchOptionTerms,
+    engines::{FiniteDifferenceScheme, FiniteDifferenceSettings},
 };
 
 pub fn prepare(request: &mut Request) -> Result<Price, Failure> {

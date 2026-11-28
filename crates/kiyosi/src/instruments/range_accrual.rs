@@ -1,4 +1,7 @@
-use crate::{Error, OptionContract, PricingContext, Result, TimeOfDay, Timestamp, TradingCalendar};
+use crate::{
+    Error, PricingContext, Result, TimeOfDay, Timestamp, TradingCalendar,
+    instruments::OptionContract,
+};
 
 /// Supplies equally weighted range-coupon terms; see [`RangeAccrualOption::new`].
 #[derive(Clone, Debug, PartialEq)]
@@ -75,7 +78,7 @@ impl RangeAccrualOption {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{Date, OptionContract, RangeAccrualOption, RangeAccrualTerms};
+    /// use kiyosi::{Date, RangeAccrualOption, RangeAccrualTerms, instruments::OptionContract};
     /// # fn main() -> kiyosi::Result<()> {
     /// let terms = RangeAccrualTerms::new(1000.0, 0.12, 95.0, 110.0,
     ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 1, 17)?.start_of_day(), kiyosi::TimeOfDay::new(0, 0, 0, 0)?);
@@ -295,7 +298,8 @@ impl RangeAccrualOption {
     /// Settles on Saturday while observing only on open dates:
     ///
     /// ```rust
-    /// use kiyosi::{Date, RangeAccrualOption, RangeAccrualOptionChanges, RangeAccrualTerms, TradingCalendar};
+    /// use kiyosi::{Date, RangeAccrualOption, RangeAccrualOptionChanges, RangeAccrualTerms,
+    ///     TradingCalendar};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 2)?.start_of_day();
     /// let expiry = Date::new(2025, 1, 4)?.start_of_day();

@@ -1,3 +1,5 @@
+use kiyosi::engines::{FiniteDifferenceSettings, MonteCarloSettings};
+use kiyosi::instruments::OptionContract;
 use kiyosi::*;
 
 fn market() -> (EuropeanOption, PricingContext) {

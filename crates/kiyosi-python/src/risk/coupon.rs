@@ -194,10 +194,10 @@ fn solve_periodic_coupon(
     Ok(quote.into_any().unbind())
 }
 
-fn solve_annual_coupon<T: kiyosi::SnowballCouponTerms>(
+fn solve_annual_coupon<T: kiyosi::instruments::SnowballCouponTerms>(
     py: Python<'_>,
-    engine: &(impl kiyosi::PricingEngine<kiyosi::AutocallableNote<T>> + Sync),
-    note: &kiyosi::AutocallableNote<T>,
+    engine: &(impl kiyosi::PricingEngine<kiyosi::instruments::AutocallableNote<T>> + Sync),
+    note: &kiyosi::instruments::AutocallableNote<T>,
     context: &kiyosi::PricingContext,
     observed: f64,
     convention: Option<&Bound<'_, PyAny>>,

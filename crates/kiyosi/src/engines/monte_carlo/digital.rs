@@ -1,7 +1,8 @@
 use super::{greeks, path_means, scaled_value, unstable};
 use crate::{
-    DigitalOption, Greek, GreeksRequest, MonteCarloEstimate, MonteCarloSampling,
-    MonteCarloSettings, OptionType, PricingContext, PricingEngine, PricingResult, Result,
+    DigitalOption, Greek, GreeksRequest, OptionType, PricingContext, PricingEngine, PricingResult,
+    Result,
+    engines::{MonteCarloEstimate, MonteCarloSampling, MonteCarloSettings},
 };
 
 /// Prices European cash-or-nothing and asset-or-nothing contracts by terminal sampling.
@@ -261,8 +262,9 @@ impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{PricingEngine, MonteCarloDigitalEngine, MonteCarloSettings, DigitalOption,
-    ///     BlackScholesMertonParameters, Date, OptionType, PricingContext, Greek, GreeksRequest};
+    /// use kiyosi::{PricingEngine, MonteCarloDigitalEngine, DigitalOption,
+    ///     BlackScholesMertonParameters, Date, OptionType, PricingContext, Greek, GreeksRequest,
+    ///     engines::MonteCarloSettings};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0,

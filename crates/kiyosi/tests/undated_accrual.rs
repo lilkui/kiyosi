@@ -1,3 +1,4 @@
+use kiyosi::engines::MonteCarloSettings;
 use kiyosi::*;
 
 #[test]

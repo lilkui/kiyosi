@@ -31,7 +31,7 @@ impl PricingEngine<RangeAccrualOption> for AnalyticRangeAccrualEngine {
     ///
     /// ```rust
     /// use kiyosi::*;
-    /// # use kiyosi::OptionContract as _;
+    /// # use kiyosi::instruments::OptionContract as _;
     /// # fn main() -> Result<()> {
     /// let option = RangeAccrualOption::new(RangeAccrualTerms::new(1000.0, 0.12, 95.0, 110.0,
     ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 1, 3)?.start_of_day(), kiyosi::TimeOfDay::new(0, 0, 0, 0)?))?.replace(RangeAccrualOptionChanges { realized_hit_count: Some(Some(1)), ..Default::default() })?;

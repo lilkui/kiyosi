@@ -1,7 +1,7 @@
 use super::monitoring::Monitoring;
 use crate::{
-    BarrierTouchState, BarrierType, DigitalOption, Error, ObservationSchedule, OptionContract,
-    OptionType, PricingContext, Result, Timestamp, TradingCalendar,
+    BarrierTouchState, BarrierType, DigitalOption, Error, ObservationSchedule, OptionType,
+    PricingContext, Result, Timestamp, TradingCalendar, instruments::OptionContract,
 };
 
 /// Selects explicit cash or asset settlement for binary and touch replacements.

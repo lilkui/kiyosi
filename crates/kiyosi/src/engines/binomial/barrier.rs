@@ -924,9 +924,9 @@ impl PricingEngine<BarrierOption> for CoxRossRubinsteinBarrierEngine {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{PricingEngine, BarrierOption, BarrierOptionTerms, BarrierType, BinomialSettings,
+    /// use kiyosi::{PricingEngine, BarrierOption, BarrierOptionTerms, BarrierType,
     ///     BlackScholesMertonParameters, CoxRossRubinsteinBarrierEngine, Date, OptionType,
-    ///     PricingContext};
+    ///     PricingContext, engines::BinomialSettings};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call, 100.0,

@@ -1,7 +1,7 @@
 use kiyosi::{
     BlackScholesMertonParameters, DigitalOption, EuropeanOption, PricingContext, PricingEngine,
-    QuadratureDigitalEngine, QuadratureSettings, QuadratureVanillaEngine,
-    QuadratureVanillaSettings,
+    QuadratureDigitalEngine, QuadratureVanillaEngine,
+    engines::{QuadratureSettings, QuadratureVanillaSettings},
 };
 
 use super::common::{Failure, Price, Request};

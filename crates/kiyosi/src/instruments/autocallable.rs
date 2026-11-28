@@ -3,7 +3,10 @@ pub(crate) mod pricing;
 pub use presets::{PhoenixPreset, PhoenixPresetTerms, SnowballPreset, SnowballPresetTerms};
 
 use crate::error::finite;
-use crate::{Error, OptionContract, PricingContext, Result, TimeOfDay, Timestamp, TradingCalendar};
+use crate::{
+    Error, PricingContext, Result, TimeOfDay, Timestamp, TradingCalendar,
+    instruments::OptionContract,
+};
 
 /// Supplies unit principal redemption for autocallable terms; see [`SnowballTerms::new`].
 pub const DEFAULT_PRINCIPAL_REDEMPTION_RATIO: f64 = 1.0;
@@ -1082,7 +1085,8 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{SnowballObservation, Date, KnockInObservation, SnowballOption, SnowballTerms, TimeOfDay};
+    /// use kiyosi::{SnowballObservation, Date, KnockInObservation, SnowballOption, SnowballTerms,
+    ///     TimeOfDay};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 6)?.start_of_day();
     /// let end = start.add_days(2)?;

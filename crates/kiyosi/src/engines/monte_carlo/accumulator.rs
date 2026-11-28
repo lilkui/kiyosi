@@ -3,8 +3,8 @@ use super::{
 };
 use crate::numerics::log_ratio;
 use crate::{
-    Accumulator, MonteCarloEstimate, MonteCarloSettings, OptionType, PricingContext, PricingEngine,
-    Result,
+    Accumulator, OptionType, PricingContext, PricingEngine, Result,
+    engines::{MonteCarloEstimate, MonteCarloSettings},
 };
 
 /// Prices accumulators with exact lognormal transitions between trading dates.
@@ -54,7 +54,8 @@ impl MonteCarloAccumulatorEngine {
     ///
     /// ```rust
     /// use kiyosi::*;
-    /// # use kiyosi::OptionContract as _;
+    /// use kiyosi::engines::MonteCarloSettings;
+    /// # use kiyosi::instruments::OptionContract as _;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = Accumulator::new(AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0,

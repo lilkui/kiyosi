@@ -592,7 +592,7 @@ fn local_digital_knock_in<D: Diffusion>(
     )
 }
 
-trait BinaryInstrument: crate::OptionContract {
+trait BinaryInstrument: crate::instruments::OptionContract {
     fn saved_contract(&self) -> Contract<'_>;
 }
 macro_rules! saved_binary {

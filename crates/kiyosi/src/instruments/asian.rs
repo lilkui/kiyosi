@@ -1,5 +1,8 @@
 use crate::numerics::checked;
-use crate::{Error, EuropeanOption, OptionContract, OptionType, PricingContext, Result, Timestamp};
+use crate::{
+    Error, EuropeanOption, OptionType, PricingContext, Result, Timestamp,
+    instruments::OptionContract,
+};
 
 /// Denotes no realized average before averaging starts; see [`GeometricAveragePriceOption::new`].
 pub const DEFAULT_REALIZED_AVERAGE: Option<f64> = None;
@@ -181,7 +184,8 @@ macro_rules! average_option {
             /// # Examples
             ///
             /// ```rust
-            /// use kiyosi::{AveragePriceOptionChanges, Date, GeometricAveragePriceOption, OptionType};
+            /// use kiyosi::{AveragePriceOptionChanges, Date, GeometricAveragePriceOption,
+            ///     OptionType};
             /// # fn main() -> kiyosi::Result<()> {
             /// let start = Date::new(2025, 1, 2)?.start_of_day();
             /// let original = GeometricAveragePriceOption::new(OptionType::Call,

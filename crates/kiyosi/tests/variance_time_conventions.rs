@@ -3,6 +3,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
+use kiyosi::engines::{FiniteDifferenceEngine, FiniteDifferenceSettings};
 use kiyosi::*;
 
 fn instant(year: i32, month: u32, day: u32, hour: u32) -> Timestamp {

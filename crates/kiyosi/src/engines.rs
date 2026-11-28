@@ -1,6 +1,13 @@
+//! Algorithm-specific engine settings, batch traits, and pricing results.
+//!
+//! Use [`crate::PricingEngine`] to price contracts with the concrete engines
+//! at the crate root. See [`crate::FiniteDifferenceVanillaEngine::new`] for
+//! configuring an engine and [`FiniteDifferenceEngine::solve`] for reusing a
+//! solution across spot prices.
+
 use crate::{
-    BinaryPayoff, DigitalOption, Error, Greek, GreeksRequest, NumericalShiftSettings,
-    OptionContract, OptionType, PricingContext, PricingEngine, PricingResult, Result,
+    BinaryPayoff, DigitalOption, Error, Greek, GreeksRequest, NumericalShiftSettings, OptionType,
+    PricingContext, PricingEngine, PricingResult, Result, instruments::OptionContract,
 };
 use std::sync::{
     OnceLock,
@@ -15,22 +22,18 @@ pub(crate) mod finite_difference;
 pub(crate) mod monte_carlo;
 pub(crate) mod quadrature;
 
-/// Checks the input count for CRR and autocallable Monte Carlo contract batches.
-///
-/// See [`crate::CoxRossRubinsteinVanillaEngine::price_many`] for a batch example.
-///
-/// # Errors
-///
-/// Returns [`Error::InvalidInput`] above 1,048,576 contracts.
-#[doc(hidden)]
-pub fn validate_contract_batch_size(count: usize) -> Result<()> {
-    if count > 1 << 20 {
-        return Err(Error::InvalidInput(
-            "contract batch exceeds 1,048,576 instruments".into(),
-        ));
-    }
-    Ok(())
-}
+pub use analytic::heston::HestonIntegrationSettings;
+pub use binomial::{BinomialSettings, BinomialVanilla};
+pub use finite_difference::heston::HestonFiniteDifferenceSettings;
+pub use finite_difference::{
+    FiniteDifferenceEngine, FiniteDifferenceScheme, FiniteDifferenceSettings,
+    FiniteDifferenceSolution, VanillaBatchEngine,
+};
+pub use monte_carlo::{
+    MonteCarloEstimate, MonteCarloGridSettings, MonteCarloSampling, MonteCarloSettings,
+    MonteCarloUncertaintyStatus, configure_monte_carlo_pool,
+};
+pub use quadrature::{QuadratureSettings, QuadratureVanillaSettings};
 
 fn validate_rollback_work(spatial_steps: u64, time_steps: u64) -> Result<()> {
     if spatial_steps.saturating_mul(time_steps) > 1_000_000_000 {

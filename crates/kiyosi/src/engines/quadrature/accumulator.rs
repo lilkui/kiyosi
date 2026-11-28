@@ -42,7 +42,8 @@ impl QuadratureAccumulatorEngine {
     ///
     /// ```rust
     /// use kiyosi::*;
-    /// # use kiyosi::OptionContract as _;
+    /// use kiyosi::engines::QuadratureSettings;
+    /// # use kiyosi::instruments::OptionContract as _;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = Accumulator::new(AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0,

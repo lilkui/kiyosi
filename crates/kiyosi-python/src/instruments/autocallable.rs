@@ -696,7 +696,7 @@ macro_rules! snowball_preset {
                     #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
 
                 ) -> PyResult<Self> {
-                    let mut terms = kiyosi::SnowballPresetTerms::new(
+                    let mut terms = kiyosi::instruments::SnowballPresetTerms::new(
                         real($coupon)?, real(initial_spot)?, real(knock_in_level)?, real($level)?,
                         timestamp(effective_time)?, timestamp(expiry_time)?, timestamps(autocall_times)?,
                         snowball_preset!(@clock $($clock)?),
@@ -863,7 +863,7 @@ snowball_preset! {
         coupon_rate => "Finite annual coupon rate in decimal units.",
         knock_out_level => "Positive inclusive knock-out threshold.",
         [],
-        kiyosi::SnowballPreset::Standard,
+        kiyosi::instruments::SnowballPreset::Standard,
         "Create constant knock-out coupons and levels with daily knock-in monitoring.",
         "on every trading day",
         ""
@@ -874,7 +874,7 @@ snowball_preset! {
         coupon_rate => "Finite annual coupon rate in decimal units.",
         knock_out_level => "Positive inclusive knock-out threshold.",
         [],
-        kiyosi::SnowballPreset::European,
+        kiyosi::instruments::SnowballPreset::European,
         "Create a snowball with knock-in observed only at expiry.",
         "only at expiry",
         ""
@@ -885,7 +885,7 @@ snowball_preset! {
         coupon_rate => "Finite annual coupon rate in decimal units.",
         initial_knock_out_level => "Positive knock-out threshold at the first observation.",
         [knock_out_level_decrement => "Absolute price decrement after each observation; may be negative." => real],
-        kiyosi::SnowballPreset::StepDown {
+        kiyosi::instruments::SnowballPreset::StepDown {
             knock_out_level_decrement
         },
         "Create a snowball with decreasing knock-out levels.",
@@ -903,7 +903,7 @@ valid."
             coupon_rate_decrement => "Absolute decimal-rate decrement after each observation." => real,
             knock_out_level_decrement => "Absolute price decrement after each observation; may be negative." => real
         ],
-        kiyosi::SnowballPreset::BothDown {
+        kiyosi::instruments::SnowballPreset::BothDown {
             coupon_rate_decrement,
             knock_out_level_decrement
         },
@@ -919,7 +919,7 @@ valid. Maturity uses the final observation coupon."
         knock_out_coupon_rate => "Annual coupon rate for knock-out settlement.",
         knock_out_level => "Positive inclusive knock-out threshold.",
         [maturity_coupon_rate => "Finite annual maturity coupon rate in decimal units." => real],
-        kiyosi::SnowballPreset::DualCoupon {
+        kiyosi::instruments::SnowballPreset::DualCoupon {
             maturity_coupon_rate
         },
         "Create a snowball with separate knock-out and maturity coupons.",
@@ -932,7 +932,7 @@ valid. Maturity uses the final observation coupon."
         coupon_rate => "Finite annual coupon rate in decimal units.",
         knock_out_level => "Positive inclusive knock-out threshold.",
         [final_knock_out_level => "Positive threshold replacing only the final knock-out level." => real],
-        kiyosi::SnowballPreset::Parachute {
+        kiyosi::instruments::SnowballPreset::Parachute {
             final_knock_out_level
         },
         "Create a snowball with a distinct final knock-out level.",
@@ -945,7 +945,7 @@ valid. Maturity uses the final observation coupon."
         coupon_rate => "Finite annual coupon rate in decimal units.",
         knock_out_level => "Positive inclusive knock-out threshold.",
         [upper_strike => "Positive upper terminal settlement strike." => real],
-        kiyosi::SnowballPreset::Otm { upper_strike },
+        kiyosi::instruments::SnowballPreset::Otm { upper_strike },
         "Create a snowball with a replaced upper terminal strike.",
         "on every trading day",
         ""
@@ -956,7 +956,7 @@ valid. Maturity uses the final observation coupon."
         coupon_rate => "Finite annual coupon rate in decimal units.",
         knock_out_level => "Positive inclusive knock-out threshold.",
         [lower_strike => "Nonnegative lower terminal strike, at most the upper strike." => real],
-        kiyosi::SnowballPreset::LossCapped { lower_strike },
+        kiyosi::instruments::SnowballPreset::LossCapped { lower_strike },
         "Create a snowball whose lower terminal strike caps downside loss.",
         "on every trading day",
         ""
@@ -970,7 +970,7 @@ valid. Maturity uses the final observation coupon."
             second_coupon_rate => "Finite signed annual coupon rate after the cutoff and at maturity." => real,
             first_stage_end_time => "Inclusive first-stage end within life and strictly before expiry." => timestamp
         ],
-        kiyosi::SnowballPreset::EarlyProfit { first_stage_end_time, second_coupon_rate },
+        kiyosi::instruments::SnowballPreset::EarlyProfit { first_stage_end_time, second_coupon_rate },
         "Create a two-stage early-profit snowball.",
         "on every trading day",
         r" Knock-out uses the observation's stage rate over the whole holding period.
@@ -988,7 +988,7 @@ times, stages may have no autocall_observations, and rates need not decrease."
             first_stage_end_time => "Inclusive first-stage end within life and before second_stage_end_time." => timestamp,
             second_stage_end_time => "Inclusive second-stage end strictly before expiry." => timestamp
         ],
-        kiyosi::SnowballPreset::Butterfly {
+        kiyosi::instruments::SnowballPreset::Butterfly {
             first_stage_end_time, second_coupon_rate, second_stage_end_time, third_coupon_rate
         },
         "Create a three-stage butterfly snowball.",
@@ -1465,7 +1465,7 @@ macro_rules! phoenix_preset {
                     #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
 
                 ) -> PyResult<Self> {
-                    let mut terms = kiyosi::PhoenixPresetTerms::new(
+                    let mut terms = kiyosi::instruments::PhoenixPresetTerms::new(
                         real(coupon_per_period)?, real(initial_spot)?, real(knock_in_level)?,
                         real($knock_out)?, timestamp(effective_time)?, timestamp(expiry_time)?,
                         timestamps(autocall_times)?,
@@ -1708,7 +1708,7 @@ phoenix_preset! {
         knock_out_level,
         [],
         [],
-        kiyosi::PhoenixPreset::FixedCouponNote,
+        kiyosi::instruments::PhoenixPreset::FixedCouponNote,
         "Create a fixed coupon note with unconditional surviving coupons.",
         "Validated owned contract with expiry-only knock-in, knock-in level as upper strike and zero lower strike."
     ),
@@ -1717,7 +1717,7 @@ phoenix_preset! {
         knock_out_level,
         [],
         [coupon_barrier_level => "Finite nonnegative inclusive coupon threshold, also tested on knock-out times."],
-        kiyosi::PhoenixPreset::DigitalCouponNote { coupon_barrier_level },
+        kiyosi::instruments::PhoenixPreset::DigitalCouponNote { coupon_barrier_level },
         "Create a digital coupon note with barrier-conditional fixed coupons.",
         "Validated owned contract with expiry-only knock-in, knock-in level as upper strike and zero lower strike."
     ),
@@ -1726,7 +1726,7 @@ phoenix_preset! {
         knock_out_level,
         [knock_in_observation_clock_time],
         [coupon_barrier_level => "Finite nonnegative inclusive coupon threshold, also tested on knock-out times."],
-        kiyosi::PhoenixPreset::Standard { coupon_barrier_level },
+        kiyosi::instruments::PhoenixPreset::Standard { coupon_barrier_level },
         "Create a standard Phoenix with a constant knock-out barrier and optional initial lockout.",
         "Validated owned contract with daily knock-in, initial spot as upper strike and zero lower strike."
     ),
@@ -1736,7 +1736,7 @@ phoenix_preset! {
         [knock_in_observation_clock_time],
         [coupon_barrier_level => "Finite nonnegative inclusive coupon threshold, also tested on knock-out times.",
          knock_out_level_decrement => "Finite nonnegative absolute decrement after each eligible observation; lockout does not consume ladder steps."],
-        kiyosi::PhoenixPreset::StepDown { coupon_barrier_level, knock_out_level_decrement },
+        kiyosi::instruments::PhoenixPreset::StepDown { coupon_barrier_level, knock_out_level_decrement },
         "Create a step-down Phoenix whose first eligible knock-out uses the initial level.",
         "Validated owned contract with daily knock-in, initial spot as upper strike and zero lower strike."
     ),

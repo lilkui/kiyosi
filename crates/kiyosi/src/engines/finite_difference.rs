@@ -3,8 +3,8 @@ use crate::instruments::monitoring::validate_life;
 use crate::numerics::{scaled_cash as scaled, weighted_cdf};
 use crate::{
     AmericanOption, DigitalOption, Error, EuropeanOption, Greek, GreeksRequest,
-    NumericalShiftSettings, OptionContract, OptionType, PricingContext, PricingEngine,
-    PricingResult, Result, Timestamp, engines::analytic::european::black_scholes_arguments,
+    NumericalShiftSettings, OptionType, PricingContext, PricingEngine, PricingResult, Result,
+    Timestamp, engines::analytic::european::black_scholes_arguments, instruments::OptionContract,
 };
 
 mod accumulator;
@@ -110,7 +110,7 @@ impl FiniteDifferenceSettings {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::FiniteDifferenceSettings;
+    /// use kiyosi::engines::FiniteDifferenceSettings;
     /// # fn main() -> kiyosi::Result<()> {
     /// let settings = FiniteDifferenceSettings { asset_step_count: 1600, ..Default::default() };
     /// settings.validate()?;
@@ -1344,7 +1344,8 @@ macro_rules! engine_settings {
             /// # Examples
             ///
             /// ```rust
-            /// use kiyosi::{FiniteDifferenceVanillaEngine, FiniteDifferenceSettings, FiniteDifferenceScheme};
+            /// use kiyosi::{FiniteDifferenceVanillaEngine, engines::{FiniteDifferenceScheme,
+            ///     FiniteDifferenceSettings}};
             /// # fn main() -> kiyosi::Result<()> {
             /// let engine = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
             ///     asset_step_count: 400, scheme: FiniteDifferenceScheme::ImplicitEuler,
@@ -1510,7 +1511,7 @@ engine_settings!(
     ///
     /// ```rust
     /// use kiyosi::*;
-    /// # use kiyosi::OptionContract as _;
+    /// # use kiyosi::instruments::OptionContract as _;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = TouchOption::cash(TouchOptionTerms::new(start, Date::new(2026, 1, 1)?.start_of_day(),
@@ -1573,7 +1574,7 @@ engine_settings!(
     ///
     /// ```rust
     /// use kiyosi::*;
-    /// # use kiyosi::OptionContract as _;
+    /// # use kiyosi::instruments::OptionContract as _;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let mut terms = DoubleTouchOptionTerms::new(start, Date::new(2026, 1, 1)?.start_of_day(),

@@ -14,9 +14,10 @@ use crate::numerics::{
     scaled_cash, scaled_signed_cash,
 };
 use crate::{
-    Accumulator, AutocallableNote, AutocallableTerms, BarrierOption, DoubleBarrierOption, Error,
-    ModelParameters, ObservationMode, OptionContract, PricingContext, PricingContextChanges,
-    RateTermStructure, RebateTiming, Result, SettlementTiming, Timestamp,
+    Accumulator, BarrierOption, DoubleBarrierOption, Error, ModelParameters, ObservationMode,
+    PricingContext, PricingContextChanges, RateTermStructure, RebateTiming, Result,
+    SettlementTiming, Timestamp,
+    instruments::{AutocallableNote, AutocallableTerms, OptionContract},
 };
 
 pub(super) fn enabled(context: &PricingContext) -> bool {

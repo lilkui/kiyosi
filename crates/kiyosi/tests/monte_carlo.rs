@@ -1,3 +1,7 @@
+use kiyosi::engines::{
+    MonteCarloEstimate, MonteCarloGridSettings, MonteCarloSampling, MonteCarloSettings,
+    MonteCarloUncertaintyStatus,
+};
 use kiyosi::*;
 
 fn contract(direction: OptionType) -> EuropeanOption {
@@ -1308,7 +1312,7 @@ fn estimate_reconstruction_validates_statistics_and_preserves_reporting() {
     let estimate = MonteCarloEstimate::from_statistics(
         10.0,
         Some(2.0),
-        kiyosi::MonteCarloUncertaintyStatus::Available,
+        kiyosi::engines::MonteCarloUncertaintyStatus::Available,
         Some(u64::MAX),
     )
     .unwrap();
@@ -1323,7 +1327,7 @@ fn estimate_reconstruction_validates_statistics_and_preserves_reporting() {
         MonteCarloEstimate::from_statistics(
             10.0,
             None,
-            kiyosi::MonteCarloUncertaintyStatus::InsufficientObservations,
+            kiyosi::engines::MonteCarloUncertaintyStatus::InsufficientObservations,
             None,
         )
         .unwrap()
@@ -1340,7 +1344,7 @@ fn estimate_reconstruction_validates_statistics_and_preserves_reporting() {
             MonteCarloEstimate::from_statistics(
                 price,
                 error,
-                kiyosi::MonteCarloUncertaintyStatus::Available,
+                kiyosi::engines::MonteCarloUncertaintyStatus::Available,
                 None,
             ),
             Err(Error::ComputationFailure(_))

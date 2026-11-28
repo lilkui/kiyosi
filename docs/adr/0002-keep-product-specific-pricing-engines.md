@@ -5,3 +5,5 @@
 Rust 的通用定价通过 `PricingEngine` 调用，合约类型决定使用的实现。调用者导入一次 trait 即可切换引擎，具体引擎和泛型调用共用同一实现。
 
 采样统计也通过 `PricingEngine` 调用。无统计估计量的引擎与合约组合（包括美式香草蒙特卡洛）返回 `UnsupportedOperation`。
+
+具体引擎、合约和常用定价入口从 crate 根导入。算法专用设置、结果及批量和求解 trait 从 `kiyosi::engines` 导入，合约预设及泛型扩展类型从 `kiyosi::instruments` 导入。每个类型有一条公开导入路径，常规定价和进阶配置各有明确的查找位置。

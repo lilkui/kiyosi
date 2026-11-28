@@ -1,7 +1,7 @@
 use crate::{
     BlackScholesMertonParameterChanges, Greek, GreeksRequest, NumericalShiftSettings,
-    OptionContract, PricingContext, PricingContextChanges, PricingEngine, PricingResult, Result,
-    Timestamp,
+    PricingContext, PricingContextChanges, PricingEngine, PricingResult, Result, Timestamp,
+    instruments::OptionContract,
 };
 
 #[expect(

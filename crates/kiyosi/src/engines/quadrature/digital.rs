@@ -57,6 +57,7 @@ impl QuadratureDigitalEngine {
     ///
     /// ```rust
     /// use kiyosi::*;
+    /// use kiyosi::engines::QuadratureSettings;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0,

@@ -1,3 +1,5 @@
+use kiyosi::engines::{FiniteDifferenceSettings, MonteCarloSettings};
+use kiyosi::instruments::{PhoenixPreset, PhoenixPresetTerms, SnowballPreset, SnowballPresetTerms};
 use kiyosi::*;
 
 fn date(month: u32, day: u32) -> Timestamp {

@@ -13,9 +13,9 @@ pub(crate) fn spot_range(value: &Bound<'_, PyAny>) -> PyResult<RangeInclusive<f6
     Ok(real(&pair.get_item(0)?)?..=real(&pair.get_item(1)?)?)
 }
 
-pub(crate) fn solve<I: kiyosi::OptionContract + Sync>(
+pub(crate) fn solve<I: kiyosi::instruments::OptionContract + Sync>(
     py: Python<'_>,
-    engine: &(impl kiyosi::FiniteDifferenceEngine<I> + Sync),
+    engine: &(impl kiyosi::engines::FiniteDifferenceEngine<I> + Sync),
     instrument: &I,
     context: &crate::market::PricingContext,
     range: RangeInclusive<f64>,
@@ -41,7 +41,7 @@ pub(crate) fn solve<I: kiyosi::OptionContract + Sync>(
 /// convergence checks; there is no automatic error estimate or refinement.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
-pub(crate) struct FiniteDifferenceSolution(pub(crate) kiyosi::FiniteDifferenceSolution);
+pub(crate) struct FiniteDifferenceSolution(pub(crate) kiyosi::engines::FiniteDifferenceSolution);
 
 impl FiniteDifferenceSolution {
     fn evaluate<T: Send>(

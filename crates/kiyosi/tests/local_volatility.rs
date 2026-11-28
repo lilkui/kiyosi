@@ -1,4 +1,6 @@
-use kiyosi::VanillaBatchEngine;
+use kiyosi::engines::{
+    FiniteDifferenceEngine, FiniteDifferenceScheme, FiniteDifferenceSettings, VanillaBatchEngine,
+};
 use kiyosi::*;
 
 fn dates() -> (Timestamp, Timestamp) {

@@ -25,7 +25,7 @@
 - 只变现价时，对有限差分引擎调用一次 `solve`。在求解时指定的现价区间内，使用 `solution.price(spot)` 或 `solution.price_many(spots)` 查询，定价网格无需重新回滚。敏感度以 `solution.supported` 和每次查询的状态为准。[示例](../examples/python/finite_difference_batch.py)
 - 需要采样不确定性时使用 `price_with_statistics`。只需记录本次采样种子时使用 `price_with_seed`。美式香草 Monte Carlo 支持记录种子和使用独立路径估计行权收益的 `price_american_out_of_sample`。
 
-Rust 从 `kiyosi::PricingEngine` 调用标量定价、敏感度和采样统计方法。
+Rust 从 `kiyosi::PricingEngine` 调用标量定价、敏感度和采样统计方法。从 `kiyosi::engines` 导入 `FiniteDifferenceEngine` 以调用 `solve`，或导入 `VanillaBatchEngine` 以调用有限差分的行权价批量和价格曲面方法。
 
 引擎方法文档列出监控方式、时间约定、曲线覆盖、历史状态和工作量限制。障碍和触碰合约的 `observation_schedule` 可直接用于另一个合约的构造或替换，同时携带观察时点和日历。Rust 使用 `option.observation_schedule().cloned()` 获得可传入条款的日程。复用模型利率时，读取 `risk_free_curve` 或 `dividend_curve` 以保留曲线覆盖。[观察日程示例](../examples/python/barrier_option.py) · [曲线示例](../examples/python/rate_curves.py)
 

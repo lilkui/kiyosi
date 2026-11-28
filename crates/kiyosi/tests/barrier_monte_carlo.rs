@@ -2,6 +2,7 @@
 mod schedule_fixture;
 use schedule_fixture::schedule as fixture_schedule;
 
+use kiyosi::engines::{MonteCarloSampling, MonteCarloSettings};
 use kiyosi::*;
 
 fn day(month: u32, date: u32) -> Timestamp {

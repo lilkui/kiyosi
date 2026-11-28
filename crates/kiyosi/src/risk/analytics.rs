@@ -518,7 +518,7 @@ impl GreekMethod {
     }
 
     pub(crate) fn for_valuation(
-        option: &impl crate::OptionContract,
+        option: &impl crate::instruments::OptionContract,
         context: &PricingContext,
         before_expiry: Self,
     ) -> Self {
@@ -591,7 +591,7 @@ pub trait PricingEngine<I = EuropeanOption> {
         request: GreeksRequest,
     ) -> Result<PricingResult>
     where
-        I: crate::OptionContract,
+        I: crate::instruments::OptionContract,
     {
         self.price_with_greeks_with_settings(option, context, request, Default::default())
     }
@@ -631,7 +631,7 @@ pub trait PricingEngine<I = EuropeanOption> {
         settings: NumericalShiftSettings,
     ) -> Result<PricingResult>
     where
-        I: crate::OptionContract,
+        I: crate::instruments::OptionContract,
     {
         crate::numerical_greeks(self, option, context, request, settings)
     }
@@ -666,7 +666,7 @@ pub trait PricingEngine<I = EuropeanOption> {
     /// ```
     fn greek_method(&self, option: &I, context: &PricingContext) -> Result<GreekMethod>
     where
-        I: crate::OptionContract,
+        I: crate::instruments::OptionContract,
     {
         self.validate_applicability(context)?;
         Ok(GreekMethod::for_valuation(
@@ -790,7 +790,7 @@ pub trait PricingEngine<I = EuropeanOption> {
     /// Returns a price with sampling uncertainty when the engine provides an estimator.
     ///
     /// See [`crate::MonteCarloVanillaEngine::price_with_statistics`] for an example
-    /// and [`crate::MonteCarloEstimate`] for uncertainty conventions. The default
+    /// and [`crate::engines::MonteCarloEstimate`] for uncertainty conventions. The default
     /// implementation reports an unsupported operation.
     ///
     /// # Errors
@@ -801,7 +801,7 @@ pub trait PricingEngine<I = EuropeanOption> {
         &self,
         _option: &I,
         _context: &PricingContext,
-    ) -> Result<crate::MonteCarloEstimate> {
+    ) -> Result<crate::engines::MonteCarloEstimate> {
         Err(Error::UnsupportedOperation(
             "sampling statistics are unavailable for this engine and instrument".into(),
         ))
@@ -809,13 +809,13 @@ pub trait PricingEngine<I = EuropeanOption> {
 
     /// Reports whether volatility affects a validated contract's remaining payoff.
     ///
-    /// Defaults to [`crate::OptionContract::volatility_affects_price`]. Engines may
+    /// Defaults to [`crate::instruments::OptionContract::volatility_affects_price`]. Engines may
     /// override it for engine-specific behavior. The solver checks this after endpoint
     /// pricing so that life, history and applicability errors take precedence. See
     /// [`crate::TurnbullWakemanArithmeticAveragePriceEngine::price`].
     fn volatility_affects_price(&self, option: &I, context: &PricingContext) -> bool
     where
-        I: crate::OptionContract,
+        I: crate::instruments::OptionContract,
     {
         option.volatility_affects_price(context)
     }

@@ -71,14 +71,14 @@ macro_rules! quadrature_engine {
                 ];
 
                 #[new]
-                #[pyo3(signature = (*, asset_step_count=kiyosi::$settings::default().asset_step_count, $($time=kiyosi::$settings::default().$time,)? integration_standard_deviations=kiyosi::$settings::default().integration_standard_deviations))]
+                #[pyo3(signature = (*, asset_step_count=kiyosi::engines::$settings::default().asset_step_count, $($time=kiyosi::engines::$settings::default().$time,)? integration_standard_deviations=kiyosi::engines::$settings::default().integration_standard_deviations))]
                 fn new(
                     #[pyo3(from_py_with = integer)] asset_step_count: i32,
                     $(#[pyo3(from_py_with = integer)] $time: i32,)?
                     #[pyo3(from_py_with = real)] integration_standard_deviations: f64,
                 ) -> PyResult<Self> {
                     Ok(Self(domain(kiyosi::$name::new(
-                        kiyosi::$settings {
+                        kiyosi::engines::$settings {
                             asset_step_count,
                             $($time,)?
                             integration_standard_deviations,
@@ -125,11 +125,12 @@ macro_rules! quadrature_engine {
 
 fn short_vanilla(
     european: bool,
-    settings: kiyosi::QuadratureVanillaSettings,
+    settings: kiyosi::engines::QuadratureVanillaSettings,
     context: &kiyosi::PricingContext,
 ) -> bool {
     let bounded = if european {
-        settings.asset_step_count <= kiyosi::QuadratureVanillaSettings::default().asset_step_count
+        settings.asset_step_count
+            <= kiyosi::engines::QuadratureVanillaSettings::default().asset_step_count
     } else {
         settings.time_step_count == 1
     };
@@ -277,8 +278,8 @@ mod tests {
         let end = start.add_days(365)?;
         let model = kiyosi::BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?;
         let context = kiyosi::PricingContext::new(model.clone(), 100.0, start)?;
-        let settings = kiyosi::QuadratureVanillaSettings::default();
-        let one_interval = kiyosi::QuadratureVanillaSettings {
+        let settings = kiyosi::engines::QuadratureVanillaSettings::default();
+        let one_interval = kiyosi::engines::QuadratureVanillaSettings {
             time_step_count: 1,
             asset_step_count: i32::MAX,
             ..settings
@@ -288,7 +289,7 @@ mod tests {
         assert!(short_vanilla(false, one_interval, &context));
         assert!(!short_vanilla(
             true,
-            kiyosi::QuadratureVanillaSettings {
+            kiyosi::engines::QuadratureVanillaSettings {
                 asset_step_count: settings.asset_step_count + 1,
                 ..settings
             },

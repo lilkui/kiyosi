@@ -134,8 +134,8 @@ fn calendar_bounded_quotes_pause_on_closed_dates() -> kiyosi::Result<()> {
 fn calendar_rate_greeks_use_each_quotes_accrual_time() -> kiyosi::Result<()> {
     use kiyosi::{
         AnalyticEuropeanEngine, BlackScholesMertonParameters, EuropeanOption,
-        FiniteDifferenceSettings, FiniteDifferenceVanillaEngine, Greek, GreeksRequest, OptionType,
-        PricingContext, PricingEngine, Rate, numerical_greeks,
+        FiniteDifferenceVanillaEngine, Greek, GreeksRequest, OptionType, PricingContext,
+        PricingEngine, Rate, engines::FiniteDifferenceSettings, numerical_greeks,
     };
     let start = at(2025, 1, 3).add_micros(43_200_000_000)?;
     let end = start.add_days(3)?;
@@ -623,8 +623,8 @@ fn bulk_curve_factors_follow_scalar_overflow_and_underflow_rules() {
 #[test]
 fn bounded_flat_curves_preserve_exact_rates_coverage_and_engine_support() -> kiyosi::Result<()> {
     use kiyosi::{
-        BinomialSettings, BlackScholesMertonParameters, CoxRossRubinsteinVanillaEngine,
-        EuropeanOption, OptionType, PricingContext,
+        BlackScholesMertonParameters, CoxRossRubinsteinVanillaEngine, EuropeanOption, OptionType,
+        PricingContext, engines::BinomialSettings,
     };
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = start.add_days(365)?;

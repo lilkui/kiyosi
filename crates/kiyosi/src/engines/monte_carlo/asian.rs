@@ -3,8 +3,8 @@ use crate::instruments::asian::AverageTerms;
 use crate::numerics::{checked, log_ratio, scaled_cash};
 use crate::{
     ArithmeticAveragePriceOption, AveragePriceOptionChanges, Error, GeometricAveragePriceOption,
-    Greek, GreeksRequest, MonteCarloEstimate, MonteCarloSampling, MonteCarloSettings,
-    PricingContext, PricingEngine, PricingResult, Result,
+    Greek, GreeksRequest, PricingContext, PricingEngine, PricingResult, Result,
+    engines::{MonteCarloEstimate, MonteCarloSampling, MonteCarloSettings},
 };
 use crate::{Timestamp, TurnbullWakemanArithmeticAveragePriceEngine};
 
@@ -52,16 +52,15 @@ const STRIKE_TILE: usize = 32;
 ///
 /// ```rust
 /// use kiyosi::PricingEngine;
-/// use kiyosi::{MonteCarloAsianEngine, MonteCarloSettings,
-///     GeometricAveragePriceOption, Date, OptionType,
-///     BlackScholesMertonParameters, PricingContext};
+/// use kiyosi::{MonteCarloAsianEngine, GeometricAveragePriceOption, Date, OptionType,
+///     BlackScholesMertonParameters, PricingContext, engines::MonteCarloSettings};
 /// # fn main() -> kiyosi::Result<()> {
 /// let start = Date::new(2025, 1, 1)?.start_of_day();
 /// let option = GeometricAveragePriceOption::new(OptionType::Call, 100.0,
 ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), None)?;
 /// let context = PricingContext::new(
 ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
-/// let engine = MonteCarloAsianEngine::new(kiyosi::MonteCarloGridSettings {
+/// let engine = MonteCarloAsianEngine::new(kiyosi::engines::MonteCarloGridSettings {
 ///     sampling: MonteCarloSettings { seed: Some(42), ..Default::default() },
 ///     ..Default::default()
 /// })?;
@@ -140,7 +139,7 @@ impl MonteCarloAsianEngine {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for steps outside 2..=10,000,
-    /// then propagates [`crate::MonteCarloSettings::validate`] errors. Inputs are consumed on failure.
+    /// then propagates [`crate::engines::MonteCarloSettings::validate`] errors. Inputs are consumed on failure.
     pub fn new(settings: super::MonteCarloGridSettings) -> Result<Self> {
         super::validate_step_count(settings.step_count, 2)?;
         settings.sampling.validate()?;
@@ -167,8 +166,8 @@ impl MonteCarloAsianEngine {
     ///
     /// ```
     /// use kiyosi::{ArithmeticAveragePriceOption, BlackScholesMertonParameters, Date,
-    ///     MonteCarloAsianEngine, MonteCarloGridSettings, MonteCarloSettings, OptionType,
-    ///     PricingContext};
+    ///     MonteCarloAsianEngine, OptionType, PricingContext, engines::{MonteCarloGridSettings,
+    ///     MonteCarloSettings}};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = ArithmeticAveragePriceOption::new(OptionType::Call, 100.0,

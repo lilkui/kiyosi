@@ -2,6 +2,7 @@
 mod schedule_fixture;
 use schedule_fixture::schedule as fixture_schedule;
 
+use kiyosi::engines::MonteCarloSettings;
 use kiyosi::*;
 
 fn context(volatility: f64, intraday: bool) -> PricingContext {

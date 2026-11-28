@@ -1,6 +1,8 @@
 #[path = "support/autocallable.rs"]
 mod autocallable_support;
 
+use kiyosi::engines::{MonteCarloSampling, MonteCarloSettings, QuadratureSettings};
+use kiyosi::instruments::{AutocallableNote, AutocallableTerms};
 use kiyosi::*;
 
 #[test]

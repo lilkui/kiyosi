@@ -8,8 +8,8 @@ use std::collections::{HashMap, HashSet};
 use std::ops::RangeInclusive;
 
 use crate::{
-    AmericanOption, FiniteDifferenceHestonVanillaEngine, FiniteDifferenceSolution, Timestamp,
-    VanillaOptionChanges,
+    AmericanOption, FiniteDifferenceHestonVanillaEngine, Timestamp, VanillaOptionChanges,
+    engines::FiniteDifferenceSolution,
 };
 
 use super::diffusion::{BusinessDiffusion, Diffusion};
@@ -56,7 +56,7 @@ pub trait VanillaBatchEngine<I = EuropeanOption>: PricingEngine<I> {
     ///
     /// ```
     /// use kiyosi::{AmericanOption, BlackScholesMertonParameters, Date,
-    ///     FiniteDifferenceVanillaEngine, OptionType, PricingContext, VanillaBatchEngine};
+    ///     FiniteDifferenceVanillaEngine, OptionType, PricingContext, engines::VanillaBatchEngine};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 2)?.start_of_day();
     /// let expiries = [start.add_days(90)?, start.add_days(180)?];

@@ -13,8 +13,8 @@ use crate::engines::rollback_pool;
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{checked_with_scale, scaled_cash};
 use crate::{
-    AmericanOption, EuropeanOption, GreeksRequest, HestonParameters, OptionContract,
-    PricingContext, PricingEngine, PricingResult, Result, Timestamp, VanillaOptionChanges,
+    AmericanOption, EuropeanOption, GreeksRequest, HestonParameters, PricingContext, PricingEngine,
+    PricingResult, Result, Timestamp, VanillaOptionChanges, instruments::OptionContract,
 };
 
 use super::edge_weights::{self, EdgeWeights};
@@ -135,7 +135,7 @@ impl HestonFiniteDifferenceSettings {
 ///
 /// # Batch pricing
 ///
-/// Use [`crate::VanillaBatchEngine`] for strikes or strike–expiry surfaces. European
+/// Use [`crate::engines::VanillaBatchEngine`] for strikes or strike–expiry surfaces. European
 /// surfaces share a forward grid spanning the longest maturity. Compatible American
 /// surfaces share rollback across tenors or factored operators in expiry tiles.
 /// Check mesh and domain convergence across the surface, including short tenors.
@@ -164,8 +164,9 @@ impl FiniteDifferenceHestonVanillaEngine {
     /// # Examples
     ///
     /// ```rust
+    /// use kiyosi::engines::HestonFiniteDifferenceSettings;
     /// use kiyosi::{AmericanOption, Date, FiniteDifferenceHestonVanillaEngine,
-    ///     HestonFiniteDifferenceSettings, HestonParameters, OptionType, PricingContext, PricingEngine};
+    ///     HestonParameters, OptionType, PricingContext, PricingEngine};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = AmericanOption::new(OptionType::Put, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;

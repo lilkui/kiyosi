@@ -8,8 +8,8 @@ pub use batch::BinomialVanilla;
 
 use crate::{
     AmericanOption, DigitalOption, Error, EuropeanOption, Greek, GreeksRequest,
-    ImpliedVolatilitySettings, OptionContract, OptionType, PricingContext, PricingEngine,
-    PricingResult, Result,
+    ImpliedVolatilitySettings, OptionType, PricingContext, PricingEngine, PricingResult, Result,
+    instruments::OptionContract,
 };
 
 /// Configures the number of CRR time steps. See [`CoxRossRubinsteinVanillaEngine::new`].
@@ -36,7 +36,7 @@ impl BinomialSettings {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::BinomialSettings;
+    /// use kiyosi::engines::BinomialSettings;
     /// # fn main() -> kiyosi::Result<()> {
     /// let settings = BinomialSettings { step_count: 1024 };
     /// settings.validate()?;
@@ -123,7 +123,7 @@ impl CoxRossRubinsteinVanillaEngine {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{BinomialSettings, CoxRossRubinsteinVanillaEngine};
+    /// use kiyosi::{CoxRossRubinsteinVanillaEngine, engines::BinomialSettings};
     /// # fn main() -> kiyosi::Result<()> {
     /// let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 1024 })?;
     /// assert_eq!(engine.settings().step_count, 1024);
@@ -161,7 +161,7 @@ impl CoxRossRubinsteinVanillaEngine {
     /// # Examples
     ///
     /// ```
-    /// # use kiyosi::{BinomialSettings, CoxRossRubinsteinVanillaEngine, Result};
+    /// # use kiyosi::{CoxRossRubinsteinVanillaEngine, Result, engines::BinomialSettings};
     /// # fn main() -> Result<()> {
     /// let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 20_000 })?
     ///     .with_rollback_tolerance(Some(1e-6))?;

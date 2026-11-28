@@ -10,8 +10,8 @@ use crate::instruments::autocallable::pricing::{
 use crate::numerics::{finite_price, log_ratio, scaled_signed_cash};
 use crate::risk::analytics::CouponPricer;
 use crate::{
-    AutocallableNote, AutocallableTerms, BlackScholesMertonParameters, Error, PricingContext,
-    PricingEngine, Result, Timestamp,
+    BlackScholesMertonParameters, Error, PricingContext, PricingEngine, Result, Timestamp,
+    instruments::{AutocallableNote, AutocallableTerms},
 };
 
 /// Prices snowball variants and Phoenix notes by quadrature between event dates.
@@ -52,6 +52,7 @@ impl QuadratureAutocallableEngine {
     ///
     /// ```rust
     /// use kiyosi::*;
+    /// use kiyosi::engines::QuadratureSettings;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let end = Date::new(2025, 4, 1)?.start_of_day();

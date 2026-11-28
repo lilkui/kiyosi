@@ -226,7 +226,7 @@ impl MonteCarloSettings {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{MonteCarloSampling, MonteCarloSettings};
+    /// use kiyosi::engines::{MonteCarloSampling, MonteCarloSettings};
     /// # fn main() -> kiyosi::Result<()> {
     /// let settings = MonteCarloSettings {
     ///     path_count: 4096, sampling: MonteCarloSampling::Sobol, ..Default::default()
@@ -829,14 +829,14 @@ mod tests {
 ///
 /// ```rust
 /// use kiyosi::PricingEngine;
-/// use kiyosi::{MonteCarloSettings, MonteCarloVanillaEngine, EuropeanOption,
-///     OptionType, Date, BlackScholesMertonParameters, PricingContext};
+/// use kiyosi::{MonteCarloVanillaEngine, EuropeanOption, OptionType, Date,
+///     BlackScholesMertonParameters, PricingContext, engines::MonteCarloSettings};
 /// # fn main() -> kiyosi::Result<()> {
 /// let start = Date::new(2025, 1, 1)?.start_of_day();
 /// let option = EuropeanOption::new(OptionType::Call, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
 /// let context = PricingContext::new(
 ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
-/// let engine = MonteCarloVanillaEngine::new(kiyosi::MonteCarloGridSettings {
+/// let engine = MonteCarloVanillaEngine::new(kiyosi::engines::MonteCarloGridSettings {
 ///     sampling: MonteCarloSettings { seed: Some(42), ..Default::default() },
 ///     ..Default::default()
 /// })?;
@@ -993,7 +993,7 @@ impl MonteCarloEstimate {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{MonteCarloEstimate, MonteCarloUncertaintyStatus};
+    /// use kiyosi::engines::{MonteCarloEstimate, MonteCarloUncertaintyStatus};
     /// # fn main() -> kiyosi::Result<()> {
     /// let result = MonteCarloEstimate::from_statistics(10.0, None,
     ///     MonteCarloUncertaintyStatus::InsufficientObservations, None)?;
@@ -1069,7 +1069,8 @@ impl MonteCarloVanillaEngine {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{MonteCarloGridSettings, MonteCarloSettings, MonteCarloVanillaEngine};
+    /// use kiyosi::MonteCarloVanillaEngine;
+    /// use kiyosi::engines::{MonteCarloGridSettings, MonteCarloSettings};
     /// # fn main() -> kiyosi::Result<()> {
     /// let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
     ///     sampling: MonteCarloSettings {
@@ -1080,7 +1081,7 @@ impl MonteCarloVanillaEngine {
     /// assert_eq!(engine.settings().sampling.path_count, 131_072);
     /// let sobol = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
     ///     sampling: MonteCarloSettings {
-    ///         path_count: 32768, sampling: kiyosi::MonteCarloSampling::Sobol,
+    ///         path_count: 32768, sampling: kiyosi::engines::MonteCarloSampling::Sobol,
     ///         antithetic: true, seed: Some(42), ..Default::default()
     ///     },
     ///     ..Default::default()
@@ -1099,7 +1100,7 @@ impl MonteCarloVanillaEngine {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{MonteCarloGridSettings, MonteCarloVanillaEngine};
+    /// use kiyosi::{MonteCarloVanillaEngine, engines::MonteCarloGridSettings};
     /// # fn main() -> kiyosi::Result<()> {
     /// let engine = MonteCarloVanillaEngine::new(MonteCarloGridSettings {
     ///     step_count: 100, ..Default::default()
@@ -1306,7 +1307,7 @@ impl PricingEngine for MonteCarloVanillaEngine {
     /// ```rust
     /// # use kiyosi::{BlackScholesMertonParameters, Date, EuropeanOption, OptionType, PricingContext};
     /// use kiyosi::{MonteCarloVanillaEngine, PricingEngine};
-    /// use kiyosi::{MonteCarloGridSettings, MonteCarloSettings};
+    /// use kiyosi::engines::{MonteCarloGridSettings, MonteCarloSettings};
     /// # fn main() -> kiyosi::Result<()> {
     /// # let start = Date::new(2025, 1, 1)?.start_of_day();
     /// # let option = EuropeanOption::new(OptionType::Call, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
@@ -2052,7 +2053,7 @@ fn check_pool_process(owner: u32, current: u32) -> Result<()> {
 ///
 /// ```no_run
 /// # fn main() -> kiyosi::Result<()> {
-/// kiyosi::configure_monte_carlo_pool(2)?;
+/// kiyosi::engines::configure_monte_carlo_pool(2)?;
 /// # Ok(()) }
 /// ```
 pub fn configure_monte_carlo_pool(max_workers: i32) -> Result<()> {
