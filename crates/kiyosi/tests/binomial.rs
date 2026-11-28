@@ -64,6 +64,25 @@ fn binomial_batch_reports_earlier_expired_contract_before_rollback_limit() -> Re
 }
 
 #[test]
+fn binomial_batch_reports_unstable_tree_before_rollback_limit() -> Result<()> {
+    let (start, end) = dates();
+    let put = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 16_000,
+        ..Default::default()
+    })?;
+    let snapshot = market(100.0, 0.05, 0.0, 0.000_01);
+    let Err(Error::ComputationFailure(expected)) = engine.price(&put, &snapshot) else {
+        panic!("expected an unstable scalar tree");
+    };
+    assert!(matches!(
+        engine.price_many(&[BinomialVanilla::American(&put); 8], &snapshot),
+        Err(Error::ComputationFailure(message)) if message == expected
+    ));
+    Ok(())
+}
+
+#[test]
 fn american_batch_matches_scalar_for_full_and_banded_trees() -> Result<()> {
     let (start, end) = dates();
     let snapshot = market(100.0, 0.05, 0.02, 0.2);

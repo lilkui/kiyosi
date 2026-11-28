@@ -93,6 +93,16 @@ def test_binomial_batch_reports_earlier_expired_contract_before_rollback_limit()
         engine.price_many((expired, *((put,) * 8)), market())
 
 
+def test_binomial_batch_reports_unstable_tree_before_rollback_limit():
+    engine = CoxRossRubinsteinVanillaEngine(step_count=16_000)
+    put = contract(AmericanOption, "put")
+    snapshot = market(spot=100, rate=0.05, dividend=0, sigma=0.00001)
+    with pytest.raises(ComputationFailureError, match="unstable parameters"):
+        engine.price(put, snapshot)
+    with pytest.raises(ComputationFailureError, match="unstable parameters"):
+        engine.price_many((put,) * 8, snapshot)
+
+
 def test_vanilla_batch_matches_scalar_prices_and_preserves_input_order():
     engine = CoxRossRubinsteinVanillaEngine(step_count=192)
     snapshot = market()

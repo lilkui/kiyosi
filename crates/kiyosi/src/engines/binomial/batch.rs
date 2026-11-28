@@ -43,7 +43,7 @@ impl CoxRossRubinsteinVanillaEngine {
     /// # Errors
     ///
     /// Returns [`crate::Error::InvalidInput`] above 1,048,576 contracts or for
-    /// excessive combined rollback work.
+    /// excessive combined terminal-node and rollback work.
     /// Propagates the first contract pricing error in input order or a cancellation error.
     /// A failed request returns no partial prices.
     pub fn price_many(
@@ -84,6 +84,22 @@ impl CoxRossRubinsteinVanillaEngine {
         if !eligible {
             return serial();
         }
+        // A failed tiled or banded solve can be followed by a full rollback.
+        // When workers might contend for the budget, charge it in input order.
+        let steps = self.settings.step_count.unsigned_abs() as usize;
+        let fallback_factor = if self.rollback_tolerance.is_some() {
+            3
+        } else {
+            2
+        };
+        if validate_rollback_work(
+            rollback_nodes(steps) * fallback_factor,
+            options.len() as u64,
+        )
+        .is_err()
+        {
+            return serial();
+        }
         let can_tile = self
             .rollback_tolerance
             .is_none()
@@ -99,33 +115,6 @@ impl CoxRossRubinsteinVanillaEngine {
             }
             _ => None,
         };
-        let full_work = rollback_nodes(self.settings.step_count.unsigned_abs() as usize);
-        if can_tile.is_some()
-            && self.settings.validate_rollback().is_ok()
-            && !super::super::deterministic::enabled(context)
-            && validate_rollback_work(full_work, options.len() as u64).is_err()
-        {
-            let mut live = 0;
-            for &option in options {
-                crate::cancellation::check()?;
-                let dt = match option {
-                    BinomialVanilla::European(contract) => {
-                        time_step(contract, context, self.settings)
-                    }
-                    BinomialVanilla::American(contract) => {
-                        time_step(contract, context, self.settings)
-                    }
-                };
-                let Ok(dt) = dt else {
-                    // Resolve earlier contract errors before reporting the invalid contract.
-                    return serial();
-                };
-                if dt > 0.0 && exercise_option(option).is_some() {
-                    live += 1;
-                    validate_rollback_work(full_work, live)?;
-                }
-            }
-        }
         let expiry =
             |index: usize| exercise_option(options[index]).map(AmericanOption::expiry_time);
         let mut ordered: Vec<_> = (0..options.len()).collect();

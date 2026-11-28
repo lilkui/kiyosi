@@ -215,7 +215,7 @@ binomial_engine!(
         /// Compatible contracts can share lattice geometry and run in parallel.
         /// The engine's rollback tolerance applies to American contracts.
         /// The request accepts up to 1,048,576 contracts and caps combined
-        /// rollback work at one billion grid updates.
+        /// terminal-node and rollback work at one billion grid updates.
         /// A failed request returns no partial results.
         fn price_many<'py>(
             &self,
