@@ -30,7 +30,7 @@ price = fourier.price(call, context)
 print(f"欧式看涨 Fourier 积分价：{price:.6f}")
 
 # Heston 引擎不提供希腊值；请求的指标标记为 unsupported。
-print(f"Greeks 计算方式：{fourier.greek_method(call, context)}")
+print(f"Greeks 计算方式：{fourier.greek_method(call, context).name}")
 fd = FiniteDifferenceHestonVanillaEngine()
 fd_price = fd.price(call, context)
 print(f"欧式看涨二维 FD 价：{fd_price:.6f}，差值：{fd_price - price:.6f}")

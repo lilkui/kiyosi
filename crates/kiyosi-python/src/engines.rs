@@ -62,7 +62,7 @@ macro_rules! engine_methods {
             ) -> pyo3::PyResult<f64> {
                 self.evaluate(py, instrument, context, $crate::engines::ScalarRequest::Price)
             }
-            /// Return the Greek estimation method.
+            /// Return the Greek estimation method and its potentially active shift controls.
             ///
             /// Checks model applicability; pricing validates life and history.
             ///
@@ -75,9 +75,8 @@ macro_rules! engine_methods {
             ///
             /// Returns
             /// -------
-            /// str
-            ///     "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            ///     or "unsupported".
+            /// GreekMethod
+            ///     Method name and the shift controls this estimation path may use.
             ///
             /// Raises
             /// ------
@@ -89,8 +88,9 @@ macro_rules! engine_methods {
                 py: pyo3::Python<'_>,
                 #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
                 context: &$crate::market::PricingContext,
-            ) -> pyo3::PyResult<&'static str> {
-                Ok(self.evaluate(py, instrument, context, $crate::engines::GreekMethodRequest)?.name())
+            ) -> pyo3::PyResult<pyo3::Py<$crate::risk::GreekMethod>> {
+                let method = self.evaluate(py, instrument, context, $crate::engines::GreekMethodRequest)?;
+                $crate::risk::GreekMethod::from_core(py, method)
             }
             /// Return the price and selected sensitivities using engine estimators.
             ///

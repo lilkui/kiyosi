@@ -39,28 +39,30 @@ class RootNotBracketedError(KiyosiError):
 class NonConvergenceError(KiyosiError):
     """Iteration or integration limit reached without convergence."""
 
-def active_greek_controls(
-    method: _pricing.GreekMethod,
-) -> tuple[_pricing.GreekControl, ...]:
-    """Return the shift controls a Greek estimation method can use.
+class GreekMethod:
+    """Describe how an engine estimates Greeks.
 
-    Parameters
-    ----------
-    method : str
-        Estimation method, as returned by an engine's greek_method.
-
-    Returns
-    -------
-    tuple of str
-        Potentially active shift controls. Individual requests may use fewer.
-
-    Raises
-    ------
-    TypeError
-        If method is not a string.
-    ValueError
-        If the estimation method is unknown.
+    Obtain this value from an engine's greek_method. The method and controls
+    describe the estimation path for a contract and market snapshot.
     """
+
+    def __new__(cls, _token: Never, /) -> Self: ...
+    @property
+    def name(
+        self,
+    ) -> Literal[
+        "native",
+        "numerical",
+        "mixed",
+        "native_with_spot_control",
+        "terminal",
+        "unsupported",
+    ]:
+        """Return the name of the estimation method."""
+
+    @property
+    def active_controls(self) -> tuple[_pricing.GreekControl, ...]:
+        """Return potentially active shift controls. Individual requests may use fewer."""
 
 def configure_monte_carlo_pool(*, max_workers: SupportsIndex) -> None:
     """Cap the process-wide Monte Carlo pool before its first parallel request.
@@ -1598,8 +1600,8 @@ class _PricingMethods[Instrument]:
 
     def greek_method(
         self, instrument: Instrument, context: PricingContext
-    ) -> _pricing.GreekMethod:
-        """Return the Greek estimation method.
+    ) -> GreekMethod:
+        """Return the Greek estimation method and its potentially active shift controls.
 
         Checks model applicability; pricing validates life and history.
 
@@ -1612,9 +1614,8 @@ class _PricingMethods[Instrument]:
 
         Returns
         -------
-        str
-            "native", "numerical", "mixed", "native_with_spot_control", "terminal",
-            or "unsupported".
+        GreekMethod
+            Method name and the shift controls this estimation path may use.
 
         Raises
         ------

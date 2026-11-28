@@ -22,8 +22,8 @@ status ``"unsupported"``, including requests with no supported measures.
 ``PricingResult`` documents units;
 ``result.status`` explains missing measures, and ``result.require`` rejects them.
 Use ``engine.greek_method(instrument, context)`` to inspect estimation before
-pricing and pass its result to ``active_greek_controls(method)`` for the
-potentially active shifts. ``numerical_greeks`` selects scalar BSM differences.
+pricing. Its result exposes the method ``name`` and potentially
+``active_controls``. ``numerical_greeks`` selects scalar BSM differences.
 
 Request-level shifts tune numerical fallbacks and availability checks without
 changing engine settings. Both Greek entry points use shared defaults
@@ -67,6 +67,9 @@ Price a European call and request its delta and vega:
 9.227006
 >>> result.require("delta") > 0
 True
+>>> method = AnalyticEuropeanEngine().greek_method(option, context)
+>>> method.name, method.active_controls
+('native', ())
 
 Recover the model volatility from its price using a chosen bracket:
 
@@ -105,6 +108,7 @@ from ._native import (
     FiniteDifferenceSolution,
     FiniteDifferenceVanillaEngine,
     Greek,
+    GreekMethod,
     MonteCarloAccumulatorEngine,
     MonteCarloAsianEngine,
     MonteCarloAutocallableEngine,
@@ -119,21 +123,12 @@ from ._native import (
     QuadratureDigitalEngine,
     QuadratureVanillaEngine,
     TurnbullWakemanArithmeticAveragePriceEngine,
-    active_greek_controls,
     configure_monte_carlo_pool,
     implied_coupon,
     implied_volatility,
     numerical_greeks,
 )
 
-GreekMethod = Literal[
-    "native",
-    "numerical",
-    "mixed",
-    "native_with_spot_control",
-    "terminal",
-    "unsupported",
-]
 GreekControl = Literal["spot_shift", "volatility_shift", "rate_shift", "time_shift"]
 
 CouponQuoteConvention = Literal["shift_maturity_coupon", "preserve_maturity_coupon"]
@@ -223,7 +218,6 @@ __all__ = [
     "QuadratureVanillaEngine",
     "SnowballCouponQuote",
     "TurnbullWakemanArithmeticAveragePriceEngine",
-    "active_greek_controls",
     "configure_monte_carlo_pool",
     "implied_coupon",
     "implied_volatility",

@@ -1,45 +1,50 @@
 use crate::error::domain;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::PyTuple;
+use pyo3::sync::PyOnceLock;
+use pyo3::types::{PyString, PyTuple};
 
-/// Return the shift controls a Greek estimation method can use.
+/// Describe how an engine estimates Greeks.
 ///
-/// Parameters
-/// ----------
-/// method : str
-///     Estimation method, as returned by an engine's greek_method.
-///
-/// Returns
-/// -------
-/// tuple of str
-///     Potentially active shift controls. Individual requests may use fewer.
-///
-/// Raises
-/// ------
-/// TypeError
-///     If method is not a string.
-/// ValueError
-///     If the estimation method is unknown.
-#[pyfunction]
-pub(crate) fn active_greek_controls<'py>(
-    py: Python<'py>,
-    method: &str,
-) -> PyResult<Bound<'py, PyTuple>> {
-    use kiyosi::GreekMethod;
+/// Obtain this value from an engine's greek_method. The method and controls
+/// describe the estimation path for a contract and market snapshot.
+#[pyclass(frozen, module = "kiyosi._native")]
+pub(crate) struct GreekMethod {
+    /// Return the name of the estimation method.
+    #[pyo3(get)]
+    name: Py<PyString>,
 
-    let method = [
-        GreekMethod::Native,
-        GreekMethod::Numerical,
-        GreekMethod::Mixed,
-        GreekMethod::NativeWithSpotControl,
-        GreekMethod::Terminal,
-        GreekMethod::Unsupported,
-    ]
-    .into_iter()
-    .find(|candidate| candidate.name() == method)
-    .ok_or_else(|| PyValueError::new_err("unknown Greek estimation method"))?;
-    PyTuple::new(py, method.active_controls().iter().copied())
+    /// Return potentially active shift controls. Individual requests may use fewer.
+    #[pyo3(get)]
+    active_controls: Py<PyTuple>,
+}
+
+impl GreekMethod {
+    pub(crate) fn from_core(py: Python<'_>, method: kiyosi::GreekMethod) -> PyResult<Py<Self>> {
+        use kiyosi::GreekMethod as Method;
+
+        // Each result depends only on the method, so queries can share its Python values.
+        static METHODS: [PyOnceLock<Py<GreekMethod>>; 6] = [const { PyOnceLock::new() }; 6];
+        let index = match method {
+            Method::Native => 0,
+            Method::Numerical => 1,
+            Method::Mixed => 2,
+            Method::NativeWithSpotControl => 3,
+            Method::Terminal => 4,
+            Method::Unsupported => 5,
+        };
+        let result = METHODS[index].get_or_try_init(py, || {
+            Py::new(
+                py,
+                Self {
+                    name: PyString::new(py, method.name()).unbind(),
+                    active_controls: PyTuple::new(py, method.active_controls().iter().copied())?
+                        .unbind(),
+                },
+            )
+        })?;
+        Ok(result.clone_ref(py))
+    }
 }
 
 pub(crate) fn greek(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Greek> {

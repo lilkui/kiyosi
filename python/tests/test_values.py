@@ -27,6 +27,9 @@ def values():
     model = m.BlackScholesMertonParameters(
         risk_free_rate=curve, dividend_yield=0.02, volatility=0.2
     )
+    context = m.PricingContext(
+        model_parameters=model, spot_price=100, valuation_time=START
+    )
     calendar = m.TradingCalendar.custom(
         base=m.TradingCalendar.custom(
             base=m.TradingCalendar.sse(), closed_dates=[START.date()]
@@ -76,11 +79,8 @@ def values():
             end_time=END,
             interval_days=2,
         ),
-        m.PricingContext(
-            model_parameters=model,
-            spot_price=100,
-            valuation_time=START,
-        ),
+        context,
+        p.AnalyticEuropeanEngine().greek_method(i.EuropeanOption(**vanilla), context),
         i.SnowballObservation(END, 110, coupon_rate=0),
         i.KnockOutObservation(END, 110),
         i.CouponObservation(END, 0),
@@ -311,6 +311,8 @@ def test_repr_exposes_terms_settings_and_results(subtests):
     result = p.AnalyticEuropeanEngine().price_with_greeks(vanilla, context, "delta")
     assert "price=" in repr(result)
     assert "'delta':" in repr(result)
+    method = p.AnalyticEuropeanEngine().greek_method(vanilla, context)
+    assert repr(method) == "GreekMethod(name='native', active_controls=())"
     estimate = p.MonteCarloVanillaEngine(
         path_count=16, seed=42, max_active_workers=1
     ).price_with_statistics(vanilla, context)

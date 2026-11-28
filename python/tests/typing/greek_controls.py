@@ -26,7 +26,6 @@ from kiyosi.pricing import (
     MonteCarloVanillaEngine,
     PricingResult,
     QuadratureVanillaEngine,
-    active_greek_controls,
     numerical_greeks,
 )
 
@@ -219,6 +218,7 @@ def engine_replacement_types() -> None:
 def inherited_engine_instrument_types(
     vanilla: EuropeanOption, digital: CashOrNothingOption, context: PricingContext
 ) -> None:
+    GreekMethod()  # ty: ignore[missing-argument]
     for engine in (QuadratureVanillaEngine(), FiniteDifferenceVanillaEngine()):
         assert_type(engine.price(vanilla, context), float)
         assert_type(engine.price_with_greeks(vanilla, context, "delta"), PricingResult)
@@ -227,8 +227,7 @@ def inherited_engine_instrument_types(
         engine.greek_method(digital, context)  # ty: ignore[invalid-argument-type]
         method = engine.greek_method(vanilla, context)
         assert_type(method, GreekMethod)
-        assert_type(active_greek_controls(method), tuple[GreekControl, ...])
-        active_greek_controls("invalid")  # ty: ignore[invalid-argument-type]
+        assert_type(method.active_controls, tuple[GreekControl, ...])
     BjerksundStenslandVanillaEngine().price(vanilla, context)  # ty: ignore[invalid-argument-type]
 
 

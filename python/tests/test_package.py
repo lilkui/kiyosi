@@ -563,6 +563,7 @@ def test_native_greek_methods_accept_uniform_controls(subtests):
 
 
 def test_native_greek_signatures_share_keyword_controls(subtests):
+    assert not hasattr(pricing, "active_greek_controls")
     for name in pricing.__all__:
         if not name.endswith("Engine"):
             continue
@@ -572,7 +573,6 @@ def test_native_greek_signatures_share_keyword_controls(subtests):
                 "instrument",
                 "context",
             )
-            assert not hasattr(engine, "active_greek_controls")
             signature = inspect.signature(engine.price_with_greeks)
             assert tuple(signature.parameters) == (
                 (
@@ -921,7 +921,6 @@ def test_installed_version_and_typed_exports():
                 "CouponQuoteConvention",
                 "PhoenixCouponQuote",
                 "SnowballCouponQuote",
-                "GreekMethod",
                 "GreekControl",
             ):
                 assert name in declarations

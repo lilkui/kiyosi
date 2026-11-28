@@ -17,6 +17,11 @@ def _deepcopy(value: Any, _memo: dict[int, Any]) -> Any:
 
 
 def _fields(value: Any) -> dict[str, Any]:
+    if isinstance(value, _native.GreekMethod):
+        return {
+            "name": value.name,
+            "active_controls": value.active_controls,
+        }
     if isinstance(value, _native.PricingResult):
         values = {name: getattr(value, name) for name in get_args(_native.Greek)}
         return {
