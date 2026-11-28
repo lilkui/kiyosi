@@ -59,6 +59,18 @@ VANILLA = (EuropeanOption, AmericanOption)
 DIGITAL = (CashOrNothingOption, AssetOrNothingOption)
 
 
+def test_binomial_batch_stops_at_contract_count_limit():
+    put = contract(AmericanOption, "put")
+
+    def instruments():
+        for _ in range(1_048_577):
+            yield put
+        pytest.fail("read beyond the first contract exceeding the batch limit")
+
+    with pytest.raises(InvalidInputError, match="contract batch exceeds"):
+        CoxRossRubinsteinVanillaEngine().price_many(instruments(), market())
+
+
 def test_american_binomial_batch_caps_combined_rollback_work():
     engine = CoxRossRubinsteinVanillaEngine(step_count=16_000)
     put = contract(AmericanOption, "put")

@@ -1,6 +1,22 @@
 use kiyosi::*;
 
 #[test]
+fn vanilla_batch_rejects_an_excessive_contract_count() -> Result<()> {
+    let (start, end) = dates();
+    let call = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let engine = CoxRossRubinsteinVanillaEngine::default();
+    let context = market(100.0, 0.05, 0.02, 0.2);
+    let instruments = vec![BinomialVanilla::European(&call); 1_048_577];
+
+    binding_support::validate_contract_batch_size(instruments.len() - 1)?;
+    assert!(matches!(
+        engine.price_many(&instruments, &context),
+        Err(Error::InvalidInput(message)) if message.contains("contract batch exceeds")
+    ));
+    Ok(())
+}
+
+#[test]
 fn american_binomial_batch_caps_combined_rollback_work() -> Result<()> {
     let (start, end) = dates();
     let put = AmericanOption::new(OptionType::Put, 100.0, start, end)?;

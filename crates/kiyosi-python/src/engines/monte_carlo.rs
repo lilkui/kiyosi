@@ -666,8 +666,8 @@ sampling_settings!(
     /// Parameters
     /// ----------
     /// instruments : iterable of SnowballOption, BinarySnowballOption, TernarySnowballOption, or PhoenixOption
-    ///     Notes of the same concrete type. Compatible observation grids share
-    ///     simulated paths within the batch workspace.
+    ///     Up to 1,048,576 notes of the same concrete type. Compatible
+    ///     observation grids share simulated paths within the batch workspace.
     /// context : PricingContext
     ///     Shared market snapshot and valuation instant.
     /// shared_grid : bool, optional
@@ -700,12 +700,11 @@ sampling_settings!(
         #[pyo3(from_py_with = boolean)] shared_grid: bool,
     ) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
         use autocallable::AutocallableInstrument;
-        let instruments = instruments.try_iter()?.enumerate().map(|(index, instrument)| {
-            if index % 1024 == 0 {
-                py.check_signals()?;
-            }
-            crate::conversions::instrument::<AutocallableInstrument<'py>>(&instrument?)
-        }).collect::<PyResult<Vec<_>>>()?;
+        let instruments = crate::conversions::collect_values_checked(
+            instruments,
+            |value| crate::conversions::instrument::<AutocallableInstrument<'py>>(value),
+            |count| crate::error::domain(kiyosi::binding_support::validate_contract_batch_size(count)),
+        )?;
         macro_rules! price {
             ($variant:ident) => {{
                 let notes = instruments

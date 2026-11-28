@@ -42,7 +42,8 @@ impl CoxRossRubinsteinVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::InvalidInput`] for excessive combined rollback work.
+    /// Returns [`crate::Error::InvalidInput`] above 1,048,576 contracts or for
+    /// excessive combined rollback work.
     /// Propagates the first contract pricing error in input order or a cancellation error.
     /// A failed request returns no partial prices.
     pub fn price_many(
@@ -51,6 +52,7 @@ impl CoxRossRubinsteinVanillaEngine {
         context: &PricingContext,
     ) -> Result<Vec<f64>> {
         const LANES: usize = 4;
+        super::super::validate_contract_batch_size(options.len())?;
         let budget = RollbackWork::default();
         let scalar = |option| match option {
             BinomialVanilla::European(option) => self.price_vanilla(

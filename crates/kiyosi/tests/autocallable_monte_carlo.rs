@@ -4,6 +4,25 @@ mod autocallable_support;
 use kiyosi::*;
 
 #[test]
+fn autocallable_batches_reject_an_excessive_contract_count() -> Result<()> {
+    let (terms, _, _) = autocallable_support::multi_event_terms(KnockInObservation::AtExpiry);
+    let note = SnowballOption::new(terms)?;
+    let notes = vec![&note; 1_048_577];
+    let engine = MonteCarloAutocallableEngine::default();
+    let context = market(100.0, date(1, 1));
+    for result in [
+        engine.price_many(&notes, &context),
+        engine.price_many_on_shared_grid(&notes, &context),
+    ] {
+        assert!(matches!(
+            result,
+            Err(Error::InvalidInput(message)) if message.contains("contract batch exceeds")
+        ));
+    }
+    Ok(())
+}
+
+#[test]
 fn portfolio_prices_replay_scalar_paths() -> Result<()> {
     let (mut terms, _, _) =
         autocallable_support::multi_event_terms(KnockInObservation::EveryTradingDay {

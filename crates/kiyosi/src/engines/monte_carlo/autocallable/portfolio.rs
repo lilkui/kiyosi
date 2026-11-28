@@ -165,6 +165,7 @@ pub(super) fn price_many<T: AutocallableTerms>(
     context: &PricingContext,
     share_daily_grid: bool,
 ) -> Result<Vec<f64>> {
+    crate::engines::validate_contract_batch_size(notes.len())?;
     let _sampling = super::super::sobol::RequestCache::new();
     let mut prices = Vec::new();
     prices

@@ -212,7 +212,8 @@ binomial_engine!(
         /// Pricing runs in one cancellable request with the GIL released.
         /// Compatible contracts can share lattice geometry and run in parallel.
         /// The engine's rollback tolerance applies to American contracts.
-        /// The request caps combined rollback work at one billion grid updates.
+        /// The request accepts up to 1,048,576 contracts and caps combined
+        /// rollback work at one billion grid updates.
         /// A failed request returns no partial results.
         fn price_many<'py>(
             &self,
@@ -220,12 +221,11 @@ binomial_engine!(
             instruments: &Bound<'py, PyAny>,
             context: &crate::market::PricingContext,
         ) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
-            let instruments = instruments.try_iter()?.enumerate().map(|(index, instrument)| {
-                if index % 1024 == 0 {
-                    py.check_signals()?;
-                }
-                crate::conversions::instrument::<VanillaInstrument<'py>>(&instrument?)
-            }).collect::<PyResult<Vec<_>>>()?;
+            let instruments = crate::conversions::collect_values_checked(
+                instruments,
+                |value| crate::conversions::instrument::<VanillaInstrument<'py>>(value),
+                |count| domain(kiyosi::binding_support::validate_contract_batch_size(count)),
+            )?;
             if instruments.is_empty() {
                 return Ok(pyo3::types::PyTuple::empty(py));
             }

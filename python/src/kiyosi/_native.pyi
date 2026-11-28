@@ -2596,7 +2596,8 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
         Pricing runs in one cancellable request with the GIL released.
         Compatible contracts can share lattice geometry and run in parallel.
         The engine's rollback tolerance applies to American contracts.
-        The request caps combined rollback work at one billion grid updates.
+        The request accepts up to 1,048,576 contracts and caps combined
+        rollback work at one billion grid updates.
         A failed request returns no partial results.
         """
 
@@ -4765,8 +4766,8 @@ class MonteCarloAutocallableEngine(
         Parameters
         ----------
         instruments : iterable of SnowballOption, BinarySnowballOption, TernarySnowballOption, or PhoenixOption
-            Notes of the same concrete type. Compatible observation grids share
-            simulated paths within the batch workspace.
+            Up to 1,048,576 notes of the same concrete type. Compatible
+            observation grids share simulated paths within the batch workspace.
         context : PricingContext
             Shared market snapshot and valuation instant.
         shared_grid : bool, optional

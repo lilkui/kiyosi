@@ -32,6 +32,18 @@ from test_phoenix import contract as phoenix
 from test_snowball import END, START, contract, market
 
 
+def test_autocallable_batch_stops_at_contract_count_limit():
+    note = contract()
+
+    def instruments():
+        for _ in range(1_048_577):
+            yield note
+        pytest.fail("read beyond the first note exceeding the batch limit")
+
+    with pytest.raises(InvalidInputError, match="contract batch exceeds"):
+        MC().price_many(instruments(), market(), shared_grid=True)
+
+
 def test_portfolio_reduction_replays_across_waves():
     first = contract(
         knock_in_observation=KnockInObservation.every_trading_day(clock_time())

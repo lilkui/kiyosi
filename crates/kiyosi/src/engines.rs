@@ -15,6 +15,23 @@ pub(crate) mod finite_difference;
 pub(crate) mod monte_carlo;
 pub(crate) mod quadrature;
 
+/// Checks the input count for CRR and autocallable Monte Carlo contract batches.
+///
+/// See [`crate::CoxRossRubinsteinVanillaEngine::price_many`] for a batch example.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidInput`] above 1,048,576 contracts.
+#[doc(hidden)]
+pub fn validate_contract_batch_size(count: usize) -> Result<()> {
+    if count > 1 << 20 {
+        return Err(Error::InvalidInput(
+            "contract batch exceeds 1,048,576 instruments".into(),
+        ));
+    }
+    Ok(())
+}
+
 fn validate_rollback_work(spatial_steps: u64, time_steps: u64) -> Result<()> {
     if spatial_steps.saturating_mul(time_steps) > 1_000_000_000 {
         return Err(Error::InvalidInput(

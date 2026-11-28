@@ -153,9 +153,9 @@ pub(crate) fn collect_values<T>(
     collect_values_checked(value, convert, |_| Ok(()))
 }
 
-pub(crate) fn collect_values_checked<T>(
-    value: &Bound<'_, PyAny>,
-    convert: impl Fn(&Bound<'_, PyAny>) -> PyResult<T>,
+pub(crate) fn collect_values_checked<'py, T>(
+    value: &Bound<'py, PyAny>,
+    convert: impl Fn(&Bound<'py, PyAny>) -> PyResult<T>,
     check_count: impl Fn(usize) -> PyResult<()>,
 ) -> PyResult<Vec<T>> {
     value
