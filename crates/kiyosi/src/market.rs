@@ -5,6 +5,7 @@ mod term_structure;
 
 pub use heston::{HestonParameterChanges, HestonParameterInputs, HestonParameters};
 pub(crate) use local_volatility::LocalVolatilityProjection;
+pub use local_volatility::validate_local_volatility_surface_dimension;
 pub use local_volatility::{
     LocalVolatilityParameterChanges, LocalVolatilityParameters, LocalVolatilitySurface,
 };

@@ -15,6 +15,23 @@ fn has_unordered_pair<T: PartialOrd>(nodes: &[T]) -> Result<bool> {
     Ok(false)
 }
 
+/// Checks a row count or width against the corresponding surface axis.
+///
+/// See [`LocalVolatilitySurface::new`] for the required layout.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidInput`] if the count differs from the axis length.
+#[doc(hidden)]
+pub fn validate_local_volatility_surface_dimension(count: usize, axis: usize) -> Result<()> {
+    if count != axis {
+        return Err(Error::InvalidInput(
+            "values shape must match times and spots".into(),
+        ));
+    }
+    Ok(())
+}
+
 /// Owns a local-volatility table in absolute time and spot coordinates.
 ///
 /// Rows correspond to times and columns to spots. Local volatility interpolates
@@ -72,17 +89,11 @@ impl LocalVolatilitySurface {
                 finite(spot, true, "spots")?;
             }
         }
-        if values.len() != times.len() {
-            return Err(Error::InvalidInput(
-                "values shape must match times and spots".into(),
-            ));
-        }
+        validate_local_volatility_surface_dimension(values.len(), times.len())?;
         for rows in values.chunks(1024) {
             cancellation::check()?;
-            if rows.iter().any(|row| row.len() != spots.len()) {
-                return Err(Error::InvalidInput(
-                    "values shape must match times and spots".into(),
-                ));
+            for row in rows {
+                validate_local_volatility_surface_dimension(row.len(), spots.len())?;
             }
         }
         let rows = times.len();
