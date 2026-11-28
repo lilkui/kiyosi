@@ -110,7 +110,7 @@ def test_model_clock_defaults_replacement_and_validation(kind):
     )
 
 
-def test_heston_rejects_business_clock_at_model_boundary():
+def test_heston_clock_is_read_only_and_fixed():
     fields = {
         "risk_free_rate": 0.07,
         "dividend_yield": 0.02,
@@ -123,16 +123,17 @@ def test_heston_rejects_business_clock_at_model_boundary():
     base = HestonParameters(**fields)
     assert base.variance_time_convention == "actual_365_fixed"
     assert base.calendar is None
-    with pytest.raises(UnsupportedOperationError):
-        HestonParameters(
-            **fields,
-            variance_time_convention="business",
-            calendar=TradingCalendar.weekdays(),
-        )
-    with pytest.raises(UnsupportedOperationError):
-        base.replace(
-            variance_time_convention="business", calendar=TradingCalendar.weekdays()
-        )
+    changed = base.replace(initial_variance=0.09)
+    assert changed.variance_time_convention == "actual_365_fixed"
+    assert changed.calendar is None
+    for name, value in (
+        ("variance_time_convention", "actual_365_fixed"),
+        ("calendar", None),
+    ):
+        with pytest.raises(TypeError, match=name):
+            HestonParameters(**fields, **{name: value})
+        with pytest.raises(TypeError, match=name):
+            base.replace(**{name: value})
     assert base == HestonParameters(**fields)
 
 

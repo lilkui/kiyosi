@@ -14,8 +14,8 @@ the model clock does not convert volatility values.
 
 ``BlackScholesMertonParameters`` accepts nonnegative volatility; zero selects
 deterministic pricing. ``LocalVolatilityParameters`` uses an absolute time/spot
-surface. ``HestonParameters`` uses risk-neutral variance parameters. Engine
-support and numerical controls are documented on each engine.
+surface. ``HestonParameters`` uses risk-neutral variance parameters on an
+Actual/365 Fixed variance clock. Each engine documents its support and controls.
 
 Read model rates through ``risk_free_curve`` and ``dividend_curve`` for term
 structure queries and to preserve coverage when reusing model rates.

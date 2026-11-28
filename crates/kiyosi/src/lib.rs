@@ -26,8 +26,8 @@
 //! BSM and local-volatility PDE models support business time over a calendar's
 //! fixed basis, with no variance accumulation on closed dates. Rate curves govern
 //! carry and discounting independently of variance and contractual dates. Other engines
-//! reject business time with [`Error::UnsupportedOperation`]; Heston rejects it at
-//! model construction or replacement. [`Greek`] defines sensitivity units.
+//! reject business time with [`Error::UnsupportedOperation`]. Heston variance
+//! parameters use Actual/365 Fixed. [`Greek`] defines sensitivity units.
 //! BSM volatility may be zero, selecting deterministic pricing. Check numerical
 //! convergence separately from Monte Carlo sampling uncertainty and solver tolerances.
 //!

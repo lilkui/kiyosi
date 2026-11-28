@@ -845,8 +845,8 @@ class BlackScholesMertonParameters:
         ----------
         **fields : object
             Constructor fields to replace. Omitted fields and fields set to
-            Ellipsis default to the instance's values. Pass calendar=None to
-            clear the calendar. See the class parameters for supported clocks.
+            Ellipsis default to the instance's values.
+            Pass calendar=None to clear the variance calendar.
 
         Returns
         -------
@@ -860,7 +860,7 @@ class BlackScholesMertonParameters:
         TypeError
             If a representation or keyword is invalid.
         ValueError
-            If a time convention choice is unknown.
+            If the variance_time_convention choice is unknown.
         """
 
     @property
@@ -932,20 +932,11 @@ class HestonParameters:
         Correlation between the asset and variance Brownian motions in [-1, 1],
         including endpoints.
 
-    variance_time_convention : {"actual_365_fixed"}, optional
-        Fixed variance time convention. Defaults to "actual_365_fixed".
-    calendar : None, optional
-        Defaults to None. Contract observation calendars and rate curve
-        calendars are set on those objects.
-
     Raises
     ------
     InvalidInputError
         For non-finite inputs, negative variance parameters or invalid
         correlation.
-
-    UnsupportedOperationError
-        If business time is requested; Heston parameter units use A/365F.
 
     Notes
     -----
@@ -967,8 +958,6 @@ class HestonParameters:
         mean_reversion_speed: _Real,
         vol_of_vol: _Real,
         correlation: _Real,
-        variance_time_convention: Literal["actual_365_fixed"] = ...,
-        calendar: None = ...,
     ) -> None: ...
     def replace(
         self,
@@ -980,8 +969,6 @@ class HestonParameters:
         mean_reversion_speed: _Real | EllipsisType = ...,
         vol_of_vol: _Real | EllipsisType = ...,
         correlation: _Real | EllipsisType = ...,
-        variance_time_convention: Literal["actual_365_fixed"] | EllipsisType = ...,
-        calendar: None | EllipsisType = ...,
     ) -> HestonParameters:
         """Return a validated copy with the supplied fields applied.
 
@@ -989,8 +976,7 @@ class HestonParameters:
         ----------
         **fields : object
             Constructor fields to replace. Omitted fields and fields set to
-            Ellipsis default to the instance's values. Pass calendar=None to
-            clear the calendar. See the class parameters for supported clocks.
+            Ellipsis default to the instance's values.
 
         Returns
         -------
@@ -1001,12 +987,8 @@ class HestonParameters:
         ------
         InvalidInputError
             If the merged fields fail model validation.
-        UnsupportedOperationError
-            If business time is requested.
         TypeError
             If a representation or keyword is invalid.
-        ValueError
-            If a time convention choice is unknown.
         """
 
     @property
@@ -1202,8 +1184,8 @@ class LocalVolatilityParameters:
         ----------
         **fields : object
             Constructor fields to replace. Omitted fields and fields set to
-            Ellipsis default to the instance's values. Pass calendar=None to
-            clear the calendar. See the class parameters for supported clocks.
+            Ellipsis default to the instance's values.
+            Pass calendar=None to clear the variance calendar.
 
         Returns
         -------
@@ -1217,7 +1199,7 @@ class LocalVolatilityParameters:
         TypeError
             If a representation or keyword is invalid.
         ValueError
-            If a time convention choice is unknown.
+            If the variance_time_convention choice is unknown.
         """
 
     @property

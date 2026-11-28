@@ -6,8 +6,6 @@ use crate::{Error, Rate, RateTermStructure, Result};
 /// See [`HestonParameters::replace`] for an example.
 #[derive(Clone, Debug, Default)]
 pub struct HestonParameterChanges {
-    /// Requests the model clock; business time is unsupported.
-    pub variance_time_convention: Option<VarianceTimeConvention>,
     /// Replaces the risk-free rate or curve.
     pub risk_free_rate: Option<Rate>,
     /// Replaces the dividend yield or curve.
@@ -71,22 +69,6 @@ impl HestonParameters {
     /// Returns the supported A/365F variance clock; see [`Self::new`].
     pub fn variance_time_convention(&self) -> &VarianceTimeConvention {
         &VarianceTimeConvention::Actual365Fixed
-    }
-
-    /// Creates Heston parameters with an explicit clock request.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::UnsupportedOperation`] for business time, then applies
-    /// [`Self::new`] validation. The variance parameters use A/365F units.
-    /// See [`Self::new`]'s example for variance inputs and [`VarianceTimeConvention`]
-    /// for the clock variants.
-    pub fn new_with_variance_time_convention(
-        inputs: HestonParameterInputs,
-        variance_time_convention: &VarianceTimeConvention,
-    ) -> Result<Self> {
-        variance_time_convention.require_actual365()?;
-        Self::new(inputs)
     }
 
     /// Creates a model from rates or curves and explicitly supplied variance parameters.
@@ -175,10 +157,6 @@ impl HestonParameters {
     /// # Ok(()) }
     /// ```
     pub fn replace(&self, changes: HestonParameterChanges) -> Result<Self> {
-        changes
-            .variance_time_convention
-            .unwrap_or_default()
-            .require_actual365()?;
         Self::new(HestonParameterInputs {
             risk_free_rate: changes
                 .risk_free_rate

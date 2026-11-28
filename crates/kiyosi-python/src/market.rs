@@ -7,17 +7,17 @@ use pyo3::types::{PyDate, PyTuple};
 
 macro_rules! rate_properties {
     ($name:ident, @replace $changes:ident [$($parameter:ident),+]
-     {$($field:ident: $value:expr),+ $(,)?}, [$(#[$extra_error:meta])*], $($extra:item),* $(,)?) => {
-        value_methods!(@documented $name, $changes, [$($parameter),+, variance_time_convention, calendar], |self|
-            {$($field: $value),+, variance_time_convention: Some($crate::market::updated_variance_time_convention(self.0.variance_time_convention(), variance_time_convention, calendar)?)}, [
+     {$($field:ident: $value:expr),+ $(,)?}, [$($variance:ident, $calendar:ident)?], $($extra:item),* $(,)?) => {
+        value_methods!(@documented $name, $changes, [$($parameter),+ $(, $variance, $calendar)?], |self|
+            {$($field: $value),+ $(, variance_time_convention: Some($crate::market::updated_variance_time_convention(self.0.variance_time_convention(), $variance, $calendar)?))?}, [
                 /// Return a validated copy with the supplied fields applied.
                 ///
                 /// Parameters
                 /// ----------
                 /// **fields : object
                 ///     Constructor fields to replace. Omitted fields and fields set to
-                ///     Ellipsis default to the instance's values. Pass calendar=None to
-                ///     clear the calendar. See the class parameters for supported clocks.
+                ///     Ellipsis default to the instance's values.
+                $(#[doc = concat!("    Pass ", stringify!($calendar), "=None to clear the variance calendar.")])?
                 ///
                 /// Returns
                 /// -------
@@ -28,11 +28,12 @@ macro_rules! rate_properties {
                 /// ------
                 /// InvalidInputError
                 ///     If the merged fields fail model validation.
-                $(#[$extra_error])*
                 /// TypeError
                 ///     If a representation or keyword is invalid.
-                /// ValueError
-                ///     If a time convention choice is unknown.
+                $(
+                    /// ValueError
+                    #[doc = concat!("    If the ", stringify!($variance), " choice is unknown.")]
+                )?
             ], {
             $($extra)*
 
@@ -483,7 +484,7 @@ rate_properties!(
         dividend_yield: dividend_yield.map(rate).transpose()?,
         volatility: volatility.map(real).transpose()?,
     },
-    [],
+    [variance_time_convention, calendar],
     #[new]
     #[pyo3(signature = (*, risk_free_rate, dividend_yield, volatility, variance_time_convention=crate::conversions::OMITTED, calendar=None))]
     fn new(

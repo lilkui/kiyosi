@@ -45,12 +45,9 @@ def heston_uses_fixed_variance_time() -> None:
     )
     assert_type(model.variance_time_convention, Literal["actual_365_fixed"])
     assert_type(model.calendar, None)
-    assert_type(
-        model.replace(variance_time_convention="actual_365_fixed", calendar=None),
-        HestonParameters,
-    )
-    model.replace(variance_time_convention="business")  # ty: ignore[invalid-argument-type]
-    model.replace(calendar=TradingCalendar.weekdays())  # ty: ignore[invalid-argument-type]
+    assert_type(model.replace(initial_variance=0.09), HestonParameters)
+    model.replace(variance_time_convention="actual_365_fixed")  # ty: ignore[unknown-argument]
+    model.replace(calendar=None)  # ty: ignore[unknown-argument]
     HestonParameters(
         risk_free_rate=0.05,
         dividend_yield=0.02,
@@ -59,8 +56,8 @@ def heston_uses_fixed_variance_time() -> None:
         mean_reversion_speed=1.5,
         vol_of_vol=0.3,
         correlation=-0.7,
-        variance_time_convention="business",  # ty: ignore[invalid-argument-type]
-        calendar=TradingCalendar.weekdays(),  # ty: ignore[invalid-argument-type]
+        variance_time_convention="actual_365_fixed",  # ty: ignore[unknown-argument]
+        calendar=None,  # ty: ignore[unknown-argument]
     )
 
 

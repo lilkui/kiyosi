@@ -16,11 +16,7 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     }
 
     register!(
-        [
-            BlackScholesMertonParameters,
-            LocalVolatilityParameters,
-            HestonParameters
-        ],
+        [BlackScholesMertonParameters, LocalVolatilityParameters],
         variance_time_convention = crate::market::variance_time_convention_name(
             &kiyosi::VarianceTimeConvention::default()
         ),

@@ -293,18 +293,17 @@ fn model_defaults_replacement_and_calendar_validation_preserve_units() {
         vol_of_vol: 0.3,
         correlation: -0.7,
     };
-    assert!(matches!(
-        HestonParameters::new_with_variance_time_convention(inputs.clone(), &clock),
-        Err(Error::UnsupportedOperation(_))
-    ));
     let heston = HestonParameters::new(inputs).unwrap();
-    assert!(matches!(
-        heston.replace(HestonParameterChanges {
-            variance_time_convention: Some(clock),
+    let changed = heston
+        .replace(HestonParameterChanges {
+            initial_variance: Some(0.09),
             ..Default::default()
-        }),
-        Err(Error::UnsupportedOperation(_))
-    ));
+        })
+        .unwrap();
+    assert_eq!(
+        changed.variance_time_convention(),
+        &VarianceTimeConvention::Actual365Fixed
+    );
     assert_eq!(
         heston.variance_time_convention(),
         &VarianceTimeConvention::Actual365Fixed
