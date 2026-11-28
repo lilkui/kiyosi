@@ -105,6 +105,15 @@ def test_analytic_heston_strike_batch_stops_at_input_limit():
         engine.price_strikes(option(), context(valuation_time=END), strikes=strikes())
 
 
+def test_analytic_heston_bounds_combined_adaptive_work():
+    engine = AnalyticHestonEuropeanEngine(absolute_tolerance=0)
+    template, snapshot = option(), context()
+    with pytest.raises(InvalidInputError, match="Fourier work budget"):
+        engine.price_strikes(
+            template, snapshot, strikes=(99 + index / 65_536 for index in range(65_536))
+        )
+
+
 def test_dense_heston_batch_preserves_transform_quotes_above_chunk_limit():
     engine = AnalyticHestonEuropeanEngine()
     snapshot, template = context(), option()

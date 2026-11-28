@@ -1835,8 +1835,9 @@ class AnalyticHestonEuropeanEngine(_PricingMethods[EuropeanOption]):
         -----
         Groups of up to 16,384 distinct strikes can share a fast Fourier
         transform with interpolation. Other quotes share transform samples and retain
-        adaptive convergence budgets. Pricing releases the GIL and
-        cancellation returns no partial result.
+        adaptive convergence budgets. Excessive total Fourier work raises
+        InvalidInputError. Pricing releases the GIL and cancellation returns
+        no partial result.
         """
 
     def __eq__(self, other: object) -> bool: ...

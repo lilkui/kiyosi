@@ -102,8 +102,9 @@ engine_methods!(
         /// -----
         /// Groups of up to 16,384 distinct strikes can share a fast Fourier
         /// transform with interpolation. Other quotes share transform samples and retain
-        /// adaptive convergence budgets. Pricing releases the GIL and
-        /// cancellation returns no partial result.
+        /// adaptive convergence budgets. Excessive total Fourier work raises
+        /// InvalidInputError. Pricing releases the GIL and cancellation returns
+        /// no partial result.
         #[pyo3(signature = (instrument, context, *, strikes))]
         #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns the extracted inputs before core pricing.")]
         fn price_strikes<'py>(

@@ -72,6 +72,30 @@ fn analytic_strike_batch_preserves_independent_prices_and_errors() -> Result<()>
 }
 
 #[test]
+fn analytic_heston_bounds_combined_adaptive_work() -> Result<()> {
+    let engine = AnalyticHestonEuropeanEngine::new(HestonIntegrationSettings {
+        absolute_tolerance: 0.0,
+        ..Default::default()
+    })?;
+    let template = option(OptionType::Call);
+    let market = context(model());
+    let strikes: Vec<_> = (0..65_536)
+        .map(|index| 99.0 + f64::from(index) / 65_536.0)
+        .collect();
+    assert!(
+        engine
+            .price_strikes(&template, &market, &strikes[..16])?
+            .iter()
+            .all(|price| *price > 0.0)
+    );
+    assert!(matches!(
+        engine.price_strikes(&template, &market, &strikes),
+        Err(Error::InvalidInput(message)) if message.contains("Fourier work budget")
+    ));
+    Ok(())
+}
+
+#[test]
 fn analytic_heston_strike_batch_enforces_inclusive_input_limit() -> Result<()> {
     let engine = AnalyticHestonEuropeanEngine::default();
     let call = option(OptionType::Call);

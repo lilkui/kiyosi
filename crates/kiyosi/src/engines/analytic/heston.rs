@@ -1,4 +1,5 @@
 use std::{
+    cell::Cell,
     cmp::Ordering,
     collections::{BinaryHeap, HashMap},
     f64::consts::PI,
@@ -17,10 +18,23 @@ use crate::{
 mod fft;
 
 const MAX_BATCH_STRIKES: usize = 1 << 20;
+const BATCH_WORK_LIMIT: usize = 8_000_000;
 const PANEL_SAMPLES: usize = 15;
 const PANEL_CACHE_CAPACITY: usize = 16_384 / PANEL_SAMPLES;
 type PanelSamples = [FourierSample; PANEL_SAMPLES];
 type PanelCache = HashMap<[u64; 2], PanelSamples>;
+
+struct BatchIntegration {
+    geometry: Option<PanelCache>,
+    remaining: Cell<usize>,
+}
+
+fn charge_batch_work(remaining: &Cell<usize>, work: usize) -> Result<()> {
+    remaining.set(remaining.get().checked_sub(work).ok_or_else(|| {
+        Error::InvalidInput("analytic Heston strike batch exceeds its Fourier work budget".into())
+    })?);
+    Ok(())
+}
 
 /// Checks the total input count for an analytic Heston strike batch.
 ///
@@ -171,12 +185,12 @@ impl AnalyticHestonEuropeanEngine {
     /// distinct strikes can share a fast Fourier transform with interpolation
     /// when the estimated error fits the price tolerances. Other
     /// quotes share Fourier samples across adaptive integration panels. The
-    /// evaluation budget applies per strike.
+    /// evaluation budget applies per strike. The batch also limits total Fourier work.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] above 1,048,576 strikes (including duplicates)
-    /// or for nonpositive or non-finite strikes.
+    /// Returns [`Error::InvalidInput`] above 1,048,576 strikes (including duplicates),
+    /// for nonpositive or non-finite strikes, or when the batch exceeds its Fourier work budget.
     /// Propagates scalar pricing errors and cancellation without a partial result.
     /// An output reservation failure returns [`Error::ComputationFailure`].
     ///
@@ -228,18 +242,34 @@ impl AnalyticHestonEuropeanEngine {
         prices.try_reserve_exact(strikes.len()).map_err(|_| {
             Error::ComputationFailure("cannot reserve Heston strike batch output".into())
         })?;
-        let mut geometry = PanelCache::new();
+        let mut batch = BatchIntegration {
+            geometry: (strikes.len() > 1).then(PanelCache::new),
+            remaining: Cell::new(BATCH_WORK_LIMIT),
+        };
         let mut panels = BinaryHeap::new();
         for chunk in strikes.chunks(fft::MAX_STRIKES) {
-            let transformed = fft::price_strikes(option, context, model, chunk, self.settings)?;
+            let transformed = fft::price_strikes(
+                option,
+                context,
+                model,
+                chunk,
+                self.settings,
+                &batch.remaining,
+            )?;
             for (index, &strike) in chunk.iter().enumerate() {
                 crate::cancellation::check()?;
                 if let Some(price) = transformed.as_ref().and_then(|prices| prices[index]) {
                     prices.push(price);
                     continue;
                 }
-                let cache = (strikes.len() > 1).then_some(&mut geometry);
-                prices.push(self.price_one(option, context, model, strike, cache, &mut panels)?);
+                prices.push(self.price_one(
+                    option,
+                    context,
+                    model,
+                    strike,
+                    Some(&mut batch),
+                    &mut panels,
+                )?);
             }
         }
         Ok(prices)
@@ -251,7 +281,7 @@ impl AnalyticHestonEuropeanEngine {
         context: &PricingContext,
         model: &HestonParameters,
         strike: f64,
-        geometry: Option<&mut PanelCache>,
+        batch: Option<&mut BatchIntegration>,
         panels: &mut BinaryHeap<Panel>,
     ) -> Result<f64> {
         let start = context.valuation_time();
@@ -308,6 +338,9 @@ impl AnalyticHestonEuropeanEngine {
             .midpoint(strike.ln() + risk - scale.ln())
             .exp()
             / PI;
+        let (geometry, batch_work) = batch.map_or((None, None), |batch| {
+            (batch.geometry.as_mut(), Some(&batch.remaining))
+        });
         let mut integrand = Integrand {
             model,
             time,
@@ -318,6 +351,7 @@ impl AnalyticHestonEuropeanEngine {
             weight,
             remaining: self.settings.max_evaluations,
             geometry,
+            batch_work,
         };
         integrate(&mut integrand, base, self.settings, scale, panels)
     }
@@ -530,6 +564,7 @@ struct Integrand<'a> {
     weight: f64,
     remaining: usize,
     geometry: Option<&'a mut PanelCache>,
+    batch_work: Option<&'a Cell<usize>>,
 }
 
 #[derive(Clone, Copy)]
@@ -687,6 +722,9 @@ fn panel(f: &mut Integrand<'_>, left: f64, right: f64) -> Result<Panel> {
         .remaining
         .checked_sub(2 * PANEL_SAMPLES)
         .ok_or_else(nonconvergence)?;
+    if let Some(remaining) = f.batch_work {
+        charge_batch_work(remaining, 2 * PANEL_SAMPLES)?;
+    }
     let evaluate = || {
         std::array::from_fn(|i| {
             let t = if i == 0 {

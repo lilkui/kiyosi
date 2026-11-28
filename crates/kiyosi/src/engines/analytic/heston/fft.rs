@@ -1,4 +1,4 @@
-use std::f64::consts::TAU;
+use std::{cell::Cell, f64::consts::TAU};
 
 use rustfft::FftPlanner;
 
@@ -27,6 +27,7 @@ pub(super) fn price_strikes(
     model: &HestonParameters,
     strikes: &[f64],
     settings: HestonIntegrationSettings,
+    batch_work: &Cell<usize>,
 ) -> Result<Option<Vec<Option<f64>>>> {
     if !(16..=MAX_STRIKES).contains(&strikes.len())
         || model.vol_of_vol() == 0.0
@@ -128,6 +129,7 @@ pub(super) fn price_strikes(
     if transform_work >= direct_work {
         return Ok(None);
     }
+    super::charge_batch_work(batch_work, transform_work)?;
     let mut coefficients = vec![Complex64::default(); len];
     let mut absolute = 0.0;
     let mut derivative = 0.0;
@@ -263,10 +265,15 @@ mod tests {
         strikes.insert(30, 1e12);
         for direction in [OptionType::Call, OptionType::Put] {
             let option = EuropeanOption::new(direction, 100.0, start, end)?;
-            let actual = price_strikes(&option, &market, &model, &strikes, settings)?
+            let work = Cell::new(super::super::BATCH_WORK_LIMIT);
+            assert!(matches!(
+                price_strikes(&option, &market, &model, &strikes, settings, &Cell::new(0)),
+                Err(crate::Error::InvalidInput(_))
+            ));
+            let actual = price_strikes(&option, &market, &model, &strikes, settings, &work)?
                 .expect("ordinary Heston inputs use the transform for this strip");
             assert!(actual[30].is_none());
-            assert!(price_strikes(&option, &market, &model, &[100.0], settings)?.is_none());
+            assert!(price_strikes(&option, &market, &model, &[100.0], settings, &work)?.is_none());
             assert_eq!(
                 engine.price_strikes(&option, &market, &[100.0; 256])?,
                 [engine.price(&option, &market)?; 256],
