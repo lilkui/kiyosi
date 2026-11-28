@@ -138,6 +138,15 @@ mod numerics;
 mod risk;
 mod time;
 
+/// Shares pricing input limits with language bindings.
+#[doc(hidden)]
+pub mod binding_support {
+    pub use crate::engines::finite_difference::{
+        validate_finite_difference_strike_batch_size, validate_finite_difference_surface_size,
+    };
+    pub use crate::engines::monte_carlo::validate_monte_carlo_strike_batch_size;
+}
+
 pub use cancellation::CancellationToken;
 pub use engines::analytic::american::BjerksundStenslandVanillaEngine;
 pub use engines::analytic::asian::{
@@ -164,13 +173,12 @@ pub use engines::finite_difference::{
     FiniteDifferenceDigitalEngine, FiniteDifferenceDoubleBarrierEngine,
     FiniteDifferenceDoubleTouchEngine, FiniteDifferenceEngine, FiniteDifferenceScheme,
     FiniteDifferenceSettings, FiniteDifferenceSolution, FiniteDifferenceVanillaEngine,
-    validate_finite_difference_strike_batch_size, validate_finite_difference_surface_size,
 };
 pub use engines::monte_carlo::{
     MonteCarloAccumulatorEngine, MonteCarloAsianEngine, MonteCarloAutocallableEngine,
     MonteCarloBarrierEngine, MonteCarloDigitalEngine, MonteCarloEstimate, MonteCarloGridSettings,
     MonteCarloSampling, MonteCarloSettings, MonteCarloUncertaintyStatus, MonteCarloVanillaEngine,
-    configure_monte_carlo_pool, validate_monte_carlo_strike_batch_size,
+    configure_monte_carlo_pool,
 };
 pub use engines::quadrature::{
     QuadratureAccumulatorEngine, QuadratureAutocallableEngine, QuadratureBarrierEngine,

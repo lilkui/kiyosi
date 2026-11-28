@@ -79,7 +79,7 @@ fn sampling(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::MonteCarloSampling> {
 
 fn strike_batch(value: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
     crate::conversions::collect_values_checked(value, crate::conversions::real, |count| {
-        domain(kiyosi::validate_monte_carlo_strike_batch_size(count))
+        domain(kiyosi::binding_support::validate_monte_carlo_strike_batch_size(count))
     })
 }
 

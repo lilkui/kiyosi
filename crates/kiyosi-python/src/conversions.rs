@@ -291,20 +291,19 @@ pub(crate) fn surface_inputs(
     strikes: &Bound<'_, PyAny>,
 ) -> PyResult<(Vec<kiyosi::Timestamp>, Vec<f64>)> {
     let expiries = collect_timestamps_checked(expiries, |count| {
-        domain(kiyosi::validate_finite_difference_surface_size(count, 0))
+        domain(kiyosi::binding_support::validate_finite_difference_surface_size(count, 0))
     })?;
     let strikes = collect_values_checked(strikes, real, |count| {
-        domain(kiyosi::validate_finite_difference_surface_size(
-            expiries.len(),
-            count,
-        ))
+        domain(
+            kiyosi::binding_support::validate_finite_difference_surface_size(expiries.len(), count),
+        )
     })?;
     Ok((expiries, strikes))
 }
 
 pub(crate) fn finite_difference_strikes(value: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
     collect_values_checked(value, real, |count| {
-        domain(kiyosi::validate_finite_difference_strike_batch_size(count))
+        domain(kiyosi::binding_support::validate_finite_difference_strike_batch_size(count))
     })
 }
 
