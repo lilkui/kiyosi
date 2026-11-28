@@ -174,7 +174,9 @@ impl RateTermStructure {
         factors: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
         let reference = timestamp(reference_time)?;
-        let nodes = crate::conversions::timestamps(times)?;
+        let nodes = crate::conversions::ordered_timestamps(times, |previous, node| {
+            kiyosi::binding_support::validate_rate_curve_node(previous.unwrap_or(reference), node)
+        })?;
         let validate = kiyosi::binding_support::validate_rate_curve_shape;
         if nodes.is_empty() {
             domain(validate(0, 0))?;

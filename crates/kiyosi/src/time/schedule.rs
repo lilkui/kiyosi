@@ -59,16 +59,14 @@ impl ObservationSchedule {
         end_time: Timestamp,
         calendar: &TradingCalendar,
     ) -> Result<()> {
-        validate_range(start_time, end_time)?;
-        for (index, time) in times.iter().enumerate() {
+        validate_schedule_bounds(start_time, end_time)?;
+        let mut previous = None;
+        for (index, &time) in times.iter().enumerate() {
             if index % 1024 == 0 {
                 crate::cancellation::check()?;
             }
-            if (index > 0 && *time <= times[index - 1]) || *time < start_time || *time > end_time {
-                return Err(Error::InvalidInput(
-                    "observation times must be ordered and within life bounds".into(),
-                ));
-            }
+            validate_schedule_time(previous, time, start_time, end_time)?;
+            previous = Some(time);
         }
         Self::validate_calendar(times, calendar)
     }
@@ -79,16 +77,13 @@ impl ObservationSchedule {
         end_time: Timestamp,
         calendar: Option<TradingCalendar>,
     ) -> Result<Self> {
-        validate_range(start_time, end_time)?;
+        validate_schedule_bounds(start_time, end_time)?;
         if !self.is_empty() {
             crate::cancellation::check()?;
         }
-        if self.times().first().is_some_and(|&time| time < start_time)
-            || self.times().last().is_some_and(|&time| time > end_time)
-        {
-            return Err(Error::InvalidInput(
-                "observation times must be ordered and within life bounds".into(),
-            ));
+        if let Some((&first, &last)) = self.times().first().zip(self.times().last()) {
+            validate_schedule_time(None, first, start_time, end_time)?;
+            validate_schedule_time(None, last, start_time, end_time)?;
         }
         if let Some(calendar) = calendar {
             if !self.calendar.shares_trading_days(&calendar) {
@@ -135,7 +130,7 @@ impl ObservationSchedule {
         include_start: bool,
         observation_clock_time: TimeOfDay,
     ) -> Result<Vec<Timestamp>> {
-        validate_range(start_time, end_time)?;
+        validate_schedule_bounds(start_time, end_time)?;
         let mut times = Vec::new();
         let mut date = start_time.date();
         loop {
@@ -206,7 +201,7 @@ impl ObservationSchedule {
         calendar: &TradingCalendar,
         observation_clock_time: TimeOfDay,
     ) -> Result<Self> {
-        validate_range(start_time, end_time)?;
+        validate_schedule_bounds(start_time, end_time)?;
         if interval_days <= 0 {
             return Err(Error::InvalidInput("interval must be positive".into()));
         }
@@ -245,7 +240,7 @@ impl ObservationSchedule {
         calendar: &TradingCalendar,
         observation_clock_time: TimeOfDay,
     ) -> Result<Self> {
-        validate_range(start_time, end_time)?;
+        validate_schedule_bounds(start_time, end_time)?;
         if first_observation_month <= 0 {
             return Err(Error::InvalidInput("first month must be positive".into()));
         }
@@ -321,9 +316,33 @@ fn push_following(
     }
 }
 
-fn validate_range(start_time: Timestamp, end_time: Timestamp) -> Result<()> {
+/// Checks the inclusive bounds of an observation schedule.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidInput`] if the end precedes the start.
+pub fn validate_schedule_bounds(start_time: Timestamp, end_time: Timestamp) -> Result<()> {
     if end_time < start_time {
         return Err(Error::InvalidInput("end precedes start".into()));
+    }
+    Ok(())
+}
+
+/// Checks one observation against its predecessor and its inclusive life bounds.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidInput`] for an unordered or out-of-life timestamp.
+pub fn validate_schedule_time(
+    previous: Option<Timestamp>,
+    time: Timestamp,
+    start_time: Timestamp,
+    end_time: Timestamp,
+) -> Result<()> {
+    if previous.is_some_and(|previous| time <= previous) || time < start_time || time > end_time {
+        return Err(Error::InvalidInput(
+            "observation times must be ordered and within life bounds".into(),
+        ));
     }
     Ok(())
 }

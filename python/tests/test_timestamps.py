@@ -23,6 +23,7 @@ from kiyosi.instruments import (
 )
 from kiyosi.market import (
     BlackScholesMertonParameters,
+    LocalVolatilitySurface,
     ObservationSchedule,
     PricingContext,
     RateTermStructure,
@@ -44,6 +45,39 @@ from kiyosi.pricing import (
 
 def time(day, hour, microsecond=0):
     return datetime(2025, 1, day, hour, microsecond=microsecond)
+
+
+@pytest.mark.parametrize("constructor", ("schedule", "curve", "local_volatility"))
+def test_timestamp_constructors_stop_reading_at_duplicate(constructor):
+    start, first, end = time(2, 10), time(3, 10), time(6, 10)
+
+    def duplicates():
+        yield first
+        yield first
+        pytest.fail("timestamp iterable read past the duplicate")
+
+    with pytest.raises(InvalidInputError, match="order|increas"):
+        if constructor == "schedule":
+            ObservationSchedule(times=duplicates(), start_time=start, end_time=end)
+        elif constructor == "curve":
+            RateTermStructure(reference_time=start, times=duplicates(), factors=[1, 1])
+        else:
+            LocalVolatilitySurface(
+                times=duplicates(), spots=[90, 110], values=[[0.2, 0.2], [0.2, 0.2]]
+            )
+
+
+def test_observation_schedule_checks_life_before_reading_more_times():
+    start, end = time(2, 10), time(6, 10)
+
+    def outside_life():
+        yield end + timedelta(microseconds=1)
+        pytest.fail("timestamp iterable read past the out-of-life observation")
+
+    with pytest.raises(InvalidInputError, match="within life bounds"):
+        ObservationSchedule(times=outside_life(), start_time=start, end_time=end)
+    with pytest.raises(InvalidInputError, match="end precedes start"):
+        ObservationSchedule(times=outside_life(), start_time=end, end_time=start)
 
 
 def market(at, spot=105):

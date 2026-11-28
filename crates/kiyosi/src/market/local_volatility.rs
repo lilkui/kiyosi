@@ -32,6 +32,22 @@ pub fn validate_local_volatility_surface_dimension(count: usize, axis: usize) ->
     Ok(())
 }
 
+fn invalid_times() -> Error {
+    Error::InvalidInput("times must contain at least two strictly increasing nodes".into())
+}
+
+/// Checks that a local-volatility time node follows its predecessor.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidInput`] for a duplicate or decreasing timestamp.
+pub fn validate_local_volatility_time_node(previous: Timestamp, node: Timestamp) -> Result<()> {
+    if node <= previous {
+        return Err(invalid_times());
+    }
+    Ok(())
+}
+
 /// Owns a local-volatility table in absolute time and spot coordinates.
 ///
 /// Rows correspond to times and columns to spots. Local volatility interpolates
@@ -73,10 +89,14 @@ impl LocalVolatilitySurface {
     /// # Ok(()) }
     /// ```
     pub fn new(times: Vec<Timestamp>, spots: Vec<f64>, values: Vec<Vec<f64>>) -> Result<Self> {
-        if times.len() < 2 || has_unordered_pair(&times)? {
-            return Err(Error::InvalidInput(
-                "times must contain at least two strictly increasing nodes".into(),
-            ));
+        if times.len() < 2 {
+            return Err(invalid_times());
+        }
+        for (index, pair) in times.windows(2).enumerate() {
+            if index % 1024 == 0 {
+                cancellation::check()?;
+            }
+            validate_local_volatility_time_node(pair[0], pair[1])?;
         }
         if spots.len() < 2 || has_unordered_pair(&spots)? {
             return Err(Error::InvalidInput(

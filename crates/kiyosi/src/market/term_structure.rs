@@ -255,11 +255,7 @@ impl RateTermStructure {
             if index % 1024 == 0 {
                 crate::cancellation::check()?;
             }
-            if node <= previous {
-                return Err(Error::InvalidInput(
-                    "curve nodes must increase after the reference".into(),
-                ));
-            }
+            validate_rate_curve_node(previous, node)?;
             finite(factor, true, "factors")?;
             let forward =
                 -crate::numerics::log_ratio(factor, previous_factor) / previous.years_until(node);
@@ -622,6 +618,20 @@ impl RateTermStructure {
         }
         Ok(())
     }
+}
+
+/// Checks that a rate curve node follows its predecessor or reference.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidInput`] for a duplicate or decreasing timestamp.
+pub fn validate_rate_curve_node(previous: Timestamp, node: Timestamp) -> Result<()> {
+    if node <= previous {
+        return Err(Error::InvalidInput(
+            "curve nodes must increase after the reference".into(),
+        ));
+    }
+    Ok(())
 }
 
 fn node_factor(index: usize, log: f64) -> Result<f64> {

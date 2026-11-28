@@ -8,3 +8,4 @@ pub use convention::{VarianceTimeConvention, variance_time_convention_from_input
 pub(crate) use date::MICROS_PER_DAY;
 pub use date::{Date, TimeOfDay, Timestamp};
 pub use schedule::ObservationSchedule;
+pub use schedule::{validate_schedule_bounds, validate_schedule_time};

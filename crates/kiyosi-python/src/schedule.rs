@@ -60,8 +60,13 @@ impl ObservationSchedule {
         end_time: &Bound<'_, PyAny>,
         #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
-        let observations = crate::conversions::timestamps(times)?;
         let (start, end) = (timestamp(start_time)?, timestamp(end_time)?);
+        crate::error::domain(kiyosi::binding_support::validate_schedule_bounds(
+            start, end,
+        ))?;
+        let observations = crate::conversions::ordered_timestamps(times, |previous, time| {
+            kiyosi::binding_support::validate_schedule_time(previous, time, start, end)
+        })?;
         let calendar =
             crate::calendar::observation_calendar(calendar, Some(times))?.unwrap_or_default();
         run_date_scan(py, observations.len() as u64, || {
