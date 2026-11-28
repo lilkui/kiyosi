@@ -8,6 +8,7 @@ use crate::{
 };
 
 const MAX_BATCH_SPOTS: usize = 1 << 18;
+const MAX_BATCH_REPLAY_WORK: usize = 100_000_000;
 
 /// Checks the spot count for saved-solution batches.
 ///
@@ -125,15 +126,18 @@ impl FiniteDifferenceSolution {
         } else {
             GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Speed])
         };
-        let query_work = if backend.queries_may_scan_calendar()
-            && context.valuation_time() < instrument.expiry_time()
+        let valuation = context.valuation_time();
+        let expiry = instrument.expiry_time();
+        let mut query_work = backend.query_work(&instrument, context);
+        if backend.queries_may_scan_calendar()
+            && valuation < expiry
             && super::diffusion::uses_business_time(context)
         {
             // A closed calendar can require scanning the full horizon before pricing.
-            usize::MAX
-        } else {
-            backend.query_work(&instrument, context)
-        };
+            let days =
+                usize::try_from(valuation.date().days_until(expiry.date())).unwrap_or(usize::MAX);
+            query_work = query_work.saturating_add(days.saturating_add(1));
+        }
         Self {
             context: context.clone(),
             range,
@@ -185,12 +189,13 @@ impl FiniteDifferenceSolution {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] above 262,144 spots. Propagates
+    /// Returns [`Error::InvalidInput`] above 262,144 spots or 100 million estimated
+    /// observation and calendar visits. Propagates
     /// [`Self::price`] errors, without partial output or mutation.
     /// All spot domains are validated before evaluation.
     pub fn price_many(&self, spot_prices: &[f64]) -> Result<Vec<f64>> {
-        self.validate_spots(spot_prices)?;
         let request = GreeksRequest::new([]);
+        self.validate_spots(spot_prices, request)?;
         let shifts = NumericalShiftSettings::default();
         spot_prices
             .iter()
@@ -325,7 +330,8 @@ impl FiniteDifferenceSolution {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] above 262,144 spots. Propagates
+    /// Returns [`Error::InvalidInput`] above 262,144 spots or 100 million estimated
+    /// observation and calendar visits. Propagates
     /// [`Self::price_with_greeks`] errors. Controls and all spot domains are
     /// validated even for empty input, before any evaluation.
     pub fn price_many_with_greeks(
@@ -339,7 +345,7 @@ impl FiniteDifferenceSolution {
             ..Default::default()
         };
         shifts.validate()?;
-        self.validate_spots(spot_prices)?;
+        self.validate_spots(spot_prices, request)?;
         spot_prices
             .iter()
             .map(|&spot| self.evaluate(spot, request, shifts))
@@ -350,8 +356,30 @@ impl FiniteDifferenceSolution {
         self.value.at_spot_discontinuity(context, radius)
     }
 
-    fn validate_spots(&self, spot_prices: &[f64]) -> Result<()> {
+    fn validate_spots(&self, spot_prices: &[f64], request: GreeksRequest) -> Result<()> {
         validate_finite_difference_solution_batch_size(spot_prices.len())?;
+        // A spot stencil can evaluate the center, both bump sizes and both directions.
+        let samples = if request.has(Greek::Speed) && self.supported.has(Greek::Speed) {
+            5
+        } else if [Greek::Delta, Greek::Gamma]
+            .into_iter()
+            .any(|greek| request.has(greek) && self.supported.has(greek))
+        {
+            3
+        } else {
+            1
+        };
+        if spot_prices
+            .len()
+            .saturating_mul(self.query_work)
+            .saturating_mul(samples)
+            > MAX_BATCH_REPLAY_WORK
+        {
+            return Err(Error::InvalidInput(
+                "finite-difference solution batch exceeds 100 million estimated replay visits"
+                    .into(),
+            ));
+        }
         for &spot in spot_prices {
             crate::cancellation::check()?;
             self.validate_spot(spot)?;
@@ -394,7 +422,10 @@ pub(super) fn monitoring_query_work(
 ) -> usize {
     let start = context.valuation_time();
     let end = monitoring.expiry_time();
-    if start >= end || !crate::engines::deterministic::enabled(context) {
+    if start >= end
+        || !(crate::engines::deterministic::enabled(context)
+            || super::diffusion::uses_business_time(context))
+    {
         return 0;
     }
     if monitoring.observation_mode() == crate::ObservationMode::Scheduled {

@@ -49,6 +49,47 @@ fn saved_solution_bounds_batch_size() -> Result<()> {
 }
 
 #[test]
+fn saved_barrier_batches_cap_observation_replay_work() -> Result<()> {
+    let start = dates().0;
+    let end = start.add_days(3650)?;
+    let mut terms = BarrierOptionTerms::new(
+        OptionType::Call,
+        95.0,
+        start,
+        end,
+        80.0,
+        BarrierType::DownAndOut,
+    );
+    terms.observation_schedule = Some(fixture_schedule(
+        (1..=3650)
+            .map(|day| start.add_days(day))
+            .collect::<Result<Vec<_>>>()?,
+        Some(&TradingCalendar::all_days()),
+    ));
+    let barrier = BarrierOption::new(terms)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.01, 0.01, 0.0)?,
+        100.0,
+        start,
+    )?;
+    let solution =
+        FiniteDifferenceBarrierEngine::default().solve(&barrier, &context, 90.0..=110.0)?;
+    assert_eq!(solution.price_many(&[100.0])?, vec![solution.price(100.0)?]);
+    let spots = vec![100.0; 30_000];
+    for error in [
+        solution.price_many(&spots).unwrap_err(),
+        solution
+            .price_many_with_greeks(&spots[..10_000], GreeksRequest::new([Greek::Delta]), None)
+            .unwrap_err(),
+    ] {
+        assert!(
+            matches!(error, Error::InvalidInput(message) if message.contains("estimated replay visits"))
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn saved_accumulator_matches_scalar_deterministic_fixings() -> Result<()> {
     let (start, end) = dates();
     let engine = FiniteDifferenceAccumulatorEngine::default();

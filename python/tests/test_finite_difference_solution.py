@@ -315,6 +315,28 @@ def test_invalid_intervals_fail_before_publishing_a_solution(bounds):
         )
 
 
+def test_saved_barrier_batches_cap_observation_replay_work():
+    end = START + timedelta(days=3650)
+    contract = ins.BarrierOption(
+        option_type="call",
+        strike=95,
+        barrier_level=80,
+        barrier_type="down_and_out",
+        effective_time=START,
+        expiry_time=end,
+        observation_schedule=(START + timedelta(days=i) for i in range(1, 3651)),
+        calendar=TradingCalendar.all_days(),
+    )
+    solution = pricing.FiniteDifferenceBarrierEngine().solve(
+        contract, context(kind="deterministic"), spot_range=(90, 110)
+    )
+    assert solution.price_many((100,)) == (solution.price(100),)
+    with pytest.raises(InvalidInputError, match="estimated replay visits"):
+        solution.price_many([100] * 30_000)
+    with pytest.raises(InvalidInputError, match="estimated replay visits"):
+        solution.price_many_with_greeks([100] * 10_000, "delta")
+
+
 def test_saved_solution_bounds_batch_size_before_reading_more_spots():
     solution = pricing.FiniteDifferenceVanillaEngine().solve(
         option(), context(valuation=END), spot_range=(80, 120)

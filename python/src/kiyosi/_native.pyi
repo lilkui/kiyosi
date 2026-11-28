@@ -9725,7 +9725,8 @@ class FiniteDifferenceSolution:
         Raises
         ------
         InvalidInputError
-            If the batch exceeds 262,144 spots.
+            If the batch exceeds 262,144 spots or 100 million estimated
+            observation and calendar visits.
         KiyosiError
             If any spot or price is invalid; no partial batch is returned.
         TypeError
@@ -9802,7 +9803,8 @@ class FiniteDifferenceSolution:
         Raises
         ------
         InvalidInputError
-            If the batch exceeds 262,144 spots.
+            If the batch exceeds 262,144 spots or 100 million estimated
+            observation and calendar visits.
         KiyosiError
             If any input or query fails, without a partial batch.
         TypeError, ValueError
