@@ -3,7 +3,6 @@
 from datetime import timedelta
 from typing import assert_type
 
-from kiyosi import PricingResult
 from kiyosi.instruments import (
     AmericanOption,
     BarrierOption,
@@ -24,6 +23,7 @@ from kiyosi.pricing import (
     GreekMethod,
     MonteCarloBarrierEngine,
     MonteCarloVanillaEngine,
+    PricingResult,
     QuadratureVanillaEngine,
     active_greek_controls,
     numerical_greeks,

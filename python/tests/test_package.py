@@ -880,6 +880,8 @@ def test_installed_version_and_typed_exports():
     assert importlib.metadata.version("kiyosi") == version
     package = Path(kiyosi.__file__).parent
     assert (package / "py.typed").is_file()
+    assert pricing.PricingResult is _native.PricingResult
+    assert not hasattr(kiyosi, "PricingResult")
     stub = ast.parse((package / "_native.pyi").read_text(encoding="utf-8"))
     declarations = {
         node.name: node
