@@ -111,13 +111,16 @@ impl PricingEngine for AnalyticEuropeanEngine {
         request: GreeksRequest,
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        context.natural_bsm_parameters()?;
+        let model = context.natural_bsm_parameters()?;
         settings.validate()?;
-        let mut result = PricingResult::new(self.price(option, context)?)?
-            .with_request(request, GreeksRequest::all());
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
         let time = valuation.years_until(expiry);
+        if time > 0.0 && model.volatility() == 0.0 {
+            return crate::numerical_greeks(self, option, context, request, settings);
+        }
+        let mut result = PricingResult::new(self.price(option, context)?)?
+            .with_request(request, GreeksRequest::all());
         if time == 0.0 {
             return crate::risk::analytics::vanilla_expiry_greeks(
                 option.option_type(),
@@ -126,10 +129,6 @@ impl PricingEngine for AnalyticEuropeanEngine {
                 result,
             );
         }
-        if crate::engines::deterministic::enabled(context) {
-            return crate::numerical_greeks(self, option, context, request, settings);
-        }
-        let model = context.natural_bsm_parameters()?;
         let spot = context.spot_price();
         let strike = option.strike();
         let sigma = model.volatility();
