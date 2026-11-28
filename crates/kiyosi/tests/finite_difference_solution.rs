@@ -27,6 +27,28 @@ fn option() -> EuropeanOption {
 }
 
 #[test]
+fn saved_solution_bounds_batch_size() -> Result<()> {
+    let context = market(100.0).replace(PricingContextChanges {
+        valuation_time: Some(dates().1),
+        ..Default::default()
+    })?;
+    let solution =
+        FiniteDifferenceVanillaEngine::default().solve(&option(), &context, 90.0..=110.0)?;
+    let spots = vec![101.0; (1 << 18) + 1];
+    let upper = spots.len() - 1;
+    assert_eq!(solution.price_many(&spots[..upper])?.len(), upper);
+    for error in [
+        solution.price_many(&spots).unwrap_err(),
+        solution
+            .price_many_with_greeks(&spots, GreeksRequest::new([Greek::Delta]), None)
+            .unwrap_err(),
+    ] {
+        assert!(matches!(error, Error::InvalidInput(message) if message.contains("262,144 spots")));
+    }
+    Ok(())
+}
+
+#[test]
 fn saved_accumulator_matches_scalar_deterministic_fixings() -> Result<()> {
     let (start, end) = dates();
     let engine = FiniteDifferenceAccumulatorEngine::default();

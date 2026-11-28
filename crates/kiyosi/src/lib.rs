@@ -157,6 +157,7 @@ mod time;
 #[doc(hidden)]
 pub mod binding_support {
     pub use crate::engines::finite_difference::{
+        validate_finite_difference_solution_batch_size,
         validate_finite_difference_strike_batch_size, validate_finite_difference_surface_size,
     };
     pub use crate::engines::monte_carlo::validate_monte_carlo_strike_batch_size;

@@ -223,7 +223,7 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
                             engine = p.FiniteDifferenceVanillaEngine()
                             saved = engine.solve(option, context, spot_range=(80, 120))
                             saved_price = saved.price(100)
-                            spots = [100.0] * 2_000_000
+                            spots = [100.0] * 262_144
                         elif case == "quadrature":
                             engine = p.QuadratureVanillaEngine(asset_step_count=100_000_000)
                         elif case in ("geometric_asian", "analytic_greeks", "numerical_greeks", "analytic_solver"):

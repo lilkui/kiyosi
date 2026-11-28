@@ -22,6 +22,7 @@ mod step;
 mod strike_batch;
 use diffusion::Diffusion;
 use grid::{SpatialGrid, TimeGrid};
+pub use solution::validate_finite_difference_solution_batch_size;
 pub use solution::{FiniteDifferenceEngine, FiniteDifferenceSolution};
 use step::Stepper;
 pub use strike_batch::VanillaBatchEngine;

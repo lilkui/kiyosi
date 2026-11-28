@@ -7,6 +7,25 @@ use crate::{
     instruments::OptionContract,
 };
 
+const MAX_BATCH_SPOTS: usize = 1 << 18;
+
+/// Checks the spot count for saved-solution batches.
+///
+/// See [`FiniteDifferenceSolution::price_many`] for the batch contract.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidInput`] above 262,144 spots.
+#[doc(hidden)]
+pub fn validate_finite_difference_solution_batch_size(count: usize) -> Result<()> {
+    if count > MAX_BATCH_SPOTS {
+        return Err(Error::InvalidInput(
+            "finite-difference solution batch exceeds 262,144 spots".into(),
+        ));
+    }
+    Ok(())
+}
+
 /// Prepares owned finite-difference solutions for a supported contract type.
 ///
 /// Import this trait alongside [`PricingEngine`]. The instrument parameter follows
@@ -166,7 +185,8 @@ impl FiniteDifferenceSolution {
     ///
     /// # Errors
     ///
-    /// Propagates [`Self::price`] errors, without partial output or mutation.
+    /// Returns [`Error::InvalidInput`] above 262,144 spots. Propagates
+    /// [`Self::price`] errors, without partial output or mutation.
     /// All spot domains are validated before evaluation.
     pub fn price_many(&self, spot_prices: &[f64]) -> Result<Vec<f64>> {
         self.validate_spots(spot_prices)?;
@@ -305,8 +325,9 @@ impl FiniteDifferenceSolution {
     ///
     /// # Errors
     ///
-    /// Propagates [`Self::price_with_greeks`] errors. Controls and all spot domains
-    /// are validated even for empty input, before any evaluation.
+    /// Returns [`Error::InvalidInput`] above 262,144 spots. Propagates
+    /// [`Self::price_with_greeks`] errors. Controls and all spot domains are
+    /// validated even for empty input, before any evaluation.
     pub fn price_many_with_greeks(
         &self,
         spot_prices: &[f64],
@@ -330,6 +351,7 @@ impl FiniteDifferenceSolution {
     }
 
     fn validate_spots(&self, spot_prices: &[f64]) -> Result<()> {
+        validate_finite_difference_solution_batch_size(spot_prices.len())?;
         for &spot in spot_prices {
             crate::cancellation::check()?;
             self.validate_spot(spot)?;

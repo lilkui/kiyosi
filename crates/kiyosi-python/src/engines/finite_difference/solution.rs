@@ -1,9 +1,15 @@
 use std::ops::RangeInclusive;
 
-use crate::conversions::{python_timestamp, python_tuple, real, reals};
+use crate::conversions::{collect_values_checked, python_timestamp, python_tuple, real};
 use crate::engines::NativeGreeksRequest;
 use crate::error::domain;
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyTuple};
+
+fn batch_spots(value: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
+    collect_values_checked(value, real, |count| {
+        domain(kiyosi::binding_support::validate_finite_difference_solution_batch_size(count))
+    })
+}
 
 pub(crate) fn spot_range(value: &Bound<'_, PyAny>) -> PyResult<RangeInclusive<f64>> {
     let pair = value.cast::<PyTuple>()?;
@@ -129,6 +135,8 @@ impl FiniteDifferenceSolution {
     ///
     /// Raises
     /// ------
+    /// InvalidInputError
+    ///     If the batch exceeds 262,144 spots.
     /// KiyosiError
     ///     If any spot or price is invalid; no partial batch is returned.
     /// TypeError
@@ -145,7 +153,7 @@ impl FiniteDifferenceSolution {
     fn price_many<'py>(
         &self,
         py: Python<'py>,
-        #[pyo3(from_py_with = reals)] spot_prices: Vec<f64>,
+        #[pyo3(from_py_with = batch_spots)] spot_prices: Vec<f64>,
     ) -> PyResult<Bound<'py, PyTuple>> {
         let values = self.evaluate(py, spot_prices.len(), || self.0.price_many(&spot_prices))?;
         python_tuple(py, values, Ok)
@@ -215,6 +223,8 @@ impl FiniteDifferenceSolution {
     ///
     /// Raises
     /// ------
+    /// InvalidInputError
+    ///     If the batch exceeds 262,144 spots.
     /// KiyosiError
     ///     If any input or query fails, without a partial batch.
     /// TypeError, ValueError
@@ -233,7 +243,7 @@ impl FiniteDifferenceSolution {
         #[pyo3(from_py_with = crate::conversions::supplied)] spot_shift: Option<&Bound<'py, PyAny>>,
     ) -> PyResult<Bound<'py, PyTuple>> {
         let request = NativeGreeksRequest::from_python(greeks, spot_shift, None, None, None)?;
-        let spots = reals(spot_prices)?;
+        let spots = batch_spots(spot_prices)?;
         let values = self.evaluate(py, spots.len(), || {
             self.0
                 .price_many_with_greeks(&spots, request.request, request.settings.spot_shift)

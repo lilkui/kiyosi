@@ -3,6 +3,7 @@
 import copy
 import gc
 import inspect
+import itertools
 import math
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, time, timedelta
@@ -312,6 +313,22 @@ def test_invalid_intervals_fail_before_publishing_a_solution(bounds):
         pricing.FiniteDifferenceVanillaEngine().solve(
             option(), context(), spot_range=bounds
         )
+
+
+def test_saved_solution_bounds_batch_size_before_reading_more_spots():
+    solution = pricing.FiniteDifferenceVanillaEngine().solve(
+        option(), context(valuation=END), spot_range=(80, 120)
+    )
+
+    def oversized():
+        yield from itertools.repeat(101.0, (1 << 18) + 1)
+        pytest.fail("read past the batch limit")
+
+    with pytest.raises(InvalidInputError, match="262,144 spots"):
+        solution.price_many(oversized())
+    with pytest.raises(InvalidInputError, match="262,144 spots"):
+        solution.price_many_with_greeks(oversized(), "delta")
+    assert solution.price_many([101.0]) == (1.0,)
 
 
 def test_conversion_empty_batches_iterator_errors_and_failure_state():
