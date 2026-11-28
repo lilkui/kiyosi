@@ -35,7 +35,7 @@ engine = AnalyticEuropeanEngine()
 base_price = engine.price(option, context)
 
 # 基准估值使用原市场快照，情景估值使用平行上移 10 bp 的曲线。
-shifted = curve.shifted(0.001)
+shifted = model.risk_free_curve.shifted(0.001)
 scenario = context.replace(model_parameters=model.replace(risk_free_rate=shifted))
 print(f"基准价格：{base_price:.6f}")
 print(f"利率上移 10 bp：{engine.price(option, scenario):.6f}")

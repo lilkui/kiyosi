@@ -17,8 +17,9 @@ deterministic pricing. ``LocalVolatilityParameters`` uses an absolute time/spot
 surface. ``HestonParameters`` uses risk-neutral variance parameters. Engine
 support and numerical controls are documented on each engine.
 
-Use ``risk_free_curve`` and ``dividend_curve`` to preserve coverage when passing
-model rates to another constructor. Scalar rate queries discard coverage bounds.
+Read model rates through ``risk_free_curve`` and ``dividend_curve`` for term
+structure queries and to preserve coverage when reusing model rates.
+Scalar rate queries discard coverage bounds.
 Use ``RateTermStructure.bounded_flat`` with the default calendar when you
 need an exact constant forward rate with coverage bounds. Rounded node factors
 may imply slightly different forward rates.
