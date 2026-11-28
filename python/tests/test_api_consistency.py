@@ -725,7 +725,7 @@ def test_accumulator_settlement_requires_a_strictly_prior_knock_out_observation(
             acceleration_factor=2,
             effective_time=start,
             expiry_time=end,
-            knock_out_observation_times=times,
+            knock_out_observation_schedule=times,
         )
         for valuation in (
             start,
@@ -752,7 +752,8 @@ def test_accumulator_settlement_requires_a_strictly_prior_knock_out_observation(
                         assert engine.price_with_statistics(settled, context).price == 0
         assert not (original.knock_out_settled)
         assert original.accumulated_quantity is None
-        assert original.knock_out_observation_times == (
+        schedule = original.knock_out_observation_schedule
+        assert (None if schedule is None else schedule.times) == (
             None if times is None else tuple(times)
         )
 
@@ -830,7 +831,7 @@ def test_contractual_calendars_are_validated_before_pricing(subtests):
                 knock_out_level=110,
                 daily_quantity=1,
                 acceleration_factor=2,
-                knock_out_observation_times=[closed],
+                knock_out_observation_schedule=[closed],
                 observation_clock_time=clock_time(),
             ),
         ),

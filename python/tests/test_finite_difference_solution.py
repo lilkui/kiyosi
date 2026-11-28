@@ -71,7 +71,7 @@ def test_saved_accumulator_matches_scalar_deterministic_fixings(
         expiry_time=END,
         observation_clock_time=time(),
         calendar=TradingCalendar.all_days(),
-        knock_out_observation_times=[
+        knock_out_observation_schedule=[
             START + timedelta(days=120),
             START + timedelta(days=240),
             END,

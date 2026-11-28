@@ -1,5 +1,8 @@
+#[path = "support/observation_schedule.rs"]
+mod schedule_fixture;
 use kiyosi::engines::{FiniteDifferenceSettings, MonteCarloSettings, QuadratureSettings};
 use kiyosi::*;
+use schedule_fixture::schedule as fixture_schedule;
 
 fn day(date: u32) -> Timestamp {
     Date::new(2025, 1, date).unwrap().start_of_day()
@@ -10,7 +13,7 @@ fn terms(direction: OptionType, dates: Option<Vec<Timestamp>>) -> AccumulatorTer
         knock_out_settled: Some(false),
         option_type: direction,
         accumulated_quantity: Some(3.0),
-        knock_out_observation_times: dates,
+        knock_out_observation_schedule: dates.map(|times| fixture_schedule(times, None)),
         ..AccumulatorTerms::new(
             100.0,
             if direction == OptionType::Call {
@@ -103,7 +106,8 @@ fn terminal_reference(option: &Accumulator, context: &PricingContext) -> f64 {
                 .factor(context.valuation_time(), expiry)
                 .unwrap();
     let observed = option
-        .knock_out_observation_times()
+        .knock_out_observation_schedule()
+        .map(ObservationSchedule::times)
         .is_none_or(|dates| dates.contains(&option.expiry_time()));
     let accelerated = if option.option_type() == OptionType::Call {
         OptionType::Put
@@ -136,7 +140,7 @@ fn terminal_reference(option: &Accumulator, context: &PricingContext) -> f64 {
 #[test]
 fn fixed_purchases_before_terminal_knockout_match_analytic_settlement() -> Result<()> {
     let option = Accumulator::new(AccumulatorTerms {
-        calendar: TradingCalendar::all_days(),
+        calendar: Some(TradingCalendar::all_days()),
         acceleration_factor: 1.0,
         ..terms(OptionType::Call, Some(vec![day(6)]))
     })?;
@@ -317,7 +321,7 @@ fn quadrature_tails_exclude_closed_dates_and_purchases_at_knock_out() {
         for knocks_out in [false, true] {
             let option = Accumulator::new(AccumulatorTerms {
                 expiry_time: expiry,
-                calendar: calendar.clone(),
+                calendar: Some(calendar.clone()),
                 ..terms(
                     direction,
                     Some(if knocks_out { vec![day(3)] } else { vec![] }),
@@ -360,7 +364,7 @@ fn sparse_knock_out_grid_covers_drift_back_inside_the_barrier() {
             knock_out_settled: Some(false),
             option_type: direction,
             accumulated_quantity: Some(3.0),
-            knock_out_observation_times: Some(vec![day(15)]),
+            knock_out_observation_schedule: Some(fixture_schedule(vec![day(15)], None)),
             ..AccumulatorTerms::new(
                 100.0,
                 barrier,
@@ -439,7 +443,7 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
             let option = Accumulator::new(AccumulatorTerms {
                 knock_out_settled: Some(false),
                 option_type: direction,
-                knock_out_observation_times: dates,
+                knock_out_observation_schedule: dates.map(|times| fixture_schedule(times, None)),
                 accumulated_quantity: Some(0.0),
                 ..AccumulatorTerms::new(
                     100.0,
@@ -487,7 +491,7 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
         let option = Accumulator::new(AccumulatorTerms {
             knock_out_settled: Some(false),
             option_type: direction,
-            knock_out_observation_times: Some(vec![day(3)]),
+            knock_out_observation_schedule: Some(fixture_schedule(vec![day(3)], None)),
             accumulated_quantity: Some(0.0),
             ..AccumulatorTerms::new(
                 100.0,
@@ -581,7 +585,12 @@ fn explicit_daily_dates_preserve_default_prices_for_both_directions() {
         let explicit =
             Accumulator::new(terms(direction, Some(vec![day(1), day(2), day(3), day(6)]))).unwrap();
         assert_eq!(default.option_type(), direction);
-        assert_eq!(default.knock_out_observation_times(), None);
+        assert_eq!(
+            default
+                .knock_out_observation_schedule()
+                .map(ObservationSchedule::times),
+            None
+        );
         for engine in engines() {
             assert_eq!(
                 engine.price(&default, &context).unwrap(),
@@ -592,10 +601,69 @@ fn explicit_daily_dates_preserve_default_prices_for_both_directions() {
 }
 
 #[test]
+fn explicit_knock_out_schedule_round_trips_without_freezing_daily_rule() -> Result<()> {
+    let start = day(3);
+    let end = day(4);
+    let later = day(6);
+    let calendar = TradingCalendar::all_days();
+    let daily = Accumulator::new(AccumulatorTerms {
+        calendar: Some(calendar.clone()),
+        ..AccumulatorTerms::new(100.0, 120.0, 1.0, 2.0, start, end, start.time_of_day())
+    })?;
+    let extended = daily.replace(AccumulatorChanges {
+        expiry_time: Some(later),
+        knock_out_observation_schedule: Some(daily.knock_out_observation_schedule().cloned()),
+        ..Default::default()
+    })?;
+    assert!(extended.knock_out_observation_schedule().is_none());
+    assert_eq!(
+        extended.accumulation_schedule()?.times(),
+        &[start, end, day(5), later]
+    );
+
+    let weekdays = daily.replace(AccumulatorChanges {
+        calendar: Some(TradingCalendar::weekdays()),
+        ..Default::default()
+    })?;
+    let schedule = daily.accumulation_schedule()?;
+    let explicit = weekdays.replace(AccumulatorChanges {
+        expiry_time: Some(later),
+        knock_out_observation_schedule: Some(Some(schedule.clone())),
+        ..Default::default()
+    })?;
+    let borrowed = explicit.knock_out_observation_schedule().unwrap();
+    assert_eq!(explicit.calendar(), &calendar);
+    assert_eq!(borrowed.times(), &[start, end]);
+    assert!(std::ptr::eq(borrowed.times(), schedule.times()));
+    assert!(matches!(
+        explicit.replace(AccumulatorChanges {
+            expiry_time: Some(start),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
+
+    let disabled = explicit.replace(AccumulatorChanges {
+        knock_out_observation_schedule: Some(Some(fixture_schedule(vec![], Some(&calendar)))),
+        ..Default::default()
+    })?;
+    assert!(
+        disabled
+            .knock_out_observation_schedule()
+            .unwrap()
+            .is_empty()
+    );
+    let restored = disabled.replace(AccumulatorChanges {
+        knock_out_observation_schedule: Some(None),
+        ..Default::default()
+    })?;
+    assert_eq!(restored, extended);
+    Ok(())
+}
+
+#[test]
 fn date_validation_and_history_replacement_preserve_owned_terms() {
     for dates in [
-        vec![day(3), day(2)],
-        vec![day(2), day(2)],
         vec![Date::new(2024, 12, 31).unwrap().start_of_day()],
         vec![day(7)],
     ] {
@@ -615,7 +683,9 @@ fn date_validation_and_history_replacement_preserve_owned_terms() {
         .unwrap();
     assert_eq!(updated.option_type(), OptionType::Put);
     assert_eq!(
-        updated.knock_out_observation_times(),
+        updated
+            .knock_out_observation_schedule()
+            .map(ObservationSchedule::times),
         Some([day(2), day(6)].as_slice())
     );
     assert_eq!(updated.accumulated_quantity().unwrap(), 0.25);
@@ -630,12 +700,17 @@ fn date_validation_and_history_replacement_preserve_owned_terms() {
         ));
         assert_eq!(updated.accumulated_quantity().unwrap(), 0.25);
     }
-    let mut weekend_terms = terms(OptionType::Put, Some(vec![day(4)]));
+    let mut weekend_terms = terms(OptionType::Put, None);
+    weekend_terms.knock_out_observation_schedule = Some(fixture_schedule(
+        vec![day(4)],
+        Some(&TradingCalendar::all_days()),
+    ));
+    weekend_terms.calendar = Some(TradingCalendar::weekdays());
     assert!(matches!(
         Accumulator::new(weekend_terms.clone()),
         Err(Error::InvalidInput(_))
     ));
-    weekend_terms.calendar = TradingCalendar::all_days();
+    weekend_terms.calendar = None;
     let weekend = Accumulator::new(weekend_terms).unwrap();
     let context = market(
         100.25,
@@ -1022,8 +1097,11 @@ fn unmonitored_daily_accumulator_matches_the_conditional_digital_portfolio() -> 
         start,
     )?;
     let option = Accumulator::new(AccumulatorTerms {
-        knock_out_observation_times: Some(Vec::new()),
-        calendar: TradingCalendar::all_days(),
+        knock_out_observation_schedule: Some(fixture_schedule(
+            vec![],
+            Some(&TradingCalendar::all_days()),
+        )),
+        calendar: Some(TradingCalendar::all_days()),
         ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, start, end, start.time_of_day())
     })?;
     let mut expected = 366.0 * 100.0 * ((-0.01_f64).exp() - (-0.04_f64).exp());
@@ -1061,8 +1139,11 @@ fn unmonitored_accumulator_combines_quantity_and_discount_before_exponentiating(
     let end = start.add_days(365)?;
     let daily = 1e307_f64;
     let option = Accumulator::new(AccumulatorTerms {
-        knock_out_observation_times: Some(Vec::new()),
-        calendar: TradingCalendar::all_days(),
+        knock_out_observation_schedule: Some(fixture_schedule(
+            vec![],
+            Some(&TradingCalendar::all_days()),
+        )),
+        calendar: Some(TradingCalendar::all_days()),
         ..AccumulatorTerms::new(90.0, 110.0, daily, 1.0, start, end, start.time_of_day())
     })?;
     let context = PricingContext::new(

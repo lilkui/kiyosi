@@ -128,7 +128,7 @@ def contract_inputs():
             "accumulated_quantity": 3,
             "effective_time": START,
             "expiry_time": END,
-            "knock_out_observation_times": [END],
+            "knock_out_observation_schedule": [END],
         },
     )
     yield (
@@ -263,7 +263,6 @@ UPDATES = {
     "acceleration_factor": 3,
     "accumulated_quantity": 4,
     "knock_out_settled": None,
-    "knock_out_observation_times": [START],
     "notional": 2000,
     "annual_coupon_rate": 0.15,
     "lower_bound": 85,
@@ -292,7 +291,7 @@ NULLABLE = {
     "realized_hit_count",
     "accumulated_quantity",
     "knock_out_settled",
-    "knock_out_observation_times",
+    "knock_out_observation_schedule",
 }
 
 
@@ -341,7 +340,7 @@ def test_monitoring_schedules_round_trip_for_continuous_and_scheduled_contracts(
 def test_reactivation_with_changed_rules_retains_omitted_quantity():
     active = next(value for value in contracts() if isinstance(value, i.Accumulator))
     active = active.replace(
-        knock_out_observation_times=None,
+        knock_out_observation_schedule=None,
         accumulated_quantity=active.accumulated_quantity,
         knock_out_settled=active.knock_out_settled,
     )
@@ -438,9 +437,9 @@ def test_every_field_replaces_without_mutating_omitted_terms_or_history(subtests
             assert original.replace(**forwarded) == original
         for name in inspect.signature(original.replace).parameters:
             value = UPDATES.get(name)
-            if name == "observation_schedule":
+            if name in {"observation_schedule", "knock_out_observation_schedule"}:
                 value = ObservationSchedule(
-                    times=[END],
+                    times=[START if name == "knock_out_observation_schedule" else END],
                     start_time=original.effective_time,
                     end_time=original.expiry_time,
                     calendar=original.calendar,

@@ -1,3 +1,6 @@
+#[path = "support/observation_schedule.rs"]
+mod schedule_fixture;
+use schedule_fixture::schedule as fixture_schedule;
 #[path = "support/autocallable.rs"]
 mod autocallable_support;
 
@@ -101,7 +104,8 @@ fn constant_surface_matches_accumulator_directions_schedules_and_rate_curves() {
                     knock_out_settled: Some(false),
                     option_type: direction,
                     accumulated_quantity: Some(3.0),
-                    knock_out_observation_times: schedule,
+                    knock_out_observation_schedule: schedule
+                        .map(|times| fixture_schedule(times, None)),
                     ..AccumulatorTerms::new(
                         100.0,
                         if direction == OptionType::Call {

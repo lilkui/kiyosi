@@ -750,7 +750,7 @@ fn accumulator_replacements_preserve_omissions_and_validate_each_field() {
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = Accumulator::new(AccumulatorTerms {
         observation_clock_time: (end).time_of_day(),
-        calendar: TradingCalendar::default(),
+        calendar: Some(TradingCalendar::default()),
         option_type: OptionType::Call,
         strike: 100.0,
         knock_out_level: 120.0,
@@ -760,7 +760,7 @@ fn accumulator_replacements_preserve_omissions_and_validate_each_field() {
         accumulated_quantity: Some(3.0),
         effective_time: start,
         expiry_time: end,
-        knock_out_observation_times: Some(vec![end]),
+        knock_out_observation_schedule: Some(fixture_schedule(vec![end], None)),
     })
     .unwrap();
     let saved = original.clone();
@@ -817,22 +817,17 @@ fn accumulator_replacements_preserve_omissions_and_validate_each_field() {
     check_field!(
         original,
         AccumulatorChanges,
-        knock_out_observation_times,
-        Some(vec![start]),
-        knock_out_observation_times().map(<[Timestamp]>::to_vec)
+        knock_out_observation_schedule,
+        Some(fixture_schedule(vec![start], None)),
+        knock_out_observation_schedule().cloned()
     );
     let cleared = original
         .replace(AccumulatorChanges {
-            knock_out_observation_times: Some(None),
+            knock_out_observation_schedule: Some(None),
             ..history_changes!(original, AccumulatorChanges)
         })
         .unwrap();
-    assert_eq!(
-        cleared
-            .knock_out_observation_times()
-            .map(<[Timestamp]>::to_vec),
-        None
-    );
+    assert_eq!(cleared.knock_out_observation_schedule(), None);
     assert!(matches!(
         original.replace(AccumulatorChanges {
             strike: Some(-1.0),

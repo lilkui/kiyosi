@@ -132,7 +132,6 @@ def test_closed_date_settlement_preserves_open_date_observations():
         for schedule in (
             range_option.observation_schedule,
             accumulated.accumulation_schedule,
-            accumulated.knock_out_observation_schedule,
             note.knock_in_observation_schedule,
         ):
             assert list(schedule) == [observation]
@@ -204,11 +203,9 @@ def test_contract_schedules_expose_effective_observations(subtests):
         **life,
     )
     assert list(accumulator.accumulation_schedule) == [start, last]
-    assert (
-        accumulator.knock_out_observation_schedule == accumulator.accumulation_schedule
-    )
+    assert accumulator.knock_out_observation_schedule is None
     for explicit in ([], [datetime(2025, 1, 6, 16)]):
-        changed = accumulator.replace(knock_out_observation_times=explicit)
+        changed = accumulator.replace(knock_out_observation_schedule=explicit)
         assert list(changed.knock_out_observation_schedule) == explicit
         assert list(changed.accumulation_schedule) == [start, last]
     observations = SnowballObservation.from_columns(
@@ -534,7 +531,7 @@ def test_explicit_accumulator_knock_outs_do_not_add_daily_quantity(
     subtests, hour, barrier, expected
 ):
     option = accumulator(
-        knock_out_level=barrier, knock_out_observation_times=[time(6, hour)]
+        knock_out_level=barrier, knock_out_observation_schedule=[time(6, hour)]
     )
     for engine in accumulator_engines():
         with subtests.test(hour=hour, barrier=barrier, engine=type(engine).__name__):

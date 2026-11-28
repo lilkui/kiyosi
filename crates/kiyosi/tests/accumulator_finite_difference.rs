@@ -1,7 +1,10 @@
+#[path = "support/observation_schedule.rs"]
+mod schedule_fixture;
 use kiyosi::engines::{
     FiniteDifferenceEngine, FiniteDifferenceScheme, FiniteDifferenceSettings, QuadratureSettings,
 };
 use kiyosi::*;
+use schedule_fixture::schedule as fixture_schedule;
 
 fn day(month: u32, date: u32) -> Timestamp {
     Date::new(2025, month, date).unwrap().start_of_day()
@@ -42,7 +45,7 @@ fn accumulator_calendar_queries_scale_with_observations() -> Result<()> {
         365,
     )?;
     let option = Accumulator::new(AccumulatorTerms {
-        calendar,
+        calendar: Some(calendar),
         ..AccumulatorTerms::new(100.0, 120.0, 1.0, 2.0, start, end, start.time_of_day())
     })?;
     FiniteDifferenceAccumulatorEngine::default().price(&option, &market(100.0, start))?;
@@ -60,8 +63,10 @@ fn weekend_accumulator_knock_out_precedes_stochastic_pricing() -> Result<()> {
         .date()
         .at_time(TimeOfDay::new(12, 0, 0, 0)?);
     let option = Accumulator::new(AccumulatorTerms {
-        calendar: TradingCalendar::all_days(),
-        knock_out_observation_times: Some(vec![knock_out]),
+        knock_out_observation_schedule: Some(fixture_schedule(
+            vec![knock_out],
+            Some(&TradingCalendar::all_days()),
+        )),
         ..AccumulatorTerms::new(
             100.0,
             105.0,

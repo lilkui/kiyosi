@@ -1672,12 +1672,16 @@ fn contractual_calendars_are_validated_before_pricing() -> Result<()> {
         Some(&[closed][..])
     );
     let mut terms = AccumulatorTerms::new(90.0, 110.0, 1.0, 2.0, start, end, (end).time_of_day());
-    terms.knock_out_observation_times = Some(vec![closed]);
+    terms.knock_out_observation_schedule = Some(fixture_schedule(
+        vec![closed],
+        Some(&TradingCalendar::all_days()),
+    ));
+    terms.calendar = Some(TradingCalendar::weekdays());
     assert!(matches!(
         Accumulator::new(terms.clone()),
         Err(Error::InvalidInput(_))
     ));
-    terms.calendar = TradingCalendar::all_days();
+    terms.calendar = None;
     let accumulator = Accumulator::new(terms)?;
     assert!(matches!(
         accumulator.replace(AccumulatorChanges {
@@ -1919,7 +1923,8 @@ fn accumulator_settlement_requires_a_strictly_prior_knock_out_observation() -> R
             expiry,
             (expiry).time_of_day(),
         );
-        terms.knock_out_observation_times = times.clone();
+        terms.knock_out_observation_schedule =
+            times.clone().map(|times| fixture_schedule(times, None));
         let original = Accumulator::new(terms)?;
         let first = times.as_ref().map_or(Some(start), |t| t.first().copied());
         for valuation in [
@@ -1958,7 +1963,12 @@ fn accumulator_settlement_requires_a_strictly_prior_knock_out_observation() -> R
         }
         assert_eq!(original.knock_out_settled(), None);
         assert_eq!(original.accumulated_quantity(), None);
-        assert_eq!(original.knock_out_observation_times(), times.as_deref());
+        assert_eq!(
+            original
+                .knock_out_observation_schedule()
+                .map(ObservationSchedule::times),
+            times.as_deref()
+        );
     }
     Ok(())
 }

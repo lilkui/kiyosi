@@ -45,7 +45,10 @@ def contractual_schedules(
 ) -> None:
     assert_type(accrual.observation_schedule, ObservationSchedule)
     assert_type(accumulator.accumulation_schedule, ObservationSchedule)
-    assert_type(accumulator.knock_out_observation_schedule, ObservationSchedule)
+    assert_type(accumulator.knock_out_observation_schedule, ObservationSchedule | None)
+    accumulator.replace(
+        knock_out_observation_schedule=accumulator.knock_out_observation_schedule
+    )
     assert_type(note.knock_in_observation_schedule, ObservationSchedule)
     assert_type(binary.knock_in_observation_schedule, None)
     note_times = (

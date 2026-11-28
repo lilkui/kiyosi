@@ -42,6 +42,9 @@
 //! calendar unless they specify an override. Borrow the schedule with the
 //! contract's `observation_schedule()` method, which returns `None` for continuous
 //! monitoring. Clone the schedule to pass it to another constructor or replacement.
+//! An [`Accumulator`]'s explicit [knock-out schedule][`Accumulator::knock_out_observation_schedule`]
+//! may be empty to disable early knock-out. With `None`, knock-out follows the
+//! [daily accumulation schedule][`Accumulator::accumulation_schedule`].
 //! European vanilla and digital options permit pre-effective valuation; other
 //! contracts require valuation within their life.
 //!
@@ -163,6 +166,7 @@ pub mod binding_support {
         DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
     };
     pub use crate::instruments::monitoring::binding as barrier_monitoring;
+    pub use crate::instruments::monitoring::binding::{new_accumulator, replace_accumulator};
     pub use crate::time::variance_time_convention_from_inputs;
 
     /// Checks the input count for CRR and autocallable Monte Carlo contract batches.

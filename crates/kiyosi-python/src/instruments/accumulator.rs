@@ -1,8 +1,8 @@
 use crate::calendar::{TradingCalendar, run_date_scan};
-use crate::conversions::{direction, python_timestamp, real, timestamp, timestamps};
-use crate::error::domain;
+use crate::conversions::{direction, python_timestamp, real, timestamp};
+use crate::schedule::ObservationSchedule;
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyTuple};
+use pyo3::types::PyAny;
 
 fn settlement(value: &Bound<'_, PyAny>) -> PyResult<Option<bool>> {
     if value.is_none() {
@@ -37,11 +37,10 @@ fn settlement(value: &Bound<'_, PyAny>) -> PyResult<Option<bool>> {
 ///     quantity before a strictly prior accumulation unless already settled.
 /// option_type : {'call', 'put'}, optional
 ///     Call accumulates purchases (the default); put accumulates sales.
-/// knock_out_observation_times : iterable of datetime.datetime or None, optional
+/// knock_out_observation_schedule : ObservationSchedule or iterable of datetime.datetime or None, optional
 ///     Strictly increasing, unique times within the inclusive contract life.
-///     None observes knock-out at the daily accumulation time; an empty
-///     sequence disables early knock-out. Times need not include either
-///     contract endpoint.
+///     None follows the daily accumulation schedule. An empty schedule disables
+///     early knock-out. Times need not include either contract endpoint.
 /// knock_out_settled : bool or None, optional
 ///     Prior knock-out settlement history: None (default) is unknown, False
 ///     means active, and True means settled. Required after a strictly prior
@@ -71,16 +70,36 @@ fn settlement(value: &Bound<'_, PyAny>) -> PyResult<Option<bool>> {
 /// or not it is a knock-out timestamp. Calls pay quantity * (settlement spot -
 /// strike); puts pay its negative. Intraday history includes that day's
 /// earlier accumulation. Record settled contracts with knock_out_settled=True.
+/// Long schedule validations release the GIL and poll Python signals.
 ///
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct Accumulator(pub(crate) kiyosi::Accumulator);
 
+impl Accumulator {
+    fn replace_with_schedule(
+        &self,
+        py: Python<'_>,
+        changes: kiyosi::AccumulatorChanges,
+        times: Option<Vec<kiyosi::Timestamp>>,
+    ) -> PyResult<Self> {
+        let schedule = changes
+            .knock_out_observation_schedule
+            .as_ref()
+            .map_or_else(|| self.0.knock_out_observation_schedule(), Option::as_ref);
+        let work = super::monitoring_work(schedule, times.as_deref(), changes.calendar.as_ref());
+        run_date_scan(py, work, || {
+            kiyosi::binding_support::replace_accumulator(&self.0, changes, times)
+        })
+        .map(Self)
+    }
+}
+
 value_methods!(@documented Accumulator, AccumulatorChanges,
     [option_type, strike, knock_out_level, daily_quantity, acceleration_factor,
      accumulated_quantity, effective_time, expiry_time, observation_clock_time,
-     knock_out_observation_times, knock_out_settled, calendar], {
-        calendar: crate::calendar::observation_calendar(calendar, knock_out_observation_times)?,
+     knock_out_observation_schedule, knock_out_settled, calendar], |self| {
+        calendar: crate::calendar::explicit_calendar(calendar)?,
         knock_out_settled: knock_out_settled.map(settlement).transpose()?,
         option_type: option_type.map(crate::conversions::direction).transpose()?,
         strike: strike.map(crate::conversions::real).transpose()?,
@@ -91,7 +110,11 @@ value_methods!(@documented Accumulator, AccumulatorChanges,
         effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
         expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
         observation_clock_time: observation_clock_time.map(crate::conversions::clock_time).transpose()?,
-        knock_out_observation_times: knock_out_observation_times.map(crate::conversions::optional_timestamps).transpose()?,
+        knock_out_observation_schedule: {
+            let (schedule, raw_times) = crate::conversions::monitoring_schedule(knock_out_observation_schedule)?;
+            times = raw_times;
+            schedule
+        },
     }, [
     /// Return a validated replacement.
     ///
@@ -111,8 +134,9 @@ value_methods!(@documented Accumulator, AccumulatorChanges,
     ///     Inclusive contract start and expiry timestamps.
     /// observation_clock_time : datetime.time, optional
     ///     Daily observation clock, without timezone information.
-    /// knock_out_observation_times : iterable of datetime.datetime or None, optional
-    ///     Knock-out schedule; None observes at each daily accumulation time.
+    /// knock_out_observation_schedule : ObservationSchedule or iterable of datetime.datetime or None, optional
+    ///     Explicit knock-out schedule. None restores the daily rule and an empty
+    ///     schedule disables early knock-out.
     /// knock_out_settled : bool or None, optional
     ///     Records a settled knock-out strictly before valuation; None clears to
     ///     unknown.
@@ -133,6 +157,10 @@ value_methods!(@documented Accumulator, AccumulatorChanges,
     /// TypeError
     ///     If a representation or field name is invalid.
     ///
+    /// Notes
+    /// -----
+    /// Long schedule validations release the GIL and poll Python signals.
+    ///
     ], {
     fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
         let value = slf.borrow();
@@ -146,10 +174,10 @@ value_methods!(@documented Accumulator, AccumulatorChanges,
                     crate::representation::calendar_preview(py, value.0.calendar())?,
                 ),
                 (
-                    "knock_out_observation_times",
-                    Some(value.0.knock_out_observation_times().map_or_else(
+                    "knock_out_observation_schedule",
+                    Some(value.0.knock_out_observation_schedule().map_or_else(
                         || Ok("None".into()),
-                        |times| crate::representation::times(py, times),
+                        |schedule| crate::representation::times(py, schedule.times()),
                     )?),
                 ),
             ],
@@ -157,9 +185,10 @@ value_methods!(@documented Accumulator, AccumulatorChanges,
     }
 
     #[new]
-    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_time, expiry_time, observation_clock_time, accumulated_quantity=None, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_times=None, knock_out_settled=kiyosi::AccumulatorTerms::DEFAULT_KNOCK_OUT_SETTLED, calendar=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_time, expiry_time, observation_clock_time, accumulated_quantity=None, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_schedule=None, knock_out_settled=kiyosi::AccumulatorTerms::DEFAULT_KNOCK_OUT_SETTLED, calendar=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
+        py: Python<'_>,
         strike: &Bound<'_, PyAny>,
         knock_out_level: &Bound<'_, PyAny>,
         daily_quantity: &Bound<'_, PyAny>,
@@ -169,7 +198,7 @@ value_methods!(@documented Accumulator, AccumulatorChanges,
         observation_clock_time: &Bound<'_, PyAny>,
         accumulated_quantity: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = direction)] option_type: kiyosi::OptionType,
-        knock_out_observation_times: Option<&Bound<'_, PyAny>>,
+        knock_out_observation_schedule: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = settlement)] knock_out_settled: Option<bool>,
         #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
@@ -185,12 +214,17 @@ value_methods!(@documented Accumulator, AccumulatorChanges,
         terms.knock_out_settled = knock_out_settled;
         terms.accumulated_quantity = accumulated_quantity.map(real).transpose()?;
         terms.option_type = option_type;
-        terms.knock_out_observation_times =
-            knock_out_observation_times.map(timestamps).transpose()?;
-        terms.calendar =
-            crate::calendar::observation_calendar(calendar, knock_out_observation_times)?
-                .unwrap_or_default();
-        Ok(Self(domain(kiyosi::Accumulator::new(terms))?))
+        let (schedule, times) =
+            crate::conversions::monitoring_schedule(knock_out_observation_schedule)?;
+        terms.knock_out_observation_schedule = schedule.flatten();
+        terms.calendar = crate::calendar::explicit_calendar(calendar)?;
+        let work = super::monitoring_work(
+            terms.knock_out_observation_schedule.as_ref(),
+            times.as_deref(),
+            terms.calendar.as_ref(),
+        );
+        run_date_scan(py, work, || kiyosi::binding_support::new_accumulator(terms, times))
+            .map(Self)
     }
     /// Return the explicitly specified daily observation clock time.
     #[getter]
@@ -211,18 +245,13 @@ value_methods!(@documented Accumulator, AccumulatorChanges,
             .map(crate::schedule::ObservationSchedule)
     }
 
-    /// Return an owned schedule resolving daily or explicit knock-out monitoring.
+    /// Return the explicit knock-out schedule, or None for the daily rule.
     ///
-    /// An empty explicit list disables knock-out. Supplied history does not filter
-    /// this whole-life schedule. Long scans release the GIL and poll Python signals.
-    ///
+    /// An empty schedule disables early knock-out. Use accumulation_schedule
+    /// for the dates used by the daily rule.
     #[getter]
-    fn knock_out_observation_schedule(&self, py: Python<'_>) -> PyResult<crate::schedule::ObservationSchedule> {
-        let Some(times) = self.0.knock_out_observation_times() else {
-            return self.accumulation_schedule(py);
-        };
-        run_date_scan(py, times.len() as u64, || self.0.knock_out_observation_schedule())
-            .map(crate::schedule::ObservationSchedule)
+    fn knock_out_observation_schedule(&self) -> Option<ObservationSchedule> {
+        self.0.knock_out_observation_schedule().cloned().map(ObservationSchedule)
     }
 
     /// Return an owned copy of the contract's observation calendar.
@@ -234,17 +263,6 @@ value_methods!(@documented Accumulator, AccumulatorChanges,
     #[getter]
     fn option_type(&self) -> &'static str {
         crate::conversions::direction_name(self.0.option_type())
-    }
-    /// Return owned knock-out times, or None for at the daily accumulation time.
-    #[getter]
-    fn knock_out_observation_times<'py>(
-        &self,
-        py: Python<'py>,
-    ) -> PyResult<Option<Bound<'py, PyTuple>>> {
-        self.0
-            .knock_out_observation_times()
-            .map(|times| crate::conversions::python_timestamps(py, times))
-            .transpose()
     }
     /// Return the purchase or sale strike in underlying price units.
     #[getter]
@@ -287,4 +305,4 @@ value_methods!(@documented Accumulator, AccumulatorChanges,
     fn expiry_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         python_timestamp(py, self.0.expiry_time())
     }
-});
+}, py => Self::replace_with_schedule, times);

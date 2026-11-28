@@ -737,7 +737,7 @@ def test_weekend_events_keep_real_timestamp_order():
         observation_clock_time=time(10),
         accumulated_quantity=0,
         knock_out_settled=False,
-        knock_out_observation_times=[start + timedelta(hours=15)],
+        knock_out_observation_schedule=[start + timedelta(hours=15)],
         calendar=TradingCalendar.all_days(),
     )
     market = context(
@@ -755,7 +755,7 @@ def test_weekend_events_keep_real_timestamp_order():
     )
     assert engine.price(contract, market) == pytest.approx(10, rel=0, abs=1e-6)
     simultaneous = contract.replace(
-        knock_out_observation_times=[start + timedelta(hours=10)]
+        knock_out_observation_schedule=[start + timedelta(hours=10)]
     )
     assert engine.price(simultaneous, market) == pytest.approx(0, rel=0, abs=1e-6)
 

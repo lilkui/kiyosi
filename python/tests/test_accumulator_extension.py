@@ -34,6 +34,39 @@ def contract(**changes):
     )
 
 
+def test_explicit_knock_out_schedule_round_trips_without_freezing_daily_rule():
+    start, end, later = (datetime(2025, 1, day) for day in (3, 4, 6))
+    calendar = TradingCalendar.all_days()
+    daily = contract(effective_time=start, expiry_time=end, calendar=calendar)
+    extended = daily.replace(
+        expiry_time=later,
+        knock_out_observation_schedule=daily.knock_out_observation_schedule,
+    )
+    assert extended.knock_out_observation_schedule is None
+    assert extended.accumulation_schedule.times == (
+        start,
+        end,
+        datetime(2025, 1, 5),
+        later,
+    )
+
+    weekdays = daily.replace(calendar=TradingCalendar.weekdays())
+    schedule = daily.accumulation_schedule
+    explicit = weekdays.replace(
+        expiry_time=later, knock_out_observation_schedule=schedule
+    )
+    assert explicit.calendar == calendar
+    assert explicit.knock_out_observation_schedule == schedule
+    with pytest.raises(InvalidInputError):
+        explicit.replace(expiry_time=start)
+    assert explicit.knock_out_observation_schedule.times == (start, end)
+
+    disabled = explicit.replace(knock_out_observation_schedule=[])
+    assert disabled.knock_out_observation_schedule.times == ()
+    assert disabled.knock_out_observation_schedule.calendar == calendar
+    assert disabled.replace(knock_out_observation_schedule=None) == extended
+
+
 def engines():
     return (
         pricing.QuadratureAccumulatorEngine(),
@@ -84,7 +117,7 @@ def terminal_reference(option, context):
             - cash * math.erfc(d2 / math.sqrt(2))
         ) / 2
 
-    observations = option.knock_out_observation_times
+    observations = option.knock_out_observation_schedule
     observes = observations is None or option.expiry_time in observations
     strike, barrier = option.strike, option.knock_out_level
     multiplier = option.acceleration_factor
@@ -113,7 +146,7 @@ def test_fixed_purchases_before_terminal_knockout_match_analytic_settlement():
     option = contract(
         acceleration_factor=1,
         calendar=TradingCalendar.all_days(),
-        knock_out_observation_times=[END],
+        knock_out_observation_schedule=[END],
     )
     context = market(108, START + timedelta(days=1), volatility=0.20)
     # January 2 through 5 contribute four purchases before the January 6 test.
@@ -130,17 +163,17 @@ def test_fixed_purchases_before_terminal_knockout_match_analytic_settlement():
 def test_direction_dates_defaults_history_replacement_and_ownership(subtests):
     default = contract()
     assert default.option_type == "call"
-    assert default.knock_out_observation_times is None
-    assert default == contract(option_type="call", knock_out_observation_times=None)
+    assert default.knock_out_observation_schedule is None
+    assert default == contract(option_type="call", knock_out_observation_schedule=None)
     source = [START, END]
-    option = contract(option_type="put", knock_out_observation_times=source)
+    option = contract(option_type="put", knock_out_observation_schedule=source)
     source.clear()
-    assert option.knock_out_observation_times == ((START, END))
+    assert option.knock_out_observation_schedule.times == (START, END)
     updated = option.replace(
         accumulated_quantity=0.25,
     )
     assert updated.option_type == "put"
-    assert updated.knock_out_observation_times == ((START, END))
+    assert updated.knock_out_observation_schedule.times == (START, END)
     assert updated.accumulated_quantity == 0.25
     assert option.accumulated_quantity == 3
     assert (
@@ -149,17 +182,17 @@ def test_direction_dates_defaults_history_replacement_and_ownership(subtests):
         )
         == option
     )
-    assert default != contract(knock_out_observation_times=[])
+    assert default != contract(knock_out_observation_schedule=[])
     assert default != contract(option_type="put")
     assert "option_type='put'" in repr(option)
-    assert "knock_out_observation_times=[datetime.date" in repr(option)
-    assert "knock_out_observation_times=None" in repr(default)
-    assert "knock_out_observation_times=[]" in repr(
-        contract(knock_out_observation_times=[])
+    assert "knock_out_observation_schedule=[datetime.date" in repr(option)
+    assert "knock_out_observation_schedule=None" in repr(default)
+    assert "knock_out_observation_schedule=[]" in repr(
+        contract(knock_out_observation_schedule=[])
     )
     for field, value in (
         ("option_type", "call"),
-        ("knock_out_observation_times", []),
+        ("knock_out_observation_schedule", []),
     ):
         with subtests.test(field=field), pytest.raises(AttributeError):
             setattr(option, field, value)
@@ -167,9 +200,9 @@ def test_direction_dates_defaults_history_replacement_and_ownership(subtests):
         option.replace(
             accumulated_quantity=-1,
         )
-    assert option.knock_out_observation_times == ((START, END))
+    assert option.knock_out_observation_schedule.times == (START, END)
     signature = inspect.signature(Accumulator)
-    assert signature.parameters["knock_out_observation_times"].default is None
+    assert signature.parameters["knock_out_observation_schedule"].default is None
     assert signature.parameters["option_type"].kind == inspect.Parameter.KEYWORD_ONLY
     schedule = ObservationSchedule.monthly(
         observation_clock_time=clock_time(),
@@ -178,13 +211,16 @@ def test_direction_dates_defaults_history_replacement_and_ownership(subtests):
         first_observation_month=1,
         calendar=TradingCalendar.weekdays(),
     )
+    assert (
+        contract(
+            expiry_time=datetime(2025, 2, 3),
+            knock_out_observation_schedule=schedule,
+        ).knock_out_observation_schedule
+        == schedule
+    )
     assert contract(
-        expiry_time=datetime(2025, 2, 3),
-        knock_out_observation_times=schedule,
-    ).knock_out_observation_times == tuple(schedule)
-    assert contract(
-        knock_out_observation_times=iter([END])
-    ).knock_out_observation_times == ((END,))
+        knock_out_observation_schedule=iter([END])
+    ).knock_out_observation_schedule.times == (END,)
 
 
 def test_representation_and_explicit_schedule_validation(subtests):
@@ -204,7 +240,7 @@ def test_representation_and_explicit_schedule_validation(subtests):
         [datetime(2025, 1, 6, tzinfo=UTC)],
     ):
         with subtests.test(dates=value), pytest.raises(TypeError):
-            contract(knock_out_observation_times=value)
+            contract(knock_out_observation_schedule=value)
     for value in (
         [END, END],
         [END, START],
@@ -212,19 +248,19 @@ def test_representation_and_explicit_schedule_validation(subtests):
         [END + timedelta(days=1)],
     ):
         with subtests.test(dates=value), pytest.raises(InvalidInputError):
-            contract(knock_out_observation_times=value)
+            contract(knock_out_observation_schedule=value)
 
 
 def test_trading_calendar_validation_precedes_pricing(subtests):
     with pytest.raises(InvalidInputError):
-        contract(knock_out_observation_times=[datetime(2025, 1, 4)])
+        contract(knock_out_observation_schedule=[datetime(2025, 1, 4)])
     weekend = contract(
-        knock_out_observation_times=[datetime(2025, 1, 4)],
+        knock_out_observation_schedule=[datetime(2025, 1, 4)],
         calendar=TradingCalendar.all_days(),
     )
     weekend_expiry = contract(
         expiry_time=datetime(2025, 1, 5),
-        knock_out_observation_times=[],
+        knock_out_observation_schedule=[],
     )
     for engine in engines():
         with subtests.test(engine=type(engine).__name__):
@@ -268,7 +304,7 @@ def test_terminal_events_mirror_directions_and_observe_only_listed_dates(subtest
                 option = contract(
                     option_type=direction,
                     knock_out_level=barrier,
-                    knock_out_observation_times=dates,
+                    knock_out_observation_schedule=dates,
                 )
                 assert engine.price(option, market(spot, END)) == expected
         for direction, spot in (("call", 90), ("put", 110)):
@@ -277,7 +313,7 @@ def test_terminal_events_mirror_directions_and_observe_only_listed_dates(subtest
                 daily_quantity=0.5,
                 acceleration_factor=0.5,
                 accumulated_quantity=0.25,
-                knock_out_observation_times=[],
+                knock_out_observation_schedule=[],
             )
             assert engine.price(option, market(spot, END)) == (-5)
 
@@ -305,7 +341,7 @@ def test_sparse_and_empty_schedules_keep_every_daily_accumulation(subtests):
                         knock_out_level=barrier,
                         acceleration_factor=0,
                         expiry_time=end,
-                        knock_out_observation_times=observations,
+                        knock_out_observation_schedule=observations,
                     )
                     assert engine.price(option, context) == pytest.approx(
                         quantity * unit, rel=0, abs=1e-6
@@ -321,7 +357,7 @@ def test_explicit_daily_schedule_matches_default_prices_and_greeks(subtests):
             explicit = contract(
                 option_type=direction,
                 knock_out_level=barrier,
-                knock_out_observation_times=dates,
+                knock_out_observation_schedule=dates,
             )
             with subtests.test(engine=type(engine).__name__, direction=direction):
                 assert engine.price(default, context) == engine.price(explicit, context)
@@ -357,7 +393,7 @@ def test_midnight_and_intraday_history_and_first_observation_knock_out(subtests)
             option = contract(
                 option_type=direction,
                 knock_out_level=barrier,
-                knock_out_observation_times=[END],
+                knock_out_observation_schedule=[END],
             )
             context = market(spot, midnight)
             expected = terminal_reference(
@@ -387,7 +423,7 @@ def test_midnight_and_intraday_history_and_first_observation_knock_out(subtests)
             first_hit = contract(
                 option_type=direction,
                 knock_out_level=barrier,
-                knock_out_observation_times=[observation],
+                knock_out_observation_schedule=[observation],
             )
             assert (
                 engine.price(
@@ -419,7 +455,7 @@ def test_terminal_prices_match_independent_lognormal_expectation(subtests):
                         option_type=direction,
                         knock_out_level=barrier,
                         acceleration_factor=acceleration,
-                        knock_out_observation_times=observations,
+                        knock_out_observation_schedule=observations,
                     )
                     expected = terminal_reference(option, context)
                     if isinstance(engine, pricing.MonteCarloAccumulatorEngine):
@@ -446,7 +482,7 @@ def test_terminal_prices_match_independent_lognormal_expectation(subtests):
 def test_decumulator_risk_and_unidentifiable_no_knock_out_volatility(subtests):
     context = market(100.25, datetime(2025, 1, 3, 12), volatility=0.4)
     option = contract(
-        option_type="put", knock_out_level=90, knock_out_observation_times=[]
+        option_type="put", knock_out_level=90, knock_out_observation_schedule=[]
     )
     for engine in engines():
         with subtests.test(engine=type(engine).__name__):
@@ -475,7 +511,7 @@ def test_decumulator_risk_and_unidentifiable_no_knock_out_volatility(subtests):
                 {"daily_quantity": 0},
             ):
                 linear = contract(
-                    option_type="put", knock_out_observation_times=[], **terms
+                    option_type="put", knock_out_observation_schedule=[], **terms
                 )
                 with pytest.raises(UnsupportedOperationError):
                     pricing.implied_volatility(
@@ -503,7 +539,7 @@ def test_sparse_knock_out_prices_survive_drift_back_inside_barrier(
         knock_out_level=barrier,
         acceleration_factor=1,
         expiry_time=end,
-        knock_out_observation_times=[datetime(2025, 1, 15)],
+        knock_out_observation_schedule=[datetime(2025, 1, 15)],
     )
     observation = 13.5 / 365
     remaining = time - observation
@@ -558,7 +594,7 @@ def test_explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validat
             acceleration_factor=0,
             accumulated_quantity=0,
             expiry_time=datetime(2025, 1, 3),
-            knock_out_observation_times=observations,
+            knock_out_observation_schedule=observations,
         )
         with subtests.test(direction=direction, observations=observations):
             result = monte_carlo.price_with_statistics(option, context)
@@ -606,7 +642,7 @@ def test_adjacent_barrier_levels_preserve_forward_prices_and_greeks(
             option_type=direction,
             knock_out_level=barrier,
             acceleration_factor=1,
-            knock_out_observation_times=[],
+            knock_out_observation_schedule=[],
         )
         with subtests.test(direction=direction, sigma=sigma, barrier=barrier):
             result = engine.price_with_greeks(
@@ -648,7 +684,7 @@ def test_terminal_digital_portfolios_match_quantlib(
         option = contract(
             option_type=direction,
             knock_out_level=barrier,
-            knock_out_observation_times=observations,
+            knock_out_observation_schedule=observations,
         )
         expected = sign * (
             3 * unit
@@ -667,7 +703,7 @@ def test_unmonitored_daily_accumulator_matches_the_conditional_digital_portfolio
         calendar=TradingCalendar.all_days(),
         accumulated_quantity=None,
         knock_out_settled=None,
-        knock_out_observation_times=[],
+        knock_out_observation_schedule=[],
     )
     context = market(100, valuation=START, volatility=0.25, rate=0.04, dividend=0.01)
     # The portfolio combines a forward for each daily unit and a cash/asset
@@ -706,7 +742,7 @@ def test_unmonitored_accumulator_combines_quantity_and_discount_before_exponenti
         calendar=TradingCalendar.all_days(),
         accumulated_quantity=None,
         knock_out_settled=None,
-        knock_out_observation_times=[],
+        knock_out_observation_schedule=[],
     )
     context = market(100, valuation=START, volatility=0.25, rate=1000, dividend=1000)
     reference = 366 * 10 * math.exp(math.log(daily) - 1000)

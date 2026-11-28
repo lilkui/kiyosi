@@ -567,13 +567,16 @@ fn schedule_validation_checks_structure_before_calendar_queries() -> kiyosi::Res
         (start, end, vec![end.add_micros(1)?]),
     ] {
         assert!(matches!(
-            ObservationSchedule::new(dates.clone(), first, last, &calendar),
+            ObservationSchedule::new(dates, first, last, &calendar),
             Err(Error::InvalidInput(_))
         ));
+    }
+    let schedule = ObservationSchedule::new(vec![end], start, end, &TradingCalendar::all_days())?;
+    for (first, last) in [(end, start), (start, start)] {
         assert!(matches!(
             kiyosi::Accumulator::new(kiyosi::AccumulatorTerms {
-                calendar: calendar.clone(),
-                knock_out_observation_times: Some(dates),
+                calendar: Some(calendar.clone()),
+                knock_out_observation_schedule: Some(schedule.clone()),
                 ..kiyosi::AccumulatorTerms::new(
                     100.0,
                     110.0,

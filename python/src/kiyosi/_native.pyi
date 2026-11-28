@@ -9404,11 +9404,10 @@ class Accumulator:
         quantity before a strictly prior accumulation unless already settled.
     option_type : {'call', 'put'}, optional
         Call accumulates purchases (the default); put accumulates sales.
-    knock_out_observation_times : iterable of datetime.datetime or None, optional
+    knock_out_observation_schedule : ObservationSchedule or iterable of datetime.datetime or None, optional
         Strictly increasing, unique times within the inclusive contract life.
-        None observes knock-out at the daily accumulation time; an empty
-        sequence disables early knock-out. Times need not include either
-        contract endpoint.
+        None follows the daily accumulation schedule. An empty schedule disables
+        early knock-out. Times need not include either contract endpoint.
     knock_out_settled : bool or None, optional
         Prior knock-out settlement history: None (default) is unknown, False
         means active, and True means settled. Required after a strictly prior
@@ -9438,6 +9437,7 @@ class Accumulator:
     or not it is a knock-out timestamp. Calls pay quantity * (settlement spot -
     strike); puts pay its negative. Intraday history includes that day's
     earlier accumulation. Record settled contracts with knock_out_settled=True.
+    Long schedule validations release the GIL and poll Python signals.
     """
 
     @property
@@ -9450,11 +9450,11 @@ class Accumulator:
         """
 
     @property
-    def knock_out_observation_schedule(self) -> ObservationSchedule:
-        """Return an owned schedule resolving daily or explicit knock-out monitoring.
+    def knock_out_observation_schedule(self) -> ObservationSchedule | None:
+        """Return the explicit knock-out schedule, or None for the daily rule.
 
-        An empty explicit list disables knock-out. Supplied history does not filter
-        this whole-life schedule. Long scans release the GIL and poll Python signals.
+        An empty schedule disables early knock-out. Use accumulation_schedule
+        for the dates used by the daily rule.
         """
 
     @property
@@ -9473,7 +9473,10 @@ class Accumulator:
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
         observation_clock_time: time | EllipsisType = ...,
-        knock_out_observation_times: Iterable[datetime] | None | EllipsisType = ...,
+        knock_out_observation_schedule: ObservationSchedule
+        | Iterable[datetime]
+        | None
+        | EllipsisType = ...,
         knock_out_settled: bool | None | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self:
@@ -9495,8 +9498,9 @@ class Accumulator:
             Inclusive contract start and expiry timestamps.
         observation_clock_time : datetime.time, optional
             Daily observation clock, without timezone information.
-        knock_out_observation_times : iterable of datetime.datetime or None, optional
-            Knock-out schedule; None observes at each daily accumulation time.
+        knock_out_observation_schedule : ObservationSchedule or iterable of datetime.datetime or None, optional
+            Explicit knock-out schedule. None restores the daily rule and an empty
+            schedule disables early knock-out.
         knock_out_settled : bool or None, optional
             Records a settled knock-out strictly before valuation; None clears to
             unknown.
@@ -9516,6 +9520,10 @@ class Accumulator:
             If the resulting contract fails core validation.
         TypeError
             If a representation or field name is invalid.
+
+        Notes
+        -----
+        Long schedule validations release the GIL and poll Python signals.
         """
 
     def __init__(
@@ -9530,17 +9538,15 @@ class Accumulator:
         observation_clock_time: time,
         accumulated_quantity: _Real | None = None,
         option_type: Literal["call", "put"] = ...,
-        knock_out_observation_times: Iterable[datetime] | None = None,
+        knock_out_observation_schedule: ObservationSchedule
+        | Iterable[datetime]
+        | None = None,
         knock_out_settled: bool | None = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> None: ...
     @property
     def option_type(self) -> Literal["call", "put"]:
         """Return call for purchases or put for sales."""
-
-    @property
-    def knock_out_observation_times(self) -> tuple[datetime, ...] | None:
-        """Return owned knock-out times, or None for at the daily accumulation time."""
 
     @property
     def strike(self) -> float:

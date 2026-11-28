@@ -49,7 +49,7 @@ def test_refined_daily_accumulator_with_distant_knock_out_matches_unmonitored_li
         spot=100, valuation=START, volatility=volatility, rate=rate, dividend=dividend
     )
     engine = pricing.QuadratureAccumulatorEngine(asset_step_count=2048)
-    limit = engine.price(option.replace(knock_out_observation_times=[]), context)
+    limit = engine.price(option.replace(knock_out_observation_schedule=[]), context)
     assert engine.price(option, context) == pytest.approx(limit, abs=1e-4, rel=0)
 
 
@@ -98,7 +98,7 @@ def test_termination_history_is_required_after_prior_knock_out_observations(subt
             with pytest.raises(InvalidInputError):
                 engine.price(settled, initial)
             no_knock_out = option.replace(
-                knock_out_observation_times=[],
+                knock_out_observation_schedule=[],
                 accumulated_quantity=2,
                 knock_out_settled=None,
             )
@@ -262,7 +262,7 @@ def test_quadrature_tails_exclude_closed_dates_and_purchases_at_knock_out(
         observation_clock_time=clock_time(),
         accumulated_quantity=3,
         knock_out_settled=False,
-        knock_out_observation_times=[knock_out_time] if knocks_out else [],
+        knock_out_observation_schedule=[knock_out_time] if knocks_out else [],
         calendar=calendar,
     )
     terminates = knocks_out and purchase == 1

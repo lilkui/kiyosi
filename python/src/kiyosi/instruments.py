@@ -31,6 +31,11 @@ For direct reads, ``observation_mode`` reports
 the mode and ``observation_times`` returns a timestamp tuple or ``None``.
 Forward the contract's calendar explicitly when passing a timestamp tuple.
 
+Accumulators use ``knock_out_observation_schedule`` to read and replace the
+explicit knock-out schedule. An empty schedule disables early knock-out.
+``None`` follows the daily rule, whose dates are available from
+``accumulation_schedule``.
+
 Supplied history describes events strictly before the requested valuation.
 Observations exactly at valuation use current spot once. Bookkeeping owns event
 records, lifecycle and settlement progression, and consistency with valuation time

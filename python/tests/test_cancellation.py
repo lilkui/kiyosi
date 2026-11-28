@@ -329,8 +329,7 @@ def test_signals_cancel_numerical_requests_without_poisoning_engines(case):
     (
         "schedule",
         "accumulation_schedule",
-        "daily_knock_out_schedule",
-        "explicit_knock_out_schedule",
+        "accumulator_replace_calendar",
         "daily_knock_in_schedule",
         "barrier_new",
         "barrier_replace",
@@ -391,21 +390,30 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                     "range_replace": lambda: original.replace(expiry_time=long_end),
                 }
                 case = sys.argv[1]
-                if case in ("accumulation_schedule", "daily_knock_out_schedule", "explicit_knock_out_schedule"):
-                    explicit = case == "explicit_knock_out_schedule"
-                    count = 1_000_000
-                    times = (start_time + timedelta(seconds=i) for i in range(count)) if explicit else None
-                    accumulator = Accumulator(
+                if case in ("accumulation_schedule", "accumulator_replace_calendar"):
+                    accumulator_terms = dict(
                         strike=100, knock_out_level=120, daily_quantity=1, acceleration_factor=1,
                         effective_time=start_time, expiry_time=long_end, observation_clock_time=time(),
-                        calendar=calendar, knock_out_observation_times=times,
                     )
                     if case == "accumulation_schedule":
+                        accumulator = Accumulator(**accumulator_terms, calendar=calendar)
                         operation = lambda: accumulator.accumulation_schedule
+                        schedule_size = (long_end - start_time).days + 1
+                        schedule_last = long_end
                     else:
-                        operation = lambda: accumulator.knock_out_observation_schedule
-                    schedule_size = count if explicit else (long_end - start_time).days + 1
-                    schedule_last = start_time + timedelta(seconds=count - 1) if explicit else long_end
+                        count = 750_000
+                        end = start_time + timedelta(days=count)
+                        times = ObservationSchedule.fixed_interval(
+                            start_time=start_time, end_time=end, interval_days=1,
+                            observation_clock_time=time(), calendar=calendar,
+                        )
+                        overridden_calendar = TradingCalendar.custom(
+                            base=calendar, closed_dates=[start_time.date()],
+                        )
+                        accumulator = Accumulator(
+                            **accumulator_terms, knock_out_observation_schedule=times,
+                        )
+                        operation = lambda: accumulator.replace(calendar=overridden_calendar)
                 elif case == "daily_knock_in_schedule":
                     note = SnowballOption(
                         maturity_coupon_rate=0.06, initial_spot=100, knock_in_level=80,
@@ -501,7 +509,7 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                         strike=100, knock_out_level=200, daily_quantity=1,
                         acceleration_factor=1, effective_time=start_time, expiry_time=end,
                         observation_clock_time=time(), calendar=calendar,
-                        knock_out_observation_times=(
+                        knock_out_observation_schedule=(
                             start_time + timedelta(seconds=i) for i in range(1, 86_400)
                         ),
                     )
@@ -585,8 +593,13 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                         assert created.rebate == 2
                         assert barrier.rebate == 0
                         assert barrier.calendar == calendar
-                elif case in ("accumulation_schedule", "daily_knock_out_schedule",
-                              "explicit_knock_out_schedule", "daily_knock_in_schedule"):
+                elif case == "accumulator_replace_calendar":
+                    created = operation()
+                    assert len(created.knock_out_observation_schedule) == count
+                    assert created.knock_out_observation_schedule[-1] == end
+                    assert created.calendar == overridden_calendar
+                    assert accumulator.calendar == calendar
+                elif case in ("accumulation_schedule", "daily_knock_in_schedule"):
                     fresh = operation()
                     assert len(fresh) == schedule_size
                     assert fresh[0] == start_time and fresh[-1] == schedule_last

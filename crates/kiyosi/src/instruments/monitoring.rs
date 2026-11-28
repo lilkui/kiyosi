@@ -83,11 +83,11 @@ pub(crate) fn replace_schedule(
 // Keep raw-iterable adapters out of the standalone contract types.
 pub mod binding {
     use crate::{
-        BarrierOption, BarrierOptionChanges, BarrierOptionTerms, BinaryBarrierOption,
-        BinaryBarrierOptionChanges, BinaryBarrierTerms, BinaryPayoff, DoubleBarrierOption,
-        DoubleBarrierOptionChanges, DoubleBarrierOptionTerms, DoubleTouchOption,
-        DoubleTouchOptionChanges, DoubleTouchOptionTerms, ObservationSchedule, Result, Timestamp,
-        TouchOption, TouchOptionChanges, TouchOptionTerms, TradingCalendar,
+        Accumulator, AccumulatorChanges, AccumulatorTerms, BarrierOption, BarrierOptionChanges,
+        BarrierOptionTerms, BinaryBarrierOption, BinaryBarrierOptionChanges, BinaryBarrierTerms,
+        BinaryPayoff, DoubleBarrierOption, DoubleBarrierOptionChanges, DoubleBarrierOptionTerms,
+        DoubleTouchOption, DoubleTouchOptionChanges, DoubleTouchOptionTerms, ObservationSchedule,
+        Result, Timestamp, TouchOption, TouchOptionChanges, TouchOptionTerms, TradingCalendar,
     };
 
     #[doc(hidden)]
@@ -121,6 +121,14 @@ pub mod binding {
         };
     }
 
+    monitoring_adapter!(
+        new_accumulator,
+        replace_accumulator,
+        Accumulator,
+        AccumulatorTerms,
+        AccumulatorChanges,
+        |terms, times| Accumulator::new_with_observation_times(terms, times)
+    );
     monitoring_adapter!(
         new_barrier,
         replace_barrier,

@@ -36,7 +36,7 @@ def test_weekend_accumulator_knock_out_precedes_stochastic_pricing():
         effective_time=start,
         expiry_time=start + timedelta(days=2, hours=12),
         observation_clock_time=time(10),
-        knock_out_observation_times=[start + timedelta(hours=15)],
+        knock_out_observation_schedule=[start + timedelta(hours=15)],
         calendar=TradingCalendar.all_days(),
     )
     model = BlackScholesMertonParameters(

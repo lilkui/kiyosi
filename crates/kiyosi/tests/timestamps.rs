@@ -44,7 +44,7 @@ fn scheduled_time_stencils_exclude_inclusive_events_and_allow_gaps() -> Result<(
         end,
         TimeOfDay::new(15, 0, 0, 0)?,
     );
-    accumulator_terms.knock_out_observation_times = Some(times.to_vec());
+    accumulator_terms.knock_out_observation_schedule = Some(fixture_schedule(times.to_vec(), None));
     let accumulator = Accumulator::new(accumulator_terms)?;
     let accrual = RangeAccrualOption::new(RangeAccrualTerms::new(
         100.0, 0.1, 90.0, 110.0, start, end, clock,
@@ -77,7 +77,7 @@ fn scheduled_time_stencils_exclude_inclusive_events_and_allow_gaps() -> Result<(
         }
     }
     let no_knock_out = accumulator.replace(AccumulatorChanges {
-        knock_out_observation_times: Some(Some(Vec::new())),
+        knock_out_observation_schedule: Some(Some(fixture_schedule(vec![], None))),
         ..Default::default()
     })?;
     for time in times {
@@ -225,17 +225,14 @@ fn closed_date_settlement_preserves_open_date_observations() -> Result<()> {
             expiry,
             observation.time_of_day(),
         );
-        terms.calendar = calendar.clone();
+        terms.calendar = Some(calendar.clone());
         terms.accumulated_quantity = Some(3.0);
 
         terms.knock_out_settled = Some(false);
 
         let accumulator = Accumulator::new(terms)?;
         assert_eq!(accumulator.accumulation_schedule()?.times(), &[observation]);
-        assert_eq!(
-            accumulator.knock_out_observation_schedule()?.times(),
-            &[observation]
-        );
+        assert!(accumulator.knock_out_observation_schedule().is_none());
 
         let records = vec![SnowballObservation::new(observation, 110.0, 0.0)?];
         let mut terms = SnowballTerms::new(
@@ -874,7 +871,7 @@ fn explicit_accumulator_knock_outs_do_not_add_daily_quantity() {
             time(7, 15, 0),
             (time(7, 15, 0)).time_of_day(),
         );
-        terms.knock_out_observation_times = Some(vec![time(6, hour, 0)]);
+        terms.knock_out_observation_schedule = Some(fixture_schedule(vec![time(6, hour, 0)], None));
         let option = Accumulator::new(terms).unwrap();
         for engine in accumulator_engines() {
             let actual = engine
@@ -1101,19 +1098,22 @@ fn contract_schedules_expose_effective_observations() -> Result<()> {
     assert_eq!(schedule.times(), &[last]);
 
     let mut accumulation = AccumulatorTerms::new(90.0, 120.0, 1.0, 2.0, start, expiry, clock);
-    accumulation.calendar = calendar.clone();
+    accumulation.calendar = Some(calendar.clone());
     let accumulator = Accumulator::new(accumulation)?;
     assert_eq!(accumulator.accumulation_schedule()?.times(), &[start, last]);
-    assert_eq!(
-        accumulator.knock_out_observation_schedule()?,
-        accumulator.accumulation_schedule()?
-    );
+    assert!(accumulator.knock_out_observation_schedule().is_none());
     for explicit in [vec![], vec![Timestamp::new(start.date(), 16, 0, 0, 0)?]] {
         let changed = accumulator.replace(AccumulatorChanges {
-            knock_out_observation_times: Some(Some(explicit.clone())),
+            knock_out_observation_schedule: Some(Some(fixture_schedule(
+                explicit.clone(),
+                Some(&calendar),
+            ))),
             ..Default::default()
         })?;
-        assert_eq!(changed.knock_out_observation_schedule()?.times(), explicit);
+        assert_eq!(
+            changed.knock_out_observation_schedule().unwrap().times(),
+            explicit
+        );
         assert_eq!(changed.accumulation_schedule()?.times(), &[start, last]);
     }
 

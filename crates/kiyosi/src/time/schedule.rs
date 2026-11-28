@@ -53,7 +53,7 @@ impl ObservationSchedule {
         }
     }
 
-    pub(crate) fn validate_times(
+    fn validate_times(
         times: &[Timestamp],
         start_time: Timestamp,
         end_time: Timestamp,

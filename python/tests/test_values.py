@@ -125,7 +125,7 @@ def values():
             daily_quantity=1,
             acceleration_factor=2,
             accumulated_quantity=3,
-            knock_out_observation_times=[],
+            knock_out_observation_schedule=[],
             **life,
         ),
         i.SnowballOption(
@@ -464,7 +464,7 @@ def test_repr_bounds_large_contract_schedules(subtests):
         if isinstance(original, i.Accumulator):
             option = original.replace(
                 expiry_time=times[-1],
-                knock_out_observation_times=times,
+                knock_out_observation_schedule=times,
                 accumulated_quantity=original.accumulated_quantity,
                 knock_out_settled=original.knock_out_settled,
                 calendar=m.TradingCalendar.all_days(),

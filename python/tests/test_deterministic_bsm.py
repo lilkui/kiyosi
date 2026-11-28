@@ -99,7 +99,7 @@ def test_structured_knock_out_uses_exact_quoted_forward():
         effective_time=start,
         expiry_time=end,
         observation_clock_time=clock_time(),
-        knock_out_observation_times=[end],
+        knock_out_observation_schedule=[end],
     )
     # Daily observations run from January 2 through the following January 1.
     assert len(accumulator.accumulation_schedule) == 365
@@ -169,7 +169,7 @@ def test_structured_knock_out_preserves_a_forward_just_below_the_barrier():
         daily_quantity=1,
         acceleration_factor=1,
         observation_clock_time=clock_time(),
-        knock_out_observation_times=[fixing],
+        knock_out_observation_schedule=[fixing],
     )
     discount = math.exp(-0.06)
     for engine, option, expected in (
@@ -200,7 +200,7 @@ def test_accumulator_settlement_preserves_the_quoted_strike_difference():
         effective_time=start,
         expiry_time=end,
         observation_clock_time=clock_time(),
-        knock_out_observation_times=[],
+        knock_out_observation_schedule=[],
     )
     at_strike = 100 * factor
     engine = pricing.QuadratureAccumulatorEngine()
@@ -299,7 +299,7 @@ def test_accumulator_uses_base_quantity_at_an_exact_future_strike(
         effective_time=start,
         expiry_time=expiry,
         observation_clock_time=clock_time(),
-        knock_out_observation_times=[],
+        knock_out_observation_schedule=[],
     )
     engine = pricing.FiniteDifferenceAccumulatorEngine()
     boundary = 100 * risk_factor * dividend_base
@@ -1097,7 +1097,7 @@ def test_future_structured_events_discount_coupons_and_settle_accumulated_units(
         knock_out_level=105,
         daily_quantity=1,
         acceleration_factor=2,
-        knock_out_observation_times=[middle],
+        knock_out_observation_schedule=[middle],
         calendar=calendar,
     )
     expected = 180 * (100 * math.exp(0.1 * 180 / 365) - 90) * math.exp(-0.1 * 180 / 365)
@@ -1295,7 +1295,7 @@ def test_accumulator_discounts_large_settlement_before_rounding(
         effective_time=start,
         expiry_time=end,
         observation_clock_time=clock_time(),
-        knock_out_observation_times=[end],
+        knock_out_observation_schedule=[end],
         calendar=TradingCalendar.all_days(),
     )
     expected = math.exp(math.log(purchases) + math.log(1e301) - 750)

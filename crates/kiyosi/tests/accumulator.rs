@@ -1,5 +1,8 @@
+#[path = "support/observation_schedule.rs"]
+mod schedule_fixture;
 use kiyosi::engines::QuadratureSettings;
 use kiyosi::*;
+use schedule_fixture::schedule as fixture_schedule;
 
 fn day(month: u32, date: u32) -> Timestamp {
     Date::new(2025, month, date).unwrap().start_of_day()
@@ -106,7 +109,7 @@ fn termination_history_is_required_after_prior_knock_out_observations() -> Resul
             Err(Error::InvalidInput(_))
         ));
         let no_knock_out = option.replace(AccumulatorChanges {
-            knock_out_observation_times: Some(Some(vec![])),
+            knock_out_observation_schedule: Some(Some(fixture_schedule(vec![], None))),
             accumulated_quantity: Some(Some(2.0)),
             knock_out_settled: Some(None),
             ..Default::default()
@@ -578,7 +581,7 @@ fn spatial_and_domain_convergence_meet_accuracy_targets() {
         knock_out_level: 150.0,
         acceleration_factor: 1.0,
         accumulated_quantity: Some(3.0),
-        calendar: TradingCalendar::all_days(),
+        calendar: Some(TradingCalendar::all_days()),
         ..terms(end)
     })
     .unwrap();
@@ -616,7 +619,7 @@ fn refined_daily_accumulator_with_distant_knock_out_matches_unmonitored_limit() 
         (160.0, 90, 0.008, 0.01, 0.01),
     ] {
         let option = Accumulator::new(AccumulatorTerms {
-            calendar: TradingCalendar::all_days(),
+            calendar: Some(TradingCalendar::all_days()),
             ..AccumulatorTerms::new(
                 100.0,
                 barrier,
@@ -628,7 +631,10 @@ fn refined_daily_accumulator_with_distant_knock_out_matches_unmonitored_limit() 
             )
         })?;
         let unmonitored = option.replace(AccumulatorChanges {
-            knock_out_observation_times: Some(Some(vec![])),
+            knock_out_observation_schedule: Some(Some(fixture_schedule(
+                vec![],
+                Some(option.calendar()),
+            ))),
             ..Default::default()
         })?;
         let context = market(100.0, start, sigma, rate, dividend);

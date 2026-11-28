@@ -86,7 +86,7 @@ fn scheduled_quadrature_rejects_excessive_rollback_work() -> Result<()> {
         barrier.calendar.as_ref(),
     ));
     let accumulator = Accumulator::new(AccumulatorTerms {
-        calendar: calendar.clone(),
+        calendar: Some(calendar.clone()),
         ..AccumulatorTerms::new(100.0, 140.0, 1.0, 2.0, start, end, clock)
     })?;
     let snowball = SnowballOption::new(SnowballTerms::new(

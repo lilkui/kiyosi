@@ -129,8 +129,7 @@ fn structured_knock_out_uses_exact_quoted_forward() -> Result<()> {
         calendar.clone(),
     ))?;
     let accumulator = Accumulator::new(AccumulatorTerms {
-        calendar,
-        knock_out_observation_times: Some(vec![end]),
+        knock_out_observation_schedule: Some(fixture_schedule(vec![end], Some(&calendar))),
         ..AccumulatorTerms::new(100.0, 128.0, 1.0, 1.0, start, end, end.time_of_day())
     })?;
     // Daily observations run from January 2 through the following January 1.
@@ -173,8 +172,7 @@ fn structured_knock_out_preserves_a_forward_just_below_the_barrier() -> Result<(
         calendar.clone(),
     ))?;
     let accumulator = Accumulator::new(AccumulatorTerms {
-        calendar,
-        knock_out_observation_times: Some(vec![fixing]),
+        knock_out_observation_schedule: Some(fixture_schedule(vec![fixing], Some(&calendar))),
         ..AccumulatorTerms::new(90.0, 100.0, 1.0, 1.0, start, end, start.time_of_day())
     })?;
     let discount = (-0.06_f64).exp();
@@ -251,7 +249,7 @@ fn accumulator_uses_base_quantity_at_an_exact_future_strike() -> Result<()> {
         let boundary = 100.0 * risk * dividend_base;
         let strike = 100.0 * dividend * risk_base;
         let option = Accumulator::new(AccumulatorTerms {
-            knock_out_observation_times: Some(vec![]),
+            knock_out_observation_schedule: Some(fixture_schedule(vec![], None)),
             ..AccumulatorTerms::new(strike, 120.0, 1.0, 2.0, start, expiry, fixing.time_of_day())
         })?;
         for (spot, quantity) in [
@@ -979,8 +977,10 @@ fn deterministic_structured_events_keep_monitoring_modes_and_settlement_units() 
         ],
     )?;
     let mut terms = AccumulatorTerms::new(90.0, 105.0, 1.0, 2.0, start, end, (end).time_of_day());
-    terms.calendar = TradingCalendar::all_days();
-    terms.knock_out_observation_times = Some(vec![middle]);
+    terms.knock_out_observation_schedule = Some(fixture_schedule(
+        vec![middle],
+        Some(&TradingCalendar::all_days()),
+    ));
     let accumulator = Accumulator::new(terms)?;
     let expected =
         180.0 * (100.0 * (0.1_f64 * 180.0 / 365.0).exp() - 90.0) * (-0.1_f64 * 180.0 / 365.0).exp();
@@ -1211,8 +1211,10 @@ fn accumulator_settlement_preserves_the_quoted_strike_difference() -> Result<()>
     let curve = RateTermStructure::new(start, vec![end], vec![factor])?;
     let model = BlackScholesMertonParameters::new(curve, 0.0, 0.0)?;
     let option = Accumulator::new(AccumulatorTerms {
-        calendar: TradingCalendar::all_days(),
-        knock_out_observation_times: Some(vec![]),
+        knock_out_observation_schedule: Some(fixture_schedule(
+            vec![],
+            Some(&TradingCalendar::all_days()),
+        )),
         ..AccumulatorTerms::new(
             strike,
             200.0,
@@ -1248,8 +1250,10 @@ fn accumulator_discounts_large_settlement_before_rounding() -> Result<()> {
     )?;
     for (knock_out_level, purchases) in [(110.0, 365.0_f64), (200.0, 366.0_f64)] {
         let option = Accumulator::new(AccumulatorTerms {
-            calendar: TradingCalendar::all_days(),
-            knock_out_observation_times: Some(vec![end]),
+            knock_out_observation_schedule: Some(fixture_schedule(
+                vec![end],
+                Some(&TradingCalendar::all_days()),
+            )),
             ..AccumulatorTerms::new(
                 100.0,
                 knock_out_level,

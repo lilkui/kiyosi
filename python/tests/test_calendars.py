@@ -35,8 +35,8 @@ def test_schedules_retain_calendars_for_contract_composition(subtests):
     assert copied == schedule
     for factory, fields in contract_inputs():
         key = (
-            "knock_out_observation_times"
-            if "knock_out_observation_times" in fields
+            "knock_out_observation_schedule"
+            if "knock_out_observation_schedule" in fields
             else "observation_schedule"
         )
         if key not in fields:

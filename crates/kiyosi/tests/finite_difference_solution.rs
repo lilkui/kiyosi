@@ -1,5 +1,8 @@
+#[path = "support/observation_schedule.rs"]
+mod schedule_fixture;
 use kiyosi::engines::{FiniteDifferenceEngine, FiniteDifferenceSettings, FiniteDifferenceSolution};
 use kiyosi::*;
+use schedule_fixture::schedule as fixture_schedule;
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -30,10 +33,11 @@ fn saved_accumulator_matches_scalar_deterministic_fixings() -> Result<()> {
     for (direction, barrier) in [(OptionType::Call, 115.0), (OptionType::Put, 85.0)] {
         let mut terms =
             AccumulatorTerms::new(100.0, barrier, 0.1, 2.5, start, end, start.time_of_day());
-        terms.calendar = TradingCalendar::all_days();
         terms.option_type = direction;
-        terms.knock_out_observation_times =
-            Some(vec![start.add_days(120)?, start.add_days(240)?, end]);
+        terms.knock_out_observation_schedule = Some(fixture_schedule(
+            vec![start.add_days(120)?, start.add_days(240)?, end],
+            Some(&TradingCalendar::all_days()),
+        ));
         let option = Accumulator::new(terms)?;
         for rate in [-0.12, 0.0, 0.12] {
             let context = PricingContext::new(
