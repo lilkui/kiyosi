@@ -10,6 +10,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import calibrate_fd
+import calibrate_heston
 import calibrate_numerical
 from benchmark_test_support import write_python_adapter
 from run import (
@@ -358,6 +360,38 @@ class ReportWriteTests(unittest.TestCase):
 
         self.assertEqual(json.loads(self.path.read_text(encoding="utf-8")), self.report)
         self.assertEqual(list(self.path.parent.iterdir()), [self.path])
+
+    def test_failed_calibration_replace_preserves_destination(self):
+        replace = Path.replace
+        for script, output_name in (
+            (calibrate_fd, "calibration/fd_bsm.json"),
+            (calibrate_heston, "heston_calibration.json"),
+            (calibrate_heston, "cases/heston.json"),
+        ):
+            with self.subTest(output=output_name), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                output = root / output_name
+                output.parent.mkdir(exist_ok=True)
+                output.write_bytes(self.previous)
+
+                def fail_one_replace(source, destination, failing_path=output):
+                    if destination == failing_path:
+                        raise OSError("calibration replace failed")
+                    return replace(source, destination)
+
+                with (
+                    patch.object(script, "HERE", root),
+                    patch("run.load_entries", return_value={}),
+                    patch("run.prebuilt_rust_executable", return_value=Path("rust")),
+                    patch.object(
+                        Path, "replace", autospec=True, side_effect=fail_one_replace
+                    ),
+                    self.assertRaisesRegex(OSError, "calibration replace failed"),
+                ):
+                    script.main()
+
+                self.assertEqual(output.read_bytes(), self.previous)
+                self.assertEqual(list(output.parent.iterdir()), [output])
 
     def test_failed_numerical_calibration_preserves_all_outputs(self):
         root = self.path.parent

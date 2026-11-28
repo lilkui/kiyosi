@@ -155,17 +155,13 @@ def main():
                 print(json.dumps(record), flush=True)
                 if not check["passed"]:
                     raise RuntimeError(f"calibration failed: {record}")
-    (HERE / "cases/heston.json").write_text(
-        json.dumps({"schema_version": 1, "cases": list(cases.values())}, indent=2)
-        + "\n"
+    run.write_report(
+        HERE / "heston_calibration.json",
+        {"schema_version": 1, "quantlib_version": "1.44", "records": records},
     )
-    output = HERE / "heston_calibration.json"
-    output.write_text(
-        json.dumps(
-            {"schema_version": 1, "quantlib_version": "1.44", "records": records},
-            indent=2,
-        )
-        + "\n"
+    run.write_report(
+        HERE / "cases/heston.json",
+        {"schema_version": 1, "cases": list(cases.values())},
     )
 
 

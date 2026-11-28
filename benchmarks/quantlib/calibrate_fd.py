@@ -1,7 +1,6 @@
 """Retain actual native per-dimension FD convergence, outside normal timing."""
 
 import copy
-import json
 import math
 from datetime import date
 from pathlib import Path
@@ -119,7 +118,7 @@ def main():
             row["backends"][backend] = measurements
         evidence["cases"].append(row)
         print(case["id"], flush=True)
-    (HERE / "calibration/fd_bsm.json").write_text(json.dumps(evidence, indent=2) + "\n")
+    run.write_report(HERE / "calibration/fd_bsm.json", evidence)
 
 
 if __name__ == "__main__":
