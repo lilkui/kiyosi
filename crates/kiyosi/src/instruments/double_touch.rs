@@ -167,7 +167,7 @@ impl DoubleTouchOption {
         self.settlement_timing
     }
     /// Returns monitoring frequency; see [`Self::cash`].
-    pub fn observation_mode(&self) -> ObservationMode {
+    pub(crate) fn observation_mode(&self) -> ObservationMode {
         self.monitoring.observation_mode()
     }
     /// Borrows the scheduled observations, or returns `None` for continuous monitoring.
@@ -179,7 +179,7 @@ impl DoubleTouchOption {
     /// Borrows scheduled times, or returns `None` for continuous monitoring.
     ///
     /// See [`Self::observation_schedule`] for access to the schedule with its calendar.
-    pub fn observation_times(&self) -> Option<&[Timestamp]> {
+    fn observation_times(&self) -> Option<&[Timestamp]> {
         (!self.monitoring.continuous()).then(|| self.monitoring.observation_times())
     }
     /// Returns strictly prior history; see [`Self::cash`].

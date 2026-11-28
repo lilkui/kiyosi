@@ -9,7 +9,7 @@ fn short(
     use crate::engines::ShortPricing;
 
     let model = context.model_parameters();
-    if option.observation_times().is_none()
+    if option.observation_schedule().is_none()
         && super::short_barrier(
             None,
             option.settlement_timing() == kiyosi::SettlementTiming::AtExpiry,

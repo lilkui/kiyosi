@@ -215,7 +215,7 @@ fn constant_surface_matches_single_and_double_barrier_states() {
     .unwrap();
     let single = FiniteDifferenceBarrierEngine::new(settings()).unwrap();
     let double = FiniteDifferenceDoubleBarrierEngine::new(settings()).unwrap();
-    for mode in [ObservationMode::Continuous, ObservationMode::Scheduled] {
+    for scheduled in [false, true] {
         for direction in [OptionType::Call, OptionType::Put] {
             for kind in [
                 BarrierType::UpAndIn,
@@ -238,7 +238,7 @@ fn constant_surface_matches_single_and_double_barrier_states() {
                     terms.rebate = 2.0;
                     terms.rebate_timing = timing;
 
-                    if mode == ObservationMode::Scheduled {
+                    if scheduled {
                         terms.observation_times =
                             Some(vec![Date::new(2025, 6, 30).unwrap().start_of_day(), end]);
                     }
@@ -261,7 +261,7 @@ fn constant_surface_matches_single_and_double_barrier_states() {
                     terms.rebate = 2.0;
                     terms.rebate_timing = timing;
 
-                    if mode == ObservationMode::Scheduled {
+                    if scheduled {
                         terms.observation_times =
                             Some(vec![Date::new(2025, 6, 30).unwrap().start_of_day(), end]);
                     }

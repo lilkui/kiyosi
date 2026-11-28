@@ -281,19 +281,19 @@ fn tiny_volatility_payoffs_match_the_vanilla_limit() {
         .unwrap();
         let expected = spot * sigma / std::f64::consts::TAU.sqrt();
         for direction in [OptionType::Call, OptionType::Put] {
-            for mode in [ObservationMode::Continuous, ObservationMode::Scheduled] {
+            for scheduled in [false, true] {
                 let mut t = terms(BarrierType::DownAndOut, direction);
                 t.strike = spot;
                 t.barrier_level = 0.8 * spot;
 
-                if mode == ObservationMode::Scheduled {
+                if scheduled {
                     t.observation_times = Some(vec![t.expiry_time]);
                 }
                 let option = BarrierOption::new(t).unwrap();
                 let actual = engine.price(&option, &context).unwrap();
                 assert!(
                     (actual - expected).abs() < 1e-3 * expected,
-                    "{spot} {direction:?} {mode:?}: {actual} != {expected}"
+                    "{spot} {direction:?} scheduled={scheduled}: {actual} != {expected}"
                 );
             }
         }

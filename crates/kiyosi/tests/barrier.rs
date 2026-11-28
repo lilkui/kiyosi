@@ -229,7 +229,6 @@ fn construction_defaults_validation_and_calendar_are_core_semantics() {
     let option = BarrierOption::new(t.clone()).unwrap();
     assert_eq!(option.rebate(), 0.0);
     assert_eq!(option.rebate_timing(), RebateTiming::AtExpiry);
-    assert_eq!(option.observation_mode(), ObservationMode::Continuous);
     assert!(option.observation_schedule().is_none());
     for value in [0.0, -1.0, f64::NAN, f64::INFINITY] {
         let mut invalid = t.clone();

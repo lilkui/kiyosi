@@ -8,7 +8,7 @@ macro_rules! monitoring_properties {
         impl $name {
             fn replace_monitoring(&self, py: pyo3::Python<'_>, changes: kiyosi::$changes) -> pyo3::PyResult<Self> {
                 let observations = changes.observation_times.as_ref().map_or_else(
-                    || self.0.observation_times(),
+                    || self.0.observation_schedule().map(kiyosi::ObservationSchedule::times),
                     |times| times.as_deref(),
                 );
                 let count = observations.map_or(0, <[kiyosi::Timestamp]>::len);
@@ -26,7 +26,7 @@ macro_rules! monitoring_properties {
                 let py = slf.py();
                 crate::representation::format(slf.as_any(), Self::_STATE_FIELDS, &[
                     ("calendar", crate::representation::calendar_preview(py, value.0.calendar())?),
-                    ("observation_times", value.0.observation_times().map(|times| crate::representation::times(py, times)).transpose()?),
+                    ("observation_times", value.0.observation_schedule().map(|schedule| crate::representation::times(py, schedule.times())).transpose()?),
                 ])
             }
 
@@ -54,9 +54,9 @@ macro_rules! monitoring_properties {
             /// Return continuous monitoring or observations on the supplied times.
             #[getter]
             fn observation_mode(&self) -> &'static str {
-                match self.0.observation_mode() {
-                    kiyosi::ObservationMode::Continuous => "continuous",
-                    kiyosi::ObservationMode::Scheduled => "scheduled",
+                match self.0.observation_schedule() {
+                    None => "continuous",
+                    Some(_) => "scheduled",
                 }
             }
             /// Return an owned schedule, or None for continuous monitoring.
@@ -70,8 +70,8 @@ macro_rules! monitoring_properties {
                 &self,
                 py: pyo3::Python<'py>,
             ) -> pyo3::PyResult<Option<pyo3::Bound<'py, pyo3::types::PyTuple>>> {
-                self.0.observation_times().map(|times| {
-                    $crate::conversions::python_timestamps(py, times)
+                self.0.observation_schedule().map(|schedule| {
+                    $crate::conversions::python_timestamps(py, schedule.times())
                 }).transpose()
             }
             /// Return strictly prior touch history, or None if unknown.

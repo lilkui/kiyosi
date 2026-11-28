@@ -27,7 +27,9 @@
 //! moving those boundaries. Constructors validate terms and observation calendars;
 //! pricing validates valuation times, model coverage, and required history.
 //! Barrier and touch terms select continuous monitoring with `observation_times: None`
-//! or scheduled monitoring with a nonempty `Some(times)`.
+//! or scheduled monitoring with a nonempty `Some(times)`. Read the times and
+//! calendar together through the contract's `observation_schedule()` method,
+//! which returns `None` for continuous monitoring.
 //! European vanilla and digital options permit pre-effective valuation; other
 //! contracts require valuation within their life.
 //!
@@ -203,9 +205,10 @@ pub use instruments::autocallable::{
     SnowballPreset, SnowballPresetTerms, SnowballTerms, TernarySnowballOption,
     TernarySnowballOptionChanges, TernarySnowballTerms,
 };
+pub(crate) use instruments::barrier::ObservationMode;
 pub use instruments::barrier::{
     BarrierOption, BarrierOptionChanges, BarrierOptionTerms, BarrierTouchState, BarrierType,
-    ObservationMode, RebateTiming,
+    RebateTiming,
 };
 pub use instruments::binary_barrier::{
     BinaryBarrierOption, BinaryBarrierOptionChanges, BinaryBarrierTerms, BinaryPayoff,

@@ -17,7 +17,10 @@ analytic_engine!(
     PyRef<'_, BarrierOption>,
     with_contract,
     |option, context| super::short_barrier(
-        option.0.observation_times(),
+        option
+            .0
+            .observation_schedule()
+            .map(kiyosi::ObservationSchedule::times),
         option.0.rebate() == 0.0 || option.0.rebate_timing() == kiyosi::RebateTiming::AtExpiry,
         context,
     )

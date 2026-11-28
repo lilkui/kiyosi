@@ -23,12 +23,13 @@ Explicit observations use exact timestamps; automatic observations require
 the effective instant; range accrual observations exclude it. Settlement adds
 no observation.
 Barrier and touch contracts use ``observation_times=None`` for continuous
-monitoring and a nonempty iterable for scheduled monitoring. Their read-only
-``observation_mode`` property reports the selected mode. Both ``observation_times``
-and ``observation_schedule`` return ``None`` for continuous monitoring. A scheduled
-contract's ``observation_schedule`` can be passed as ``observation_times``
-with its calendar intact.
-Timestamp tuples contain no calendar; forward the contract's calendar with them.
+monitoring and a nonempty iterable for scheduled monitoring. Read
+``observation_schedule`` to get the contractual times and calendar together.
+It returns ``None`` for continuous monitoring. Pass the schedule as
+``observation_times`` when constructing or replacing another contract to
+carry the calendar with it. For direct reads, ``observation_mode`` reports
+the mode and ``observation_times`` returns a timestamp tuple or ``None``.
+Forward the contract's calendar explicitly when passing a timestamp tuple.
 
 Supplied history describes events strictly before the requested valuation.
 Observations exactly at valuation use current spot once. Bookkeeping owns event

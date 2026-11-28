@@ -27,7 +27,7 @@ impl BarrierType {
 
 /// Monitoring frequency; see [`BarrierOption::new`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum ObservationMode {
+pub(crate) enum ObservationMode {
     /// Observes throughout the inclusive contract life (the default).
     #[default]
     Continuous,
@@ -221,7 +221,7 @@ impl BarrierOption {
         self.rebate_timing
     }
     /// Returns monitoring frequency; see [`Self::new`].
-    pub fn observation_mode(&self) -> ObservationMode {
+    pub(crate) fn observation_mode(&self) -> ObservationMode {
         self.monitoring.observation_mode()
     }
     /// Borrows the scheduled observations, or returns `None` for continuous monitoring.
@@ -234,7 +234,7 @@ impl BarrierOption {
     ///
     /// See [`Self::observation_schedule`] for
     /// calendar-preserving schedule access and [`Self::replace`] for replacement.
-    pub fn observation_times(&self) -> Option<&[Timestamp]> {
+    pub(crate) fn observation_times(&self) -> Option<&[Timestamp]> {
         (!self.monitoring.continuous()).then(|| self.monitoring.observation_times())
     }
     /// Returns prior history; see [`Self::replace`].

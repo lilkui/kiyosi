@@ -11,7 +11,12 @@ from kiyosi.instruments import (
     EuropeanOption,
     TouchOption,
 )
-from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.market import (
+    BlackScholesMertonParameters,
+    ObservationSchedule,
+    PricingContext,
+    TradingCalendar,
+)
 from kiyosi.pricing import (
     AnalyticBarrierEngine,
     AnalyticBinaryBarrierEngine,
@@ -95,6 +100,22 @@ assert isclose(
     AnalyticEuropeanEngine().price(vanilla, context),
     abs_tol=1e-10,
 )
+
+# 读取观察日程可同时取得时间和日历，转交日程会保留该日历。
+# 解析引擎要求最后一次观察在到期时点。
+monthly = ObservationSchedule.monthly(
+    start_time=start,
+    end_time=end,
+    first_observation_month=1,
+    observation_clock_time=end.time(),
+    calendar=TradingCalendar.all_days(),
+)
+scheduled = barrier.replace(observation_times=monthly)
+schedule = scheduled.observation_schedule
+assert schedule is not None
+assert schedule.calendar == monthly.calendar
+scheduled_knock_in = knock_in.replace(observation_times=schedule)
+print(f"按月监控的向上敲入看涨：{engine.price(scheduled_knock_in, context):.6f}")
 
 # 历史只描述估值时刻之前的事件；当前时刻的触碰由引擎根据现货判断。
 later = context.replace(valuation_time=datetime(2025, 7, 1), spot_price=105)

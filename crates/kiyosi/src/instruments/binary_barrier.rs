@@ -1,7 +1,7 @@
 use super::monitoring::Monitoring;
 use crate::{
-    BarrierTouchState, BarrierType, DigitalOption, Error, ObservationMode, ObservationSchedule,
-    OptionContract, OptionType, PricingContext, Result, Timestamp, TradingCalendar,
+    BarrierTouchState, BarrierType, DigitalOption, Error, ObservationSchedule, OptionContract,
+    OptionType, PricingContext, Result, Timestamp, TradingCalendar,
 };
 
 /// Selects explicit cash or asset settlement for binary and touch replacements.
@@ -343,10 +343,6 @@ macro_rules! monitoring_accessors {
             pub fn barrier_type(&self) -> BarrierType {
                 self.monitoring.barrier_type()
             }
-            /// Returns monitoring frequency; see [`Self::cash`].
-            pub fn observation_mode(&self) -> ObservationMode {
-                self.monitoring.observation_mode()
-            }
             /// Borrows scheduled observations, or returns `None` for continuous monitoring.
             ///
             /// See [`Self::cash`] for construction.
@@ -356,7 +352,7 @@ macro_rules! monitoring_accessors {
             /// Borrows scheduled times, or returns `None` for continuous monitoring.
             ///
             /// See [`Self::observation_schedule`] for access to the schedule with its calendar.
-            pub fn observation_times(&self) -> Option<&[Timestamp]> {
+            fn observation_times(&self) -> Option<&[Timestamp]> {
                 (!self.monitoring.continuous()).then(|| self.monitoring.observation_times())
             }
             /// Returns strictly prior touch history; see [`Self::replace`].

@@ -1653,7 +1653,8 @@ fn contractual_calendars_are_validated_before_pricing() -> Result<()> {
                 strike: Some(105.0),
                 ..Default::default()
             })?
-            .observation_times(),
+            .observation_schedule()
+            .map(ObservationSchedule::times),
         Some(&[closed][..])
     );
     let mut terms = AccumulatorTerms::new(90.0, 110.0, 1.0, 2.0, start, end, (end).time_of_day());

@@ -3,14 +3,18 @@ use crate::market::PricingContext;
 use pyo3::prelude::*;
 
 fn short(instrument: &BinaryInstrument<'_>, context: &kiyosi::PricingContext) -> bool {
-    let (observations, at_expiry) = match instrument {
-        BinaryInstrument::Binary(option) => (option.0.observation_times(), true),
+    let (schedule, at_expiry) = match instrument {
+        BinaryInstrument::Binary(option) => (option.0.observation_schedule(), true),
         BinaryInstrument::Touch(option) => (
-            option.0.observation_times(),
+            option.0.observation_schedule(),
             option.0.settlement_timing() == kiyosi::SettlementTiming::AtExpiry,
         ),
     };
-    super::short_barrier(observations, at_expiry, context)
+    super::short_barrier(
+        schedule.map(kiyosi::ObservationSchedule::times),
+        at_expiry,
+        context,
+    )
 }
 
 analytic_engine!(

@@ -173,7 +173,7 @@ impl DoubleBarrierOption {
         self.lower.rebate_timing()
     }
     /// Returns monitoring frequency; see [`Self::new`].
-    pub fn observation_mode(&self) -> ObservationMode {
+    pub(crate) fn observation_mode(&self) -> ObservationMode {
         self.lower.observation_mode()
     }
     /// Borrows the scheduled observations, or returns `None` for continuous monitoring.
@@ -185,7 +185,7 @@ impl DoubleBarrierOption {
     /// Borrows scheduled times, or returns `None` for continuous monitoring.
     ///
     /// See [`Self::observation_schedule`] for access to the schedule with its calendar.
-    pub fn observation_times(&self) -> Option<&[Timestamp]> {
+    pub(crate) fn observation_times(&self) -> Option<&[Timestamp]> {
         self.lower.observation_times()
     }
     /// Returns strictly prior history; see [`Self::new`].
