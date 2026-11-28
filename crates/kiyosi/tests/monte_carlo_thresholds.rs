@@ -1,3 +1,7 @@
+#[path = "support/observation_schedule.rs"]
+mod schedule_fixture;
+use schedule_fixture::schedule as fixture_schedule;
+
 use kiyosi::*;
 
 fn context(volatility: f64, intraday: bool) -> PricingContext {
@@ -35,7 +39,8 @@ fn scheduled_barriers_preserve_sub_ulp_threshold_movements() {
                 (BarrierType::DownAndOut, 100.0, 120.0),
             ] {
                 let mut terms = BarrierOptionTerms::new(direction, strike, start, end, 100.0, kind);
-                terms.observation_times = Some(vec![end]);
+                terms.observation_schedule =
+                    Some(fixture_schedule(vec![end], terms.calendar.as_ref()));
                 terms.rebate = 2.0;
                 let option = BarrierOption::new(terms).unwrap();
                 assert!((single.price(&option, &context).unwrap() - 6.0).abs() < 1e-12);
@@ -47,7 +52,8 @@ fn scheduled_barriers_preserve_sub_ulp_threshold_movements() {
                 let mut terms = DoubleBarrierOptionTerms::new(
                     direction, strike, start, end, lower, upper, kind,
                 );
-                terms.observation_times = Some(vec![end]);
+                terms.observation_schedule =
+                    Some(fixture_schedule(vec![end], terms.calendar.as_ref()));
                 terms.rebate = 2.0;
                 let option = DoubleBarrierOption::new(terms).unwrap();
                 assert!((double.price(&option, &context).unwrap() - 6.0).abs() < 1e-12);

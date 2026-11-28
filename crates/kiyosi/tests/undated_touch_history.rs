@@ -1,3 +1,7 @@
+#[path = "support/observation_schedule.rs"]
+mod schedule_fixture;
+use schedule_fixture::schedule as fixture_schedule;
+
 use kiyosi::*;
 
 #[test]
@@ -13,8 +17,8 @@ fn undated_touch_history_is_validated_at_valuation_and_replaced_atomically() -> 
         120.0,
         BarrierType::UpAndOut,
     );
-    terms.calendar = TradingCalendar::all_days();
-    terms.observation_times = Some(vec![first, end]);
+    terms.calendar = Some(TradingCalendar::all_days());
+    terms.observation_schedule = Some(fixture_schedule(vec![first, end], terms.calendar.as_ref()));
     terms.touch_state = Some(BarrierTouchState::Touched);
     let original = BarrierOption::new(terms)?;
     let market =
@@ -62,8 +66,10 @@ fn undated_history_prices_all_touch_families_at_each_requested_valuation() -> Re
         macro_rules! check {
             ($terms:expr, $construct:expr, $engine:expr, $changes:ident, $expected:expr) => {{
                 let mut terms = $terms;
-                terms.calendar = TradingCalendar::all_days();
-                terms.observation_times = observations.clone();
+                terms.calendar = Some(TradingCalendar::all_days());
+                terms.observation_schedule = observations
+                    .clone()
+                    .map(|times| fixture_schedule(times, terms.calendar.as_ref()));
                 terms.touch_state = Some(BarrierTouchState::Touched);
                 let option = ($construct)(terms)?;
                 assert!(matches!(
@@ -178,7 +184,7 @@ fn scheduled_touch_at_valuation_uses_current_spot_once() -> Result<()> {
         120.0,
         BarrierType::UpAndOut,
     );
-    terms.observation_times = Some(vec![first]);
+    terms.observation_schedule = Some(fixture_schedule(vec![first], terms.calendar.as_ref()));
     terms.rebate = 7.0;
     terms.rebate_timing = RebateTiming::AtHit;
     let option = BarrierOption::new(terms)?;

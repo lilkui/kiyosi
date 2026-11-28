@@ -1,19 +1,50 @@
+fn monitoring_work(
+    schedule: Option<&kiyosi::ObservationSchedule>,
+    times: Option<&[kiyosi::Timestamp]>,
+    calendar: Option<&kiyosi::TradingCalendar>,
+) -> u64 {
+    times.map_or_else(
+        || match schedule.zip(calendar) {
+            Some((schedule, calendar))
+                if kiyosi::binding_support::barrier_monitoring::requires_calendar_scan(
+                    schedule, calendar,
+                ) =>
+            {
+                schedule.len()
+            }
+            _ => 0,
+        },
+        <[kiyosi::Timestamp]>::len,
+    ) as u64
+}
+
 macro_rules! monitoring_properties {
     // Signature order differs from conversion order to preserve boundary failures.
     ($name:ident,
-     @replace $changes:ident [$($parameter:ident),+] |$slf:ident|
-     {$($field:ident: $value:expr),+ $(,)?}
+     @replace $changes:ident, $replace:ident [$($parameter:ident),+] |$slf:ident|
+     |$times:ident| {$($field:ident: $value:expr),+ $(,)?}
      [$(#[$replacement_doc:meta])*],
      $($extra:item),* $(,)?) => {
         impl $name {
-            fn replace_monitoring(&self, py: pyo3::Python<'_>, changes: kiyosi::$changes) -> pyo3::PyResult<Self> {
-                let observations = changes.observation_times.as_ref().map_or_else(
-                    || self.0.observation_schedule().map(kiyosi::ObservationSchedule::times),
-                    |times| times.as_deref(),
+            fn replace_monitoring(
+                &self,
+                py: pyo3::Python<'_>,
+                changes: kiyosi::$changes,
+                times: Option<Vec<kiyosi::Timestamp>>,
+            ) -> pyo3::PyResult<Self> {
+                let schedule = changes.observation_schedule.as_ref().map_or_else(
+                    || self.0.observation_schedule(),
+                    Option::as_ref,
                 );
-                let count = observations.map_or(0, <[kiyosi::Timestamp]>::len);
-                $crate::calendar::run_date_scan(py, count as u64, || self.0.replace(changes))
-                    .map(Self)
+                let work = $crate::instruments::monitoring_work(
+                    schedule,
+                    times.as_deref(),
+                    changes.calendar.as_ref(),
+                );
+                $crate::calendar::run_date_scan(py, work, || {
+                    kiyosi::binding_support::barrier_monitoring::$replace(&self.0, changes, times)
+                })
+                .map(Self)
             }
         }
 
@@ -82,7 +113,7 @@ macro_rules! monitoring_properties {
                     kiyosi::BarrierTouchState::Touched => "touched",
                 })
             }
-        }, py => $name::replace_monitoring);
+        }, py => $name::replace_monitoring, $times);
     };
 }
 

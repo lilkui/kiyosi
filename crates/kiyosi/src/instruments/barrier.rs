@@ -60,8 +60,8 @@ pub enum RebateTiming {
 /// Input terms, validated by [`BarrierOption::new`]. See its example.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BarrierOptionTerms {
-    /// Owns the contractual observation calendar; defaults to weekdays.
-    pub calendar: TradingCalendar,
+    /// Overrides the schedule calendar, or defaults to weekdays for continuous monitoring.
+    pub calendar: Option<TradingCalendar>,
     /// Call-or-put payoff direction.
     pub option_type: OptionType,
     /// Positive finite strike.
@@ -78,8 +78,8 @@ pub struct BarrierOptionTerms {
     pub rebate: f64,
     /// Rebate payment timing, default expiry.
     pub rebate_timing: RebateTiming,
-    /// Ordered nonempty scheduled times, or `None` for continuous monitoring.
-    pub observation_times: Option<Vec<Timestamp>>,
+    /// Supplies a nonempty observation schedule, or `None` for continuous monitoring.
+    pub observation_schedule: Option<ObservationSchedule>,
     /// Prior observations; `None` means unknown, not untouched.
     pub touch_state: Option<BarrierTouchState>,
 }
@@ -99,7 +99,7 @@ impl BarrierOptionTerms {
         barrier_type: BarrierType,
     ) -> Self {
         Self {
-            calendar: TradingCalendar::default(),
+            calendar: None,
             option_type,
             strike,
             effective_time,
@@ -108,7 +108,7 @@ impl BarrierOptionTerms {
             barrier_type,
             rebate: Self::DEFAULT_REBATE,
             rebate_timing: RebateTiming::default(),
-            observation_times: None,
+            observation_schedule: None,
             touch_state: None,
         }
     }
@@ -141,29 +141,48 @@ impl BarrierOption {
     /// life, incompatible or invalid fixing times, invalid strike, or an at-hit
     /// knock-in rebate. Diagnostic order is unspecified when several inputs are invalid.
     ///
+    /// # Panics
+    ///
+    /// Propagates panics from a custom calendar predicate when checking a calendar override.
+    ///
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{BarrierOption, BarrierOptionTerms, BarrierType, Date, OptionType};
+    /// use kiyosi::{BarrierOption, BarrierOptionTerms, BarrierType, Date,
+    ///              ObservationSchedule, OptionType, TradingCalendar};
     /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let expiry = Date::new(2026, 1, 1)?.start_of_day();
+    /// let calendar = TradingCalendar::all_days();
     /// let mut terms = BarrierOptionTerms::new(OptionType::Call, 100.0,
-    ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2026, 1, 1)?.start_of_day(), 120.0, BarrierType::UpAndOut);
-    /// terms.calendar = kiyosi::TradingCalendar::all_days();
+    ///     start, expiry, 120.0, BarrierType::UpAndOut);
+    /// terms.observation_schedule = Some(ObservationSchedule::new(
+    ///     vec![expiry], start, expiry, &calendar,
+    /// )?);
     /// let option = BarrierOption::new(terms)?;
-    /// assert_eq!(option.calendar(), &kiyosi::TradingCalendar::all_days());
+    /// assert_eq!(option.calendar(), &calendar);
+    /// assert_eq!(option.observation_schedule().map(ObservationSchedule::times),
+    ///     Some([expiry].as_slice()));
     /// assert_eq!(option.barrier_level(), 120.0);
     /// assert_eq!(option.touch_state(), None);
     /// # Ok(()) }
     /// ```
     pub fn new(terms: BarrierOptionTerms) -> Result<Self> {
+        Self::new_with_observation_times(terms, None)
+    }
+
+    pub(crate) fn new_with_observation_times(
+        terms: BarrierOptionTerms,
+        times: Option<Vec<Timestamp>>,
+    ) -> Result<Self> {
         let monitoring = Monitoring::new(
             terms.effective_time,
             terms.expiry_time,
             terms.barrier_level,
             terms.barrier_type,
-            terms.observation_times,
+            super::monitoring::MonitoringInput::new(terms.observation_schedule, times),
             terms.touch_state,
-            &terms.calendar,
+            terms.calendar,
         )?;
         let vanilla = EuropeanOption::new(
             terms.option_type,
@@ -328,8 +347,8 @@ pub struct BarrierOptionChanges {
     pub rebate: Option<f64>,
     /// Replaces [`rebate_timing`](BarrierOptionTerms::rebate_timing).
     pub rebate_timing: Option<RebateTiming>,
-    /// Replaces or clears [`observation_times`](BarrierOptionTerms::observation_times).
-    pub observation_times: Option<Option<Vec<Timestamp>>>,
+    /// Replaces or clears [`observation_schedule`](BarrierOptionTerms::observation_schedule).
+    pub observation_schedule: Option<Option<ObservationSchedule>>,
     /// Replaces [`touch_state`](BarrierOptionTerms::touch_state).
     pub touch_state: Option<Option<BarrierTouchState>>,
 }
@@ -338,12 +357,18 @@ impl BarrierOption {
     /// Returns a validated copy with the supplied terms applied.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
-    /// Set `observation_times` to `Some(None)` for continuous monitoring; omitted times are retained.
+    /// Set `observation_schedule` to `Some(None)` for continuous monitoring.
+    /// A supplied schedule provides its calendar unless `calendar` overrides it.
+    /// Clearing or omitting the schedule preserves the calendar unless explicitly overridden.
     /// See [`BarrierOption::new`] for construction examples.
     ///
     /// # Errors
     ///
     /// Reuses constructor validation for the resulting contract.
+    ///
+    /// # Panics
+    ///
+    /// Propagates panics from a custom calendar predicate when checking a calendar override.
     ///
     /// # Examples
     ///
@@ -363,21 +388,41 @@ impl BarrierOption {
     /// # Ok(()) }
     /// ```
     pub fn replace(&self, changes: BarrierOptionChanges) -> Result<Self> {
-        let updated = Self::new(BarrierOptionTerms {
-            calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
-            option_type: changes.option_type.unwrap_or(self.option_type()),
-            strike: changes.strike.unwrap_or(self.strike()),
-            effective_time: changes.effective_time.unwrap_or(self.effective_time()),
-            expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
-            barrier_level: changes.barrier_level.unwrap_or(self.barrier_level()),
-            barrier_type: changes.barrier_type.unwrap_or(self.barrier_type()),
-            rebate: changes.rebate.unwrap_or(self.rebate()),
-            rebate_timing: changes.rebate_timing.unwrap_or(self.rebate_timing()),
-            observation_times: changes
-                .observation_times
-                .unwrap_or_else(|| self.observation_times().map(<[Timestamp]>::to_vec)),
-            touch_state: changes.touch_state.unwrap_or(self.touch_state()),
-        })?;
+        self.replace_with_observation_times(changes, None)
+    }
+
+    pub(crate) fn replace_with_observation_times(
+        &self,
+        changes: BarrierOptionChanges,
+        times: Option<Vec<Timestamp>>,
+    ) -> Result<Self> {
+        let replacement = if times.is_some() {
+            Some(None)
+        } else {
+            changes.observation_schedule
+        };
+        let (observation_schedule, calendar) = super::monitoring::replace_schedule(
+            self.observation_schedule(),
+            self.calendar(),
+            replacement,
+            changes.calendar,
+        );
+        let updated = Self::new_with_observation_times(
+            BarrierOptionTerms {
+                calendar,
+                option_type: changes.option_type.unwrap_or(self.option_type()),
+                strike: changes.strike.unwrap_or(self.strike()),
+                effective_time: changes.effective_time.unwrap_or(self.effective_time()),
+                expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
+                barrier_level: changes.barrier_level.unwrap_or(self.barrier_level()),
+                barrier_type: changes.barrier_type.unwrap_or(self.barrier_type()),
+                rebate: changes.rebate.unwrap_or(self.rebate()),
+                rebate_timing: changes.rebate_timing.unwrap_or(self.rebate_timing()),
+                observation_schedule,
+                touch_state: changes.touch_state.unwrap_or(self.touch_state()),
+            },
+            times,
+        )?;
 
         Ok(updated)
     }

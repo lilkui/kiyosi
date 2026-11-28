@@ -70,6 +70,36 @@ impl ObservationSchedule {
                 ));
             }
         }
+        Self::validate_calendar(times, calendar)
+    }
+
+    pub(crate) fn for_contract(
+        mut self,
+        start_time: Timestamp,
+        end_time: Timestamp,
+        calendar: Option<TradingCalendar>,
+    ) -> Result<Self> {
+        validate_range(start_time, end_time)?;
+        if !self.is_empty() {
+            crate::cancellation::check()?;
+        }
+        if self.times().first().is_some_and(|&time| time < start_time)
+            || self.times().last().is_some_and(|&time| time > end_time)
+        {
+            return Err(Error::InvalidInput(
+                "observation times must be ordered and within life bounds".into(),
+            ));
+        }
+        if let Some(calendar) = calendar {
+            if !self.calendar.shares_trading_days(&calendar) {
+                Self::validate_calendar(self.times(), &calendar)?;
+            }
+            self.calendar = calendar;
+        }
+        Ok(self)
+    }
+
+    fn validate_calendar(times: &[Timestamp], calendar: &TradingCalendar) -> Result<()> {
         for time in times {
             crate::cancellation::check()?;
             if !calendar.is_trading_day(time.date()) {

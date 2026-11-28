@@ -14,6 +14,164 @@ pub(crate) fn validate_upper(lower: f64, upper: f64) -> Result<()> {
     Ok(())
 }
 
+pub(crate) enum MonitoringInput {
+    Schedule(Option<ObservationSchedule>),
+    Times(Vec<Timestamp>),
+}
+
+impl MonitoringInput {
+    pub(crate) fn new(
+        schedule: Option<ObservationSchedule>,
+        raw_times: Option<Vec<Timestamp>>,
+    ) -> Self {
+        match raw_times {
+            Some(times) => Self::Times(times),
+            None => Self::Schedule(schedule),
+        }
+    }
+
+    fn resolve(
+        self,
+        start: Timestamp,
+        end: Timestamp,
+        calendar: Option<TradingCalendar>,
+    ) -> Result<ObservationSchedule> {
+        let scheduled_empty = match &self {
+            Self::Schedule(schedule) => {
+                schedule.as_ref().is_some_and(ObservationSchedule::is_empty)
+            }
+            Self::Times(times) => times.is_empty(),
+        };
+        if scheduled_empty {
+            return Err(Error::InvalidInput(
+                "scheduled monitoring requires at least one observation time".into(),
+            ));
+        }
+        match self {
+            Self::Schedule(Some(schedule)) => schedule.for_contract(start, end, calendar),
+            Self::Schedule(None) => {
+                ObservationSchedule::new(Vec::new(), start, end, &calendar.unwrap_or_default())
+            }
+            Self::Times(times) => {
+                ObservationSchedule::new(times, start, end, &calendar.unwrap_or_default())
+            }
+        }
+    }
+}
+
+#[expect(
+    clippy::option_option,
+    reason = "Replacement distinguishes retaining, clearing and supplying a schedule."
+)]
+pub(crate) fn replace_schedule(
+    current: Option<&ObservationSchedule>,
+    current_calendar: &TradingCalendar,
+    replacement: Option<Option<ObservationSchedule>>,
+    calendar: Option<TradingCalendar>,
+) -> (Option<ObservationSchedule>, Option<TradingCalendar>) {
+    match replacement {
+        Some(Some(schedule)) => (Some(schedule), calendar),
+        Some(None) => (None, calendar.or_else(|| Some(current_calendar.clone()))),
+        None => {
+            let calendar = calendar.or_else(|| current.is_none().then(|| current_calendar.clone()));
+            (current.cloned(), calendar)
+        }
+    }
+}
+
+// Keep raw-iterable adapters out of the standalone contract types.
+pub mod binding {
+    use crate::{
+        BarrierOption, BarrierOptionChanges, BarrierOptionTerms, BinaryBarrierOption,
+        BinaryBarrierOptionChanges, BinaryBarrierTerms, BinaryPayoff, DoubleBarrierOption,
+        DoubleBarrierOptionChanges, DoubleBarrierOptionTerms, DoubleTouchOption,
+        DoubleTouchOptionChanges, DoubleTouchOptionTerms, ObservationSchedule, Result, Timestamp,
+        TouchOption, TouchOptionChanges, TouchOptionTerms, TradingCalendar,
+    };
+
+    #[doc(hidden)]
+    pub fn requires_calendar_scan(
+        schedule: &ObservationSchedule,
+        calendar: &TradingCalendar,
+    ) -> bool {
+        !schedule.calendar().shares_trading_days(calendar)
+    }
+
+    macro_rules! monitoring_adapter {
+        ($new:ident, $replace:ident, $option:ident, $terms:ident, $changes:ident,
+         |$input:ident, $times:ident $(, $payoff:ident : $payoff_type:ty)?| $construct:expr) => {
+            #[doc(hidden)]
+            pub fn $new(
+                $input: $terms,
+                $times: Option<Vec<Timestamp>>,
+                $($payoff: $payoff_type,)?
+            ) -> Result<$option> {
+                $construct
+            }
+
+            #[doc(hidden)]
+            pub fn $replace(
+                option: &$option,
+                changes: $changes,
+                times: Option<Vec<Timestamp>>,
+            ) -> Result<$option> {
+                option.replace_with_observation_times(changes, times)
+            }
+        };
+    }
+
+    monitoring_adapter!(
+        new_barrier,
+        replace_barrier,
+        BarrierOption,
+        BarrierOptionTerms,
+        BarrierOptionChanges,
+        |terms, times| BarrierOption::new_with_observation_times(terms, times)
+    );
+    monitoring_adapter!(
+        new_double_barrier,
+        replace_double_barrier,
+        DoubleBarrierOption,
+        DoubleBarrierOptionTerms,
+        DoubleBarrierOptionChanges,
+        |terms, times| DoubleBarrierOption::new_with_observation_times(terms, times)
+    );
+    monitoring_adapter!(
+        new_binary_barrier,
+        replace_binary_barrier,
+        BinaryBarrierOption,
+        BinaryBarrierTerms,
+        BinaryBarrierOptionChanges,
+        |terms, times, payoff: BinaryPayoff| match payoff {
+            BinaryPayoff::Cash(payout) =>
+                BinaryBarrierOption::cash_with_observation_times(terms, payout, times),
+            BinaryPayoff::Asset => BinaryBarrierOption::asset_with_observation_times(terms, times),
+        }
+    );
+    monitoring_adapter!(
+        new_touch,
+        replace_touch,
+        TouchOption,
+        TouchOptionTerms,
+        TouchOptionChanges,
+        |terms, times, payoff: BinaryPayoff| match payoff {
+            BinaryPayoff::Cash(payout) =>
+                TouchOption::cash_with_observation_times(terms, payout, times),
+            BinaryPayoff::Asset => TouchOption::asset_with_observation_times(terms, times),
+        }
+    );
+    monitoring_adapter!(
+        new_double_touch,
+        replace_double_touch,
+        DoubleTouchOption,
+        DoubleTouchOptionTerms,
+        DoubleTouchOptionChanges,
+        |terms, times, payout: f64| {
+            DoubleTouchOption::cash_with_observation_times(terms, payout, times)
+        }
+    );
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Monitoring {
     effective_time: Timestamp,
@@ -36,26 +194,16 @@ impl Monitoring {
         expiry_time: Timestamp,
         barrier_level: f64,
         barrier_type: BarrierType,
-        observation_times: Option<Vec<Timestamp>>,
+        observation_schedule: MonitoringInput,
         touch_state: Option<BarrierTouchState>,
-        calendar: &TradingCalendar,
+        calendar: Option<TradingCalendar>,
     ) -> Result<Self> {
         if !barrier_level.is_finite() || barrier_level <= 0.0 {
             return Err(Error::InvalidInput(
                 "barrier level must be finite and positive".into(),
             ));
         }
-        if observation_times.as_ref().is_some_and(Vec::is_empty) {
-            return Err(Error::InvalidInput(
-                "scheduled monitoring requires at least one observation time".into(),
-            ));
-        }
-        let schedule = ObservationSchedule::new(
-            observation_times.unwrap_or_default(),
-            effective_time,
-            expiry_time,
-            calendar,
-        )?;
+        let schedule = observation_schedule.resolve(effective_time, expiry_time, calendar)?;
         Ok(Self {
             effective_time,
             expiry_time,

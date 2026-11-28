@@ -141,8 +141,7 @@ fn schedules_retain_calendars_for_contract_composition() -> kiyosi::Result<()> {
         120.0,
         BarrierType::UpAndOut,
     );
-    terms.observation_times = Some(schedule.times().to_vec());
-    terms.calendar = schedule.calendar().clone();
+    terms.observation_schedule = Some(schedule.clone());
     let option = BarrierOption::new(terms)?;
     let updated = option.replace(kiyosi::BarrierOptionChanges {
         calendar: Some(TradingCalendar::all_days()),
@@ -178,15 +177,15 @@ fn barrier_schedule_accessors_distinguish_continuous_and_scheduled_monitoring() 
     macro_rules! check {
         ($terms:expr, $constructor:path $(, $payout:expr)?) => {{
             let mut terms = $terms;
-            terms.calendar = calendar.clone();
+            terms.calendar = Some(calendar.clone());
             for times in [None, Some(vec![end])] {
-                terms.observation_times = times.clone();
+                terms.observation_schedule = times.clone().map(|times| ObservationSchedule::new(times, start, end, &calendar)).transpose()?;
                 let option = $constructor(terms.clone() $(, $payout)?)?;
                 assert_eq!(option.observation_schedule().map(ObservationSchedule::times), times.as_deref());
                 if let Some(schedule) = option.observation_schedule() {
                     assert_eq!(schedule.calendar(), &calendar);
-                    terms.observation_times = Some(schedule.times().to_vec());
-                    terms.calendar = schedule.calendar().clone();
+                    terms.observation_schedule = Some(schedule.clone());
+                    terms.calendar = None;
                     assert_eq!($constructor(terms.clone() $(, $payout)?)?, option);
                 }
             }

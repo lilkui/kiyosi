@@ -1,3 +1,7 @@
+#[path = "support/observation_schedule.rs"]
+mod schedule_fixture;
+use schedule_fixture::schedule as fixture_schedule;
+
 use kiyosi::*;
 
 fn terms(kind: DoubleBarrierType, direction: OptionType) -> DoubleBarrierOptionTerms {
@@ -148,7 +152,7 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
     for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
         assert_eq!(result.get(greek), Some(0.0), "{greek:?} at expiry");
     }
-    t.observation_times = Some(vec![t.expiry_time]);
+    t.observation_schedule = Some(fixture_schedule(vec![t.expiry_time], t.calendar.as_ref()));
     assert!(matches!(
         engine
             .price(&DoubleBarrierOption::new(t).unwrap(), &market(100.0))
@@ -223,7 +227,10 @@ fn native_and_mixed_greeks_match_scalar_stencils_and_solver_preserves_inputs() {
 fn node_curves_align_with_observations_and_preserve_rebate_discounts() {
     let mut t = terms(DoubleBarrierType::KnockOut, OptionType::Call);
     let first = Date::new(2025, 4, 2).unwrap().start_of_day();
-    t.observation_times = Some(vec![first, t.expiry_time]);
+    t.observation_schedule = Some(fixture_schedule(
+        vec![first, t.expiry_time],
+        t.calendar.as_ref(),
+    ));
     t.rebate = 7.0;
     let curve = RateTermStructure::new(
         t.effective_time,
@@ -280,7 +287,7 @@ fn node_curves_align_with_observations_and_preserve_rebate_discounts() {
 #[test]
 fn scheduled_explicit_stability_preserves_the_uniform_grid_boundary() {
     let mut t = terms(DoubleBarrierType::KnockOut, OptionType::Call);
-    t.observation_times = Some(vec![t.expiry_time]);
+    t.observation_schedule = Some(fixture_schedule(vec![t.expiry_time], t.calendar.as_ref()));
     let option = DoubleBarrierOption::new(t).unwrap();
     let settings = FiniteDifferenceSettings {
         asset_step_count: 200,
@@ -346,7 +353,7 @@ fn one_two_and_early_fixings_match_independent_lognormal_integrals() {
                 .into_iter()
                 .enumerate()
             {
-                t.observation_times = Some(dates);
+                t.observation_schedule = Some(fixture_schedule(dates, t.calendar.as_ref()));
                 let option = DoubleBarrierOption::new(t.clone()).unwrap();
                 let actual = engine.price(&option, &market(100.25)).unwrap();
                 assert!(
@@ -371,7 +378,10 @@ fn narrow_interim_event_cells_remain_positive_and_converge() {
         t.strike = 80.0;
         t.lower_barrier = lower;
         t.upper_barrier = upper;
-        t.observation_times = Some(vec![Date::new(2025, 6, 30).unwrap().start_of_day()]);
+        t.observation_schedule = Some(fixture_schedule(
+            vec![Date::new(2025, 6, 30).unwrap().start_of_day()],
+            t.calendar.as_ref(),
+        ));
         let option = DoubleBarrierOption::new(t).unwrap();
         for scheme in [
             FiniteDifferenceScheme::CrankNicolson,

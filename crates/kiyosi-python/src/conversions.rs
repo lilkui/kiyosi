@@ -261,6 +261,27 @@ pub(crate) fn date(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Date> {
     ))
 }
 
+type MonitoringSchedule = (
+    Option<Option<kiyosi::ObservationSchedule>>,
+    Option<Vec<kiyosi::Timestamp>>,
+);
+
+pub(crate) fn monitoring_schedule(
+    value: Option<&Bound<'_, PyAny>>,
+) -> PyResult<MonitoringSchedule> {
+    let Some(value) = value else {
+        return Ok((None, None));
+    };
+    if value.is_none() {
+        Ok((Some(None), None))
+    } else if let Ok(schedule) = value.extract::<PyRef<'_, crate::schedule::ObservationSchedule>>()
+    {
+        Ok((Some(Some(schedule.0.clone())), None))
+    } else {
+        Ok((Some(None), Some(timestamps(value)?)))
+    }
+}
+
 pub(crate) fn optional_timestamps(
     value: &Bound<'_, PyAny>,
 ) -> PyResult<Option<Vec<kiyosi::Timestamp>>> {

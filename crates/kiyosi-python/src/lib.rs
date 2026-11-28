@@ -46,7 +46,7 @@ macro_rules! value_methods {
     };
     (@documented $name:ident, $changes:ident, [$($parameter:ident),+], |$slf:ident|
      {$($field:ident: $value:expr),+ $(,)?}, [$(#[$doc:meta])*], {$($method:item)*}
-     $(, $py:ident => $replace:path)?) => {
+     $(, $py:ident => $replace:path $(, $extra:ident)?)?) => {
         #[pyo3::pymethods]
         impl $name {
             #[classattr]
@@ -61,8 +61,9 @@ macro_rules! value_methods {
                 $(#[pyo3(from_py_with = crate::conversions::supplied)]
                     $parameter: Option<&pyo3::Bound<'_, pyo3::PyAny>>),+
             ) -> pyo3::PyResult<Self> {
+                $($(let $extra;)?)?
                 let changes = kiyosi::$changes { $($field: $value),+ };
-                value_methods!(@apply $slf, changes $(, $py => $replace)?)
+                value_methods!(@apply $slf, changes $(, $py => $replace $(, $extra)?)?)
             }
 
             $($method)*
@@ -71,8 +72,8 @@ macro_rules! value_methods {
     (@apply $slf:ident, $changes:ident) => {
         Ok(Self($crate::error::domain($slf.0.replace($changes))?))
     };
-    (@apply $slf:ident, $changes:ident, $py:ident => $replace:path) => {
-        $replace($slf, $py, $changes)
+    (@apply $slf:ident, $changes:ident, $py:ident => $replace:path $(, $extra:ident)?) => {
+        $replace($slf, $py, $changes $(, $extra)?)
     };
 }
 

@@ -1,3 +1,7 @@
+#[path = "support/observation_schedule.rs"]
+mod schedule_fixture;
+use schedule_fixture::schedule as fixture_schedule;
+
 use kiyosi::*;
 
 fn dates() -> (Timestamp, Timestamp) {
@@ -239,8 +243,10 @@ fn constant_surface_matches_single_and_double_barrier_states() {
                     terms.rebate_timing = timing;
 
                     if scheduled {
-                        terms.observation_times =
-                            Some(vec![Date::new(2025, 6, 30).unwrap().start_of_day(), end]);
+                        terms.observation_schedule = Some(fixture_schedule(
+                            vec![Date::new(2025, 6, 30).unwrap().start_of_day(), end],
+                            terms.calendar.as_ref(),
+                        ));
                     }
                     let option = BarrierOption::new(terms).unwrap();
                     let expected = single.price_with_greeks(&option, &bsm, request()).unwrap();
@@ -262,8 +268,10 @@ fn constant_surface_matches_single_and_double_barrier_states() {
                     terms.rebate_timing = timing;
 
                     if scheduled {
-                        terms.observation_times =
-                            Some(vec![Date::new(2025, 6, 30).unwrap().start_of_day(), end]);
+                        terms.observation_schedule = Some(fixture_schedule(
+                            vec![Date::new(2025, 6, 30).unwrap().start_of_day(), end],
+                            terms.calendar.as_ref(),
+                        ));
                     }
                     let option = DoubleBarrierOption::new(terms).unwrap();
                     let expected = double.price_with_greeks(&option, &bsm, request()).unwrap();

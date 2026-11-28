@@ -16,8 +16,8 @@ pub enum DoubleBarrierType {
 /// Input terms validated by [`DoubleBarrierOption::new`]; see its example.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DoubleBarrierOptionTerms {
-    /// Owns the contractual observation calendar; defaults to weekdays.
-    pub calendar: TradingCalendar,
+    /// Overrides the schedule calendar, or defaults to weekdays for continuous monitoring.
+    pub calendar: Option<TradingCalendar>,
     /// Call-or-put payoff direction.
     pub option_type: OptionType,
     /// Positive finite strike.
@@ -36,8 +36,8 @@ pub struct DoubleBarrierOptionTerms {
     pub rebate: f64,
     /// Rebate payment timing, default expiry.
     pub rebate_timing: RebateTiming,
-    /// Ordered nonempty scheduled times, or `None` for continuous monitoring.
-    pub observation_times: Option<Vec<Timestamp>>,
+    /// Supplies a nonempty observation schedule, or `None` for continuous monitoring.
+    pub observation_schedule: Option<ObservationSchedule>,
     /// Prior observations; `None` means unknown, not untouched.
     pub touch_state: Option<BarrierTouchState>,
 }
@@ -55,7 +55,7 @@ impl DoubleBarrierOptionTerms {
         barrier_type: DoubleBarrierType,
     ) -> Self {
         Self {
-            calendar: TradingCalendar::default(),
+            calendar: None,
             option_type,
             strike,
             effective_time,
@@ -65,7 +65,7 @@ impl DoubleBarrierOptionTerms {
             barrier_type,
             rebate: BarrierOptionTerms::DEFAULT_REBATE,
             rebate_timing: RebateTiming::default(),
-            observation_times: None,
+            observation_schedule: None,
             touch_state: None,
         }
     }
@@ -96,6 +96,10 @@ impl DoubleBarrierOption {
     /// then reuses [`BarrierOption::new`] categories and validation order.
     /// At-hit knock-in rebates are invalid even when zero.
     ///
+    /// # Panics
+    ///
+    /// Propagates panics from a custom calendar predicate when checking a calendar override.
+    ///
     /// # Examples
     ///
     /// ```rust
@@ -109,6 +113,13 @@ impl DoubleBarrierOption {
     /// # Ok(()) }
     /// ```
     pub fn new(terms: DoubleBarrierOptionTerms) -> Result<Self> {
+        Self::new_with_observation_times(terms, None)
+    }
+
+    pub(crate) fn new_with_observation_times(
+        terms: DoubleBarrierOptionTerms,
+        times: Option<Vec<Timestamp>>,
+    ) -> Result<Self> {
         super::monitoring::validate_upper(terms.lower_barrier, terms.upper_barrier)?;
         let mut lower = BarrierOptionTerms::new(
             terms.option_type,
@@ -125,10 +136,10 @@ impl DoubleBarrierOption {
         lower.calendar = terms.calendar;
         lower.rebate = terms.rebate;
         lower.rebate_timing = terms.rebate_timing;
-        lower.observation_times = terms.observation_times;
+        lower.observation_schedule = terms.observation_schedule;
         lower.touch_state = terms.touch_state;
         Ok(Self {
-            lower: BarrierOption::new(lower)?,
+            lower: BarrierOption::new_with_observation_times(lower, times)?,
             upper: terms.upper_barrier,
         })
     }
@@ -286,8 +297,8 @@ pub struct DoubleBarrierOptionChanges {
     pub rebate: Option<f64>,
     /// Replaces [`rebate_timing`](DoubleBarrierOptionTerms::rebate_timing).
     pub rebate_timing: Option<RebateTiming>,
-    /// Replaces or clears [`observation_times`](DoubleBarrierOptionTerms::observation_times).
-    pub observation_times: Option<Option<Vec<Timestamp>>>,
+    /// Replaces or clears [`observation_schedule`](DoubleBarrierOptionTerms::observation_schedule).
+    pub observation_schedule: Option<Option<ObservationSchedule>>,
     /// Replaces [`touch_state`](DoubleBarrierOptionTerms::touch_state).
     pub touch_state: Option<Option<BarrierTouchState>>,
 }
@@ -296,29 +307,55 @@ impl DoubleBarrierOption {
     /// Returns a validated copy with the supplied terms applied.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
-    /// Set `observation_times` to `Some(None)` for continuous monitoring; omitted times are retained.
+    /// Set `observation_schedule` to `Some(None)` for continuous monitoring.
+    /// A supplied schedule provides its calendar unless `calendar` overrides it.
+    /// Clearing or omitting the schedule preserves the calendar unless explicitly overridden.
     /// See [`DoubleBarrierOption::new`] for construction examples.
     ///
     /// # Errors
     ///
     /// Reuses constructor validation for the resulting contract.
+    ///
+    /// # Panics
+    ///
+    /// Propagates panics from a custom calendar predicate when checking a calendar override.
     pub fn replace(&self, changes: DoubleBarrierOptionChanges) -> Result<Self> {
-        let updated = Self::new(DoubleBarrierOptionTerms {
-            calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
-            option_type: changes.option_type.unwrap_or(self.option_type()),
-            strike: changes.strike.unwrap_or(self.strike()),
-            effective_time: changes.effective_time.unwrap_or(self.effective_time()),
-            expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
-            lower_barrier: changes.lower_barrier.unwrap_or(self.lower_barrier()),
-            upper_barrier: changes.upper_barrier.unwrap_or(self.upper_barrier()),
-            barrier_type: changes.barrier_type.unwrap_or(self.barrier_type()),
-            rebate: changes.rebate.unwrap_or(self.rebate()),
-            rebate_timing: changes.rebate_timing.unwrap_or(self.rebate_timing()),
-            observation_times: changes
-                .observation_times
-                .unwrap_or_else(|| self.observation_times().map(<[Timestamp]>::to_vec)),
-            touch_state: changes.touch_state.unwrap_or(self.touch_state()),
-        })?;
+        self.replace_with_observation_times(changes, None)
+    }
+
+    pub(crate) fn replace_with_observation_times(
+        &self,
+        changes: DoubleBarrierOptionChanges,
+        times: Option<Vec<Timestamp>>,
+    ) -> Result<Self> {
+        let replacement = if times.is_some() {
+            Some(None)
+        } else {
+            changes.observation_schedule
+        };
+        let (observation_schedule, calendar) = super::monitoring::replace_schedule(
+            self.observation_schedule(),
+            self.calendar(),
+            replacement,
+            changes.calendar,
+        );
+        let updated = Self::new_with_observation_times(
+            DoubleBarrierOptionTerms {
+                calendar,
+                option_type: changes.option_type.unwrap_or(self.option_type()),
+                strike: changes.strike.unwrap_or(self.strike()),
+                effective_time: changes.effective_time.unwrap_or(self.effective_time()),
+                expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
+                lower_barrier: changes.lower_barrier.unwrap_or(self.lower_barrier()),
+                upper_barrier: changes.upper_barrier.unwrap_or(self.upper_barrier()),
+                barrier_type: changes.barrier_type.unwrap_or(self.barrier_type()),
+                rebate: changes.rebate.unwrap_or(self.rebate()),
+                rebate_timing: changes.rebate_timing.unwrap_or(self.rebate_timing()),
+                observation_schedule,
+                touch_state: changes.touch_state.unwrap_or(self.touch_state()),
+            },
+            times,
+        )?;
 
         Ok(updated)
     }

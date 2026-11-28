@@ -1,3 +1,7 @@
+#[path = "support/observation_schedule.rs"]
+mod schedule_fixture;
+use schedule_fixture::schedule as fixture_schedule;
+
 use kiyosi::*;
 
 #[test]
@@ -25,8 +29,11 @@ fn sparse_barrier_rolls_back_a_tree_above_the_full_rollback_limit() -> Result<()
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = start.add_days(365)?;
     let option = BarrierOption::new(BarrierOptionTerms {
-        calendar: TradingCalendar::all_days(),
-        observation_times: Some(vec![start.add_days(73)?, end]),
+        calendar: Some(TradingCalendar::all_days()),
+        observation_schedule: Some(fixture_schedule(
+            vec![start.add_days(73)?, end],
+            Some(&TradingCalendar::all_days()),
+        )),
         rebate: 2.0,
         ..BarrierOptionTerms::new(
             OptionType::Call,
@@ -65,14 +72,17 @@ fn reflected_tree_matches_rollback_with_every_node_observed() -> Result<()> {
                 }
                 let input = BarrierOptionTerms {
                     expiry_time: end,
-                    calendar: TradingCalendar::all_days(),
+                    calendar: Some(TradingCalendar::all_days()),
                     rebate: 7.0,
                     rebate_timing: timing,
                     ..terms(kind, 10)
                 };
                 let continuous = BarrierOption::new(input.clone())?;
                 let scheduled = BarrierOption::new(BarrierOptionTerms {
-                    observation_times: Some(dates.clone()),
+                    observation_schedule: Some(fixture_schedule(
+                        dates.clone(),
+                        Some(&TradingCalendar::all_days()),
+                    )),
                     ..input
                 })?;
                 let fast = engine.price_with_greeks(&continuous, &context, request)?;
@@ -103,7 +113,7 @@ fn barrier_crr_prices_an_expiry_only_observation() {
         101.0,
         BarrierType::UpAndOut,
     );
-    terms.observation_times = Some(vec![end]);
+    terms.observation_schedule = Some(fixture_schedule(vec![end], terms.calendar.as_ref()));
     terms.rebate = 2.0;
     let option = BarrierOption::new(terms).unwrap();
     let context = PricingContext::new(
@@ -124,8 +134,11 @@ fn expiry_only_barrier_prices_a_tree_above_the_rollback_limit() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = start.add_days(365)?;
     let option = BarrierOption::new(BarrierOptionTerms {
-        calendar: TradingCalendar::all_days(),
-        observation_times: Some(vec![end]),
+        calendar: Some(TradingCalendar::all_days()),
+        observation_schedule: Some(fixture_schedule(
+            vec![end],
+            Some(&TradingCalendar::all_days()),
+        )),
         rebate: 2.0,
         ..BarrierOptionTerms::new(
             OptionType::Call,
@@ -290,10 +303,13 @@ fn prices_and_node_greeks_match_independent_paths_across_supported_terms() {
                             t.barrier_level =
                                 100.0 * (if is_up(kind) { 1.5 * jump } else { -1.5 * jump }).exp();
                             if scheduled {
-                                t.observation_times = Some(vec![t.expiry_time]);
+                                t.observation_schedule = Some(fixture_schedule(
+                                    vec![t.expiry_time],
+                                    Some(&TradingCalendar::all_days()),
+                                ));
                             }
                             let option = BarrierOption::new(BarrierOptionTerms {
-                                calendar: TradingCalendar::all_days(),
+                                calendar: Some(TradingCalendar::all_days()),
                                 ..t
                             })
                             .unwrap();
@@ -348,7 +364,10 @@ fn exact_intraday_alignment_early_ending_monitoring_and_node_equality() {
         let mut t = terms(kind, 4);
         t.barrier_level = 100.0;
         t.rebate = 2.0;
-        t.observation_times = Some(vec![Date::new(2025, 1, 3).unwrap().start_of_day()]);
+        t.observation_schedule = Some(fixture_schedule(
+            vec![Date::new(2025, 1, 3).unwrap().start_of_day()],
+            t.calendar.as_ref(),
+        ));
         let context = market(
             Timestamp::new(t.effective_time.date(), 12, 0, 0, 0).unwrap(),
             100.0,
@@ -396,7 +415,10 @@ fn exact_intraday_alignment_early_ending_monitoring_and_node_equality() {
             };
             let jump = sigma * (1.0_f64 / 365.0).sqrt();
             t.barrier_level = 100.0 * (if up { jump } else { -jump }).exp();
-            t.observation_times = Some(vec![Date::new(2025, 1, 2).unwrap().start_of_day()]);
+            t.observation_schedule = Some(fixture_schedule(
+                vec![Date::new(2025, 1, 2).unwrap().start_of_day()],
+                t.calendar.as_ref(),
+            ));
             let context = market(t.effective_time, 100.0, 0.04, sigma);
             let option = BarrierOption::new(t).unwrap();
             let engine =
@@ -476,11 +498,14 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
     t.barrier_level = 120.0;
     t.rebate = 3.0;
     t.rebate_timing = RebateTiming::AtHit;
-    t.observation_times = Some(vec![
-        t.effective_time,
-        Date::new(2025, 1, 2).unwrap().start_of_day(),
-        t.expiry_time,
-    ]);
+    t.observation_schedule = Some(fixture_schedule(
+        vec![
+            t.effective_time,
+            Date::new(2025, 1, 2).unwrap().start_of_day(),
+            t.expiry_time,
+        ],
+        Some(&TradingCalendar::all_days()),
+    ));
     let context = market(
         Timestamp::new(t.effective_time.date(), 12, 0, 0, 0).unwrap(),
         100.0,
@@ -488,7 +513,7 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
         0.2,
     );
     let unknown = BarrierOption::new(BarrierOptionTerms {
-        calendar: TradingCalendar::all_days(),
+        calendar: Some(TradingCalendar::all_days()),
         ..t.clone()
     })
     .unwrap();
@@ -580,15 +605,25 @@ fn resolved_states_expiry_and_original_fixing_times_match_analytic_settlement() 
         let mut t = terms(kind, 10);
         t.barrier_level = 100.0;
         t.rebate = 3.0;
-        t.observation_times = Some(vec![Date::new(2025, 1, 3).unwrap().start_of_day()]);
+        t.observation_schedule = Some(fixture_schedule(
+            vec![Date::new(2025, 1, 3).unwrap().start_of_day()],
+            t.calendar.as_ref(),
+        ));
         let option = BarrierOption::new(t.clone()).unwrap();
         let engine = CoxRossRubinsteinBarrierEngine::default();
         for time in [
-            t.observation_times.as_ref().unwrap()[0],
-            Timestamp::new(t.observation_times.as_ref().unwrap()[0].date(), 12, 0, 0, 0).unwrap(),
+            t.observation_schedule.as_ref().unwrap().times()[0],
+            Timestamp::new(
+                t.observation_schedule.as_ref().unwrap().times()[0].date(),
+                12,
+                0,
+                0,
+                0,
+            )
+            .unwrap(),
             t.expiry_time,
         ] {
-            let option = if time > t.observation_times.as_ref().unwrap()[0] {
+            let option = if time > t.observation_schedule.as_ref().unwrap().times()[0] {
                 option
                     .replace(BarrierOptionChanges {
                         touch_state: Some(Some(BarrierTouchState::Untouched)),
@@ -608,12 +643,12 @@ fn resolved_states_expiry_and_original_fixing_times_match_analytic_settlement() 
             );
             if time == t.expiry_time {
                 assert_eq!(result.get(Greek::Theta), None);
-            } else if time == t.observation_times.as_ref().unwrap()[0] {
+            } else if time == t.observation_schedule.as_ref().unwrap().times()[0] {
                 assert_eq!(result.get(Greek::Delta), None);
                 assert_eq!(result.get(Greek::Gamma), None);
             }
         }
-        t.observation_times = None;
+        t.observation_schedule = None;
         for history in [BarrierTouchState::Untouched, BarrierTouchState::Touched] {
             t.touch_state = Some(history);
             for spot in [90.0, 100.0, 110.0] {
@@ -750,8 +785,11 @@ fn dense_scheduled_barriers_roll_back_above_the_full_tree_limit() -> Result<()> 
     let tree = CoxRossRubinsteinBarrierEngine::new(BinomialSettings { step_count: 18_000 })?;
     for kind in [BarrierType::DownAndOut, BarrierType::DownAndIn] {
         let option = BarrierOption::new(BarrierOptionTerms {
-            calendar: TradingCalendar::all_days(),
-            observation_times: Some(observations.clone()),
+            calendar: Some(TradingCalendar::all_days()),
+            observation_schedule: Some(fixture_schedule(
+                observations.clone(),
+                Some(&TradingCalendar::all_days()),
+            )),
             rebate: 2.0,
             ..BarrierOptionTerms::new(OptionType::Call, 100.0, start, end, 80.0, kind)
         })?;

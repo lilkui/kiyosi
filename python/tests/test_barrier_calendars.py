@@ -164,8 +164,25 @@ def test_barrier_calendars_are_owned_and_preserved_by_replacement(subtests):
             assert owned == factory(
                 **common, **fields, calendar=market.TradingCalendar.all_days()
             )
+            schedule = owned.observation_schedule
+            assert schedule is not None
+            assert schedule.times == tuple(common["observation_schedule"])
             assert owned.replace() == owned
-            assert owned.replace() == owned
+            continuous = owned.replace(observation_schedule=None)
+            assert continuous.calendar == market.TradingCalendar.all_days()
+            weekdays = continuous.replace(calendar=market.TradingCalendar.weekdays())
+            assert weekdays.replace(observation_schedule=schedule) == owned
+            assert (
+                factory(**(common | {"observation_schedule": schedule}), **fields)
+                == owned
+            )
+            with pytest.raises(InvalidInputError, match="not a trading day"):
+                owned.replace(
+                    observation_schedule=schedule,
+                    calendar=market.TradingCalendar.weekdays(),
+                )
+            with pytest.raises(InvalidInputError, match="within life bounds"):
+                owned.replace(expiry_time=start)
             assert "all_days" in repr(owned)
             assert "calendar" in inspect.signature(factory).parameters
             for invalid in (None, True, "all_days"):
@@ -173,3 +190,18 @@ def test_barrier_calendars_are_owned_and_preserved_by_replacement(subtests):
                     original.replace(calendar=invalid)
             for engine in engines:
                 assert engine.price(owned, context) == engine.price(original, context)
+
+
+def test_raw_barrier_schedule_preserves_contract_validation_order():
+    common = {
+        "option_type": "call",
+        "effective_time": datetime(2025, 1, 3),
+        "expiry_time": datetime(2025, 1, 5),
+        "barrier_level": 120,
+        "barrier_type": "up_and_out",
+        "observation_schedule": [datetime(2025, 1, 4)],
+    }
+    with pytest.raises(InvalidInputError, match="not a trading day"):
+        ins.BarrierOption(**common, strike=-1)
+    with pytest.raises(InvalidInputError, match="payout"):
+        ins.BinaryBarrierOption(**common, strike=100, payoff_type="cash", payout=0)

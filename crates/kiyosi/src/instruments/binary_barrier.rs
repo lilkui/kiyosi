@@ -38,8 +38,8 @@ pub enum SettlementTiming {
 /// Validated by [`BinaryBarrierOption::cash`] or [`BinaryBarrierOption::asset`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct BinaryBarrierTerms {
-    /// Owns the contractual observation calendar; defaults to weekdays.
-    pub calendar: TradingCalendar,
+    /// Overrides the schedule calendar, or defaults to weekdays for continuous monitoring.
+    pub calendar: Option<TradingCalendar>,
     /// Call-or-put payoff direction.
     pub option_type: OptionType,
     /// Positive finite strike; terminal equality pays zero.
@@ -52,8 +52,8 @@ pub struct BinaryBarrierTerms {
     pub barrier_level: f64,
     /// Trigger direction and activation behavior.
     pub barrier_type: BarrierType,
-    /// Ordered nonempty scheduled times, or `None` for continuous monitoring.
-    pub observation_times: Option<Vec<Timestamp>>,
+    /// Supplies a nonempty observation schedule, or `None` for continuous monitoring.
+    pub observation_schedule: Option<ObservationSchedule>,
     /// Observations strictly before valuation; `None` means unknown.
     pub touch_state: Option<BarrierTouchState>,
 }
@@ -70,26 +70,26 @@ impl BinaryBarrierTerms {
         barrier_type: BarrierType,
     ) -> Self {
         Self {
-            calendar: TradingCalendar::default(),
+            calendar: None,
             option_type,
             strike,
             effective_time,
             expiry_time,
             barrier_level,
             barrier_type,
-            observation_times: None,
+            observation_schedule: None,
             touch_state: None,
         }
     }
-    fn monitoring(self) -> Result<Monitoring> {
+    fn monitoring(self, times: Option<Vec<Timestamp>>) -> Result<Monitoring> {
         Monitoring::new(
             self.effective_time,
             self.expiry_time,
             self.barrier_level,
             self.barrier_type,
-            self.observation_times,
+            super::monitoring::MonitoringInput::new(self.observation_schedule, times),
             self.touch_state,
-            &self.calendar,
+            self.calendar,
         )
     }
 }
@@ -114,6 +114,10 @@ impl BinaryBarrierOption {
     /// barrier, fixing times or calendar compatibility, checked in that order.
     /// History relative to valuation is checked during pricing.
     ///
+    /// # Panics
+    ///
+    /// Propagates panics from a custom calendar predicate when checking a calendar override.
+    ///
     /// # Examples
     ///
     /// ```rust
@@ -126,6 +130,14 @@ impl BinaryBarrierOption {
     /// # Ok(()) }
     /// ```
     pub fn cash(terms: BinaryBarrierTerms, payout: f64) -> Result<Self> {
+        Self::cash_with_observation_times(terms, payout, None)
+    }
+
+    pub(crate) fn cash_with_observation_times(
+        terms: BinaryBarrierTerms,
+        payout: f64,
+        times: Option<Vec<Timestamp>>,
+    ) -> Result<Self> {
         let digital = DigitalOption::cash_or_nothing(
             terms.option_type,
             terms.strike,
@@ -134,7 +146,7 @@ impl BinaryBarrierOption {
             terms.expiry_time,
         )?;
         Ok(Self {
-            monitoring: terms.monitoring()?,
+            monitoring: terms.monitoring(times)?,
             digital,
         })
     }
@@ -143,6 +155,10 @@ impl BinaryBarrierOption {
     /// # Errors
     ///
     /// Reuses [`Self::cash`] validation without a cash payout.
+    ///
+    /// # Panics
+    ///
+    /// Propagates panics from a custom calendar predicate when checking a calendar override.
     ///
     /// # Examples
     ///
@@ -155,6 +171,13 @@ impl BinaryBarrierOption {
     /// # Ok(()) }
     /// ```
     pub fn asset(terms: BinaryBarrierTerms) -> Result<Self> {
+        Self::asset_with_observation_times(terms, None)
+    }
+
+    pub(crate) fn asset_with_observation_times(
+        terms: BinaryBarrierTerms,
+        times: Option<Vec<Timestamp>>,
+    ) -> Result<Self> {
         let digital = DigitalOption::asset_or_nothing(
             terms.option_type,
             terms.strike,
@@ -162,7 +185,7 @@ impl BinaryBarrierOption {
             terms.expiry_time,
         )?;
         Ok(Self {
-            monitoring: terms.monitoring()?,
+            monitoring: terms.monitoring(times)?,
             digital,
         })
     }
@@ -183,8 +206,8 @@ impl BinaryBarrierOption {
 /// Strike-free touch inputs; validated by [`TouchOption::cash`] or [`TouchOption::asset`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct TouchOptionTerms {
-    /// Owns the contractual observation calendar; defaults to weekdays.
-    pub calendar: TradingCalendar,
+    /// Overrides the schedule calendar, or defaults to weekdays for continuous monitoring.
+    pub calendar: Option<TradingCalendar>,
     /// Inclusive effective time.
     pub effective_time: Timestamp,
     /// Inclusive expiry timestamp.
@@ -195,8 +218,8 @@ pub struct TouchOptionTerms {
     pub barrier_type: BarrierType,
     /// Payment timing, default expiry; at-hit requires one-touch.
     pub settlement_timing: SettlementTiming,
-    /// Ordered nonempty scheduled times, or `None` for continuous monitoring.
-    pub observation_times: Option<Vec<Timestamp>>,
+    /// Supplies a nonempty observation schedule, or `None` for continuous monitoring.
+    pub observation_schedule: Option<ObservationSchedule>,
     /// Observations strictly before valuation; `None` means unknown.
     pub touch_state: Option<BarrierTouchState>,
 }
@@ -211,17 +234,17 @@ impl TouchOptionTerms {
         barrier_type: BarrierType,
     ) -> Self {
         Self {
-            calendar: TradingCalendar::default(),
+            calendar: None,
             effective_time,
             expiry_time,
             barrier_level,
             barrier_type,
             settlement_timing: SettlementTiming::default(),
-            observation_times: None,
+            observation_schedule: None,
             touch_state: None,
         }
     }
-    fn monitoring(self) -> Result<Monitoring> {
+    fn monitoring(self, times: Option<Vec<Timestamp>>) -> Result<Monitoring> {
         if self.settlement_timing == SettlementTiming::AtHit && !self.barrier_type.is_knock_in() {
             return Err(Error::InvalidInput(
                 "at-hit settlement requires a one-touch".into(),
@@ -232,9 +255,9 @@ impl TouchOptionTerms {
             self.expiry_time,
             self.barrier_level,
             self.barrier_type,
-            self.observation_times,
+            super::monitoring::MonitoringInput::new(self.observation_schedule, times),
             self.touch_state,
-            &self.calendar,
+            self.calendar,
         )
     }
 }
@@ -259,6 +282,10 @@ impl TouchOption {
     /// Returns [`Error::InvalidInput`] for invalid positive payout or barrier,
     /// reversed life, invalid fixings, or at-hit no-touch settlement.
     ///
+    /// # Panics
+    ///
+    /// Propagates panics from a custom calendar predicate when checking a calendar override.
+    ///
     /// # Examples
     ///
     /// ```rust
@@ -271,6 +298,14 @@ impl TouchOption {
     /// # Ok(()) }
     /// ```
     pub fn cash(terms: TouchOptionTerms, payout: f64) -> Result<Self> {
+        Self::cash_with_observation_times(terms, payout, None)
+    }
+
+    pub(crate) fn cash_with_observation_times(
+        terms: TouchOptionTerms,
+        payout: f64,
+        times: Option<Vec<Timestamp>>,
+    ) -> Result<Self> {
         if !payout.is_finite() || payout <= 0.0 {
             return Err(Error::InvalidInput(
                 "payout must be finite and positive".into(),
@@ -278,7 +313,7 @@ impl TouchOption {
         }
         let settlement_timing = terms.settlement_timing;
         Ok(Self {
-            monitoring: terms.monitoring()?,
+            monitoring: terms.monitoring(times)?,
             payout: Some(payout),
             settlement_timing,
         })
@@ -290,6 +325,10 @@ impl TouchOption {
     /// # Errors
     ///
     /// Reuses [`Self::cash`] validation without a cash payout.
+    ///
+    /// # Panics
+    ///
+    /// Propagates panics from a custom calendar predicate when checking a calendar override.
     ///
     /// # Examples
     ///
@@ -303,9 +342,16 @@ impl TouchOption {
     /// # Ok(()) }
     /// ```
     pub fn asset(terms: TouchOptionTerms) -> Result<Self> {
+        Self::asset_with_observation_times(terms, None)
+    }
+
+    pub(crate) fn asset_with_observation_times(
+        terms: TouchOptionTerms,
+        times: Option<Vec<Timestamp>>,
+    ) -> Result<Self> {
         let settlement_timing = terms.settlement_timing;
         Ok(Self {
-            monitoring: terms.monitoring()?,
+            monitoring: terms.monitoring(times)?,
             payout: None,
             settlement_timing,
         })
@@ -352,9 +398,6 @@ macro_rules! monitoring_accessors {
             /// Borrows scheduled times, or returns `None` for continuous monitoring.
             ///
             /// See [`Self::observation_schedule`] for access to the schedule with its calendar.
-            fn observation_times(&self) -> Option<&[Timestamp]> {
-                (!self.monitoring.continuous()).then(|| self.monitoring.observation_times())
-            }
             /// Returns strictly prior touch history; see [`Self::replace`].
             pub fn touch_state(&self) -> Option<BarrierTouchState> {
                 self.monitoring.touch_state()
@@ -513,8 +556,8 @@ pub struct BinaryBarrierOptionChanges {
     pub barrier_level: Option<f64>,
     /// Replaces [`barrier_type`](BinaryBarrierTerms::barrier_type).
     pub barrier_type: Option<BarrierType>,
-    /// Replaces or clears [`observation_times`](BinaryBarrierTerms::observation_times).
-    pub observation_times: Option<Option<Vec<Timestamp>>>,
+    /// Replaces or clears [`observation_schedule`](BinaryBarrierTerms::observation_schedule).
+    pub observation_schedule: Option<Option<ObservationSchedule>>,
     /// Replaces [`touch_state`](BinaryBarrierTerms::touch_state).
     pub touch_state: Option<Option<BarrierTouchState>>,
     /// Replaces settlement explicitly with cash or the asset.
@@ -526,33 +569,56 @@ impl BinaryBarrierOption {
     /// Returns a validated copy with the supplied terms applied.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
-    /// Set `observation_times` to `Some(None)` for continuous monitoring; omitted times are retained.
+    /// Set `observation_schedule` to `Some(None)` for continuous monitoring.
+    /// A supplied schedule provides its calendar unless `calendar` overrides it.
+    /// Clearing or omitting the schedule preserves the calendar unless explicitly overridden.
     /// See [`BinaryBarrierOption::cash`] for construction examples.
     ///
     /// # Errors
     ///
     /// Reuses constructor validation for the resulting contract. [`BinaryPayoff`] selects settlement explicitly.
     /// See [`Self::cash`] for a construction example.
+    ///
+    /// # Panics
+    ///
+    /// Propagates panics from a custom calendar predicate when checking a calendar override.
     pub fn replace(&self, changes: BinaryBarrierOptionChanges) -> Result<Self> {
+        self.replace_with_observation_times(changes, None)
+    }
+
+    pub(crate) fn replace_with_observation_times(
+        &self,
+        changes: BinaryBarrierOptionChanges,
+        times: Option<Vec<Timestamp>>,
+    ) -> Result<Self> {
+        let replacement = if times.is_some() {
+            Some(None)
+        } else {
+            changes.observation_schedule
+        };
+        let (observation_schedule, calendar) = super::monitoring::replace_schedule(
+            self.observation_schedule(),
+            self.calendar(),
+            replacement,
+            changes.calendar,
+        );
         let terms = BinaryBarrierTerms {
-            calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
+            calendar,
             option_type: changes.option_type.unwrap_or(self.option_type()),
             strike: changes.strike.unwrap_or(self.strike()),
             effective_time: changes.effective_time.unwrap_or(self.effective_time()),
             expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
             barrier_level: changes.barrier_level.unwrap_or(self.barrier_level()),
             barrier_type: changes.barrier_type.unwrap_or(self.barrier_type()),
-            observation_times: changes
-                .observation_times
-                .unwrap_or_else(|| self.observation_times().map(<[Timestamp]>::to_vec)),
+            observation_schedule,
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         };
         match changes.payoff.unwrap_or_else(|| {
             self.payout()
                 .map_or(BinaryPayoff::Asset, BinaryPayoff::Cash)
         }) {
-            BinaryPayoff::Cash(payout) => Self::cash(terms, payout),
-            BinaryPayoff::Asset => Self::asset(terms),
+            BinaryPayoff::Cash(payout) => Self::cash_with_observation_times(terms, payout, times),
+            BinaryPayoff::Asset => Self::asset_with_observation_times(terms, times),
         }
     }
 }
@@ -574,8 +640,8 @@ pub struct TouchOptionChanges {
     pub barrier_type: Option<BarrierType>,
     /// Replaces [`settlement_timing`](TouchOptionTerms::settlement_timing).
     pub settlement_timing: Option<SettlementTiming>,
-    /// Replaces or clears [`observation_times`](TouchOptionTerms::observation_times).
-    pub observation_times: Option<Option<Vec<Timestamp>>>,
+    /// Replaces or clears [`observation_schedule`](TouchOptionTerms::observation_schedule).
+    pub observation_schedule: Option<Option<ObservationSchedule>>,
     /// Replaces [`touch_state`](TouchOptionTerms::touch_state).
     pub touch_state: Option<Option<BarrierTouchState>>,
     /// Replaces settlement explicitly with cash or the asset.
@@ -587,16 +653,41 @@ impl TouchOption {
     /// Returns a validated copy with the supplied terms applied.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
-    /// Set `observation_times` to `Some(None)` for continuous monitoring; omitted times are retained.
+    /// Set `observation_schedule` to `Some(None)` for continuous monitoring.
+    /// A supplied schedule provides its calendar unless `calendar` overrides it.
+    /// Clearing or omitting the schedule preserves the calendar unless explicitly overridden.
     /// See [`TouchOption::cash`] for construction examples.
     ///
     /// # Errors
     ///
     /// Reuses constructor validation for the resulting contract. [`BinaryPayoff`] selects settlement explicitly.
     /// See [`Self::cash`] for a construction example.
+    ///
+    /// # Panics
+    ///
+    /// Propagates panics from a custom calendar predicate when checking a calendar override.
     pub fn replace(&self, changes: TouchOptionChanges) -> Result<Self> {
+        self.replace_with_observation_times(changes, None)
+    }
+
+    pub(crate) fn replace_with_observation_times(
+        &self,
+        changes: TouchOptionChanges,
+        times: Option<Vec<Timestamp>>,
+    ) -> Result<Self> {
+        let replacement = if times.is_some() {
+            Some(None)
+        } else {
+            changes.observation_schedule
+        };
+        let (observation_schedule, calendar) = super::monitoring::replace_schedule(
+            self.observation_schedule(),
+            self.calendar(),
+            replacement,
+            changes.calendar,
+        );
         let terms = TouchOptionTerms {
-            calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
+            calendar,
             effective_time: changes.effective_time.unwrap_or(self.effective_time()),
             expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
             barrier_level: changes.barrier_level.unwrap_or(self.barrier_level()),
@@ -604,17 +695,15 @@ impl TouchOption {
             settlement_timing: changes
                 .settlement_timing
                 .unwrap_or(self.settlement_timing()),
-            observation_times: changes
-                .observation_times
-                .unwrap_or_else(|| self.observation_times().map(<[Timestamp]>::to_vec)),
+            observation_schedule,
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         };
         match changes.payoff.unwrap_or_else(|| {
             self.payout()
                 .map_or(BinaryPayoff::Asset, BinaryPayoff::Cash)
         }) {
-            BinaryPayoff::Cash(payout) => Self::cash(terms, payout),
-            BinaryPayoff::Asset => Self::asset(terms),
+            BinaryPayoff::Cash(payout) => Self::cash_with_observation_times(terms, payout, times),
+            BinaryPayoff::Asset => Self::asset_with_observation_times(terms, times),
         }
     }
 }

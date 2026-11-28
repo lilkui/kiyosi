@@ -44,15 +44,19 @@ pub(crate) struct DoubleTouchOption(pub kiyosi::DoubleTouchOption);
 
 monitoring_properties!(
     DoubleTouchOption,
-    @replace DoubleTouchOptionChanges [effective_time, expiry_time, lower_barrier, upper_barrier, barrier_type, settlement_timing, observation_schedule, touch_state, payout, calendar] |self| {
-        calendar: crate::calendar::observation_calendar(calendar, observation_schedule)?,
+    @replace DoubleTouchOptionChanges, replace_double_touch [effective_time, expiry_time, lower_barrier, upper_barrier, barrier_type, settlement_timing, observation_schedule, touch_state, payout, calendar] |self| |times| {
+        calendar: crate::calendar::explicit_calendar(calendar)?,
         effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
         expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
         lower_barrier: lower_barrier.map(crate::conversions::real).transpose()?,
         upper_barrier: upper_barrier.map(crate::conversions::real).transpose()?,
         barrier_type: barrier_type.map(crate::instruments::double_barrier::kind).transpose()?,
         settlement_timing: settlement_timing.map(crate::instruments::binary_barrier::settlement).transpose()?,
-        observation_times: observation_schedule.map(crate::conversions::optional_timestamps).transpose()?,
+        observation_schedule: {
+            let (schedule, raw_times) = crate::conversions::monitoring_schedule(observation_schedule)?;
+            times = raw_times;
+            schedule
+        },
         touch_state: touch_state.map(crate::instruments::barrier::history).transpose()?,
         payout: payout.map(crate::conversions::real).transpose()?,
     }
@@ -123,14 +127,16 @@ monitoring_properties!(
         );
         let payout = real(payout)?;
         terms.settlement_timing = settlement_timing;
-        terms.observation_times = observation_schedule
-            .map(crate::conversions::timestamps)
-            .transpose()?;
+        let (schedule, times) = crate::conversions::monitoring_schedule(observation_schedule)?;
+        terms.observation_schedule = schedule.flatten();
         terms.touch_state = touch_state;
-        terms.calendar =
-            crate::calendar::observation_calendar(calendar, observation_schedule)?.unwrap_or_default();
-        let count = terms.observation_times.as_ref().map_or(0, Vec::len);
-        run_date_scan(py, count as u64, || kiyosi::DoubleTouchOption::cash(terms, payout)).map(Self)
+        terms.calendar = crate::calendar::explicit_calendar(calendar)?;
+        let work = super::monitoring_work(
+            terms.observation_schedule.as_ref(),
+            times.as_deref(),
+            terms.calendar.as_ref(),
+        );
+        run_date_scan(py, work, || kiyosi::binding_support::barrier_monitoring::new_double_touch(terms, times, payout)).map(Self)
     },
     /// Return positive finite lower trigger; equality counts as a touch.
     #[getter]

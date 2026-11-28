@@ -1,3 +1,7 @@
+#[path = "support/observation_schedule.rs"]
+mod schedule_fixture;
+use schedule_fixture::schedule as fixture_schedule;
+
 use kiyosi::*;
 
 fn start() -> Timestamp {
@@ -65,7 +69,10 @@ fn constant_binary_surfaces_match_bsm_for_cash_asset_directions_and_monitoring()
                     let mut terms =
                         BinaryBarrierTerms::new(direction, 100.0, start(), end(), level, kind);
                     if scheduled {
-                        terms.observation_times = Some(vec![middle(), end()]);
+                        terms.observation_schedule = Some(fixture_schedule(
+                            vec![middle(), end()],
+                            terms.calendar.as_ref(),
+                        ));
                     }
                     let option = if asset {
                         BinaryBarrierOption::asset(terms)
@@ -108,7 +115,10 @@ fn constant_touch_surfaces_match_bsm_for_settlement_and_double_boundaries() {
                     let mut terms = TouchOptionTerms::new(start(), end(), level, kind);
                     terms.settlement_timing = timing;
                     if scheduled {
-                        terms.observation_times = Some(vec![middle(), end()]);
+                        terms.observation_schedule = Some(fixture_schedule(
+                            vec![middle(), end()],
+                            terms.calendar.as_ref(),
+                        ));
                     }
                     let option = if asset {
                         TouchOption::asset(terms)
@@ -133,7 +143,10 @@ fn constant_touch_surfaces_match_bsm_for_settlement_and_double_boundaries() {
             let mut terms = DoubleTouchOptionTerms::new(start(), end(), 79.87, 120.13, kind);
             terms.settlement_timing = timing;
             if scheduled {
-                terms.observation_times = Some(vec![middle(), end()]);
+                terms.observation_schedule = Some(fixture_schedule(
+                    vec![middle(), end()],
+                    terms.calendar.as_ref(),
+                ));
             }
             let option = DoubleTouchOption::cash(terms, 10.0).unwrap();
             let expected = double.price(&option, &bsm()).unwrap();
@@ -167,7 +180,10 @@ fn skew_binary_in_out_parity_uses_unrestricted_digital_continuation() {
                         kind,
                     );
                     if scheduled {
-                        terms.observation_times = Some(vec![middle(), end()]);
+                        terms.observation_schedule = Some(fixture_schedule(
+                            vec![middle(), end()],
+                            terms.calendar.as_ref(),
+                        ));
                     }
                     if asset {
                         BinaryBarrierOption::asset(terms)
@@ -227,7 +243,7 @@ fn local_touch_coverage_follows_observations_and_known_cashflows() {
     )
     .unwrap();
     let mut terms = TouchOptionTerms::new(start(), end(), 120.0, BarrierType::UpAndIn);
-    terms.observation_times = Some(vec![middle()]);
+    terms.observation_schedule = Some(fixture_schedule(vec![middle()], terms.calendar.as_ref()));
     terms.settlement_timing = SettlementTiming::AtHit;
     let hit = TouchOption::cash(terms.clone(), 10.0).unwrap();
     let price = engine.price(&hit, &context).unwrap();

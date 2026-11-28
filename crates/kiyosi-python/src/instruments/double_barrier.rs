@@ -57,8 +57,8 @@ pub(crate) struct DoubleBarrierOption(pub kiyosi::DoubleBarrierOption);
 
 monitoring_properties!(
     DoubleBarrierOption,
-    @replace DoubleBarrierOptionChanges [option_type, strike, effective_time, expiry_time, lower_barrier, upper_barrier, barrier_type, rebate, rebate_timing, observation_schedule, touch_state, calendar] |self| {
-        calendar: crate::calendar::observation_calendar(calendar, observation_schedule)?,
+    @replace DoubleBarrierOptionChanges, replace_double_barrier [option_type, strike, effective_time, expiry_time, lower_barrier, upper_barrier, barrier_type, rebate, rebate_timing, observation_schedule, touch_state, calendar] |self| |times| {
+        calendar: crate::calendar::explicit_calendar(calendar)?,
         option_type: option_type.map(crate::conversions::direction).transpose()?,
         strike: strike.map(crate::conversions::real).transpose()?,
         effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
@@ -68,7 +68,11 @@ monitoring_properties!(
         barrier_type: barrier_type.map(crate::instruments::double_barrier::kind).transpose()?,
         rebate: rebate.map(crate::conversions::real).transpose()?,
         rebate_timing: rebate_timing.map(crate::instruments::barrier::timing).transpose()?,
-        observation_times: observation_schedule.map(crate::conversions::optional_timestamps).transpose()?,
+        observation_schedule: {
+            let (schedule, raw_times) = crate::conversions::monitoring_schedule(observation_schedule)?;
+            times = raw_times;
+            schedule
+        },
         touch_state: touch_state.map(crate::instruments::barrier::history).transpose()?,
     }
     [
@@ -145,14 +149,16 @@ monitoring_properties!(
         );
         terms.rebate = rebate;
         terms.rebate_timing = rebate_timing;
-        terms.observation_times = observation_schedule
-            .map(crate::conversions::timestamps)
-            .transpose()?;
+        let (schedule, times) = crate::conversions::monitoring_schedule(observation_schedule)?;
+        terms.observation_schedule = schedule.flatten();
         terms.touch_state = touch_state;
-        terms.calendar =
-            crate::calendar::observation_calendar(calendar, observation_schedule)?.unwrap_or_default();
-        let count = terms.observation_times.as_ref().map_or(0, Vec::len);
-        run_date_scan(py, count as u64, || kiyosi::DoubleBarrierOption::new(terms)).map(Self)
+        terms.calendar = crate::calendar::explicit_calendar(calendar)?;
+        let work = super::monitoring_work(
+            terms.observation_schedule.as_ref(),
+            times.as_deref(),
+            terms.calendar.as_ref(),
+        );
+        run_date_scan(py, work, || kiyosi::binding_support::barrier_monitoring::new_double_barrier(terms, times)).map(Self)
     },
     /// Return call or put payoff direction.
     #[getter]

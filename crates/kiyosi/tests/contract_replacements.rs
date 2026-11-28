@@ -1,3 +1,7 @@
+#[path = "support/observation_schedule.rs"]
+mod schedule_fixture;
+use schedule_fixture::schedule as fixture_schedule;
+
 use kiyosi::*;
 
 macro_rules! check_monitoring_switch {
@@ -7,11 +11,7 @@ macro_rules! check_monitoring_switch {
             assert_eq!(
                 option
                     .replace($changes {
-                        observation_times: Some(
-                            option
-                                .observation_schedule()
-                                .map(|schedule| schedule.times().to_vec())
-                        ),
+                        observation_schedule: Some(option.observation_schedule().cloned()),
                         ..Default::default()
                     })
                     .unwrap(),
@@ -21,7 +21,7 @@ macro_rules! check_monitoring_switch {
         assert_eq!($scheduled.replace($changes::default()).unwrap(), $scheduled);
         assert!(matches!(
             $scheduled.replace($changes {
-                observation_times: Some(Some(vec![])),
+                observation_schedule: Some(Some(fixture_schedule(vec![], None))),
                 ..Default::default()
             }),
             Err(Error::InvalidInput(_))
@@ -29,7 +29,7 @@ macro_rules! check_monitoring_switch {
         assert_eq!(
             $scheduled
                 .replace($changes {
-                    observation_times: Some(None),
+                    observation_schedule: Some(None),
                     ..Default::default()
                 })
                 .unwrap(),
@@ -37,7 +37,7 @@ macro_rules! check_monitoring_switch {
         );
         let continuous = $scheduled
             .replace($changes {
-                observation_times: Some(None),
+                observation_schedule: Some(None),
                 touch_state: Some($scheduled.touch_state()),
                 ..Default::default()
             })
@@ -45,7 +45,7 @@ macro_rules! check_monitoring_switch {
         assert_eq!(continuous, $original);
         let cleared = $scheduled
             .replace($changes {
-                observation_times: Some(None),
+                observation_schedule: Some(None),
                 touch_state: Some(None),
                 ..Default::default()
             })
@@ -60,7 +60,7 @@ macro_rules! check_monitoring_switch {
                 })
                 .unwrap()
                 .replace($changes {
-                    observation_times: Some(None),
+                    observation_schedule: Some(None),
                     ..Default::default()
                 })
                 .unwrap(),
@@ -215,7 +215,7 @@ fn barrier_option_replacements_preserve_omissions_and_validate_each_field() {
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = BarrierOption::new(BarrierOptionTerms {
-        calendar: TradingCalendar::default(),
+        calendar: Some(TradingCalendar::default()),
         option_type: OptionType::Call,
         strike: 100.0,
         effective_time: start,
@@ -224,7 +224,7 @@ fn barrier_option_replacements_preserve_omissions_and_validate_each_field() {
         barrier_type: BarrierType::UpAndOut,
         rebate: 0.0,
         rebate_timing: RebateTiming::AtExpiry,
-        observation_times: None,
+        observation_schedule: None,
         touch_state: Some(BarrierTouchState::Untouched),
     })
     .unwrap();
@@ -286,7 +286,7 @@ fn barrier_option_replacements_preserve_omissions_and_validate_each_field() {
     assert_eq!(cleared.touch_state(), None);
     let scheduled = original
         .replace(BarrierOptionChanges {
-            observation_times: Some(Some(vec![end])),
+            observation_schedule: Some(Some(fixture_schedule(vec![end], None))),
             touch_state: Some(original.touch_state()),
             ..Default::default()
         })
@@ -295,7 +295,7 @@ fn barrier_option_replacements_preserve_omissions_and_validate_each_field() {
     assert_eq!(
         original
             .replace(BarrierOptionChanges {
-                observation_times: Some(Some(vec![end])),
+                observation_schedule: Some(Some(fixture_schedule(vec![end], None))),
                 ..Default::default()
             })
             .unwrap()
@@ -317,7 +317,7 @@ fn double_barrier_option_replacements_preserve_omissions_and_validate_each_field
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = DoubleBarrierOption::new(DoubleBarrierOptionTerms {
-        calendar: TradingCalendar::default(),
+        calendar: Some(TradingCalendar::default()),
         option_type: OptionType::Call,
         strike: 100.0,
         effective_time: start,
@@ -327,7 +327,7 @@ fn double_barrier_option_replacements_preserve_omissions_and_validate_each_field
         barrier_type: DoubleBarrierType::KnockOut,
         rebate: 0.0,
         rebate_timing: RebateTiming::AtExpiry,
-        observation_times: None,
+        observation_schedule: None,
         touch_state: Some(BarrierTouchState::Untouched),
     })
     .unwrap();
@@ -397,7 +397,7 @@ fn double_barrier_option_replacements_preserve_omissions_and_validate_each_field
     assert_eq!(cleared.touch_state(), None);
     let scheduled = original
         .replace(DoubleBarrierOptionChanges {
-            observation_times: Some(Some(vec![end])),
+            observation_schedule: Some(Some(fixture_schedule(vec![end], None))),
             touch_state: Some(original.touch_state()),
             ..Default::default()
         })
@@ -406,7 +406,7 @@ fn double_barrier_option_replacements_preserve_omissions_and_validate_each_field
     assert_eq!(
         original
             .replace(DoubleBarrierOptionChanges {
-                observation_times: Some(Some(vec![end])),
+                observation_schedule: Some(Some(fixture_schedule(vec![end], None))),
                 ..Default::default()
             })
             .unwrap()
@@ -429,14 +429,14 @@ fn binary_barrier_option_replacements_preserve_omissions_and_validate_each_field
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = BinaryBarrierOption::cash(
         BinaryBarrierTerms {
-            calendar: TradingCalendar::default(),
+            calendar: Some(TradingCalendar::default()),
             option_type: OptionType::Call,
             strike: 100.0,
             effective_time: start,
             expiry_time: end,
             barrier_level: 120.0,
             barrier_type: BarrierType::UpAndOut,
-            observation_times: None,
+            observation_schedule: None,
             touch_state: Some(BarrierTouchState::Untouched),
         },
         10.0,
@@ -507,7 +507,7 @@ fn binary_barrier_option_replacements_preserve_omissions_and_validate_each_field
     assert_eq!(updated.payout(), Some(15.0));
     let scheduled = original
         .replace(BinaryBarrierOptionChanges {
-            observation_times: Some(Some(vec![end])),
+            observation_schedule: Some(Some(fixture_schedule(vec![end], None))),
             touch_state: Some(original.touch_state()),
             ..Default::default()
         })
@@ -516,7 +516,7 @@ fn binary_barrier_option_replacements_preserve_omissions_and_validate_each_field
     assert_eq!(
         original
             .replace(BinaryBarrierOptionChanges {
-                observation_times: Some(Some(vec![end])),
+                observation_schedule: Some(Some(fixture_schedule(vec![end], None))),
                 ..Default::default()
             })
             .unwrap()
@@ -539,13 +539,13 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = TouchOption::cash(
         TouchOptionTerms {
-            calendar: TradingCalendar::default(),
+            calendar: Some(TradingCalendar::default()),
             effective_time: start,
             expiry_time: end,
             barrier_level: 120.0,
             barrier_type: BarrierType::UpAndIn,
             settlement_timing: SettlementTiming::AtExpiry,
-            observation_times: None,
+            observation_schedule: None,
             touch_state: Some(BarrierTouchState::Untouched),
         },
         10.0,
@@ -613,7 +613,7 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
     assert_eq!(updated.payout(), Some(15.0));
     let scheduled = original
         .replace(TouchOptionChanges {
-            observation_times: Some(Some(vec![end])),
+            observation_schedule: Some(Some(fixture_schedule(vec![end], None))),
             touch_state: Some(original.touch_state()),
             ..Default::default()
         })
@@ -622,7 +622,7 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
     assert_eq!(
         original
             .replace(TouchOptionChanges {
-                observation_times: Some(Some(vec![end])),
+                observation_schedule: Some(Some(fixture_schedule(vec![end], None))),
                 ..Default::default()
             })
             .unwrap()
@@ -645,14 +645,14 @@ fn double_touch_option_replacements_preserve_omissions_and_validate_each_field()
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = DoubleTouchOption::cash(
         DoubleTouchOptionTerms {
-            calendar: TradingCalendar::default(),
+            calendar: Some(TradingCalendar::default()),
             effective_time: start,
             expiry_time: end,
             lower_barrier: 80.0,
             upper_barrier: 120.0,
             barrier_type: DoubleBarrierType::KnockIn,
             settlement_timing: SettlementTiming::AtExpiry,
-            observation_times: None,
+            observation_schedule: None,
             touch_state: Some(BarrierTouchState::Untouched),
         },
         10.0,
@@ -718,7 +718,7 @@ fn double_touch_option_replacements_preserve_omissions_and_validate_each_field()
     check_field!(original, DoubleTouchOptionChanges, payout, 15.0);
     let scheduled = original
         .replace(DoubleTouchOptionChanges {
-            observation_times: Some(Some(vec![end])),
+            observation_schedule: Some(Some(fixture_schedule(vec![end], None))),
             touch_state: Some(original.touch_state()),
             ..Default::default()
         })
@@ -727,7 +727,7 @@ fn double_touch_option_replacements_preserve_omissions_and_validate_each_field()
     assert_eq!(
         original
             .replace(DoubleTouchOptionChanges {
-                observation_times: Some(Some(vec![end])),
+                observation_schedule: Some(Some(fixture_schedule(vec![end], None))),
                 ..Default::default()
             })
             .unwrap()

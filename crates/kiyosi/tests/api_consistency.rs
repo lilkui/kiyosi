@@ -1,3 +1,7 @@
+#[path = "support/observation_schedule.rs"]
+mod schedule_fixture;
+use schedule_fixture::schedule as fixture_schedule;
+
 use kiyosi::*;
 
 #[test]
@@ -1632,12 +1636,16 @@ fn contractual_calendars_are_validated_before_pricing() -> Result<()> {
         120.0,
         BarrierType::UpAndOut,
     );
-    terms.observation_times = Some(vec![closed]);
+    terms.observation_schedule = Some(fixture_schedule(
+        vec![closed],
+        Some(&TradingCalendar::all_days()),
+    ));
+    terms.calendar = Some(TradingCalendar::weekdays());
     assert!(matches!(
         BarrierOption::new(terms.clone()),
         Err(Error::InvalidInput(_))
     ));
-    terms.calendar = TradingCalendar::all_days();
+    terms.calendar = Some(TradingCalendar::all_days());
     let option = BarrierOption::new(terms)?;
     assert!(matches!(
         option.replace(BarrierOptionChanges {

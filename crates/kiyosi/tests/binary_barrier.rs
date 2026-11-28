@@ -1,3 +1,7 @@
+#[path = "support/observation_schedule.rs"]
+mod schedule_fixture;
+use schedule_fixture::schedule as fixture_schedule;
+
 use kiyosi::*;
 
 fn day(y: i32, m: u32, d: u32) -> Timestamp {
@@ -275,7 +279,7 @@ fn schedules_stop_monitoring_and_only_observe_at_midnight() {
     let fixing = day(2025, 1, 2);
     for kind in [BarrierType::UpAndIn, BarrierType::UpAndOut] {
         let mut t = touch(kind);
-        t.observation_times = Some(vec![fixing]);
+        t.observation_schedule = Some(fixture_schedule(vec![fixing], t.calendar.as_ref()));
         let unknown = TouchOption::cash(t.clone(), 10.0).unwrap();
         assert!(engine.price(&unknown, &market(120.0, fixing)).is_ok());
         assert!(matches!(
@@ -314,7 +318,7 @@ fn schedules_stop_monitoring_and_only_observe_at_midnight() {
             Error::InvalidInput(_)
         ));
         let mut b = terms(kind);
-        b.observation_times = Some(vec![fixing]);
+        b.observation_schedule = Some(fixture_schedule(vec![fixing], b.calendar.as_ref()));
         b.touch_state = Some(BarrierTouchState::Untouched);
         let binary = BinaryBarrierOption::cash(b, 10.0).unwrap();
         let value = engine
@@ -334,7 +338,7 @@ fn schedules_stop_monitoring_and_only_observe_at_midnight() {
         ));
     }
     let mut t = touch(BarrierType::UpAndIn);
-    t.observation_times = Some(vec![fixing]);
+    t.observation_schedule = Some(fixture_schedule(vec![fixing], t.calendar.as_ref()));
     assert!(matches!(
         engine
             .price(
@@ -344,7 +348,11 @@ fn schedules_stop_monitoring_and_only_observe_at_midnight() {
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
-    t.observation_times = Some(vec![day(2025, 1, 4), t.expiry_time]);
+    t.observation_schedule = Some(fixture_schedule(
+        vec![day(2025, 1, 4), t.expiry_time],
+        Some(&TradingCalendar::all_days()),
+    ));
+    t.calendar = Some(TradingCalendar::weekdays());
     assert!(matches!(
         TouchOption::cash(t, 10.0),
         Err(Error::InvalidInput(_))
@@ -387,7 +395,7 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
         ));
     }
     let mut invalid = touch(BarrierType::UpAndIn);
-    invalid.observation_times = Some(vec![]);
+    invalid.observation_schedule = Some(fixture_schedule(vec![], invalid.calendar.as_ref()));
     assert!(matches!(
         TouchOption::asset(invalid).unwrap_err(),
         Error::InvalidInput(_)
@@ -480,8 +488,8 @@ fn deterministic_scheduled_touch_discounts_before_scaling() -> Result<()> {
     let fixing = start.add_days(1)?;
     let expiry = start.add_days(3)?;
     let mut terms = TouchOptionTerms::new(start, expiry, 120.0, BarrierType::UpAndIn);
-    terms.calendar = TradingCalendar::all_days();
-    terms.observation_times = Some(vec![fixing]);
+    terms.calendar = Some(TradingCalendar::all_days());
+    terms.observation_schedule = Some(fixture_schedule(vec![fixing], terms.calendar.as_ref()));
     terms.settlement_timing = SettlementTiming::AtHit;
     let asset = TouchOption::asset(terms.clone())?;
     let cash = TouchOption::cash(terms, 1e300)?;
@@ -564,12 +572,15 @@ fn first_hit_and_scheduled_prices_retain_scaled_tails() {
         ] {
             let mut t = touch(kind);
             t.barrier_level = 170.0 * scale;
-            t.observation_times = Some(vec![
-                day(2025, 4, 1),
-                day(2025, 7, 1),
-                day(2025, 10, 1),
-                t.expiry_time,
-            ]);
+            t.observation_schedule = Some(fixture_schedule(
+                vec![
+                    day(2025, 4, 1),
+                    day(2025, 7, 1),
+                    day(2025, 10, 1),
+                    t.expiry_time,
+                ],
+                t.calendar.as_ref(),
+            ));
             let context = PricingContext::new(
                 BlackScholesMertonParameters::new(0.0, 0.0, 1.0).unwrap(),
                 100.0 * scale,
@@ -826,7 +837,10 @@ fn settled_binaries_delegate_extreme_digital_prices_and_strict_strike_boundaries
                 });
                 t.option_type = direction;
                 t.barrier_level = 50.0;
-                t.observation_times = Some(vec![t.effective_time]);
+                t.observation_schedule = Some(fixture_schedule(
+                    vec![t.effective_time],
+                    t.calendar.as_ref(),
+                ));
                 t.touch_state = Some(history);
                 for sigma in [1e155, 0.5] {
                     let mut t = t.clone();

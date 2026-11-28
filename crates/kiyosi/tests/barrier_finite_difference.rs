@@ -1,3 +1,7 @@
+#[path = "support/observation_schedule.rs"]
+mod schedule_fixture;
+use schedule_fixture::schedule as fixture_schedule;
+
 use kiyosi::*;
 
 #[test]
@@ -29,8 +33,11 @@ fn scheduled_barrier_rejects_drift_that_overwhelms_grid_diffusion() -> Result<()
         BarrierType::UpAndIn,
     );
     terms.rebate = 2.0;
-    terms.observation_times = Some(vec![start.add_days(30)?, start.add_days(100)?, end]);
-    terms.calendar = TradingCalendar::all_days();
+    terms.calendar = Some(TradingCalendar::all_days());
+    terms.observation_schedule = Some(fixture_schedule(
+        vec![start.add_days(30)?, start.add_days(100)?, end],
+        terms.calendar.as_ref(),
+    ));
     let option = BarrierOption::new(terms)?;
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(0.05, 0.02, 0.001)?,
@@ -226,7 +233,10 @@ fn earlier_knock_out_preserves_rebate_greeks_at_later_barrier() -> Result<()> {
         80.0,
         BarrierType::UpAndOut,
     );
-    terms.observation_times = Some(vec![first, expiry]);
+    terms.observation_schedule = Some(fixture_schedule(
+        vec![first, expiry],
+        terms.calendar.as_ref(),
+    ));
     terms.rebate = 10.0;
     let option = BarrierOption::new(terms)?;
     let engine = FiniteDifferenceBarrierEngine::default();
@@ -238,7 +248,9 @@ fn earlier_knock_out_preserves_rebate_greeks_at_later_barrier() -> Result<()> {
     ] {
         let contract = option.replace(BarrierOptionChanges {
             strike: Some(strike),
-            observation_times: Some(observation_times),
+            observation_schedule: Some(
+                observation_times.map(|times| fixture_schedule(times, None)),
+            ),
             ..Default::default()
         })?;
         let result = engine.price_with_greeks(&contract, &context, request)?;
@@ -250,7 +262,7 @@ fn earlier_knock_out_preserves_rebate_greeks_at_later_barrier() -> Result<()> {
         assert!(saved.require(Greek::Delta)?.abs() < 1e-12);
     }
     let last_only = option.replace(BarrierOptionChanges {
-        observation_times: Some(Some(vec![expiry])),
+        observation_schedule: Some(Some(fixture_schedule(vec![expiry], None))),
         ..Default::default()
     })?;
     let result = engine.price_with_greeks(&last_only, &context, request)?;
@@ -330,10 +342,13 @@ fn scheduled_events_match_independent_two_fixing_integrals_and_time_convergence(
                 },
             );
             t.barrier_level = if up { 110.125 } else { 90.125 };
-            t.observation_times = Some(vec![
-                Date::new(2025, 6, 30).unwrap().start_of_day(),
-                t.expiry_time,
-            ]);
+            t.observation_schedule = Some(fixture_schedule(
+                vec![
+                    Date::new(2025, 6, 30).unwrap().start_of_day(),
+                    t.expiry_time,
+                ],
+                t.calendar.as_ref(),
+            ));
             t.rebate = 2.0;
             t.rebate_timing = timing;
             let option = BarrierOption::new(t).unwrap();
@@ -478,7 +493,7 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
     for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
         assert_eq!(result.get(greek), Some(0.0), "{greek:?} at expiry");
     }
-    t.observation_times = Some(vec![t.expiry_time]);
+    t.observation_schedule = Some(fixture_schedule(vec![t.expiry_time], t.calendar.as_ref()));
     assert!(matches!(
         engine
             .price(&BarrierOption::new(t).unwrap(), &market(100.0))
@@ -602,7 +617,10 @@ fn explicit_stability_uses_the_continuous_domain_and_settings_validate_eagerly()
 fn node_curves_align_with_observations_and_preserve_rebate_discounts() {
     let mut t = terms(BarrierType::UpAndOut, OptionType::Call);
     let first = Date::new(2025, 4, 2).unwrap().start_of_day();
-    t.observation_times = Some(vec![first, t.expiry_time]);
+    t.observation_schedule = Some(fixture_schedule(
+        vec![first, t.expiry_time],
+        t.calendar.as_ref(),
+    ));
     t.rebate = 7.0;
     let curve = RateTermStructure::new(
         t.effective_time,
@@ -660,19 +678,22 @@ fn node_curves_align_with_observations_and_preserve_rebate_discounts() {
 fn scheduled_damping_restarts_equal_implicit_half_steps_without_new_fixings() {
     let mut t = terms(BarrierType::UpAndOut, OptionType::Call);
     t.expiry_time = Date::new(2025, 12, 27).unwrap().start_of_day();
-    t.observation_times = Some(vec![
-        Date::new(2025, 4, 1).unwrap().start_of_day(),
-        Date::new(2025, 6, 30).unwrap().start_of_day(),
-        Date::new(2025, 9, 28).unwrap().start_of_day(),
-        t.expiry_time,
-    ]);
+    t.observation_schedule = Some(fixture_schedule(
+        vec![
+            Date::new(2025, 4, 1).unwrap().start_of_day(),
+            Date::new(2025, 6, 30).unwrap().start_of_day(),
+            Date::new(2025, 9, 28).unwrap().start_of_day(),
+            t.expiry_time,
+        ],
+        Some(&TradingCalendar::all_days()),
+    ));
     t.barrier_level = 110.125;
     t.rebate = 2.0;
     let context = market(100.25);
     for timing in [RebateTiming::AtHit, RebateTiming::AtExpiry] {
         t.rebate_timing = timing;
         let option = BarrierOption::new(BarrierOptionTerms {
-            calendar: TradingCalendar::all_days(),
+            calendar: Some(TradingCalendar::all_days()),
             ..t.clone()
         })
         .unwrap();
@@ -710,7 +731,7 @@ fn scheduled_damping_restarts_equal_implicit_half_steps_without_new_fixings() {
 #[test]
 fn scheduled_explicit_stability_preserves_the_uniform_grid_boundary() {
     let mut t = terms(BarrierType::UpAndOut, OptionType::Call);
-    t.observation_times = Some(vec![t.expiry_time]);
+    t.observation_schedule = Some(fixture_schedule(vec![t.expiry_time], t.calendar.as_ref()));
     let option = BarrierOption::new(t).unwrap();
     let settings = FiniteDifferenceSettings {
         asset_step_count: 200,
@@ -736,12 +757,13 @@ fn scheduled_barrier_work_limit_counts_damping_half_steps() -> Result<()> {
     let mut terms = terms(BarrierType::UpAndOut, OptionType::Call);
     let start = terms.effective_time;
     terms.expiry_time = start.add_days(2000)?;
-    terms.calendar = TradingCalendar::all_days();
-    terms.observation_times = Some(
+    terms.calendar = Some(TradingCalendar::all_days());
+    terms.observation_schedule = Some(fixture_schedule(
         (1..=2000)
             .map(|day| start.add_days(day))
             .collect::<Result<_>>()?,
-    );
+        terms.calendar.as_ref(),
+    ));
     let option = BarrierOption::new(terms)?;
     let engine = FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings {
         asset_step_count: 300_000,
@@ -778,7 +800,10 @@ fn scheduled_barrier_market_tangents_match_scalar_bumps() -> Result<()> {
         let mut terms = BarrierOptionTerms::new(OptionType::Put, 100.0, start, end, 80.0, barrier);
         terms.rebate = 2.0;
         terms.rebate_timing = rebate_timing;
-        terms.observation_times = Some(vec![start.add_days(100)?, start.add_days(201)?, end]);
+        terms.observation_schedule = Some(fixture_schedule(
+            vec![start.add_days(100)?, start.add_days(201)?, end],
+            terms.calendar.as_ref(),
+        ));
         let option = BarrierOption::new(terms)?;
         let result = engine.price_with_greeks(&option, &context, request)?;
         let expected = engine.price_with_greeks_with_settings(
@@ -816,7 +841,10 @@ fn scheduled_barrier_market_tangents_match_scalar_bumps() -> Result<()> {
     );
     terms.rebate = 2.0;
     terms.rebate_timing = RebateTiming::AtHit;
-    terms.observation_times = Some(vec![start.add_days(100)?, start.add_days(201)?, end]);
+    terms.observation_schedule = Some(fixture_schedule(
+        vec![start.add_days(100)?, start.add_days(201)?, end],
+        terms.calendar.as_ref(),
+    ));
     let option = BarrierOption::new(terms)?;
     let reference = QuadratureBarrierEngine::new(QuadratureSettings {
         asset_step_count: 5000,

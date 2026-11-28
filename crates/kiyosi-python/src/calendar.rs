@@ -16,12 +16,21 @@ pub(crate) fn run_date_scan<T: Send>(
     }
 }
 
+pub(crate) fn explicit_calendar(
+    value: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Option<kiyosi::TradingCalendar>> {
+    match value {
+        Some(value) => Ok(Some(value.extract::<TradingCalendar>()?.0)),
+        None => Ok(None),
+    }
+}
+
 pub(crate) fn observation_calendar(
     calendar: Option<&Bound<'_, PyAny>>,
     observations: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Option<kiyosi::TradingCalendar>> {
-    if let Some(calendar) = calendar {
-        return Ok(Some(calendar.extract::<TradingCalendar>()?.0));
+    if calendar.is_some() {
+        return explicit_calendar(calendar);
     }
     Ok(observations
         .and_then(|value| {

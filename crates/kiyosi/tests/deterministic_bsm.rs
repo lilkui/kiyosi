@@ -1,3 +1,7 @@
+#[path = "support/observation_schedule.rs"]
+mod schedule_fixture;
+use schedule_fixture::schedule as fixture_schedule;
+
 use kiyosi::*;
 
 #[test]
@@ -89,12 +93,13 @@ fn scheduled_barrier_checks_the_deterministic_window_once() -> Result<()> {
     )?;
     let context = PricingContext::new(model, 100.0, start)?;
     let mut terms = TouchOptionTerms::new(start, end, 120.0, BarrierType::UpAndIn);
-    terms.observation_times = Some(
+    terms.observation_schedule = Some(fixture_schedule(
         (1..=100)
             .map(|i| end.add_micros(-i))
             .rev()
             .collect::<Result<_>>()?,
-    );
+        terms.calendar.as_ref(),
+    ));
     let option = TouchOption::cash(terms, 7.0)?;
     assert!(!option.at_spot_discontinuity(&context, 0.01));
     assert_eq!(checks.load(Ordering::Relaxed), 2);
@@ -186,7 +191,7 @@ fn scheduled_touch_preserves_the_exact_final_curve_quote() -> Result<()> {
     let curve = RateTermStructure::new(start, dates.clone(), vec![1.01, 1.05, 1.0])?;
     let model = BlackScholesMertonParameters::new(curve, 0.0, 0.0)?;
     let mut terms = TouchOptionTerms::new(start, end, 100.0, BarrierType::UpAndIn);
-    terms.observation_times = Some(dates);
+    terms.observation_schedule = Some(fixture_schedule(dates, terms.calendar.as_ref()));
     terms.settlement_timing = SettlementTiming::AtHit;
     let option = TouchOption::cash(terms, 7.0)?;
     let engine = FiniteDifferenceBinaryBarrierEngine::default();
@@ -695,11 +700,11 @@ fn deterministic_barrier_greeks_follow_fixings_and_in_life_curve_knots() -> Resu
             10.0,
         )?;
         let scheduled = continuous.replace(TouchOptionChanges {
-            observation_times: Some(Some(vec![end])),
+            observation_schedule: Some(Some(fixture_schedule(vec![end], None))),
             ..Default::default()
         })?;
         let fixing_at_knot = scheduled.replace(TouchOptionChanges {
-            observation_times: Some(Some(vec![knot, end])),
+            observation_schedule: Some(Some(fixture_schedule(vec![knot, end], None))),
             ..Default::default()
         })?;
         let early_expiry = continuous.replace(TouchOptionChanges {
@@ -793,14 +798,17 @@ fn deterministic_touch_discounts_across_distinct_curve_knots() -> Result<()> {
                 },
             );
             terms.settlement_timing = SettlementTiming::AtHit;
-            terms.calendar = TradingCalendar::all_days();
+            terms.calendar = Some(TradingCalendar::all_days());
             let option = TouchOption::cash(terms, 7.0)?;
             let hit_time =
                 270.0 / 365.0 + (0.025 - (0.08 * 90.0 + 0.01 * 90.0 - 0.02 * 90.0) / 365.0) / 0.1;
             let expected = 7.0 * (risk(270) - sign * 0.15 * (hit_time - 270.0 / 365.0)).exp();
             assert!((engine.price(&option, &context)? - expected).abs() < 1e-10);
             let scheduled = option.replace(TouchOptionChanges {
-                observation_times: Some(Some(vec![start.add_days(300)?])),
+                observation_schedule: Some(Some(fixture_schedule(
+                    vec![start.add_days(300)?],
+                    Some(option.calendar()),
+                ))),
                 ..Default::default()
             })?;
             assert!((engine.price(&scheduled, &context)? - 7.0 * risk(300).exp()).abs() < 1e-10);
@@ -857,7 +865,7 @@ fn deterministic_paths_respect_hit_times_exercise_and_averaging_history() -> Res
         ],
     )?;
     let scheduled = continuous.replace(TouchOptionChanges {
-        observation_times: Some(Some(vec![end])),
+        observation_schedule: Some(Some(fixture_schedule(vec![end], None))),
         ..Default::default()
     })?;
     verify(
@@ -1160,7 +1168,7 @@ fn quoted_fixings_use_exact_payoff_boundaries() -> Result<()> {
 
     let model = BlackScholesMertonParameters::new(curve(0.625)?, 0.0, 0.0)?;
     let mut terms = TouchOptionTerms::new(start, expiry, 128.0, BarrierType::UpAndIn);
-    terms.observation_times = Some(vec![expiry]);
+    terms.observation_schedule = Some(fixture_schedule(vec![expiry], terms.calendar.as_ref()));
     let touch = TouchOption::cash(terms, 10.0)?;
     for (spot, expected) in [(libm::nextafter(80.0, 0.0), 0.0), (80.0, 6.25)] {
         let context = PricingContext::new(model.clone(), spot, start)?;

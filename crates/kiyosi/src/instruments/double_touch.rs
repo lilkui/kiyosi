@@ -1,4 +1,4 @@
-use super::monitoring::{Monitoring, validate_upper};
+use super::monitoring::{Monitoring, MonitoringInput, replace_schedule, validate_upper};
 use crate::{
     BarrierTouchState, BarrierType, DoubleBarrierType, Error, ObservationMode, ObservationSchedule,
     OptionContract, PricingContext, Result, SettlementTiming, Timestamp, TradingCalendar,
@@ -7,8 +7,8 @@ use crate::{
 /// Cash double-touch inputs; see [`DoubleTouchOption::cash`] for validation and usage.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DoubleTouchOptionTerms {
-    /// Owns the contractual observation calendar; defaults to weekdays.
-    pub calendar: TradingCalendar,
+    /// Overrides the schedule calendar, or defaults to weekdays for continuous monitoring.
+    pub calendar: Option<TradingCalendar>,
     /// Inclusive effective time.
     pub effective_time: Timestamp,
     /// Inclusive expiry timestamp.
@@ -21,8 +21,8 @@ pub struct DoubleTouchOptionTerms {
     pub barrier_type: DoubleBarrierType,
     /// Payment timing, default expiry; at-hit requires one-touch.
     pub settlement_timing: SettlementTiming,
-    /// Ordered nonempty scheduled times, or `None` for continuous monitoring.
-    pub observation_times: Option<Vec<Timestamp>>,
+    /// Supplies a nonempty observation schedule, or `None` for continuous monitoring.
+    pub observation_schedule: Option<ObservationSchedule>,
     /// Observations strictly before valuation; `None` means unknown.
     pub touch_state: Option<BarrierTouchState>,
 }
@@ -36,14 +36,14 @@ impl DoubleTouchOptionTerms {
         barrier_type: DoubleBarrierType,
     ) -> Self {
         Self {
-            calendar: TradingCalendar::default(),
+            calendar: None,
             effective_time,
             expiry_time,
             lower_barrier,
             upper_barrier,
             barrier_type,
             settlement_timing: SettlementTiming::default(),
-            observation_times: None,
+            observation_schedule: None,
             touch_state: None,
         }
     }
@@ -77,6 +77,10 @@ impl DoubleTouchOption {
     /// then for at-hit no-touch settlement. Shared monitoring validation then
     /// rejects invalid boundaries, reversed life or invalid schedules.
     ///
+    /// # Panics
+    ///
+    /// Propagates panics from a custom calendar predicate when checking a calendar override.
+    ///
     /// # Examples
     ///
     /// ```rust
@@ -97,6 +101,14 @@ impl DoubleTouchOption {
     /// # Ok(()) }
     /// ```
     pub fn cash(terms: DoubleTouchOptionTerms, payout: f64) -> Result<Self> {
+        Self::cash_with_observation_times(terms, payout, None)
+    }
+
+    pub(crate) fn cash_with_observation_times(
+        terms: DoubleTouchOptionTerms,
+        payout: f64,
+        times: Option<Vec<Timestamp>>,
+    ) -> Result<Self> {
         if !payout.is_finite() || payout <= 0.0 {
             return Err(Error::InvalidInput(
                 "payout must be finite and positive".into(),
@@ -119,9 +131,9 @@ impl DoubleTouchOption {
             } else {
                 BarrierType::DownAndOut
             },
-            terms.observation_times,
+            MonitoringInput::new(terms.observation_schedule, times),
             terms.touch_state,
-            &terms.calendar,
+            terms.calendar,
         )?;
         Ok(Self {
             monitoring,
@@ -179,9 +191,6 @@ impl DoubleTouchOption {
     /// Borrows scheduled times, or returns `None` for continuous monitoring.
     ///
     /// See [`Self::observation_schedule`] for access to the schedule with its calendar.
-    fn observation_times(&self) -> Option<&[Timestamp]> {
-        (!self.monitoring.continuous()).then(|| self.monitoring.observation_times())
-    }
     /// Returns strictly prior history; see [`Self::cash`].
     pub fn touch_state(&self) -> Option<BarrierTouchState> {
         self.monitoring.touch_state()
@@ -246,8 +255,8 @@ pub struct DoubleTouchOptionChanges {
     pub barrier_type: Option<DoubleBarrierType>,
     /// Replaces [`settlement_timing`](DoubleTouchOptionTerms::settlement_timing).
     pub settlement_timing: Option<SettlementTiming>,
-    /// Replaces or clears [`observation_times`](DoubleTouchOptionTerms::observation_times).
-    pub observation_times: Option<Option<Vec<Timestamp>>>,
+    /// Replaces or clears [`observation_schedule`](DoubleTouchOptionTerms::observation_schedule).
+    pub observation_schedule: Option<Option<ObservationSchedule>>,
     /// Replaces [`touch_state`](DoubleTouchOptionTerms::touch_state).
     pub touch_state: Option<Option<BarrierTouchState>>,
     /// Replaces [`payout`](DoubleTouchOption::payout).
@@ -258,16 +267,41 @@ impl DoubleTouchOption {
     /// Returns a validated copy with the supplied terms applied.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
-    /// Set `observation_times` to `Some(None)` for continuous monitoring; omitted times are retained.
+    /// Set `observation_schedule` to `Some(None)` for continuous monitoring.
+    /// A supplied schedule provides its calendar unless `calendar` overrides it.
+    /// Clearing or omitting the schedule preserves the calendar unless explicitly overridden.
     /// See [`DoubleTouchOption::cash`] for construction examples.
     ///
     /// # Errors
     ///
     /// Reuses constructor validation for the resulting contract.
+    ///
+    /// # Panics
+    ///
+    /// Propagates panics from a custom calendar predicate when checking a calendar override.
     pub fn replace(&self, changes: DoubleTouchOptionChanges) -> Result<Self> {
-        let updated = Self::cash(
+        self.replace_with_observation_times(changes, None)
+    }
+
+    pub(crate) fn replace_with_observation_times(
+        &self,
+        changes: DoubleTouchOptionChanges,
+        times: Option<Vec<Timestamp>>,
+    ) -> Result<Self> {
+        let replacement = if times.is_some() {
+            Some(None)
+        } else {
+            changes.observation_schedule
+        };
+        let (observation_schedule, calendar) = replace_schedule(
+            self.observation_schedule(),
+            self.calendar(),
+            replacement,
+            changes.calendar,
+        );
+        let updated = Self::cash_with_observation_times(
             DoubleTouchOptionTerms {
-                calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
+                calendar,
                 effective_time: changes.effective_time.unwrap_or(self.effective_time()),
                 expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
                 lower_barrier: changes.lower_barrier.unwrap_or(self.lower_barrier()),
@@ -276,12 +310,11 @@ impl DoubleTouchOption {
                 settlement_timing: changes
                     .settlement_timing
                     .unwrap_or(self.settlement_timing()),
-                observation_times: changes
-                    .observation_times
-                    .unwrap_or_else(|| self.observation_times().map(<[Timestamp]>::to_vec)),
+                observation_schedule,
                 touch_state: changes.touch_state.unwrap_or(self.touch_state()),
             },
             changes.payout.unwrap_or(self.payout()),
+            times,
         )?;
 
         Ok(updated)

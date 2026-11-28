@@ -1,3 +1,7 @@
+#[path = "support/observation_schedule.rs"]
+mod schedule_fixture;
+use schedule_fixture::schedule as fixture_schedule;
+
 use kiyosi::*;
 
 #[test]
@@ -14,7 +18,10 @@ fn scheduled_time_stencils_exclude_inclusive_events_and_allow_gaps() -> Result<(
         120.0,
         BarrierType::UpAndOut,
     );
-    barrier_terms.observation_times = Some(times.to_vec());
+    barrier_terms.observation_schedule = Some(fixture_schedule(
+        times.to_vec(),
+        barrier_terms.calendar.as_ref(),
+    ));
     barrier_terms.touch_state = Some(BarrierTouchState::Untouched);
     let barrier = BarrierOption::new(barrier_terms)?;
     let mut note_terms = BinarySnowballTerms::new(
@@ -392,7 +399,10 @@ fn scheduled_barriers_use_exact_current_observations_and_strict_history() {
         110.0,
         BarrierType::UpAndOut,
     );
-    terms.observation_times = Some(vec![time(6, 10, 0), time(6, 15, 0)]);
+    terms.observation_schedule = Some(fixture_schedule(
+        vec![time(6, 10, 0), time(6, 15, 0)],
+        terms.calendar.as_ref(),
+    ));
     terms.rebate = 7.0;
     terms.rebate_timing = RebateTiming::AtHit;
     let option = BarrierOption::new(terms).unwrap();

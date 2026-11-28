@@ -1,3 +1,7 @@
+#[path = "support/observation_schedule.rs"]
+mod schedule_fixture;
+use schedule_fixture::schedule as fixture_schedule;
+
 use kiyosi::*;
 
 fn day(y: i32, m: u32, d: u32) -> Timestamp {
@@ -85,7 +89,7 @@ fn construction_validates_boundaries_schedules_and_rebates_in_core() {
     );
     assert_eq!(base.rebate, defaults.rebate);
     assert_eq!(base.rebate_timing, defaults.rebate_timing);
-    assert_eq!(base.observation_times, defaults.observation_times);
+    assert_eq!(base.observation_schedule, defaults.observation_schedule);
     assert_eq!(base.touch_state, defaults.touch_state);
     for (lower, upper) in [
         (0.0, 120.0),
@@ -135,14 +139,22 @@ fn construction_validates_boundaries_schedules_and_rebates_in_core() {
         Error::InvalidInput(_)
     ));
     for dates in [
-        vec![],
-        vec![base.expiry_time, base.expiry_time],
+        vec![base.expiry_time; 2],
         vec![base.expiry_time, base.effective_time],
-        vec![day(2024, 12, 31)],
-        vec![day(2026, 1, 2)],
     ] {
+        assert!(matches!(
+            ObservationSchedule::new(
+                dates,
+                base.effective_time,
+                base.expiry_time,
+                &TradingCalendar::weekdays()
+            ),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    for dates in [vec![], vec![day(2024, 12, 31)], vec![day(2026, 1, 2)]] {
         let mut t = base.clone();
-        t.observation_times = Some(dates);
+        t.observation_schedule = Some(fixture_schedule(dates, t.calendar.as_ref()));
         assert!(matches!(
             DoubleBarrierOption::new(t).unwrap_err(),
             Error::InvalidInput(_)
@@ -296,7 +308,7 @@ fn unresolved_schedules_reject_after_calendar_history_and_settlement_validation(
     let first = day(2025, 6, 30);
     let context = market(100.0, day(2025, 1, 1), 0.2, 0.04, 0.01);
     let mut t = terms(OptionType::Call, DoubleBarrierType::KnockOut);
-    t.observation_times = Some(vec![first]);
+    t.observation_schedule = Some(fixture_schedule(vec![first], t.calendar.as_ref()));
     t.rebate = 3.0;
     let option = DoubleBarrierOption::new(t.clone()).unwrap();
     assert_eq!(option.observation_schedule().unwrap().times(), &[first]);
@@ -356,7 +368,11 @@ fn unresolved_schedules_reject_after_calendar_history_and_settlement_validation(
         (engine.price(&inside, &intraday).unwrap() - 3.0 * (-0.04_f64 * 184.5 / 365.0).exp()).abs()
             < 1e-12
     );
-    t.observation_times = Some(vec![day(2025, 7, 5)]);
+    t.observation_schedule = Some(fixture_schedule(
+        vec![day(2025, 7, 5)],
+        Some(&TradingCalendar::all_days()),
+    ));
+    t.calendar = Some(TradingCalendar::weekdays());
     assert!(matches!(
         DoubleBarrierOption::new(t),
         Err(Error::InvalidInput(_))
@@ -759,7 +775,10 @@ fn settled_zero_rebates_do_not_require_a_representable_discount() {
     let outside = DoubleBarrierOption::new(t.clone()).unwrap();
     assert_eq!(engine.price(&outside, &context).unwrap(), 0.0);
     t.barrier_type = DoubleBarrierType::KnockIn;
-    t.observation_times = Some(vec![t.effective_time]);
+    t.observation_schedule = Some(fixture_schedule(
+        vec![t.effective_time],
+        t.calendar.as_ref(),
+    ));
     t.touch_state = Some(BarrierTouchState::Untouched);
     let inside = DoubleBarrierOption::new(t).unwrap();
     let later = market(100.0, day(2025, 1, 2), 0.2, 1e308, 0.0);

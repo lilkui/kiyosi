@@ -128,6 +128,18 @@ impl PartialEq for TradingCalendar {
 impl Eq for TradingCalendar {}
 
 impl TradingCalendar {
+    pub(crate) fn shares_trading_days(&self, other: &Self) -> bool {
+        match (&self.kind, &other.kind) {
+            (CalendarKind::Predicate(left), CalendarKind::Predicate(right)) => {
+                Arc::ptr_eq(left, right)
+            }
+            (CalendarKind::Overrides(left), CalendarKind::Overrides(right)) => {
+                Arc::ptr_eq(left, right)
+            }
+            (left, right) => std::mem::discriminant(left) == std::mem::discriminant(right),
+        }
+    }
+
     /// Creates a calendar with every date open and a 365-day basis.
     ///
     /// See [`Self::adjust`] for calendar usage.

@@ -35,10 +35,11 @@
 //! Contract boundaries are inclusive. Calendars classify [`Date`] values without
 //! moving those boundaries. Constructors validate terms and observation calendars;
 //! pricing validates valuation times, model coverage, and required history.
-//! Barrier and touch terms select continuous monitoring with `observation_times: None`
-//! or scheduled monitoring with a nonempty `Some(times)`. Read the times and
-//! calendar together through the contract's `observation_schedule()` method,
-//! which returns `None` for continuous monitoring.
+//! Barrier and touch terms select continuous monitoring with `observation_schedule: None`
+//! or scheduled monitoring with a nonempty schedule. Terms inherit the schedule's
+//! calendar unless they specify an override. Borrow the schedule with the
+//! contract's `observation_schedule()` method, which returns `None` for continuous
+//! monitoring. Clone the schedule to pass it to another constructor or replacement.
 //! European vanilla and digital options permit pre-effective valuation; other
 //! contracts require valuation within their life.
 //!
@@ -160,6 +161,7 @@ pub mod binding_support {
         DEFAULT_AUTOCALLABLE_REBATE_RATE, DEFAULT_PHOENIX_LOCKOUT_PERIODS,
         DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
     };
+    pub use crate::instruments::monitoring::binding as barrier_monitoring;
     pub use crate::time::variance_time_convention_from_inputs;
 
     /// Estimates per-spot work for dispatching cancellable solution queries.

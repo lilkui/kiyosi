@@ -420,6 +420,9 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 elif case in ("barrier_new", "barrier_replace"):
                     count = 750_000
                     end = start_time + timedelta(days=count)
+                    overridden_calendar = TradingCalendar.custom(
+                        base=calendar, closed_dates=[start_time.date()],
+                    )
                     times = ObservationSchedule.fixed_interval(
                         start_time=start_time, end_time=end, interval_days=1,
                         observation_clock_time=time(), calendar=calendar,
@@ -430,10 +433,14 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                         expiry_time=end, observation_schedule=times,
                     )
                     if case == "barrier_new":
-                        operation = lambda: BarrierOption(**barrier_terms)
+                        operation = lambda: BarrierOption(
+                            **barrier_terms, calendar=overridden_calendar,
+                        )
                     else:
                         barrier = BarrierOption(**barrier_terms)
-                        operation = lambda: barrier.replace(rebate=2)
+                        operation = lambda: barrier.replace(
+                            rebate=2, calendar=overridden_calendar,
+                        )
                 elif case == "curve_new":
                     count = 250_000
                     times = ObservationSchedule.fixed_interval(
@@ -567,10 +574,11 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 if case in ("barrier_new", "barrier_replace"):
                     created = operation()
                     assert len(created.observation_schedule) == count
-                    assert created.calendar == calendar
+                    assert created.calendar == overridden_calendar
                     if case == "barrier_replace":
                         assert created.rebate == 2
                         assert barrier.rebate == 0
+                        assert barrier.calendar == calendar
                 elif case in ("accumulation_schedule", "daily_knock_out_schedule",
                               "explicit_knock_out_schedule", "daily_knock_in_schedule"):
                     fresh = operation()

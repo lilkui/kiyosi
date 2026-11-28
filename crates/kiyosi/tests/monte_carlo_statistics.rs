@@ -1,3 +1,7 @@
+#[path = "support/observation_schedule.rs"]
+mod schedule_fixture;
+use schedule_fixture::schedule as fixture_schedule;
+
 use kiyosi::*;
 
 fn dates() -> (Timestamp, Timestamp) {
@@ -381,7 +385,10 @@ fn statistics_preserve_scheduled_barrier_prices() {
         120.0,
         BarrierType::UpAndOut,
     );
-    single.observation_times = Some(vec![start.add_days(182).unwrap(), end]);
+    single.observation_schedule = Some(fixture_schedule(
+        vec![start.add_days(182).unwrap(), end],
+        single.calendar.as_ref(),
+    ));
     let mut double = DoubleBarrierOptionTerms::new(
         OptionType::Call,
         100.0,
@@ -393,8 +400,8 @@ fn statistics_preserve_scheduled_barrier_prices() {
     );
 
     double
-        .observation_times
-        .clone_from(&single.observation_times);
+        .observation_schedule
+        .clone_from(&single.observation_schedule);
     for (price, estimate) in [
         sample(
             &MonteCarloBarrierEngine::new(settings()).unwrap(),

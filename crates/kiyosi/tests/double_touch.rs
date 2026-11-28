@@ -1,3 +1,7 @@
+#[path = "support/observation_schedule.rs"]
+mod schedule_fixture;
+use schedule_fixture::schedule as fixture_schedule;
+
 use kiyosi::*;
 
 fn terms(kind: DoubleBarrierType) -> DoubleTouchOptionTerms {
@@ -564,7 +568,7 @@ fn analytic_schedules_validate_then_resolve_or_reject() {
     let engine = AnalyticDoubleTouchEngine;
     let fixing = Date::new(2025, 6, 30).unwrap().start_of_day();
     let mut t = terms(DoubleBarrierType::KnockIn);
-    t.observation_times = Some(vec![fixing]);
+    t.observation_schedule = Some(fixture_schedule(vec![fixing], t.calendar.as_ref()));
     let option = DoubleTouchOption::cash(t.clone(), 2.0).unwrap();
     assert!(matches!(
         engine.price(&option, &market(125.0)),
@@ -600,7 +604,11 @@ fn analytic_schedules_validate_then_resolve_or_reject() {
         (engine.price(&no, &after).unwrap() - 2.0 * (-0.03_f64 * 184.0 / 365.0).exp()).abs()
             < 1e-12
     );
-    t.observation_times = Some(vec![Date::new(2025, 1, 4).unwrap().start_of_day()]);
+    t.observation_schedule = Some(fixture_schedule(
+        vec![Date::new(2025, 1, 4).unwrap().start_of_day()],
+        Some(&TradingCalendar::all_days()),
+    ));
+    t.calendar = Some(TradingCalendar::weekdays());
     assert!(matches!(
         DoubleTouchOption::cash(t, 1.0),
         Err(Error::InvalidInput(_))
@@ -891,24 +899,30 @@ fn cash_terms_defaults_validation_and_owning_history() {
             Error::InvalidInput(_)
         ));
         let mut bad = t.clone();
-        bad.observation_times = Some(vec![]);
+        bad.observation_schedule = Some(fixture_schedule(vec![], bad.calendar.as_ref()));
         assert!(matches!(
             DoubleTouchOption::cash(bad, 1.0).unwrap_err(),
             Error::InvalidInput(_)
         ));
         let first = Date::new(2025, 6, 30).unwrap().start_of_day();
         for dates in [vec![t.expiry_time, first], vec![first, first]] {
-            let mut bad = t.clone();
-            bad.observation_times = Some(dates);
             assert!(matches!(
-                DoubleTouchOption::cash(bad, 1.0).unwrap_err(),
-                Error::InvalidInput(_)
+                ObservationSchedule::new(
+                    dates,
+                    t.effective_time,
+                    t.expiry_time,
+                    &TradingCalendar::weekdays()
+                ),
+                Err(Error::InvalidInput(_))
             ));
         }
         let mut scheduled = t;
-        scheduled.observation_times = Some(vec![first, scheduled.expiry_time]);
+        scheduled.observation_schedule = Some(fixture_schedule(
+            vec![first, scheduled.expiry_time],
+            scheduled.calendar.as_ref(),
+        ));
         let owned = DoubleTouchOption::cash(scheduled.clone(), 1.0).unwrap();
-        scheduled.observation_times = None;
+        scheduled.observation_schedule = None;
         assert_eq!(
             owned.observation_schedule().unwrap().times(),
             &[first, owned.expiry_time()]
@@ -1062,7 +1076,7 @@ fn scheduled_one_two_and_early_fixings_match_independent_integrals() {
             let mut t = terms(kind);
             t.lower_barrier = 80.125;
             t.upper_barrier = 120.125;
-            t.observation_times = Some(dates.clone());
+            t.observation_schedule = Some(fixture_schedule(dates.clone(), t.calendar.as_ref()));
             t.settlement_timing = timing;
             let option = DoubleTouchOption::cash(t, 1.0).unwrap();
             let price = engine.price(&option, &market(100.25)).unwrap();
@@ -1080,7 +1094,7 @@ fn early_window_history_utc_calendar_and_fixed_cash_greeks() {
     let engine = FiniteDifferenceDoubleTouchEngine::default();
     let first = Date::new(2025, 6, 30).unwrap().start_of_day();
     let mut t = terms(DoubleBarrierType::KnockOut);
-    t.observation_times = Some(vec![first]);
+    t.observation_schedule = Some(fixture_schedule(vec![first], t.calendar.as_ref()));
     let option = DoubleTouchOption::cash(t.clone(), 2.0).unwrap();
     assert_eq!(engine.price(&option, &context(120.0, first)).unwrap(), 0.0);
     let after = Timestamp::new(first.date(), 0, 0, 0, 1).unwrap();
@@ -1115,7 +1129,11 @@ fn early_window_history_utc_calendar_and_fixed_cash_greeks() {
         .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
-    t.observation_times = Some(vec![Date::new(2025, 1, 4).unwrap().start_of_day()]);
+    t.observation_schedule = Some(fixture_schedule(
+        vec![Date::new(2025, 1, 4).unwrap().start_of_day()],
+        Some(&TradingCalendar::all_days()),
+    ));
+    t.calendar = Some(TradingCalendar::weekdays());
     assert!(matches!(
         DoubleTouchOption::cash(t, 1.0),
         Err(Error::InvalidInput(_))
@@ -1244,7 +1262,7 @@ fn node_curves_and_early_at_hit_horizons_match_digital_cash_portfolios() {
         let mut t = terms(DoubleBarrierType::KnockIn);
         t.lower_barrier = 80.125;
         t.upper_barrier = 120.125;
-        t.observation_times = Some(vec![horizon]);
+        t.observation_schedule = Some(fixture_schedule(vec![horizon], t.calendar.as_ref()));
         t.settlement_timing = SettlementTiming::AtHit;
         let mut touched = 0.0;
         for (direction, level) in [
@@ -1332,7 +1350,7 @@ fn narrow_band_tiny_volatility_and_grid_validation() {
         ..Default::default()
     })
     .unwrap();
-    t.observation_times = Some(vec![t.expiry_time]);
+    t.observation_schedule = Some(fixture_schedule(vec![t.expiry_time], t.calendar.as_ref()));
     let scheduled = DoubleTouchOption::cash(t, 1.0).unwrap();
     assert!(matches!(
         clipped.price(&scheduled, &market(100.0)),

@@ -1,3 +1,7 @@
+#[path = "support/observation_schedule.rs"]
+mod schedule_fixture;
+use schedule_fixture::schedule as fixture_schedule;
+
 use kiyosi::*;
 
 fn terms(direction: OptionType, kind: DoubleBarrierType) -> DoubleBarrierOptionTerms {
@@ -98,7 +102,8 @@ fn tiny_volatility_payoffs_match_the_vanilla_limit() {
                 t.upper_barrier = 1.2 * spot;
 
                 if scheduled {
-                    t.observation_times = Some(vec![t.expiry_time]);
+                    t.observation_schedule =
+                        Some(fixture_schedule(vec![t.expiry_time], t.calendar.as_ref()));
                 }
                 let option = DoubleBarrierOption::new(t).unwrap();
                 let actual = engine.price(&option, &context).unwrap();
@@ -355,10 +360,11 @@ fn scheduled_dates_and_unobserved_expiry_leg_match_finite_difference() {
                 let mut t = terms(direction, kind);
                 t.rebate = 2.0;
                 t.rebate_timing = timing;
-                t.observation_times = Some(vec![Date::new(2025, 6, 30).unwrap().start_of_day()]);
+                let mut observations = vec![Date::new(2025, 6, 30).unwrap().start_of_day()];
                 if final_fixing {
-                    t.observation_times.as_mut().unwrap().push(t.expiry_time);
+                    observations.push(t.expiry_time);
                 }
+                t.observation_schedule = Some(fixture_schedule(observations, t.calendar.as_ref()));
                 let option = DoubleBarrierOption::new(t).unwrap();
                 let actual = engine
                     .price_with_greeks(&option, &market(), GreeksRequest::all())
@@ -381,7 +387,10 @@ fn scheduled_dates_and_unobserved_expiry_leg_match_finite_difference() {
     }
     let mut t = terms(OptionType::Call, DoubleBarrierType::KnockOut);
     t.strike = 130.0;
-    t.observation_times = Some(vec![Date::new(2025, 4, 1).unwrap().start_of_day()]);
+    t.observation_schedule = Some(fixture_schedule(
+        vec![Date::new(2025, 4, 1).unwrap().start_of_day()],
+        t.calendar.as_ref(),
+    ));
     assert!(
         engine
             .price(&DoubleBarrierOption::new(t).unwrap(), &market())
@@ -401,10 +410,13 @@ fn thread_and_sampling_contracts_preserve_exact_samples_and_pairing() {
         t.rebate = 3.0;
         t.rebate_timing = RebateTiming::AtHit;
         if scheduled {
-            t.observation_times = Some(vec![
-                Date::new(2025, 4, 1).unwrap().start_of_day(),
-                Date::new(2025, 7, 1).unwrap().start_of_day(),
-            ]);
+            t.observation_schedule = Some(fixture_schedule(
+                vec![
+                    Date::new(2025, 4, 1).unwrap().start_of_day(),
+                    Date::new(2025, 7, 1).unwrap().start_of_day(),
+                ],
+                t.calendar.as_ref(),
+            ));
         }
         let option = DoubleBarrierOption::new(t).unwrap();
         let context = market();
@@ -573,7 +585,7 @@ fn current_and_prior_touches_expiry_and_finished_monitoring_resolve_before_sampl
             }
 
             let first = Date::new(2025, 7, 1).unwrap().start_of_day();
-            t.observation_times = Some(vec![first]);
+            t.observation_schedule = Some(fixture_schedule(vec![first], t.calendar.as_ref()));
             let scheduled = DoubleBarrierOption::new(t).unwrap();
             let on_date = market()
                 .replace(PricingContextChanges {
@@ -678,7 +690,10 @@ fn solver_pins_request_samples_and_rejects_fixed_cashflows() {
         Error::UnsupportedOperation(_)
     ));
     let mut t = terms(OptionType::Call, DoubleBarrierType::KnockIn);
-    t.observation_times = Some(vec![Date::new(2025, 7, 1).unwrap().start_of_day()]);
+    t.observation_schedule = Some(fixture_schedule(
+        vec![Date::new(2025, 7, 1).unwrap().start_of_day()],
+        t.calendar.as_ref(),
+    ));
     t.touch_state = Some(BarrierTouchState::Untouched);
     let finished = DoubleBarrierOption::new(t).unwrap();
     assert!(matches!(
@@ -784,7 +799,11 @@ fn applicability_and_failure_categories_preserve_inputs() {
         Error::InvalidInput(_)
     ));
     let mut t = terms(OptionType::Call, DoubleBarrierType::KnockOut);
-    t.observation_times = Some(vec![Date::new(2025, 1, 4).unwrap().start_of_day()]);
+    t.observation_schedule = Some(fixture_schedule(
+        vec![Date::new(2025, 1, 4).unwrap().start_of_day()],
+        Some(&TradingCalendar::all_days()),
+    ));
+    t.calendar = Some(TradingCalendar::weekdays());
     assert!(matches!(
         DoubleBarrierOption::new(t),
         Err(Error::InvalidInput(_))
@@ -836,7 +855,8 @@ fn applicability_and_failure_categories_preserve_inputs() {
 fn sobol_dimension_limit_counts_the_unobserved_expiry_leg() {
     let mut t = terms(OptionType::Call, DoubleBarrierType::KnockOut);
     t.expiry_time = Date::new(2100, 1, 1).unwrap().start_of_day();
-    t.observation_times = Some(
+    t.calendar = Some(TradingCalendar::all_days());
+    t.observation_schedule = Some(fixture_schedule(
         (2025..2100)
             .flat_map(|year| {
                 (1..=12).flat_map(move |month| {
@@ -846,8 +866,8 @@ fn sobol_dimension_limit_counts_the_unobserved_expiry_leg() {
             .filter(|date| *date > t.effective_time)
             .take(21201)
             .collect(),
-    );
-    t.calendar = TradingCalendar::all_days();
+        t.calendar.as_ref(),
+    ));
     let option = DoubleBarrierOption::new(t).unwrap();
     assert!(matches!(
         engine().price(&option, &market()).unwrap_err(),

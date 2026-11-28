@@ -95,7 +95,12 @@ mod tests {
         assert!(!short(&at_hit, &market).allows_inline(ScalarRequest::Price, &market));
         let scheduled = kiyosi::DoubleTouchOption::cash(
             DoubleTouchOptionTerms {
-                observation_times: Some(vec![end]),
+                observation_schedule: Some(kiyosi::ObservationSchedule::new(
+                    vec![end],
+                    start,
+                    end,
+                    &kiyosi::TradingCalendar::weekdays(),
+                )?),
                 ..terms
             },
             10.0,
