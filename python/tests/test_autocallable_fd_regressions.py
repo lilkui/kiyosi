@@ -562,11 +562,7 @@ def test_coupon_endpoint_batches_preserve_layer_changes_and_isolation(subtests, 
                     note=note,
                 ):
                     # Resolve brackets finely enough for the price tolerance across coupon units.
-                    return (
-                        pricing.implied_phoenix_coupon
-                        if isinstance(note, PhoenixOption)
-                        else pricing.implied_snowball_coupon
-                    )(
+                    return pricing.implied_coupon(
                         engine,
                         note,
                         context,
@@ -599,11 +595,7 @@ def test_coupon_endpoint_batches_preserve_layer_changes_and_isolation(subtests, 
                             target, rel=0, abs=1e-12
                         )
                     with pytest.raises(InvalidInputError) as error:
-                        (
-                            pricing.implied_phoenix_coupon
-                            if isinstance(note, PhoenixOption)
-                            else pricing.implied_snowball_coupon
-                        )(
+                        pricing.implied_coupon(
                             engine,
                             note,
                             context,

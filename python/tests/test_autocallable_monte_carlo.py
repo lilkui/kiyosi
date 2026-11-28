@@ -25,8 +25,7 @@ from kiyosi.market import (
 from kiyosi.pricing import MonteCarloAutocallableEngine as MC
 from kiyosi.pricing import (
     QuadratureAutocallableEngine,
-    implied_phoenix_coupon,
-    implied_snowball_coupon,
+    implied_coupon,
     implied_volatility,
     numerical_greeks,
 )
@@ -218,9 +217,9 @@ def test_defaults_strict_representations_and_validation(subtests):
             lower_bound=0.0,
             upper_bound=4.0,
         ),
-        lambda: implied_phoenix_coupon(engine, note, context, True),
-        lambda: implied_phoenix_coupon(engine, note, context, 1, max_iterations=True),
-        lambda: implied_phoenix_coupon(
+        lambda: implied_coupon(engine, note, context, True),
+        lambda: implied_coupon(engine, note, context, 1, max_iterations=True),
+        lambda: implied_coupon(
             engine,
             note,
             context,
@@ -352,7 +351,7 @@ def test_solvers_reject_fixed_cashflows_and_preserve_state():
         upper_bound=0.4,
     )
     assert sigma == pytest.approx(0.3, rel=0, abs=1e-6)
-    coupon = implied_phoenix_coupon(
+    coupon = implied_coupon(
         engine,
         note,
         context,
@@ -385,8 +384,8 @@ def test_solvers_reject_fixed_cashflows_and_preserve_state():
         exposed.with_coupon(coupon_per_period=expected_coupon), zero_rate
     )
     with pytest.raises(InvalidInputError, match="with_resolved_seed"):
-        implied_phoenix_coupon(unseeded, exposed, zero_rate, quote)
-    solved = implied_phoenix_coupon(
+        implied_coupon(unseeded, exposed, zero_rate, quote)
+    solved = implied_coupon(
         replay,
         exposed,
         zero_rate,
@@ -428,7 +427,7 @@ def test_solvers_reject_fixed_cashflows_and_preserve_state():
     )
     assert_rejection(
         UnsupportedOperationError,
-        lambda: implied_snowball_coupon(
+        lambda: implied_coupon(
             engine,
             fixed,
             market(100, END),
@@ -438,11 +437,11 @@ def test_solvers_reject_fixed_cashflows_and_preserve_state():
     )
     assert_rejection(
         InvalidInputError,
-        lambda: implied_phoenix_coupon(engine, note, context, math.nan),
+        lambda: implied_coupon(engine, note, context, math.nan),
     )
     assert_rejection(
         RootNotBracketedError,
-        lambda: implied_phoenix_coupon(engine, note, context, 100),
+        lambda: implied_coupon(engine, note, context, 100),
     )
 
 

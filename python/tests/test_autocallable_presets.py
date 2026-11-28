@@ -22,7 +22,7 @@ from kiyosi.pricing import (
     FiniteDifferenceAutocallableEngine,
     MonteCarloAutocallableEngine,
     QuadratureAutocallableEngine,
-    implied_phoenix_coupon,
+    implied_coupon,
 )
 from support.assertions import assert_decimal_equal
 from test_snowball import market
@@ -406,7 +406,7 @@ def test_implied_coupon_bounds_tolerance_and_result_use_contract_units(factory, 
     for engine in engines():
         context = market()
         quote = engine.price(target, context)
-        solved = implied_phoenix_coupon(
+        solved = implied_coupon(
             engine,
             note,
             context,

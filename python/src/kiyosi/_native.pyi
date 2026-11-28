@@ -93,7 +93,8 @@ def configure_monte_carlo_pool(*, max_workers: SupportsIndex) -> None:
     parallel Monte Carlo. Serial engines support pricing in a forked child.
     """
 
-def implied_snowball_coupon(
+@overload
+def implied_coupon(
     engine: QuadratureAutocallableEngine
     | FiniteDifferenceAutocallableEngine
     | MonteCarloAutocallableEngine,
@@ -108,7 +109,7 @@ def implied_snowball_coupon(
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
 ) -> _pricing.SnowballCouponQuote:
-    """Solve the annual snowball coupon that reproduces an observed price.
+    """Solve the coupon that reproduces the observed price of an autocallable note.
 
     Parameters
     ----------
@@ -116,14 +117,15 @@ def implied_snowball_coupon(
         QuadratureAutocallableEngine, FiniteDifferenceAutocallableEngine or
         MonteCarloAutocallableEngine.
     instrument : object
-        SnowballOption, BinarySnowballOption or TernarySnowballOption.
+        SnowballOption, BinarySnowballOption, TernarySnowballOption or PhoenixOption.
     context : PricingContext
         Market snapshot.
     observed_price : float
         Finite target price in the engine's payment units.
-    quote_convention : CouponQuoteConvention
-        Required: shift_maturity_coupon shifts the maturity coupon with
-        observation coupons; preserve_maturity_coupon keeps it fixed.
+    quote_convention : CouponQuoteConvention, optional
+        Required for snowballs. Use shift_maturity_coupon to shift the maturity
+        coupon with observation coupons or preserve_maturity_coupon to keep it fixed.
+        Omit for Phoenix.
     lower_bound : float, optional
         Finite lower coupon in the contract's units; defaults to 0. Signed
         bounds are accepted when the resulting contract terms are valid. For
@@ -144,13 +146,19 @@ def implied_snowball_coupon(
 
     Returns
     -------
-    SnowballCouponQuote
-        Dictionary containing first_observation_coupon, an annual decimal rate,
-        and quote_convention. Apply with instrument.with_coupon(**quote)
-        to preserve observation spreads and the maturity convention.
+    SnowballCouponQuote or PhoenixCouponQuote
+        Apply with instrument.with_coupon(**quote). A snowball quote contains
+        first_observation_coupon, an annual decimal rate, and quote_convention.
+        A Phoenix quote contains coupon_per_period, a decimal rate per
+        qualifying observation.
 
     Raises
     ------
+    TypeError
+        If an argument has the wrong representation or the quote convention
+        is missing for a snowball or supplied for Phoenix.
+    ValueError
+        If the quote convention is unknown.
     InvalidInputError
         If the quote, settings or repriced terms are invalid.
     UnsupportedOperationError
@@ -171,12 +179,14 @@ def implied_snowball_coupon(
     curve, not its sampling error. Snowballs shift all observation coupons
     relative to the first one, including past observations. The maturity
     convention controls the final coupon. The ternary minimum is a fixed lower bound.
-    The quoted rate, bounds and parameter tolerance use annual decimal units.
+    Rates, brackets and parameter tolerances use annual decimal units for
+    snowballs and periodic decimal units for Phoenix.
     Trials use affine interpolation, then bisection.
     Model support follows the engine, including local volatility with finite differences.
     """
 
-def implied_phoenix_coupon(
+@overload
+def implied_coupon(
     engine: QuadratureAutocallableEngine
     | FiniteDifferenceAutocallableEngine
     | MonteCarloAutocallableEngine,
@@ -189,60 +199,7 @@ def implied_phoenix_coupon(
     price_tolerance: _Real = ...,
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
-) -> _pricing.PhoenixCouponQuote:
-    """Solve a Phoenix coupon in absolute periodic rate units.
-
-    Parameters
-    ----------
-    engine : object
-        QuadratureAutocallableEngine, FiniteDifferenceAutocallableEngine or
-        MonteCarloAutocallableEngine.
-    instrument : PhoenixOption
-        Contract to reprice.
-    context : PricingContext
-        Market snapshot.
-    observed_price : float
-        Finite target price in the engine's payment units.
-    lower_bound, upper_bound : float, optional
-        Finite coupon bracket in the contract's units, defaulting to [0, 2].
-    price_tolerance : float, optional
-        Positive finite price residual tolerance; defaults to 1e-8.
-    parameter_tolerance : float, optional
-        Positive finite bracket-width tolerance in coupon units; defaults to
-        1e-8. Bracket convergence without a price match raises
-        NonConvergenceError.
-    max_iterations : int, optional
-        Positive iteration budget, default 100; endpoint and affine evaluations
-        are extra.
-
-    Returns
-    -------
-    PhoenixCouponQuote
-        Dictionary with one key, coupon_per_period: the signed coupon rate per
-        qualifying observation. Apply with instrument.with_coupon(**quote).
-
-    Raises
-    ------
-    InvalidInputError
-        If the quote, settings or repriced terms are invalid.
-    UnsupportedOperationError
-        If the combination is unsupported or the coupon is not identifiable.
-    RootNotBracketedError
-        If endpoints do not bracket the target.
-    NonConvergenceError
-        If the iteration budget is exhausted or the bracket converges without a
-        price match.
-    ComputationFailureError
-        If a price, residual or numerical evaluation is non-finite.
-
-    Notes
-    -----
-    Replaces the conditional coupon, preserving its units. Monte Carlo solves
-    require an explicit seed; call with_resolved_seed() first; tolerances
-    constrain the sampled curve, not sampling error. Pricing failures
-    propagate. Trials use affine interpolation, then bisection.
-    Model support follows the engine, including local volatility with finite differences.
-    """
+) -> _pricing.PhoenixCouponQuote: ...
 
 class EuropeanOption:
     """European vanilla option.

@@ -670,38 +670,34 @@ def test_statistics_reject_unsupported_products_as_domain_errors(
 def test_coupon_solver_rejects_unsupported_products_and_engines(
     base_cases, base_context, base_engines, subtests
 ):
-    for solver, accepted, keywords in (
-        (
-            pricing.implied_snowball_coupon,
-            (
-                ins.SnowballOption,
-                ins.BinarySnowballOption,
-                ins.TernarySnowballOption,
-            ),
-            {"quote_convention": "preserve_maturity_coupon"},
-        ),
-        (pricing.implied_phoenix_coupon, (ins.PhoenixOption,), {}),
-    ):
-        note = next(
-            product for product, _, _ in base_cases if isinstance(product, accepted)
-        )
-        for name, engine in base_engines.items():
-            if name.endswith("AutocallableEngine"):
-                for product, _, _ in base_cases:
-                    if isinstance(product, accepted):
-                        continue
-                    with (
-                        subtests.test(
-                            solver=solver.__name__,
-                            engine=name,
-                            instrument=type(product).__name__,
-                        ),
-                        pytest.raises(UnsupportedOperationError),
-                    ):
-                        solver(engine, product, base_context, 1, **keywords)
-            else:
+    accepted = (
+        ins.SnowballOption,
+        ins.BinarySnowballOption,
+        ins.TernarySnowballOption,
+        ins.PhoenixOption,
+    )
+    note = next(
+        product for product, _, _ in base_cases if isinstance(product, accepted)
+    )
+    for name, engine in base_engines.items():
+        if name.endswith("AutocallableEngine"):
+            for product, _, _ in base_cases:
+                if isinstance(product, accepted):
+                    continue
                 with (
-                    subtests.test(solver=solver.__name__, engine=name),
+                    subtests.test(engine=name, instrument=type(product).__name__),
                     pytest.raises(UnsupportedOperationError),
                 ):
-                    solver(engine, note, base_context, 1, **keywords)
+                    pricing.implied_coupon(engine, product, base_context, 1)
+        else:
+            with (
+                subtests.test(engine=name),
+                pytest.raises(UnsupportedOperationError),
+            ):
+                pricing.implied_coupon(
+                    engine,
+                    note,
+                    base_context,
+                    1,
+                    quote_convention="preserve_maturity_coupon",
+                )

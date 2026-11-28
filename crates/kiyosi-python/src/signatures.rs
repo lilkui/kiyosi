@@ -102,7 +102,7 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     );
     let coupon = kiyosi::ImpliedCouponSettings::default();
     register!(
-        [implied_snowball_coupon, implied_phoenix_coupon],
+        [implied_coupon],
         lower_bound = coupon.lower_bound,
         upper_bound = coupon.upper_bound,
         price_tolerance = coupon.price_tolerance,

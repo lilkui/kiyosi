@@ -21,8 +21,7 @@ from kiyosi.market import (
 )
 from kiyosi.pricing import FiniteDifferenceAutocallableEngine as FD
 from kiyosi.pricing import (
-    implied_phoenix_coupon,
-    implied_snowball_coupon,
+    implied_coupon,
     implied_volatility,
     numerical_greeks,
 )
@@ -109,9 +108,9 @@ def test_engine_defaults_and_representation_errors(subtests):
             lower_bound=0.0,
             upper_bound=4.0,
         ),
-        lambda: implied_phoenix_coupon(engine, note, market(), True),
-        lambda: implied_phoenix_coupon(engine, note, market(), 1, max_iterations=True),
-        lambda: implied_phoenix_coupon(
+        lambda: implied_coupon(engine, note, market(), True),
+        lambda: implied_coupon(engine, note, market(), 1, max_iterations=True),
+        lambda: implied_coupon(
             engine,
             note,
             market(),
@@ -122,7 +121,7 @@ def test_engine_defaults_and_representation_errors(subtests):
         with pytest.raises(TypeError):
             operation()
     with pytest.raises(OverflowError):
-        implied_phoenix_coupon(engine, note, market(), 1, max_iterations=2**40)
+        implied_coupon(engine, note, market(), 1, max_iterations=2**40)
 
 
 @pytest.mark.parametrize("coupon", (0, 0.1))
@@ -251,7 +250,7 @@ def test_fixed_prices_and_unidentifiable_parameters_validate_first():
     )
     assert_rejection(
         UnsupportedOperationError,
-        lambda: implied_snowball_coupon(
+        lambda: implied_coupon(
             engine,
             note,
             market(100, END),
@@ -261,7 +260,7 @@ def test_fixed_prices_and_unidentifiable_parameters_validate_first():
     )
     assert_rejection(
         InvalidInputError,
-        lambda: implied_snowball_coupon(
+        lambda: implied_coupon(
             engine,
             note,
             context,

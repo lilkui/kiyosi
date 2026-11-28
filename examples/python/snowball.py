@@ -9,7 +9,7 @@ from kiyosi.market import (
     PricingContext,
     TradingCalendar,
 )
-from kiyosi.pricing import FiniteDifferenceAutocallableEngine, implied_snowball_coupon
+from kiyosi.pricing import FiniteDifferenceAutocallableEngine, implied_coupon
 
 start, end = datetime(2025, 1, 2, 15), datetime(2026, 1, 5, 15)
 calendar = TradingCalendar.sse()
@@ -65,7 +65,7 @@ print(f"名义本金 {notional:,.0f} 对应的价值：{price * notional:,.2f}")
 # 此约定同时平移观察票息和到期票息；另一个约定可固定到期票息。
 convention = "shift_maturity_coupon"
 target = 1.0
-quote = implied_snowball_coupon(
+quote = implied_coupon(
     engine,
     note,
     context,

@@ -25,7 +25,7 @@ from kiyosi.pricing import (
     CouponQuoteConvention,
     QuadratureAutocallableEngine,
     SnowballCouponQuote,
-    implied_snowball_coupon,
+    implied_coupon,
 )
 
 BinaryBarrierOption()  # ty: ignore[no-matching-overload]
@@ -122,7 +122,7 @@ def touch_payment_conditions(start: datetime, end: datetime) -> None:
 
 
 def snowball_quote_application(note: SnowballOption, context: PricingContext) -> None:
-    quote = implied_snowball_coupon(
+    quote = implied_coupon(
         QuadratureAutocallableEngine(),
         note,
         context,

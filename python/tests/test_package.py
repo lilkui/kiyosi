@@ -348,7 +348,7 @@ def test_greek_methods_expose_declared_keyword_controls(subtests):
 
 
 def test_coupon_solver_exposes_keyword_controls():
-    signature = inspect.signature(pricing.implied_snowball_coupon)
+    signature = inspect.signature(pricing.implied_coupon)
     assert tuple(signature.parameters) == (
         (
             "engine",
@@ -363,11 +363,7 @@ def test_coupon_solver_exposes_keyword_controls():
             "max_iterations",
         )
     )
-    assert signature.parameters["quote_convention"].default is inspect.Parameter.empty
-    phoenix = inspect.signature(pricing.implied_phoenix_coupon)
-    assert tuple(phoenix.parameters) == tuple(
-        name for name in signature.parameters if name != "quote_convention"
-    )
+    assert signature.parameters["quote_convention"].default is Ellipsis
     for name in tuple(signature.parameters)[4:]:
         assert signature.parameters[name].kind is inspect.Parameter.KEYWORD_ONLY
 

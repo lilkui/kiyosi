@@ -11,7 +11,7 @@ from kiyosi.market import (
     ObservationSchedule,
     PricingContext,
 )
-from kiyosi.pricing import FiniteDifferenceAutocallableEngine, implied_phoenix_coupon
+from kiyosi.pricing import FiniteDifferenceAutocallableEngine, implied_coupon
 
 start, end = datetime(2025, 1, 2, 15), datetime(2025, 7, 2, 15)
 times = ObservationSchedule.monthly(
@@ -102,7 +102,7 @@ for name, note in (
 ):
     print(f"{name} 单位本金价格：{engine.price(note, context):.6f}")
     target = 1.0
-    quote = implied_phoenix_coupon(
+    quote = implied_coupon(
         engine, note, context, target, lower_bound=0, upper_bound=0.5
     )
     quoted = note.with_coupon(**quote)

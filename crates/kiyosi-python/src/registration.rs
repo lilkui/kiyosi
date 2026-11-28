@@ -172,8 +172,7 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
         risk::active_greek_controls,
         risk::implied_volatility,
         risk::numerical_greeks,
-        risk::implied_snowball_coupon,
-        risk::implied_phoenix_coupon,
+        risk::implied_coupon,
     );
     crate::signatures::register(py, module)
 }

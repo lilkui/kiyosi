@@ -29,7 +29,7 @@ from kiyosi.pricing import (
     FiniteDifferenceAutocallableEngine,
     MonteCarloAutocallableEngine,
     QuadratureAutocallableEngine,
-    implied_snowball_coupon,
+    implied_coupon,
     implied_volatility,
     numerical_greeks,
 )
@@ -99,7 +99,7 @@ def test_quadrature_covers_drift_into_future_knock_out():
     engine = QuadratureAutocallableEngine()
     expected = 1.2 * math.exp(-0.05)
     assert engine.price(note, context) == pytest.approx(expected, rel=0, abs=1e-7)
-    assert implied_snowball_coupon(
+    assert implied_coupon(
         engine,
         note,
         context,

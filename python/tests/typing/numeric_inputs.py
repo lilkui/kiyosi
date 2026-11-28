@@ -17,7 +17,7 @@ from kiyosi.pricing import (
     MonteCarloVanillaEngine,
     PhoenixCouponQuote,
     QuadratureAutocallableEngine,
-    implied_phoenix_coupon,
+    implied_coupon,
 )
 
 
@@ -27,7 +27,7 @@ class Index:
 
 
 def phoenix_quote(note: PhoenixOption, context: PricingContext) -> None:
-    quote = implied_phoenix_coupon(QuadratureAutocallableEngine(), note, context, 1)
+    quote = implied_coupon(QuadratureAutocallableEngine(), note, context, 1)
     assert_type(quote, PhoenixCouponQuote)
     assert_type(note.replace(**quote), PhoenixOption)
     note.replace(coupon_per_period=quote)  # ty: ignore[invalid-argument-type]

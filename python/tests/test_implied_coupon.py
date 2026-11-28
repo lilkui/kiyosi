@@ -37,8 +37,7 @@ from kiyosi.pricing import (
     FiniteDifferenceAutocallableEngine,
     MonteCarloAutocallableEngine,
     QuadratureAutocallableEngine,
-    implied_phoenix_coupon,
-    implied_snowball_coupon,
+    implied_coupon,
 )
 from support.assertions import assert_decimal_equal, assert_rejection
 from test_phoenix import contract as phoenix
@@ -79,7 +78,7 @@ def test_coupon_solvers_reprice_local_volatility_quotes():
         target = engine.price(
             note.with_coupon(0.12, quote_convention=convention), context
         )
-        solved = implied_snowball_coupon(
+        solved = implied_coupon(
             engine, note, context, target, quote_convention=convention
         )
         assert solved["first_observation_coupon"] == pytest.approx(
@@ -90,7 +89,7 @@ def test_coupon_solvers_reprice_local_volatility_quotes():
             target, rel=0, abs=1e-8
         )
         with pytest.raises(UnsupportedOperationError):
-            implied_snowball_coupon(
+            implied_coupon(
                 QuadratureAutocallableEngine(),
                 note,
                 context,
@@ -112,7 +111,7 @@ def test_coupon_solvers_reprice_local_volatility_quotes():
             coupon_observations=[instruments.CouponObservation(END, 90)],
         )
         target = engine.price(note, context)
-        solved = implied_phoenix_coupon(engine, note, context, target)
+        solved = implied_coupon(engine, note, context, target)
         assert set(solved) == {field}
         assert solved[field] == pytest.approx(coupon, rel=0, abs=1e-7)
         assert engine.price(note.with_coupon(**solved), context) == pytest.approx(
@@ -128,12 +127,8 @@ def test_monte_carlo_coupon_solvers_require_a_replayable_seed():
     note = binary()
     target = engine.price(note.with_coupon(0.12, quote_convention=convention), context)
     with pytest.raises(InvalidInputError, match="with_resolved_seed"):
-        implied_snowball_coupon(
-            unseeded, note, context, target, quote_convention=convention
-        )
-    solved = implied_snowball_coupon(
-        engine, note, context, target, quote_convention=convention
-    )
+        implied_coupon(unseeded, note, context, target, quote_convention=convention)
+    solved = implied_coupon(engine, note, context, target, quote_convention=convention)
     assert solved["first_observation_coupon"] == pytest.approx(0.12, rel=0, abs=1e-8)
     assert engine.price(note.with_coupon(**solved), context) == pytest.approx(
         target, rel=0, abs=1e-8
@@ -141,8 +136,8 @@ def test_monte_carlo_coupon_solvers_require_a_replayable_seed():
     for note in (phoenix(), phoenix().replace(coupon_per_period=0.02)):
         target = engine.price(note, context)
         with pytest.raises(InvalidInputError, match="with_resolved_seed"):
-            implied_phoenix_coupon(unseeded, note, context, target)
-        quote = implied_phoenix_coupon(engine, note, context, target)
+            implied_coupon(unseeded, note, context, target)
+        quote = implied_coupon(engine, note, context, target)
         assert engine.price(note.replace(**quote), context) == pytest.approx(
             target, rel=0, abs=1e-8
         )
@@ -180,7 +175,7 @@ def test_ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons(sub
                 with subtests.test(
                     engine=type(engine).__name__, maturity=maturity, lower=lower
                 ):
-                    solved = implied_snowball_coupon(
+                    solved = implied_coupon(
                         engine,
                         note,
                         context,
@@ -192,7 +187,7 @@ def test_ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons(sub
                         anchor, rel=0, abs=1e-7
                     )
             with pytest.raises(RootNotBracketedError):
-                implied_snowball_coupon(
+                implied_coupon(
                     engine,
                     note,
                     context,
@@ -202,7 +197,7 @@ def test_ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons(sub
                     upper_bound=0.01,
                 )
             with pytest.raises(InvalidInputError):
-                implied_snowball_coupon(
+                implied_coupon(
                     engine,
                     note,
                     context,
@@ -212,7 +207,7 @@ def test_ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons(sub
                 )
             fixed = note.with_coupon(0, quote_convention="preserve_maturity_coupon")
             assert (
-                implied_snowball_coupon(
+                implied_coupon(
                     engine,
                     note,
                     context,
@@ -235,7 +230,7 @@ def test_ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons(sub
                 [END], [110], knock_out_coupon_rates=[0.05]
             ),
         )
-        assert implied_snowball_coupon(
+        assert implied_coupon(
             engine,
             boundary,
             context,
@@ -286,7 +281,7 @@ def test_coupon_replacements_apply_solved_quotes_without_changing_notes(subtests
                 assert replacement.barrier_state == note.barrier_state
                 assert replacement.knock_out_levels == note.knock_out_levels
                 target = engine.price(replacement, context)
-                solved = implied_snowball_coupon(
+                solved = implied_coupon(
                     engine,
                     note,
                     context,
@@ -324,7 +319,7 @@ def test_coupon_replacements_apply_solved_quotes_without_changing_notes(subtests
         assert replacement.knock_out_observations == note.knock_out_observations
         assert replacement.coupon_observations == note.coupon_observations
         target = engine.price(replacement, context)
-        solved = implied_phoenix_coupon(engine, note, context, target)
+        solved = implied_coupon(engine, note, context, target)
         assert engine.price(note.replace(**solved), context) == pytest.approx(
             target, rel=0, abs=1e-8
         )
@@ -347,7 +342,7 @@ def test_quoted_phoenix_coupons_preserve_units_and_validate_inputs(subtests):
             changed = note.with_coupon(coupon_per_period=coupon)
             assert changed == note.replace(coupon_per_period=coupon)
             quote = engine.price(changed, context)
-            solved = implied_phoenix_coupon(
+            solved = implied_coupon(
                 engine,
                 note,
                 context,
@@ -384,41 +379,33 @@ def test_quoted_phoenix_coupons_preserve_units_and_validate_inputs(subtests):
     assert note.coupon_per_period == 0.01
 
 
-def test_coupon_signatures_express_product_requirements():
+def test_implied_coupon_preserves_product_specific_convention():
     engine = QuadratureAutocallableEngine(asset_step_count=64)
     note, context = phoenix(), market()
     quote = engine.price(note, context)
-    signature = inspect.signature(implied_phoenix_coupon)
-    assert "quote_convention" not in signature.parameters
+    signature = inspect.signature(implied_coupon)
+    assert signature.parameters["quote_convention"].default is Ellipsis
     bound = signature.bind(engine, note, context, quote)
     bound.apply_defaults()
-    solved = implied_phoenix_coupon(*bound.args, **bound.kwargs)
+    solved = implied_coupon(*bound.args, **bound.kwargs)
     assert set(solved) == {"coupon_per_period"}
     assert solved["coupon_per_period"] == pytest.approx(
         note.coupon_per_period, rel=0, abs=1e-8
     )
     with pytest.raises(TypeError):
-        implied_phoenix_coupon(
+        implied_coupon(
             engine,
             note,
             context,
             quote,
             quote_convention=None,
         )
-    signature = inspect.signature(implied_snowball_coupon)
-    assert signature.parameters["quote_convention"].default is inspect.Parameter.empty
-    with pytest.raises(TypeError):
-        signature.bind(engine, binary(), context, 1)
-    with pytest.raises(UnsupportedOperationError):
-        implied_snowball_coupon(
-            engine,
-            note,
-            context,
-            quote,
-            quote_convention="preserve_maturity_coupon",
+    with pytest.raises(TypeError, match="Phoenix does not take quote_convention"):
+        implied_coupon(
+            engine, note, context, quote, quote_convention="preserve_maturity_coupon"
         )
-    with pytest.raises(UnsupportedOperationError):
-        implied_phoenix_coupon(engine, binary(), context, 1)
+    with pytest.raises(TypeError, match="require quote_convention"):
+        implied_coupon(engine, binary(), context, 1)
 
 
 @pytest.mark.parametrize("convention", get_args(CouponQuoteConvention))
@@ -434,7 +421,7 @@ def test_quadrature_coupon_quote_reprices_daily_knock_in(convention):
     context = market()
     engine = QuadratureAutocallableEngine()
     quote = engine.price(note.with_coupon(0.1, quote_convention=convention), context)
-    solved = implied_snowball_coupon(
+    solved = implied_coupon(
         engine,
         note,
         context,
@@ -473,7 +460,7 @@ def test_coupon_endpoints_can_change_daily_knock_in_layers():
     engine = QuadratureAutocallableEngine(asset_step_count=17)
     quote = engine.price(note, context)
     for convention in get_args(CouponQuoteConvention):
-        solved = implied_snowball_coupon(
+        solved = implied_coupon(
             engine,
             note,
             context,
@@ -495,7 +482,7 @@ def test_binary_recovers_both_quote_conventions():
     for convention in ("shift_maturity_coupon", "preserve_maturity_coupon"):
         maturity = 0.16 if convention == "shift_maturity_coupon" else 0.06
         quote = engine.price(binary(0.18, maturity), context)
-        solved = implied_snowball_coupon(
+        solved = implied_coupon(
             engine,
             note,
             context,
@@ -637,11 +624,7 @@ def check_all_products(subtests, engine):
                     kwargs = (
                         {} if convention is None else {"quote_convention": convention}
                     )
-                    solved = (
-                        implied_phoenix_coupon
-                        if isinstance(original, PhoenixOption)
-                        else implied_snowball_coupon
-                    )(
+                    solved = implied_coupon(
                         engine,
                         original,
                         context,
@@ -680,7 +663,7 @@ def test_independent_quantlib_terminal_quote():
         discount,
     ).value()
     quote = discount * (1 + 0.06 * term) + (0.18 - 0.06) * term * probability
-    solved = implied_snowball_coupon(
+    solved = implied_coupon(
         QuadratureAutocallableEngine(),
         binary(),
         market(),
@@ -694,7 +677,7 @@ def test_bounds_defaults_and_validation_order():
     engine, note, context = QuadratureAutocallableEngine(), binary(), market()
 
     def solve(quote, **settings):
-        return implied_snowball_coupon(
+        return implied_coupon(
             engine,
             note,
             context,
@@ -728,7 +711,7 @@ def test_bounds_defaults_and_validation_order():
     late = market(100, END)
     assert_rejection(
         InvalidInputError,
-        lambda: implied_snowball_coupon(
+        lambda: implied_coupon(
             engine,
             note,
             late,
@@ -738,7 +721,7 @@ def test_bounds_defaults_and_validation_order():
     )
     assert_rejection(
         UnsupportedOperationError,
-        lambda: implied_snowball_coupon(
+        lambda: implied_coupon(
             engine,
             note,
             late,
@@ -756,7 +739,7 @@ def test_bounds_defaults_and_validation_order():
     )
     assert_rejection(
         InvalidInputError,
-        lambda: implied_snowball_coupon(
+        lambda: implied_coupon(
             engine,
             note,
             curved,
@@ -766,7 +749,7 @@ def test_bounds_defaults_and_validation_order():
     )
     assert_rejection(
         UnsupportedOperationError,
-        lambda: implied_snowball_coupon(
+        lambda: implied_coupon(
             engine,
             note,
             curved,
@@ -790,7 +773,7 @@ def test_no_exposure_current_and_past_events_and_ternary_validation():
     quote = engine.price(known, context)
     assert_rejection(
         UnsupportedOperationError,
-        lambda: implied_snowball_coupon(
+        lambda: implied_coupon(
             engine,
             known,
             context,
@@ -798,14 +781,14 @@ def test_no_exposure_current_and_past_events_and_ternary_validation():
             quote_convention="preserve_maturity_coupon",
         ),
     )
-    assert implied_snowball_coupon(
+    assert implied_coupon(
         engine,
         known,
         context,
         quote,
         quote_convention="shift_maturity_coupon",
     )["first_observation_coupon"] == pytest.approx(0.08, rel=0, abs=1e-8)
-    assert implied_snowball_coupon(
+    assert implied_coupon(
         engine,
         known,
         market(110, END),
@@ -833,11 +816,7 @@ def test_no_exposure_current_and_past_events_and_ternary_validation():
     ):
         assert_rejection(
             UnsupportedOperationError,
-            lambda note=note, kwargs=kwargs: (
-                implied_phoenix_coupon
-                if isinstance(note, PhoenixOption)
-                else implied_snowball_coupon
-            )(
+            lambda note=note, kwargs=kwargs: implied_coupon(
                 engine,
                 note,
                 market(70, END),
@@ -856,7 +835,7 @@ def test_no_exposure_current_and_past_events_and_ternary_validation():
         autocall_observations=known.autocall_observations,
         barrier_state="no_event",
     )
-    coupon = implied_snowball_coupon(
+    coupon = implied_coupon(
         engine,
         ternary,
         market(),
@@ -884,11 +863,7 @@ def test_no_exposure_current_and_past_events_and_ternary_validation():
         )
         assert_rejection(
             UnsupportedOperationError,
-            lambda settled=settled, kwargs=kwargs: (
-                implied_phoenix_coupon
-                if isinstance(settled, PhoenixOption)
-                else implied_snowball_coupon
-            )(
+            lambda settled=settled, kwargs=kwargs: implied_coupon(
                 engine,
                 settled,
                 market(100, END),
@@ -902,7 +877,7 @@ def test_strict_protocols_and_concurrent_solves():
     engine, note, context = QuadratureAutocallableEngine(), binary(), market()
 
     def solve(**settings):
-        return implied_snowball_coupon(engine, note, context, 1, **settings)
+        return implied_coupon(engine, note, context, 1, **settings)
 
     for value in (True, "0.1", 1j, None):
         for field in (
@@ -914,7 +889,7 @@ def test_strict_protocols_and_concurrent_solves():
             with pytest.raises(TypeError):
                 solve(quote_convention="preserve_maturity_coupon", **{field: value})
         with pytest.raises(TypeError):
-            implied_snowball_coupon(
+            implied_coupon(
                 engine,
                 note,
                 context,
@@ -938,7 +913,7 @@ def test_strict_protocols_and_concurrent_solves():
             solve(**kwargs)
     assert_rejection(ValueError, solve, quote_convention="unknown")
     with pytest.raises(TypeError):
-        implied_phoenix_coupon(
+        implied_coupon(
             engine,
             phoenix(),
             context,
@@ -946,7 +921,7 @@ def test_strict_protocols_and_concurrent_solves():
             quote_convention="preserve_maturity_coupon",
         )
     with pytest.raises(TypeError):
-        implied_snowball_coupon(
+        implied_coupon(
             object(),
             note,
             context,
@@ -954,7 +929,7 @@ def test_strict_protocols_and_concurrent_solves():
             quote_convention="preserve_maturity_coupon",
         )
     with pytest.raises(TypeError):
-        implied_snowball_coupon(
+        implied_coupon(
             engine,
             object(),
             context,
@@ -964,7 +939,7 @@ def test_strict_protocols_and_concurrent_solves():
     quote = engine.price(binary(0.18), context)
 
     def recover(_):
-        return implied_snowball_coupon(
+        return implied_coupon(
             engine,
             note,
             context,
@@ -984,7 +959,7 @@ def test_nonfinite_residual_and_exhausted_bisection_errors():
     note = binary(barrier_state="no_event")
     assert_rejection(
         ComputationFailureError,
-        lambda: implied_snowball_coupon(
+        lambda: implied_coupon(
             engine,
             note,
             market(110, END),
@@ -1005,7 +980,7 @@ def test_nonfinite_residual_and_exhausted_bisection_errors():
     original = repr(note)
     assert_rejection(
         NonConvergenceError,
-        lambda: implied_snowball_coupon(
+        lambda: implied_coupon(
             engine,
             note,
             market(),

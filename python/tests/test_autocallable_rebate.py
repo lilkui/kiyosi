@@ -17,8 +17,7 @@ from kiyosi.pricing import (
     FiniteDifferenceAutocallableEngine,
     MonteCarloAutocallableEngine,
     QuadratureAutocallableEngine,
-    implied_phoenix_coupon,
-    implied_snowball_coupon,
+    implied_coupon,
 )
 from test_phoenix import contract as phoenix
 from test_snowball import END, START, contract, market
@@ -201,16 +200,14 @@ def test_coupon_solvers_preserve_rebate_rates():
     snow = contract(rebate_rate=0.02, annual_rebate_rate=0.06)
     convention = "shift_maturity_coupon"
     target = engine.price(snow.with_coupon(0.12, quote_convention=convention), context)
-    quote = implied_snowball_coupon(
-        engine, snow, context, target, quote_convention=convention
-    )
+    quote = implied_coupon(engine, snow, context, target, quote_convention=convention)
     applied = snow.with_coupon(**quote)
     assert applied.rebate_rate == 0.02
     assert applied.annual_rebate_rate == 0.06
     assert quote["first_observation_coupon"] == pytest.approx(0.12, abs=1e-8)
     bird = phoenix(rebate_rate=0.02, annual_rebate_rate=0.06)
     target = engine.price(bird.with_coupon(coupon_per_period=0.03), context)
-    quote = implied_phoenix_coupon(engine, bird, context, target)
+    quote = implied_coupon(engine, bird, context, target)
     applied = bird.with_coupon(**quote)
     assert applied.rebate_rate == 0.02
     assert applied.annual_rebate_rate == 0.06

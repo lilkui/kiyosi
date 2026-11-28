@@ -121,8 +121,7 @@ from ._native import (
     TurnbullWakemanArithmeticAveragePriceEngine,
     active_greek_controls,
     configure_monte_carlo_pool,
-    implied_phoenix_coupon,
-    implied_snowball_coupon,
+    implied_coupon,
     implied_volatility,
     numerical_greeks,
 )
@@ -226,8 +225,7 @@ __all__ = [
     "TurnbullWakemanArithmeticAveragePriceEngine",
     "active_greek_controls",
     "configure_monte_carlo_pool",
-    "implied_phoenix_coupon",
-    "implied_snowball_coupon",
+    "implied_coupon",
     "implied_volatility",
     "numerical_greeks",
 ]
