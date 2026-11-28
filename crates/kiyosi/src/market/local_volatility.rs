@@ -44,7 +44,7 @@ pub struct LocalVolatilitySurface {
     times: Arc<[Timestamp]>,
     years: Arc<[f64]>,
     spots: Arc<[f64]>,
-    values: Arc<[f64]>,
+    values: Arc<Vec<f64>>,
     row_groups: Arc<[usize]>,
     extrema: Arc<[[f64; 2]]>,
 }
@@ -147,7 +147,7 @@ impl LocalVolatilitySurface {
             times: times.into(),
             years: years.into(),
             spots: spots.into(),
-            values: table.into(),
+            values: Arc::new(table),
             row_groups: row_groups.into(),
             extrema: extrema.into(),
         })
