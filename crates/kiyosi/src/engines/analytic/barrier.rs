@@ -16,66 +16,7 @@ use crate::{BarrierOption, RebateTiming};
 /// [bgk]: https://business.columbia.edu/sites/default/files-efs/pubfiles/1845/bgk_mf.pdf
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AnalyticBarrierEngine;
-impl AnalyticBarrierEngine {
-    /// Prices after validating flat rates, inclusive life and strictly prior history.
-    ///
-    /// Current boundary hits settle before future monitoring. Prior at-hit rebates are paid.
-    /// Curve coverage is required only for remaining cash flows and stochastic evolution.
-    /// Continuous knock-outs use survival-weighted quadrature when closed-form
-    /// payoff terms nearly cancel.
-    /// Unresolved scheduled monitoring uses the Broadie-Glasserman-Kou (BGK)
-    /// continuity correction and must end at expiry.
-    ///
-    /// # Errors
-    ///
-    /// Missing required history returns [`crate::Error::MissingHistory`];
-    /// see the [caller-supplied history contract](crate).
-    ///
-    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves or unsupported
-    /// schedules. Returns [`Error::InvalidInput`] outside life, for impossible history, or outside required curve coverage.
-    /// Non-finite or materially negative prices return [`Error::ComputationFailure`].
-    /// Only rounding-sized negative prices are clipped to zero.
-    /// Exhausted at-hit rebate integration returns [`Error::NonConvergence`].
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use kiyosi::*;
-    /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let option = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call, 100.0,
-    ///     start, Date::new(2026, 1, 1)?.start_of_day(), 120.0, BarrierType::UpAndOut))?;
-    /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?,
-    ///     120.0, start.into())?;
-    /// assert_eq!(AnalyticBarrierEngine.price(&option, &context)?, 0.0);
-    /// # Ok(()) }
-    /// ```
-    ///
-    /// # Greeks
-    ///
-    /// Computes requested scalar numerical Greeks with shared bump defaults.
-    ///
-    /// Expiry Greeks follow terminal payoffs. At a current touch, rate and
-    /// volatility Greeks follow the resolved payoff. Spot derivatives are absent
-    /// at equality. Stencils crossing
-    /// observations or spot barriers leave affected measures absent; see [`Self::price`].
-    ///
-    /// ## Errors
-    ///
-    /// Reuses [`crate::numerical_greeks`] validation and propagates [`Self::price`] errors.
-    pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        self.validate_applicability(context)?;
-        validate_life(option, context)?;
-        if crate::engines::deterministic::enabled(context) {
-            return crate::engines::deterministic::barrier(option, context);
-        }
-        if let Some(value) = resolved_price(option, context)? {
-            return Ok(value);
-        }
-        context.validate_curve_horizon(option.expiry_time())?;
-        analytic_price(option, context)
-    }
-}
+impl AnalyticBarrierEngine {}
 pub(crate) fn resolved_price(
     option: &BarrierOption,
     context: &PricingContext,
@@ -141,8 +82,63 @@ impl PricingEngine<BarrierOption> for AnalyticBarrierEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         crate::engines::flat_rates(context).map(|_| ())
     }
+    /// Prices after validating flat rates, inclusive life and strictly prior history.
+    ///
+    /// Current boundary hits settle before future monitoring. Prior at-hit rebates are paid.
+    /// Curve coverage is required only for remaining cash flows and stochastic evolution.
+    /// Continuous knock-outs use survival-weighted quadrature when closed-form
+    /// payoff terms nearly cancel.
+    /// Unresolved scheduled monitoring uses the Broadie-Glasserman-Kou (BGK)
+    /// continuity correction and must end at expiry.
+    ///
+    /// # Errors
+    ///
+    /// Missing required history returns [`crate::Error::MissingHistory`];
+    /// see the [caller-supplied history contract](crate).
+    ///
+    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves or unsupported
+    /// schedules. Returns [`Error::InvalidInput`] outside life, for impossible history, or outside required curve coverage.
+    /// Non-finite or materially negative prices return [`Error::ComputationFailure`].
+    /// Only rounding-sized negative prices are clipped to zero.
+    /// Exhausted at-hit rebate integration returns [`Error::NonConvergence`].
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::*;
+    /// # fn main() -> Result<()> {
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let option = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call, 100.0,
+    ///     start, Date::new(2026, 1, 1)?.start_of_day(), 120.0, BarrierType::UpAndOut))?;
+    /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?,
+    ///     120.0, start.into())?;
+    /// assert_eq!(AnalyticBarrierEngine.price(&option, &context)?, 0.0);
+    /// # Ok(()) }
+    /// ```
+    ///
+    /// # Greeks
+    ///
+    /// Computes requested scalar numerical Greeks with shared bump defaults.
+    ///
+    /// Expiry Greeks follow terminal payoffs. At a current touch, rate and
+    /// volatility Greeks follow the resolved payoff. Spot derivatives are absent
+    /// at equality. Stencils crossing
+    /// observations or spot barriers leave affected measures absent; see [`Self::price`].
+    ///
+    /// ## Errors
+    ///
+    /// Reuses [`crate::numerical_greeks`] validation and propagates [`Self::price`] errors.
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        self.price(option, context)
+        self.validate_applicability(context)?;
+        validate_life(option, context)?;
+        if crate::engines::deterministic::enabled(context) {
+            return crate::engines::deterministic::barrier(option, context);
+        }
+        if let Some(value) = resolved_price(option, context)? {
+            return Ok(value);
+        }
+        context.validate_curve_horizon(option.expiry_time())?;
+        analytic_price(option, context)
     }
 }
 fn analytic_price(option: &BarrierOption, context: &PricingContext) -> Result<f64> {

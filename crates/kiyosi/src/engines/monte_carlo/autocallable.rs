@@ -94,52 +94,6 @@ impl MonteCarloAutocallableEngine {
         self.settings
     }
 
-    /// Returns the mean discounted remaining cash flows. See [`Self::new`].
-    ///
-    /// # Errors
-    ///
-    /// Propagates [`Self::price_with_statistics`] sampling and pricing errors,
-    /// without computing or validating uncertainty.
-    ///
-    /// # Panics
-    ///
-    /// Propagates worker panics after the call's parallel work has finished.
-    ///
-    /// # Aborts
-    ///
-    /// Allocation exhaustion follows the allocator's behavior (normally process abort).
-    ///
-    /// # Greeks
-    ///
-    /// Computes requested finite-difference Greeks with shared normal draws.
-    ///
-    /// Pins a request-local seed when none is configured. At expiry Greeks follow
-    /// terminal payoffs, with time Greeks absent. Stencils crossing active
-    /// spot/time events are unavailable, following
-    /// [`crate::numerical_greeks`]. Discontinuous payoffs can make small bumps
-    /// noisy; shift sizes control the sampled curve, not statistical accuracy.
-    /// See [`Self::new`] for an example.
-    ///
-    /// ## Errors
-    ///
-    /// Checks flat rates before shift validation, then propagates
-    /// [`crate::numerical_greeks`] and [`Self::price`] errors.
-    ///
-    /// ## Panics
-    ///
-    /// Propagates worker panics after the call's parallel work has finished.
-    ///
-    /// ## Aborts
-    ///
-    /// Allocation exhaustion follows the allocator's behavior (normally process abort).
-    pub fn price<T: AutocallableTerms>(
-        &self,
-        option: &AutocallableNote<T>,
-        context: &PricingContext,
-    ) -> Result<f64> {
-        Ok(self.price_with_seed(option, context)?.0)
-    }
-
     /// Prices a batch of notes of one product type in input order.
     ///
     /// Compatible observation grids share simulated paths within the batch
@@ -1098,7 +1052,45 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<AutocallableNote<T>> + '_>>> {
         prepare_seeded_request!(self, self.settings)
     }
+    /// Returns the mean discounted remaining cash flows. See [`Self::new`].
+    ///
+    /// # Errors
+    ///
+    /// Propagates [`Self::price_with_statistics`] sampling and pricing errors,
+    /// without computing or validating uncertainty.
+    ///
+    /// # Panics
+    ///
+    /// Propagates worker panics after the call's parallel work has finished.
+    ///
+    /// # Aborts
+    ///
+    /// Allocation exhaustion follows the allocator's behavior (normally process abort).
+    ///
+    /// # Greeks
+    ///
+    /// Computes requested finite-difference Greeks with shared normal draws.
+    ///
+    /// Pins a request-local seed when none is configured. At expiry Greeks follow
+    /// terminal payoffs, with time Greeks absent. Stencils crossing active
+    /// spot/time events are unavailable, following
+    /// [`crate::numerical_greeks`]. Discontinuous payoffs can make small bumps
+    /// noisy; shift sizes control the sampled curve, not statistical accuracy.
+    /// See [`Self::new`] for an example.
+    ///
+    /// ## Errors
+    ///
+    /// Checks flat rates before shift validation, then propagates
+    /// [`crate::numerical_greeks`] and [`Self::price`] errors.
+    ///
+    /// ## Panics
+    ///
+    /// Propagates worker panics after the call's parallel work has finished.
+    ///
+    /// ## Aborts
+    ///
+    /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
-        self.price(option, context)
+        Ok(self.price_with_seed(option, context)?.0)
     }
 }

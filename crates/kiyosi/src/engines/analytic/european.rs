@@ -25,10 +25,74 @@ pub(crate) fn black_scholes_arguments(
     (standardized + 0.5 * width, standardized - 0.5 * width)
 }
 
-impl AnalyticEuropeanEngine {
+impl PricingEngine for AnalyticEuropeanEngine {
+    fn greek_method(
+        &self,
+        option: &crate::EuropeanOption,
+        context: &PricingContext,
+    ) -> Result<crate::GreekMethod> {
+        <Self as PricingEngine<crate::EuropeanOption>>::validate_applicability(self, context)?;
+        Ok(
+            if crate::engines::deterministic::enabled(context)
+                && context.valuation_time() != option.expiry_time()
+            {
+                crate::GreekMethod::Numerical
+            } else {
+                crate::GreekMethod::Native
+            },
+        )
+    }
+
+    /// Prices through inclusive expiry, including before the contract's effective time.
+    ///
+    /// See the [crate example](crate) for construction and pricing.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::UnsupportedOperation`] for non-BSM models,
+    /// [`Error::InvalidInput`] after expiry or outside required curve
+    /// coverage, and [`Error::ComputationFailure`] for non-finite results.
+    ///
+    fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
+        let model = context.natural_bsm_parameters()?;
+        if crate::engines::deterministic::enabled(context) {
+            return crate::engines::deterministic::vanilla(
+                option,
+                crate::engines::Payoff::vanilla(option.option_type(), option.strike(), false),
+                context,
+            );
+        }
+        let valuation = context.valuation_time();
+        let expiry = option.expiry_time();
+        crate::instruments::monitoring::validate_life(option, context)?;
+        context.validate_curve_coverage(expiry)?;
+        let spot = context.spot_price();
+        let strike = option.strike();
+        let sign = match option.option_type() {
+            OptionType::Call => 1.0,
+            OptionType::Put => -1.0,
+        };
+        let time = valuation.years_until(expiry);
+        if time == 0.0 {
+            return Ok((sign * (spot - strike)).max(0.0));
+        }
+        let risk_log = model.risk_free_curve().log_factor(valuation, expiry)?;
+        let dividend_log = model.dividend_curve().log_factor(valuation, expiry)?;
+        lognormal_price(
+            spot,
+            strike,
+            context.log_forward_moneyness(expiry, strike, dividend_log - risk_log),
+            (dividend_log, risk_log),
+            model.volatility(),
+            time.sqrt(),
+            sign,
+        )
+    }
+
     /// Returns the price and selected analytic Greeks.
     ///
-    /// Uses engine-default estimation controls; see [`crate::numerical_greeks`] for custom bumps.
+    /// Uses the request's shifts for deterministic pricing before expiry. See
+    /// [`Self::price_with_greeks`] for estimation with default shifts.
     /// At expiry spot Greeks are exact payoff derivatives, independent of numerical bumps.
     /// Delta, gamma, speed, vanna and zomma are absent exactly at the strike;
     /// volatility and rate Greeks are zero, while time Greeks are absent.
@@ -40,17 +104,8 @@ impl AnalyticEuropeanEngine {
     ///
     /// Propagates [`Self::price`] errors. Non-finite requested derivatives
     /// return [`Error::ComputationFailure`].
-    pub fn price_with_greeks(
+    fn price_with_greeks_with_settings(
         &self,
-        option: &EuropeanOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        self.greeks_with_settings(option, context, request, Default::default())
-    }
-
-    fn greeks_with_settings(
-        self,
         option: &EuropeanOption,
         context: &PricingContext,
         request: GreeksRequest,
@@ -72,7 +127,7 @@ impl AnalyticEuropeanEngine {
             );
         }
         if crate::engines::deterministic::enabled(context) {
-            return crate::numerical_greeks(&self, option, context, request, settings);
+            return crate::numerical_greeks(self, option, context, request, settings);
         }
         let model = context.natural_bsm_parameters()?;
         let spot = context.spot_price();
@@ -257,84 +312,6 @@ impl AnalyticEuropeanEngine {
             result.set(request, greek, value)?;
         }
         Ok(result)
-    }
-    /// Prices through inclusive expiry, including before the contract's effective time.
-    ///
-    /// See the [crate example](crate) for construction and pricing.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::UnsupportedOperation`] for non-BSM models,
-    /// [`Error::InvalidInput`] after expiry or outside required curve
-    /// coverage, and [`Error::ComputationFailure`] for non-finite results.
-    ///
-    pub fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
-        let model = context.natural_bsm_parameters()?;
-        if crate::engines::deterministic::enabled(context) {
-            return crate::engines::deterministic::vanilla(
-                option,
-                crate::engines::Payoff::vanilla(option.option_type(), option.strike(), false),
-                context,
-            );
-        }
-        let valuation = context.valuation_time();
-        let expiry = option.expiry_time();
-        crate::instruments::monitoring::validate_life(option, context)?;
-        context.validate_curve_coverage(expiry)?;
-        let spot = context.spot_price();
-        let strike = option.strike();
-        let sign = match option.option_type() {
-            OptionType::Call => 1.0,
-            OptionType::Put => -1.0,
-        };
-        let time = valuation.years_until(expiry);
-        if time == 0.0 {
-            return Ok((sign * (spot - strike)).max(0.0));
-        }
-        let risk_log = model.risk_free_curve().log_factor(valuation, expiry)?;
-        let dividend_log = model.dividend_curve().log_factor(valuation, expiry)?;
-        lognormal_price(
-            spot,
-            strike,
-            context.log_forward_moneyness(expiry, strike, dividend_log - risk_log),
-            (dividend_log, risk_log),
-            model.volatility(),
-            time.sqrt(),
-            sign,
-        )
-    }
-}
-
-impl PricingEngine for AnalyticEuropeanEngine {
-    fn greek_method(
-        &self,
-        option: &crate::EuropeanOption,
-        context: &PricingContext,
-    ) -> Result<crate::GreekMethod> {
-        <Self as PricingEngine<crate::EuropeanOption>>::validate_applicability(self, context)?;
-        Ok(
-            if crate::engines::deterministic::enabled(context)
-                && context.valuation_time() != option.expiry_time()
-            {
-                crate::GreekMethod::Numerical
-            } else {
-                crate::GreekMethod::Native
-            },
-        )
-    }
-
-    fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
-        AnalyticEuropeanEngine::price(self, option, context)
-    }
-
-    fn price_with_greeks_with_settings(
-        &self,
-        option: &EuropeanOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-        settings: crate::NumericalShiftSettings,
-    ) -> Result<PricingResult> {
-        self.greeks_with_settings(option, context, request, settings)
     }
 }
 

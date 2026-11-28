@@ -119,7 +119,7 @@ impl AnalyticHestonEuropeanEngine {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{AnalyticHestonEuropeanEngine, Date, EuropeanOption, HestonParameters,
+    /// use kiyosi::{PricingEngine, AnalyticHestonEuropeanEngine, Date, EuropeanOption, HestonParameters,
     ///     HestonIntegrationSettings, OptionType, PricingContext};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
@@ -144,33 +144,6 @@ impl AnalyticHestonEuropeanEngine {
     /// Returns owned integration settings; see [`Self::new`].
     pub fn settings(&self) -> HestonIntegrationSettings {
         self.settings
-    }
-
-    /// Prices within the permitted valuation bounds, returning intrinsic value at expiry.
-    ///
-    /// Validates model applicability, permitted valuation bounds and rate/dividend
-    /// coverage in that order. Valuation may precede the effective time, with curves
-    /// covering valuation through expiry; see [`crate::OptionContract::valuation_start`].
-    /// Initial variance is at valuation. See [`Self::new`] for an example.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::UnsupportedOperation`] for other models,
-    /// [`Error::InvalidInput`] after expiry or outside curve coverage,
-    /// [`Error::NonConvergence`] when the request-wide budget or floating-point
-    /// resolution cannot meet the estimated error target, and
-    /// [`Error::ComputationFailure`] for unrepresentable intermediates or invalid
-    /// results. Only rounding-sized negative prices may be clipped.
-    pub fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
-        let model = validate_market(option, context)?;
-        self.price_one(
-            option,
-            context,
-            model,
-            option.strike(),
-            None,
-            &mut BinaryHeap::new(),
-        )
     }
 
     /// Prices European calls or puts across strikes with fixed dates and market inputs.
@@ -339,8 +312,31 @@ impl PricingEngine for AnalyticHestonEuropeanEngine {
         context.model_parameters().as_heston()?;
         Ok(())
     }
+    /// Prices within the permitted valuation bounds, returning intrinsic value at expiry.
+    ///
+    /// Validates model applicability, permitted valuation bounds and rate/dividend
+    /// coverage in that order. Valuation may precede the effective time, with curves
+    /// covering valuation through expiry; see [`crate::OptionContract::valuation_start`].
+    /// Initial variance is at valuation. See [`Self::new`] for an example.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::UnsupportedOperation`] for other models,
+    /// [`Error::InvalidInput`] after expiry or outside curve coverage,
+    /// [`Error::NonConvergence`] when the request-wide budget or floating-point
+    /// resolution cannot meet the estimated error target, and
+    /// [`Error::ComputationFailure`] for unrepresentable intermediates or invalid
+    /// results. Only rounding-sized negative prices may be clipped.
     fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
-        Self::price(self, option, context)
+        let model = validate_market(option, context)?;
+        self.price_one(
+            option,
+            context,
+            model,
+            option.strike(),
+            None,
+            &mut BinaryHeap::new(),
+        )
     }
 
     fn price_with_greeks_with_settings(

@@ -6,7 +6,31 @@ use super::{
 };
 use crate::{Accumulator, Timestamp, engines::deterministic};
 
-impl FiniteDifferenceAccumulatorEngine {
+impl PricingEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
+    fn greek_method(
+        &self,
+        option: &Accumulator,
+        context: &PricingContext,
+    ) -> Result<crate::GreekMethod> {
+        local_volatility::greek_method(option, context)
+    }
+
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        local_volatility::validate_model(context)
+    }
+    fn volatility_affects_price(&self, option: &Accumulator, context: &PricingContext) -> bool {
+        option.volatility_affects_price(context)
+            && !context
+                .model_parameters()
+                .variance_time_convention()
+                .variance_start(context.valuation_time(), option.expiry_time())
+                .is_ok_and(|start| {
+                    start > context.valuation_time()
+                        && deterministic::accumulator_through(option, context, start)
+                            .is_ok_and(|(_, settlement)| settlement.is_some())
+                })
+    }
+
     /// Prices outstanding units and future trading-date purchases, settling at knock-out or expiry.
     ///
     /// Applies current events and events before variance resumes on the deterministic
@@ -61,7 +85,7 @@ impl FiniteDifferenceAccumulatorEngine {
     /// assert!(result.has(Greek::Delta));
     /// # Ok(()) }
     /// ```
-    pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
+    fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         Ok(native(
             option,
             context,
@@ -71,36 +95,6 @@ impl FiniteDifferenceAccumulatorEngine {
         )?
         .0
         .price())
-    }
-}
-
-impl PricingEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
-    fn greek_method(
-        &self,
-        option: &Accumulator,
-        context: &PricingContext,
-    ) -> Result<crate::GreekMethod> {
-        local_volatility::greek_method(option, context)
-    }
-
-    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        local_volatility::validate_model(context)
-    }
-    fn volatility_affects_price(&self, option: &Accumulator, context: &PricingContext) -> bool {
-        option.volatility_affects_price(context)
-            && !context
-                .model_parameters()
-                .variance_time_convention()
-                .variance_start(context.valuation_time(), option.expiry_time())
-                .is_ok_and(|start| {
-                    start > context.valuation_time()
-                        && deterministic::accumulator_through(option, context, start)
-                            .is_ok_and(|(_, settlement)| settlement.is_some())
-                })
-    }
-
-    fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
-        self.price(option, context)
     }
     fn price_with_greeks_with_settings(
         &self,

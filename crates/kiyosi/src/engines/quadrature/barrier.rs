@@ -112,7 +112,17 @@ impl QuadratureBarrierEngine {
     pub fn settings(&self) -> QuadratureSettings {
         self.settings
     }
-
+}
+impl PricingEngine<BarrierOption> for QuadratureBarrierEngine {
+    fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<BarrierOption> + '_>>> {
+        Ok(Some(Box::new(BarrierPricer {
+            settings: self.settings,
+            prepared: std::cell::RefCell::new(None),
+        })))
+    }
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        flat_rates(context).map(|_| ())
+    }
     /// Prices after validating flat rates, inclusive life and strictly prior history.
     ///
     /// Current boundary hits settle before future monitoring; prior at-hit rebates are paid.
@@ -129,22 +139,8 @@ impl QuadratureBarrierEngine {
     /// or outside required curve coverage. Unrepresentable grids,
     /// transitions or results return [`Error::ComputationFailure`].
     /// Exhausted at-hit rebate integration returns [`Error::NonConvergence`].
-    pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        price(option, context, self.settings, None)
-    }
-}
-impl PricingEngine<BarrierOption> for QuadratureBarrierEngine {
-    fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<BarrierOption> + '_>>> {
-        Ok(Some(Box::new(BarrierPricer {
-            settings: self.settings,
-            prepared: std::cell::RefCell::new(None),
-        })))
-    }
-    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        flat_rates(context).map(|_| ())
-    }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        self.price(option, context)
+        price(option, context, self.settings, None)
     }
 }
 

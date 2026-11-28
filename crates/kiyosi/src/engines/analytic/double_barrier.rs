@@ -17,7 +17,11 @@ use std::f64::consts::PI;
 /// See [`Self::price`] for usage and applicability limits.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AnalyticDoubleBarrierEngine;
-impl AnalyticDoubleBarrierEngine {
+impl AnalyticDoubleBarrierEngine {}
+impl PricingEngine<DoubleBarrierOption> for AnalyticDoubleBarrierEngine {
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        crate::engines::flat_rates(context).map(|_| ())
+    }
     /// Prices inclusive boundary touches, prior history and remaining cash flows.
     ///
     /// Uses image/spectral absorbing-density series and first-exit rebate integration.
@@ -64,7 +68,7 @@ impl AnalyticDoubleBarrierEngine {
     /// see the [caller-supplied history contract](crate).
     ///
     /// Reuses [`crate::numerical_greeks`] validation and propagates pricing failures.
-    pub fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
+    fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
         context.natural_bsm_parameters()?;
         self.validate_applicability(context)?;
         validate_life(&option.lower, context)?;
@@ -80,14 +84,6 @@ impl AnalyticDoubleBarrierEngine {
             ));
         }
         analytic_price(option, context)
-    }
-}
-impl PricingEngine<DoubleBarrierOption> for AnalyticDoubleBarrierEngine {
-    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        crate::engines::flat_rates(context).map(|_| ())
-    }
-    fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
-        self.price(option, context)
     }
 }
 

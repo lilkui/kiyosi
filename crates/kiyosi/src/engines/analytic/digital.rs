@@ -15,114 +15,6 @@ use crate::{
 pub struct AnalyticDigitalEngine;
 
 impl AnalyticDigitalEngine {
-    /// Returns analytic delta/gamma with configurable numerical fallback Greeks.
-    ///
-    /// Before expiry, positive-volatility delta and gamma retain their analytic
-    /// estimator. Settings control the remaining numerical derivatives, zero-volatility
-    /// differences and terminal stencils. See [`Self::price`] for conventions.
-    ///
-    /// # Errors
-    ///
-    /// Validates model applicability, the request and every shift before pricing.
-    /// Propagates [`crate::NumericalShiftSettings::validate`] and [`Self::price`] errors.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # use kiyosi::*;
-    /// # fn main() -> Result<()> {
-    /// # let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// # let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0,
-    /// #     start, start.add_days(365)?)?;
-    /// # let context = PricingContext::new(
-    /// #     BlackScholesMertonParameters::new(0.0, 0.0, 0.00005)?, 100.0, start)?;
-    /// let shifts = NumericalShiftSettings { volatility_shift: Some(0.00001), ..Default::default() };
-    /// let result = AnalyticDigitalEngine.price_with_greeks_with_settings(
-    ///     &option, &context, GreeksRequest::all(), shifts)?;
-    /// assert!(result.require(Greek::Vega)?.is_finite());
-    /// assert!(result.require(Greek::Gamma)? < 0.0);
-    /// # Ok(()) }
-    /// ```
-    pub fn price_with_greeks_with_settings(
-        &self,
-        option: &DigitalOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-        settings: crate::NumericalShiftSettings,
-    ) -> Result<PricingResult> {
-        context.natural_bsm_parameters()?;
-        settings.validate()?;
-        crate::risk::numerical::complete_greeks(
-            option,
-            context,
-            request,
-            settings,
-            true,
-            Self::native(option, context, request)?,
-            |context, request| Self::native(option, context, request),
-        )
-    }
-
-    /// Prices a digital through expiry, permitting pre-effective valuation.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`crate::Error::UnsupportedOperation`] for non-BSM models,
-    /// [`crate::Error::InvalidInput`] after expiry or outside curve coverage,
-    /// and [`crate::Error::ComputationFailure`] for non-finite numerical results.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use kiyosi::{AnalyticDigitalEngine, BlackScholesMertonParameters, Date,
-    ///     DigitalOption, OptionType, PricingContext};
-    /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0,
-    ///     start, Date::new(2026, 1, 1)?.start_of_day())?;
-    /// let context = PricingContext::new(
-    ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
-    /// assert!((AnalyticDigitalEngine.price(&option, &context)? - 4.945810910532236).abs() < 1e-12);
-    /// # Ok(()) }
-    /// ```
-    ///
-    /// # Greeks
-    ///
-    /// Returns analytic delta/gamma and completes other requested Greeks numerically.
-    ///
-    /// At expiry spot Greeks follow terminal-payoff stencils; volatility and rate
-    /// Greeks are zero, while time Greeks are absent. Stencils crossing payoff
-    /// discontinuities are unavailable. See [`crate::numerical_greeks`] for terminal
-    /// rules. Bumps use [`crate::NumericalShiftSettings`].
-    ///
-    /// ## Errors
-    ///
-    /// Propagates [`Self::price`] errors and returns
-    /// [`crate::Error::ComputationFailure`] for non-finite requested derivatives.
-    ///
-    /// ## Examples
-    ///
-    /// ```rust
-    /// use kiyosi::PricingEngine;
-    /// use kiyosi::{AnalyticDigitalEngine, BlackScholesMertonParameters, Date,
-    ///     DigitalOption, OptionType, PricingContext, Greek, GreeksRequest};
-    /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let option = DigitalOption::asset_or_nothing(OptionType::Call, 100.0,
-    ///     start, Date::new(2026, 1, 1)?.start_of_day())?;
-    /// let context = PricingContext::new(
-    ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
-    /// let result = AnalyticDigitalEngine.price_with_greeks(&option, &context,
-    ///     GreeksRequest::new([Greek::Delta]))?;
-    /// assert!(result.require(Greek::Delta)? > 0.0);
-    /// assert_eq!(result.get(Greek::Gamma), None);
-    /// # Ok(()) }
-    /// ```
-    pub fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
-        context.natural_bsm_parameters()?;
-        Ok(Self::native(option, context, GreeksRequest::new([]))?.price())
-    }
-
     pub(crate) fn native(
         option: &DigitalOption,
         context: &PricingContext,
@@ -226,10 +118,94 @@ impl PricingEngine<DigitalOption> for AnalyticDigitalEngine {
         ))
     }
 
+    /// Prices a digital through expiry, permitting pre-effective valuation.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::Error::UnsupportedOperation`] for non-BSM models,
+    /// [`crate::Error::InvalidInput`] after expiry or outside curve coverage,
+    /// and [`crate::Error::ComputationFailure`] for non-finite numerical results.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{PricingEngine, AnalyticDigitalEngine, BlackScholesMertonParameters, Date,
+    ///     DigitalOption, OptionType, PricingContext};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0,
+    ///     start, Date::new(2026, 1, 1)?.start_of_day())?;
+    /// let context = PricingContext::new(
+    ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
+    /// assert!((AnalyticDigitalEngine.price(&option, &context)? - 4.945810910532236).abs() < 1e-12);
+    /// # Ok(()) }
+    /// ```
+    ///
+    /// # Greeks
+    ///
+    /// Returns analytic delta/gamma and completes other requested Greeks numerically.
+    ///
+    /// At expiry spot Greeks follow terminal-payoff stencils; volatility and rate
+    /// Greeks are zero, while time Greeks are absent. Stencils crossing payoff
+    /// discontinuities are unavailable. See [`crate::numerical_greeks`] for terminal
+    /// rules. Bumps use [`crate::NumericalShiftSettings`].
+    ///
+    /// ## Errors
+    ///
+    /// Propagates [`Self::price`] errors and returns
+    /// [`crate::Error::ComputationFailure`] for non-finite requested derivatives.
+    ///
+    /// ## Examples
+    ///
+    /// ```rust
+    /// use kiyosi::PricingEngine;
+    /// use kiyosi::{AnalyticDigitalEngine, BlackScholesMertonParameters, Date,
+    ///     DigitalOption, OptionType, PricingContext, Greek, GreeksRequest};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let option = DigitalOption::asset_or_nothing(OptionType::Call, 100.0,
+    ///     start, Date::new(2026, 1, 1)?.start_of_day())?;
+    /// let context = PricingContext::new(
+    ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
+    /// let result = AnalyticDigitalEngine.price_with_greeks(&option, &context,
+    ///     GreeksRequest::new([Greek::Delta]))?;
+    /// assert!(result.require(Greek::Delta)? > 0.0);
+    /// assert_eq!(result.get(Greek::Gamma), None);
+    /// # Ok(()) }
+    /// ```
     fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
-        AnalyticDigitalEngine::price(self, option, context)
+        context.natural_bsm_parameters()?;
+        Ok(Self::native(option, context, GreeksRequest::new([]))?.price())
     }
 
+    /// Returns analytic delta/gamma with configurable numerical fallback Greeks.
+    ///
+    /// Before expiry, positive-volatility delta and gamma retain their analytic
+    /// estimator. Settings control the remaining numerical derivatives, zero-volatility
+    /// differences and terminal stencils. See [`Self::price`] for conventions.
+    ///
+    /// # Errors
+    ///
+    /// Validates model applicability, the request and every shift before pricing.
+    /// Propagates [`crate::NumericalShiftSettings::validate`] and [`Self::price`] errors.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use kiyosi::*;
+    /// # fn main() -> Result<()> {
+    /// # let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// # let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0,
+    /// #     start, start.add_days(365)?)?;
+    /// # let context = PricingContext::new(
+    /// #     BlackScholesMertonParameters::new(0.0, 0.0, 0.00005)?, 100.0, start)?;
+    /// let shifts = NumericalShiftSettings { volatility_shift: Some(0.00001), ..Default::default() };
+    /// let result = AnalyticDigitalEngine.price_with_greeks_with_settings(
+    ///     &option, &context, GreeksRequest::all(), shifts)?;
+    /// assert!(result.require(Greek::Vega)?.is_finite());
+    /// assert!(result.require(Greek::Gamma)? < 0.0);
+    /// # Ok(()) }
+    /// ```
     fn price_with_greeks_with_settings(
         &self,
         option: &DigitalOption,
@@ -237,6 +213,16 @@ impl PricingEngine<DigitalOption> for AnalyticDigitalEngine {
         request: GreeksRequest,
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        Self::price_with_greeks_with_settings(self, option, context, request, settings)
+        context.natural_bsm_parameters()?;
+        settings.validate()?;
+        crate::risk::numerical::complete_greeks(
+            option,
+            context,
+            request,
+            settings,
+            true,
+            Self::native(option, context, request)?,
+            |context, request| Self::native(option, context, request),
+        )
     }
 }

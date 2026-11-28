@@ -1,3 +1,4 @@
+use kiyosi::PricingEngine;
 use kiyosi::{
     BarrierOption, BarrierOptionTerms, BarrierType, BlackScholesMertonParameters, EuropeanOption,
     MonteCarloBarrierEngine, MonteCarloGridSettings, MonteCarloSampling, MonteCarloSettings,

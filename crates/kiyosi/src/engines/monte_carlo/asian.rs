@@ -20,6 +20,83 @@ const STRIKE_TILE: usize = 32;
 /// Sampling, exact path counts, thread caps and reproducibility follow
 /// [`crate::MonteCarloVanillaEngine`]. Shared and distinct engines support concurrent
 /// calls with request-owned buffers and shared workers. See [`Self::price`].
+///
+/// Returns a discounted average-payoff estimate, or realized settlement at expiry.
+///
+/// Cancellation follows [`crate::CancellationToken`]. Recoverable entropy
+/// and thread failures preserve [`std::io::Error`] via [`Error::Io`].
+///
+/// # Errors
+///
+/// Missing required history returns [`crate::Error::MissingHistory`];
+/// see the [caller-supplied history contract](crate).
+///
+/// Checks inclusive life then history consistency. Invalid bounds or impossible
+/// history return [`Error::InvalidInput`].
+/// Before expiry geometric contracts require flat curves
+/// ([`Error::UnsupportedOperation`]); both kinds require curve coverage
+/// ([`Error::InvalidInput`]). Sampling also returns `InvalidInput` when the
+/// path count times the number of draws per path exceeds one billion.
+/// Non-finite parameters, paying samples
+/// or results return [`Error::ComputationFailure`].
+///
+/// # Panics
+///
+/// Propagates worker panics after the call's parallel work has finished.
+///
+/// # Aborts
+///
+/// Allocation exhaustion follows the allocator's behavior (normally process abort).
+///
+/// # Examples
+///
+/// ```rust
+/// use kiyosi::PricingEngine;
+/// use kiyosi::{MonteCarloAsianEngine, MonteCarloSettings,
+///     GeometricAveragePriceOption, Date, OptionType,
+///     BlackScholesMertonParameters, PricingContext};
+/// # fn main() -> kiyosi::Result<()> {
+/// let start = Date::new(2025, 1, 1)?.start_of_day();
+/// let option = GeometricAveragePriceOption::new(OptionType::Call, 100.0,
+///     start, start, Date::new(2026, 1, 1)?.start_of_day(), None)?;
+/// let context = PricingContext::new(
+///     BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
+/// let engine = MonteCarloAsianEngine::new(kiyosi::MonteCarloGridSettings {
+///     sampling: MonteCarloSettings { seed: Some(42), ..Default::default() },
+///     ..Default::default()
+/// })?;
+/// assert!((engine.price(&option, &context)? - 5.0359).abs() < 0.2);
+/// let result = engine.price_with_greeks(&option, &context,
+///     kiyosi::GreeksRequest::all())?;
+/// assert!(result.has(kiyosi::Greek::Delta));
+/// assert!(!result.has(kiyosi::Greek::Vega));
+/// let estimate = engine.price_with_statistics(&option, &context)?;
+/// assert!(estimate.standard_error().is_some());
+/// # Ok(()) }
+/// ```
+///
+/// # Greeks
+///
+/// Returns requested delta and gamma directly from the price's shared normal draws.
+///
+/// Uses engine-default estimation controls; see [`crate::numerical_greeks`] for custom bumps.
+/// Terminal stencils use engine-default spot bumps.
+/// Only delta and gamma are supported, including terminal-payoff Greeks at expiry. Before expiry, no numerical bumps are
+/// required. For scalar differences and history-boundary stencil rules, use
+/// [`crate::numerical_greeks`], which pins a request-local seed even for unseeded
+/// engines. See [`Self::price`].
+///
+/// ## Errors
+///
+/// Missing required history returns [`crate::Error::MissingHistory`];
+/// see the [caller-supplied history contract](crate).
+///
+/// Propagates [`Self::price`] errors.
+/// Non-finite requested Greeks return [`Error::ComputationFailure`].
+///
+/// ## Panics
+///
+/// Propagates worker panics after the call's parallel work, as in [`Self::price`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MonteCarloAsianEngine {
     settings: super::MonteCarloGridSettings,
@@ -76,90 +153,6 @@ impl MonteCarloAsianEngine {
     /// [`crate::MonteCarloVanillaEngine::settings`] for an example.
     pub fn settings(&self) -> super::MonteCarloGridSettings {
         self.settings
-    }
-
-    /// Returns a discounted average-payoff estimate, or realized settlement at expiry.
-    ///
-    /// Cancellation follows [`crate::CancellationToken`]. Recoverable entropy
-    /// and thread failures preserve [`std::io::Error`] via [`Error::Io`].
-    ///
-    /// # Errors
-    ///
-    /// Missing required history returns [`crate::Error::MissingHistory`];
-    /// see the [caller-supplied history contract](crate).
-    ///
-    /// Checks inclusive life then history consistency. Invalid bounds or impossible
-    /// history return [`Error::InvalidInput`].
-    /// Before expiry geometric contracts require flat curves
-    /// ([`Error::UnsupportedOperation`]); both kinds require curve coverage
-    /// ([`Error::InvalidInput`]). Sampling also returns `InvalidInput` when the
-    /// path count times the number of draws per path exceeds one billion.
-    /// Non-finite parameters, paying samples
-    /// or results return [`Error::ComputationFailure`].
-    ///
-    /// # Panics
-    ///
-    /// Propagates worker panics after the call's parallel work has finished.
-    ///
-    /// # Aborts
-    ///
-    /// Allocation exhaustion follows the allocator's behavior (normally process abort).
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use kiyosi::PricingEngine;
-    /// use kiyosi::{MonteCarloAsianEngine, MonteCarloSettings,
-    ///     GeometricAveragePriceOption, Date, OptionType,
-    ///     BlackScholesMertonParameters, PricingContext};
-    /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let option = GeometricAveragePriceOption::new(OptionType::Call, 100.0,
-    ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), None)?;
-    /// let context = PricingContext::new(
-    ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
-    /// let engine = MonteCarloAsianEngine::new(kiyosi::MonteCarloGridSettings {
-    ///     sampling: MonteCarloSettings { seed: Some(42), ..Default::default() },
-    ///     ..Default::default()
-    /// })?;
-    /// assert!((engine.price(&option, &context)? - 5.0359).abs() < 0.2);
-    /// let result = engine.price_with_greeks(&option, &context,
-    ///     kiyosi::GreeksRequest::all())?;
-    /// assert!(result.has(kiyosi::Greek::Delta));
-    /// assert!(!result.has(kiyosi::Greek::Vega));
-    /// let estimate = engine.price_with_statistics(&option, &context)?;
-    /// assert!(estimate.standard_error().is_some());
-    /// # Ok(()) }
-    /// ```
-    ///
-    /// # Greeks
-    ///
-    /// Returns requested delta and gamma directly from the price's shared normal draws.
-    ///
-    /// Uses engine-default estimation controls; see [`crate::numerical_greeks`] for custom bumps.
-    /// Terminal stencils use engine-default spot bumps.
-    /// Only delta and gamma are supported, including terminal-payoff Greeks at expiry. Before expiry, no numerical bumps are
-    /// required. For scalar differences and history-boundary stencil rules, use
-    /// [`crate::numerical_greeks`], which pins a request-local seed even for unseeded
-    /// engines. See [`Self::price`].
-    ///
-    /// ## Errors
-    ///
-    /// Missing required history returns [`crate::Error::MissingHistory`];
-    /// see the [caller-supplied history contract](crate).
-    ///
-    /// Propagates [`Self::price`] errors.
-    /// Non-finite requested Greeks return [`Error::ComputationFailure`].
-    ///
-    /// ## Panics
-    ///
-    /// Propagates worker panics after the call's parallel work, as in [`Self::price`].
-    pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
-    where
-        Self: PricingEngine<I>,
-    {
-        context.natural_bsm_parameters()?;
-        <Self as PricingEngine<I>>::price(self, option, context)
     }
 
     /// Returns a price with sampling standard error and an asymptotic 95% interval.

@@ -18,7 +18,43 @@ use crate::numerics::{scaled_cash, scaled_signed_cash};
 use crate::risk::analytics::CouponPricer;
 use crate::{AutocallableBarrierState, AutocallableNote, AutocallableTerms, Timestamp};
 
-impl FiniteDifferenceAutocallableEngine {
+impl FiniteDifferenceAutocallableEngine {}
+impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
+    for FiniteDifferenceAutocallableEngine
+{
+    fn greek_method(
+        &self,
+        option: &AutocallableNote<T>,
+        context: &PricingContext,
+    ) -> Result<crate::GreekMethod> {
+        local_volatility::greek_method(option, context)
+    }
+
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        local_volatility::validate_model(context)
+    }
+    fn volatility_affects_price(
+        &self,
+        note: &AutocallableNote<T>,
+        context: &PricingContext,
+    ) -> bool {
+        let now = context.valuation_time();
+        if let Ok(start) = context
+            .model_parameters()
+            .variance_time_convention()
+            .variance_start(now, note.expiry_time())
+        {
+            if start > now
+                && deterministic::autocallable_through(note, context, start).is_ok_and(|state| {
+                    state.settlement.is_some()
+                        || fixed_value_at(note, context, start, state.knocked_in).is_some()
+                })
+            {
+                return false;
+            }
+        }
+        note.volatility_affects_price(context)
+    }
     /// Prices remaining snowball or Phoenix cash flows on exact trading and observation dates.
     ///
     /// Accepts flat or nonconstant rate curves, retains daily knock-in layers and projects future events.
@@ -76,11 +112,7 @@ impl FiniteDifferenceAutocallableEngine {
     /// assert!(result.has(Greek::Delta));
     /// # Ok(()) }
     /// ```
-    pub fn price<T: AutocallableTerms>(
-        &self,
-        option: &AutocallableNote<T>,
-        context: &PricingContext,
-    ) -> Result<f64> {
+    fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
         Ok(native(
             option,
             context,
@@ -90,46 +122,6 @@ impl FiniteDifferenceAutocallableEngine {
         )?
         .0
         .price())
-    }
-}
-impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
-    for FiniteDifferenceAutocallableEngine
-{
-    fn greek_method(
-        &self,
-        option: &AutocallableNote<T>,
-        context: &PricingContext,
-    ) -> Result<crate::GreekMethod> {
-        local_volatility::greek_method(option, context)
-    }
-
-    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        local_volatility::validate_model(context)
-    }
-    fn volatility_affects_price(
-        &self,
-        note: &AutocallableNote<T>,
-        context: &PricingContext,
-    ) -> bool {
-        let now = context.valuation_time();
-        if let Ok(start) = context
-            .model_parameters()
-            .variance_time_convention()
-            .variance_start(now, note.expiry_time())
-        {
-            if start > now
-                && deterministic::autocallable_through(note, context, start).is_ok_and(|state| {
-                    state.settlement.is_some()
-                        || fixed_value_at(note, context, start, state.knocked_in).is_some()
-                })
-            {
-                return false;
-            }
-        }
-        note.volatility_affects_price(context)
-    }
-    fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
-        self.price(option, context)
     }
     fn prepare_coupon_pricer<'a>(
         &'a self,

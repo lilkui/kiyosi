@@ -281,7 +281,11 @@ fn bjerksund_call(
 #[derive(Clone, Copy, Debug, Default)]
 pub struct BjerksundStenslandVanillaEngine;
 
-impl BjerksundStenslandVanillaEngine {
+impl PricingEngine<AmericanOption> for BjerksundStenslandVanillaEngine {
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        crate::engines::flat_rates(context).map(|_| ())
+    }
+
     /// Returns the approximation, bounded below by intrinsic and European values.
     ///
     /// At expiry returns intrinsic value, including under negative rates.
@@ -298,7 +302,7 @@ impl BjerksundStenslandVanillaEngine {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{AmericanOption, BjerksundStenslandVanillaEngine,
+    /// use kiyosi::{PricingEngine, AmericanOption, BjerksundStenslandVanillaEngine,
     ///     BlackScholesMertonParameters, Date, OptionType, PricingContext};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
@@ -337,7 +341,7 @@ impl BjerksundStenslandVanillaEngine {
     /// assert!(result.require(Greek::Delta)? < 0.0);
     /// # Ok(()) }
     /// ```
-    pub fn price(&self, option: &AmericanOption, context: &PricingContext) -> Result<f64> {
+    fn price(&self, option: &AmericanOption, context: &PricingContext) -> Result<f64> {
         let (rate, dividend) = crate::engines::flat_rates(context)?;
         if crate::engines::deterministic::enabled(context) {
             return crate::engines::deterministic::vanilla(
@@ -373,15 +377,5 @@ impl BjerksundStenslandVanillaEngine {
         }
         let intrinsic = (if call { spot - strike } else { strike - spot }).max(0.0);
         Ok(value.max(intrinsic).max(continuation))
-    }
-}
-
-impl PricingEngine<AmericanOption> for BjerksundStenslandVanillaEngine {
-    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        crate::engines::flat_rates(context).map(|_| ())
-    }
-
-    fn price(&self, option: &AmericanOption, context: &PricingContext) -> Result<f64> {
-        Self::price(self, option, context)
     }
 }

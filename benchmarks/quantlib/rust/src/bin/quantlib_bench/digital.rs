@@ -1,3 +1,4 @@
+use kiyosi::PricingEngine;
 use kiyosi::{AnalyticDigitalEngine, BlackScholesMertonParameters, DigitalOption, PricingContext};
 
 use super::common::{Failure, Price, Request};

@@ -234,7 +234,7 @@ fn tail_bound(model: &HestonParameters, time: f64, variance: f64, limit: f64) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{AnalyticHestonEuropeanEngine, Date, HestonParameterInputs};
+    use crate::{AnalyticHestonEuropeanEngine, Date, HestonParameterInputs, PricingEngine};
 
     #[test]
     fn irregular_strikes_below_old_threshold_use_fft_and_isolate_outliers() -> Result<()> {

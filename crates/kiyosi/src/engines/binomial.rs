@@ -67,6 +67,46 @@ impl BinomialSettings {
 /// Returns node delta/gamma and completes other requested Greeks numerically.
 /// Values own their settings; shared instances support concurrent pricing.
 /// See [`Self::price`] for an example.
+///
+/// Prices a supported vanilla contract.
+///
+/// See [`Self::price`] for an example.
+///
+/// # Errors
+///
+/// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves before life
+/// validation, [`Error::InvalidInput`] outside permitted valuation bounds or above
+/// 16,000 steps for a tree requiring rollback, and
+/// [`Error::ComputationFailure`] for unstable probabilities, asset nodes or values.
+///
+/// # Greeks
+///
+/// Returns node delta/gamma and numerically completes missing requested Greeks.
+///
+/// Expiry Greeks follow terminal payoffs; time Greeks are absent. One-step gamma uses scalar differences.
+/// Bumps use [`crate::NumericalShiftSettings`]; feasible bumped failures propagate.
+///
+/// ## Errors
+///
+/// Checks flat-rate applicability before shift validation, then reuses
+/// [`Self::price`] and [`crate::numerical_greeks`] errors.
+///
+/// ## Examples
+///
+/// ```rust
+/// use kiyosi::PricingEngine;
+/// use kiyosi::{AmericanOption, CoxRossRubinsteinVanillaEngine,
+///     BlackScholesMertonParameters, Date, OptionType, PricingContext, Greek, GreeksRequest};
+/// # fn main() -> kiyosi::Result<()> {
+/// let start = Date::new(2025, 1, 1)?.start_of_day();
+/// let option = AmericanOption::new(OptionType::Put, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
+/// let context = PricingContext::new(
+///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
+/// let result = CoxRossRubinsteinVanillaEngine::default().price_with_greeks(
+///     &option, &context, GreeksRequest::new([Greek::Delta]))?;
+/// assert!(result.require(Greek::Delta)? < 0.0);
+/// # Ok(()) }
+/// ```
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct CoxRossRubinsteinVanillaEngine {
     settings: BinomialSettings,
@@ -139,53 +179,6 @@ impl CoxRossRubinsteinVanillaEngine {
         }
         self.rollback_tolerance = tolerance;
         Ok(self)
-    }
-
-    /// Prices a supported vanilla contract.
-    ///
-    /// See [`Self::price`] for an example.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves before life
-    /// validation, [`Error::InvalidInput`] outside permitted valuation bounds or above
-    /// 16,000 steps for a tree requiring rollback, and
-    /// [`Error::ComputationFailure`] for unstable probabilities, asset nodes or values.
-    ///
-    /// # Greeks
-    ///
-    /// Returns node delta/gamma and numerically completes missing requested Greeks.
-    ///
-    /// Expiry Greeks follow terminal payoffs; time Greeks are absent. One-step gamma uses scalar differences.
-    /// Bumps use [`crate::NumericalShiftSettings`]; feasible bumped failures propagate.
-    ///
-    /// ## Errors
-    ///
-    /// Checks flat-rate applicability before shift validation, then reuses
-    /// [`Self::price`] and [`crate::numerical_greeks`] errors.
-    ///
-    /// ## Examples
-    ///
-    /// ```rust
-    /// use kiyosi::PricingEngine;
-    /// use kiyosi::{AmericanOption, CoxRossRubinsteinVanillaEngine,
-    ///     BlackScholesMertonParameters, Date, OptionType, PricingContext, Greek, GreeksRequest};
-    /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let option = AmericanOption::new(OptionType::Put, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
-    /// let context = PricingContext::new(
-    ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
-    /// let result = CoxRossRubinsteinVanillaEngine::default().price_with_greeks(
-    ///     &option, &context, GreeksRequest::new([Greek::Delta]))?;
-    /// assert!(result.require(Greek::Delta)? < 0.0);
-    /// # Ok(()) }
-    /// ```
-    pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
-    where
-        Self: PricingEngine<I>,
-    {
-        context.natural_bsm_parameters()?;
-        <Self as PricingEngine<I>>::price(self, option, context)
     }
 
     fn banded_greeks(
@@ -1068,70 +1061,6 @@ impl CoxRossRubinsteinDigitalEngine {
         self.settings
     }
 
-    /// Prices a European digital, settling strictly in the money at expiry.
-    ///
-    /// See [`Self::price_with_greeks`] for an example.
-    ///
-    /// # Errors
-    ///
-    /// Reuses [`CoxRossRubinsteinVanillaEngine::price`] errors and validation order.
-    pub fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
-        context.natural_bsm_parameters()?;
-        Ok(self
-            .native(option, context, GreeksRequest::new([]))?
-            .price())
-    }
-
-    /// Returns requested node delta/gamma; all other Greeks are absent.
-    ///
-    /// Uses engine-default estimation controls; see [`crate::numerical_greeks`] for custom bumps.
-    /// Terminal stencils use engine-default spot bumps.
-    /// One-step gamma is absent before expiry. Expiry spot Greeks follow terminal payoffs.
-    ///
-    /// # Errors
-    ///
-    /// Checks flat-rate applicability before shift validation, then reuses
-    /// [`Self::price`] errors. Requested measures other than delta and gamma
-    /// have [`crate::GreekStatus::Unsupported`]; empty requests select price only.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use kiyosi::{CoxRossRubinsteinDigitalEngine, DigitalOption,
-    ///     BlackScholesMertonParameters, Date, OptionType, PricingContext, Greek, GreeksRequest};
-    /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0,
-    ///     start, Date::new(2026, 1, 1)?.start_of_day())?;
-    /// let context = PricingContext::new(
-    ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
-    /// let result = CoxRossRubinsteinDigitalEngine::default().price_with_greeks(
-    ///     &option, &context, GreeksRequest::all())?;
-    /// assert!(result.require(Greek::Delta)? > 0.0);
-    /// assert!(!result.has(Greek::Vega));
-    /// # Ok(()) }
-    /// ```
-    pub fn price_with_greeks(
-        &self,
-        option: &DigitalOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        self.greeks_with_settings(option, context, request, Default::default())
-    }
-
-    fn greeks_with_settings(
-        self,
-        option: &DigitalOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-        settings: crate::NumericalShiftSettings,
-    ) -> Result<PricingResult> {
-        super::greeks(&self, option, context, request, settings, || {
-            self.native(option, context, request)
-        })
-    }
-
     fn native(
         self,
         option: &DigitalOption,
@@ -1171,10 +1100,49 @@ impl PricingEngine<DigitalOption> for CoxRossRubinsteinDigitalEngine {
         ))
     }
 
+    /// Prices a European digital, settling strictly in the money at expiry.
+    ///
+    /// See [`Self::price_with_greeks`] for an example.
+    ///
+    /// # Errors
+    ///
+    /// Reuses [`CoxRossRubinsteinVanillaEngine::price`] errors and validation order.
     fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
-        Self::price(self, option, context)
+        context.natural_bsm_parameters()?;
+        Ok(self
+            .native(option, context, GreeksRequest::new([]))?
+            .price())
     }
 
+    /// Returns requested node delta/gamma; all other Greeks are absent.
+    ///
+    /// Terminal stencils use the request's spot shift. See [`Self::price_with_greeks`]
+    /// for estimation with default shifts.
+    /// One-step gamma is absent before expiry. Expiry spot Greeks follow terminal payoffs.
+    ///
+    /// # Errors
+    ///
+    /// Checks flat-rate applicability before shift validation, then reuses
+    /// [`Self::price`] errors. Requested measures other than delta and gamma
+    /// have [`crate::GreekStatus::Unsupported`]; empty requests select price only.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{PricingEngine, CoxRossRubinsteinDigitalEngine, DigitalOption,
+    ///     BlackScholesMertonParameters, Date, OptionType, PricingContext, Greek, GreeksRequest};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0,
+    ///     start, Date::new(2026, 1, 1)?.start_of_day())?;
+    /// let context = PricingContext::new(
+    ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
+    /// let result = CoxRossRubinsteinDigitalEngine::default().price_with_greeks(
+    ///     &option, &context, GreeksRequest::all())?;
+    /// assert!(result.require(Greek::Delta)? > 0.0);
+    /// assert!(!result.has(Greek::Vega));
+    /// # Ok(()) }
+    /// ```
     fn price_with_greeks_with_settings(
         &self,
         option: &DigitalOption,
@@ -1182,7 +1150,9 @@ impl PricingEngine<DigitalOption> for CoxRossRubinsteinDigitalEngine {
         request: GreeksRequest,
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        self.greeks_with_settings(option, context, request, settings)
+        super::greeks(self, option, context, request, settings, || {
+            self.native(option, context, request)
+        })
     }
     fn prepare_implied_volatility(
         &self,

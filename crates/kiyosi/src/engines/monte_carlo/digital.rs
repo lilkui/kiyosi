@@ -51,31 +51,6 @@ impl MonteCarloDigitalEngine {
         self.settings
     }
 
-    /// Returns the discounted terminal mean, settling strictly in the money at expiry.
-    ///
-    /// See [`Self::price_with_greeks`] for an example and [`crate::CancellationToken`]
-    /// for cancellation. Operational failures preserve their native
-    /// [`std::io::Error`] through [`crate::Error::Io`].
-    ///
-    /// # Errors
-    ///
-    /// Returns [`crate::Error::UnsupportedOperation`] for nonconstant rate curves before life
-    /// validation, [`crate::Error::InvalidInput`] after expiry or outside curve coverage,
-    /// and [`crate::Error::ComputationFailure`] for non-finite parameters, samples or
-    /// results.
-    ///
-    /// # Panics
-    ///
-    /// Propagates worker panics after the call's parallel work has finished.
-    ///
-    /// # Aborts
-    ///
-    /// Allocation exhaustion follows the allocator's behavior (normally process abort).
-    pub fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
-        self.price_with_seed(option, context)
-            .map(|(price, _)| price)
-    }
-
     /// Returns a price with sampling standard error and an asymptotic 95% interval.
     ///
     /// Uncertainty follows [`MonteCarloEstimate`]; terminal pseudorandom settlements
@@ -106,67 +81,6 @@ impl MonteCarloDigitalEngine {
             self.settings(),
             result.seed(),
         )
-    }
-
-    /// Returns requested likelihood-ratio delta/gamma from the price's normal draws.
-    ///
-    /// Uses engine-default estimation controls; see [`crate::numerical_greeks`] for custom bumps.
-    /// Terminal stencils use engine-default spot bumps.
-    /// Other Greeks are absent. Expiry delta and gamma use terminal payoff stencils; before expiry no numerical bumps
-    /// are required. Near-expiry estimates can have substantial sampling error.
-    ///
-    /// # Errors
-    ///
-    /// Checks flat-rate applicability before shifts, then propagates
-    /// [`Self::price`] errors. Non-finite requested Greek samples return
-    /// [`crate::Error::ComputationFailure`].
-    ///
-    /// # Panics
-    ///
-    /// Propagates worker panics after the call's parallel work, as in [`Self::price`].
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use kiyosi::{MonteCarloDigitalEngine, MonteCarloSettings, DigitalOption,
-    ///     BlackScholesMertonParameters, Date, OptionType, PricingContext, Greek, GreeksRequest};
-    /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0,
-    ///     start, Date::new(2026, 1, 1)?.start_of_day())?;
-    /// let context = PricingContext::new(
-    ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
-    /// let engine = MonteCarloDigitalEngine::new(MonteCarloSettings {
-    ///     seed: Some(42), ..Default::default()
-    /// })?;
-    /// let result = engine.price_with_greeks(&option, &context,
-    ///     GreeksRequest::all())?;
-    /// assert!(result.require(Greek::Delta)? > 0.0);
-    /// assert!(!result.has(Greek::Vega));
-    /// let estimate = engine.price_with_statistics(&option, &context)?;
-    /// assert!(estimate.standard_error().is_some());
-    /// # Ok(()) }
-    /// ```
-    pub fn price_with_greeks(
-        &self,
-        option: &DigitalOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        self.greeks_with_settings(option, context, request, Default::default())
-    }
-
-    fn greeks_with_settings(
-        &self,
-        option: &DigitalOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-        settings: crate::NumericalShiftSettings,
-    ) -> Result<PricingResult> {
-        greeks(self, option, context, request, settings, || {
-            self.native(option, context, request, false)
-                .map(|result| result.0)
-        })
     }
 
     fn native(
@@ -310,10 +224,70 @@ impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<DigitalOption> + '_>>> {
         prepare_seeded_request!(self, self.settings)
     }
+    /// Returns the discounted terminal mean, settling strictly in the money at expiry.
+    ///
+    /// See [`Self::price_with_greeks`] for an example and [`crate::CancellationToken`]
+    /// for cancellation. Operational failures preserve their native
+    /// [`std::io::Error`] through [`crate::Error::Io`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::Error::UnsupportedOperation`] for nonconstant rate curves before life
+    /// validation, [`crate::Error::InvalidInput`] after expiry or outside curve coverage,
+    /// and [`crate::Error::ComputationFailure`] for non-finite parameters, samples or
+    /// results.
+    ///
+    /// # Panics
+    ///
+    /// Propagates worker panics after the call's parallel work has finished.
+    ///
+    /// # Aborts
+    ///
+    /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
-        Self::price(self, option, context)
+        self.price_with_seed(option, context)
+            .map(|(price, _)| price)
     }
 
+    /// Returns requested likelihood-ratio delta/gamma from the price's normal draws.
+    ///
+    /// Terminal stencils use the request's spot shift. See [`Self::price_with_greeks`]
+    /// for estimation with default shifts.
+    /// Other Greeks are absent. Expiry delta and gamma use terminal payoff stencils; before expiry no numerical bumps
+    /// are required. Near-expiry estimates can have substantial sampling error.
+    ///
+    /// # Errors
+    ///
+    /// Checks flat-rate applicability before shifts, then propagates
+    /// [`Self::price`] errors. Non-finite requested Greek samples return
+    /// [`crate::Error::ComputationFailure`].
+    ///
+    /// # Panics
+    ///
+    /// Propagates worker panics after the call's parallel work, as in [`Self::price`].
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{PricingEngine, MonteCarloDigitalEngine, MonteCarloSettings, DigitalOption,
+    ///     BlackScholesMertonParameters, Date, OptionType, PricingContext, Greek, GreeksRequest};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0,
+    ///     start, Date::new(2026, 1, 1)?.start_of_day())?;
+    /// let context = PricingContext::new(
+    ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
+    /// let engine = MonteCarloDigitalEngine::new(MonteCarloSettings {
+    ///     seed: Some(42), ..Default::default()
+    /// })?;
+    /// let result = engine.price_with_greeks(&option, &context,
+    ///     GreeksRequest::all())?;
+    /// assert!(result.require(Greek::Delta)? > 0.0);
+    /// assert!(!result.has(Greek::Vega));
+    /// let estimate = engine.price_with_statistics(&option, &context)?;
+    /// assert!(estimate.standard_error().is_some());
+    /// # Ok(()) }
+    /// ```
     fn price_with_greeks_with_settings(
         &self,
         option: &DigitalOption,
@@ -321,6 +295,9 @@ impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
         request: GreeksRequest,
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        self.greeks_with_settings(option, context, request, settings)
+        greeks(self, option, context, request, settings, || {
+            self.native(option, context, request, false)
+                .map(|result| result.0)
+        })
     }
 }

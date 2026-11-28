@@ -121,7 +121,7 @@
 //!
 //! ```rust
 //! use kiyosi::{AnalyticEuropeanEngine, BlackScholesMertonParameters, Date,
-//!                   EuropeanOption, OptionType, PricingContext};
+//!                   EuropeanOption, OptionType, PricingContext, PricingEngine};
 //! # fn main() -> kiyosi::Result<()> {
 //! let start = Date::new(2025, 1, 1)?.start_of_day();
 //! let expiry = Date::new(2026, 1, 1)?.start_of_day();

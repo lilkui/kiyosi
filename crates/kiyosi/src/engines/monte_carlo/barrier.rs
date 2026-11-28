@@ -31,6 +31,91 @@ enum Contract<'a> {
 /// Near-strike payoffs retain movements even when terminal spot rounds to strike.
 /// Returns likelihood-ratio delta/gamma; scalar numerical analysis is available
 /// through [`crate::numerical_greeks`]. See [`Self::price`].
+///
+/// Prices after validating flat rates, inclusive life and prior history.
+///
+/// Current hits and resolved payments precede sampling; resolved vanilla payoffs
+/// use analytic pricing. Prior at-hit rebates are already paid. Cancellation
+/// follows [`crate::CancellationToken`]. See [`Self::price`].
+///
+/// # Errors
+///
+/// Missing required history returns [`crate::Error::MissingHistory`];
+/// see the [caller-supplied history contract](crate).
+///
+/// Returns [`crate::Error::UnsupportedOperation`] for nonconstant rate curves,
+/// [`crate::Error::InvalidInput`] outside life, for impossible history or Sobol
+/// dimensions above 21,201, or when the scheduled transition and sampling
+/// workspace exceeds 1 GiB per request,
+/// or [`crate::Error::ComputationFailure`] for unrepresentable paths,
+/// nonconvergent survival series or results.
+/// Operational failures retain their native [`std::io::Error`] through
+/// [`crate::Error::Io`].
+///
+/// # Panics
+///
+/// Propagates worker panics after the call's parallel work has finished.
+///
+/// # Aborts
+///
+/// Allocation exhaustion follows the allocator's behavior (normally process abort).
+///
+/// # Greeks
+///
+/// Returns requested delta/gamma using the price's normal samples.
+///
+/// Other Greeks are absent. Expiry delta and gamma follow terminal-payoff
+/// stencils; spot stencils crossing a current monitored barrier suppress them.
+/// The optional [`NumericalShiftSettings::spot_shift`]
+/// controls that availability and numerical derivatives of the analytic
+/// continuous at-hit rebate. Configure it with [`PricingEngine::price_with_greeks_with_settings`].
+/// Custom scalar differences use [`crate::numerical_greeks`].
+/// Unavailable rebate stencils leave the contract's delta/gamma absent; see
+/// [`crate::numerical_greeks`] for stencil requirements.
+/// Near-expiry likelihood estimates can have substantial sampling error.
+///
+/// ## Errors
+///
+/// Checks flat rates and request support before estimating with default controls,
+/// then propagates [`Self::price`] errors. Request handling follows
+/// [`GreeksRequest`]; non-finite requested Greek samples
+/// return [`crate::Error::ComputationFailure`].
+///
+/// ## Panics
+///
+/// Propagates worker panics after the call's parallel work, as in [`Self::price`].
+///
+/// ## Examples
+///
+/// ```rust
+/// use kiyosi::*;
+/// # fn main() -> Result<()> {
+/// let start = Date::new(2025, 1, 1)?.start_of_day();
+/// let option = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call, 100.0,
+///     start, Date::new(2026, 1, 1)?.start_of_day(), 80.0, BarrierType::DownAndOut))?;
+/// let context = PricingContext::new(
+///     BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
+/// let engine = MonteCarloBarrierEngine::new(MonteCarloSettings {
+///     path_count: 32768, seed: Some(42), sampling: MonteCarloSampling::Sobol,
+///     ..Default::default()
+/// })?;
+/// let result = engine.price_with_greeks(&option, &context,
+///     GreeksRequest::new([Greek::Delta, Greek::Gamma]))?;
+/// assert!(result.price() > 0.0);
+/// assert!(result.has(Greek::Delta));
+/// assert_eq!(engine.settings().path_count, 32768);
+/// let estimate = engine.price_with_statistics(&option, &context)?;
+/// assert_eq!(estimate.standard_error(), None); // Sobol omits sampling uncertainty.
+/// let tuned = engine.price_with_greeks_with_settings(&option, &context,
+///     GreeksRequest::new([Greek::Delta]), NumericalShiftSettings {
+///         spot_shift: Some(0.005), ..Default::default()
+///     })?;
+/// assert_eq!(tuned.price(), result.price());
+/// let double = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(OptionType::Call,
+///     100.0, start, option.expiry_time(), 80.0, 120.0, DoubleBarrierType::KnockOut))?;
+/// assert!((engine.price(&double, &context)? - 1.0838814592583166).abs() < 0.003);
+/// # Ok(()) }
+/// ```
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MonteCarloBarrierEngine {
     settings: MonteCarloSettings,
@@ -68,97 +153,6 @@ impl MonteCarloBarrierEngine {
     /// Returns owned settings. See [`Self::new`] for configuration examples.
     pub fn settings(&self) -> MonteCarloSettings {
         self.settings
-    }
-
-    /// Prices after validating flat rates, inclusive life and prior history.
-    ///
-    /// Current hits and resolved payments precede sampling; resolved vanilla payoffs
-    /// use analytic pricing. Prior at-hit rebates are already paid. Cancellation
-    /// follows [`crate::CancellationToken`]. See [`Self::price`].
-    ///
-    /// # Errors
-    ///
-    /// Missing required history returns [`crate::Error::MissingHistory`];
-    /// see the [caller-supplied history contract](crate).
-    ///
-    /// Returns [`crate::Error::UnsupportedOperation`] for nonconstant rate curves,
-    /// [`crate::Error::InvalidInput`] outside life, for impossible history or Sobol
-    /// dimensions above 21,201, or when the scheduled transition and sampling
-    /// workspace exceeds 1 GiB per request,
-    /// or [`crate::Error::ComputationFailure`] for unrepresentable paths,
-    /// nonconvergent survival series or results.
-    /// Operational failures retain their native [`std::io::Error`] through
-    /// [`crate::Error::Io`].
-    ///
-    /// # Panics
-    ///
-    /// Propagates worker panics after the call's parallel work has finished.
-    ///
-    /// # Aborts
-    ///
-    /// Allocation exhaustion follows the allocator's behavior (normally process abort).
-    ///
-    /// # Greeks
-    ///
-    /// Returns requested delta/gamma using the price's normal samples.
-    ///
-    /// Other Greeks are absent. Expiry delta and gamma follow terminal-payoff
-    /// stencils; spot stencils crossing a current monitored barrier suppress them.
-    /// The optional [`NumericalShiftSettings::spot_shift`]
-    /// controls that availability and numerical derivatives of the analytic
-    /// continuous at-hit rebate. Configure it with [`PricingEngine::price_with_greeks_with_settings`].
-    /// Custom scalar differences use [`crate::numerical_greeks`].
-    /// Unavailable rebate stencils leave the contract's delta/gamma absent; see
-    /// [`crate::numerical_greeks`] for stencil requirements.
-    /// Near-expiry likelihood estimates can have substantial sampling error.
-    ///
-    /// ## Errors
-    ///
-    /// Checks flat rates and request support before estimating with default controls,
-    /// then propagates [`Self::price`] errors. Request handling follows
-    /// [`GreeksRequest`]; non-finite requested Greek samples
-    /// return [`crate::Error::ComputationFailure`].
-    ///
-    /// ## Panics
-    ///
-    /// Propagates worker panics after the call's parallel work, as in [`Self::price`].
-    ///
-    /// ## Examples
-    ///
-    /// ```rust
-    /// use kiyosi::*;
-    /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let option = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call, 100.0,
-    ///     start, Date::new(2026, 1, 1)?.start_of_day(), 80.0, BarrierType::DownAndOut))?;
-    /// let context = PricingContext::new(
-    ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
-    /// let engine = MonteCarloBarrierEngine::new(MonteCarloSettings {
-    ///     path_count: 32768, seed: Some(42), sampling: MonteCarloSampling::Sobol,
-    ///     ..Default::default()
-    /// })?;
-    /// let result = engine.price_with_greeks(&option, &context,
-    ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]))?;
-    /// assert!(result.price() > 0.0);
-    /// assert!(result.has(Greek::Delta));
-    /// assert_eq!(engine.settings().path_count, 32768);
-    /// let estimate = engine.price_with_statistics(&option, &context)?;
-    /// assert_eq!(estimate.standard_error(), None); // Sobol omits sampling uncertainty.
-    /// let tuned = engine.price_with_greeks_with_settings(&option, &context,
-    ///     GreeksRequest::new([Greek::Delta]), NumericalShiftSettings {
-    ///         spot_shift: Some(0.005), ..Default::default()
-    ///     })?;
-    /// assert_eq!(tuned.price(), result.price());
-    /// let double = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(OptionType::Call,
-    ///     100.0, start, option.expiry_time(), 80.0, 120.0, DoubleBarrierType::KnockOut))?;
-    /// assert!((engine.price(&double, &context)? - 1.0838814592583166).abs() < 0.003);
-    /// # Ok(()) }
-    /// ```
-    pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
-    where
-        Self: PricingEngine<I>,
-    {
-        PricingEngine::price(self, option, context)
     }
 
     /// Returns a price with sampling standard error and an asymptotic 95% interval.

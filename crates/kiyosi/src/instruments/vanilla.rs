@@ -156,7 +156,7 @@ pub trait OptionContract {
     ///
     /// Defaults to deterministic BSM discontinuities from [`Self::at_spot_discontinuity`]
     /// with zero radius. Current barrier touches retain cash-flow parameter Greeks;
-    /// see [`crate::AnalyticBarrierEngine::price`].
+    /// see [`AnalyticBarrierEngine::price`](crate::AnalyticBarrierEngine#method.price).
     /// Expiry Greeks use terminal-payoff rules in [`crate::numerical_greeks`].
     fn all_greeks_unavailable(&self, context: &crate::PricingContext) -> bool {
         context
@@ -169,7 +169,7 @@ pub trait OptionContract {
     /// Reports whether a spot interval crosses a payoff discontinuity or derivative kink.
     ///
     /// Defaults to `false`. Barrier contracts suppress undefined sensitivities at
-    /// a current touch and stencils reaching it; see [`crate::AnalyticBarrierEngine::price`].
+    /// a current touch and stencils reaching it; see [`AnalyticBarrierEngine::price`](crate::AnalyticBarrierEngine#method.price).
     fn at_spot_discontinuity(&self, _context: &crate::PricingContext, _radius: f64) -> bool {
         false
     }
@@ -177,7 +177,7 @@ pub trait OptionContract {
     /// Reports whether a time stencil preserves the supplied history regime.
     ///
     /// Defaults to `true`; Asian contracts prevent crossing their averaging start.
-    /// See [`crate::AnalyticGeometricAveragePriceEngine::price`].
+    /// See [`AnalyticGeometricAveragePriceEngine::price`](crate::AnalyticGeometricAveragePriceEngine#method.price).
     fn time_stencil_available(
         &self,
         _context: &crate::PricingContext,

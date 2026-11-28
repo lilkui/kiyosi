@@ -1,3 +1,4 @@
+use kiyosi::PricingEngine;
 use kiyosi::{
     AnalyticGeometricAveragePriceEngine, ArithmeticAveragePriceOption,
     BlackScholesMertonParameters, GeometricAveragePriceOption, PricingContext,

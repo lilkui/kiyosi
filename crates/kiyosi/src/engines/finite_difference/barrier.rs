@@ -12,7 +12,21 @@ use crate::instruments::monitoring::validate_life;
 use crate::numerics::scaled_signed_cash;
 use crate::{BarrierOption, DoubleBarrierOption, ObservationMode, RebateTiming, Timestamp};
 
-impl FiniteDifferenceBarrierEngine {
+impl PricingEngine<BarrierOption> for FiniteDifferenceBarrierEngine {
+    fn greek_method(
+        &self,
+        option: &BarrierOption,
+        context: &PricingContext,
+    ) -> Result<crate::GreekMethod> {
+        local_volatility::greek_method(option, context)
+    }
+
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        local_volatility::validate_model(context)
+    }
+    fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
+        volatility_affects_price(option, context)
+    }
     /// Prices a single barrier with continuous or scheduled monitoring and flat or nonconstant rate curves.
     ///
     /// Resolves current observations against actual spot before building a grid.
@@ -73,7 +87,7 @@ impl FiniteDifferenceBarrierEngine {
     /// assert!(result.has(Greek::Delta));
     /// # Ok(()) }
     /// ```
-    pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
+    fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         Ok(native_barrier(
             option,
             context,
@@ -82,26 +96,6 @@ impl FiniteDifferenceBarrierEngine {
             Default::default(),
         )?
         .price())
-    }
-}
-
-impl PricingEngine<BarrierOption> for FiniteDifferenceBarrierEngine {
-    fn greek_method(
-        &self,
-        option: &BarrierOption,
-        context: &PricingContext,
-    ) -> Result<crate::GreekMethod> {
-        local_volatility::greek_method(option, context)
-    }
-
-    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        local_volatility::validate_model(context)
-    }
-    fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
-        volatility_affects_price(option, context)
-    }
-    fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        self.price(option, context)
     }
     fn price_with_greeks_with_settings(
         &self,
@@ -170,7 +164,26 @@ fn analysis(
     )
 }
 
-impl FiniteDifferenceDoubleBarrierEngine {
+impl FiniteDifferenceDoubleBarrierEngine {}
+impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine {
+    fn greek_method(
+        &self,
+        option: &DoubleBarrierOption,
+        context: &PricingContext,
+    ) -> Result<crate::GreekMethod> {
+        local_volatility::greek_method(option, context)
+    }
+
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        local_volatility::validate_model(context)
+    }
+    fn volatility_affects_price(
+        &self,
+        option: &DoubleBarrierOption,
+        context: &PricingContext,
+    ) -> bool {
+        volatility_affects_price(option, context)
+    }
     /// Prices double barriers with continuous or scheduled monitoring and flat or nonconstant rate curves.
     ///
     /// Fits both continuous edges exactly, using all configured asset steps between them.
@@ -221,7 +234,7 @@ impl FiniteDifferenceDoubleBarrierEngine {
     /// assert!(result.has(Greek::Delta));
     /// # Ok(()) }
     /// ```
-    pub fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
+    fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
         Ok(native_barrier(
             option,
             context,
@@ -230,29 +243,6 @@ impl FiniteDifferenceDoubleBarrierEngine {
             Default::default(),
         )?
         .price())
-    }
-}
-impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine {
-    fn greek_method(
-        &self,
-        option: &DoubleBarrierOption,
-        context: &PricingContext,
-    ) -> Result<crate::GreekMethod> {
-        local_volatility::greek_method(option, context)
-    }
-
-    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        local_volatility::validate_model(context)
-    }
-    fn volatility_affects_price(
-        &self,
-        option: &DoubleBarrierOption,
-        context: &PricingContext,
-    ) -> bool {
-        volatility_affects_price(option, context)
-    }
-    fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
-        self.price(option, context)
     }
     fn price_with_greeks_with_settings(
         &self,

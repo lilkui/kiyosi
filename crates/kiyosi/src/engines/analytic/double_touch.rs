@@ -14,7 +14,10 @@ use crate::{
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AnalyticDoubleTouchEngine;
 
-impl AnalyticDoubleTouchEngine {
+impl PricingEngine<DoubleTouchOption> for AnalyticDoubleTouchEngine {
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        crate::engines::flat_rates(context).map(|_| ())
+    }
     /// Prices remaining cash flows using absorbing-density image and spectral series.
     ///
     /// At-hit payments integrate the discounted first-exit density adaptively.
@@ -70,7 +73,7 @@ impl AnalyticDoubleTouchEngine {
     ///
     /// Reuses [`crate::numerical_greeks`] validation and propagates pricing failures.
     ///
-    pub fn price(&self, option: &DoubleTouchOption, context: &PricingContext) -> Result<f64> {
+    fn price(&self, option: &DoubleTouchOption, context: &PricingContext) -> Result<f64> {
         context.natural_bsm_parameters()?;
         self.validate_applicability(context)?;
         validate_life(option, context)?;
@@ -103,14 +106,5 @@ impl AnalyticDoubleTouchEngine {
         } else {
             density.cash_value(option.payout(), rate, option.is_one_touch())
         }
-    }
-}
-
-impl PricingEngine<DoubleTouchOption> for AnalyticDoubleTouchEngine {
-    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        crate::engines::flat_rates(context).map(|_| ())
-    }
-    fn price(&self, option: &DoubleTouchOption, context: &PricingContext) -> Result<f64> {
-        self.price(option, context)
     }
 }

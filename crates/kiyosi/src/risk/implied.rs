@@ -67,7 +67,7 @@ impl ImpliedVolatilitySettings {
 /// # Examples
 ///
 /// ```rust
-/// use kiyosi::{AnalyticDigitalEngine, BlackScholesMertonParameters, Date,
+/// use kiyosi::{PricingEngine, AnalyticDigitalEngine, BlackScholesMertonParameters, Date,
 ///     DigitalOption, OptionType, PricingContext, ImpliedVolatilitySettings, implied_volatility};
 /// # fn main() -> kiyosi::Result<()> {
 /// let start = Date::new(2025, 1, 1)?.start_of_day();

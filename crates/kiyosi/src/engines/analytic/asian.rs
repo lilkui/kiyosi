@@ -18,7 +18,59 @@ pub struct AnalyticGeometricAveragePriceEngine;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TurnbullWakemanArithmeticAveragePriceEngine;
 
-impl AnalyticGeometricAveragePriceEngine {
+fn exprel(x: f64) -> f64 {
+    if x == 0.0 { 1.0 } else { x.exp_m1() / x }
+}
+fn divided_exprel(x: f64, y: f64) -> f64 {
+    if x.abs().max(y.abs()) < 0.5 {
+        let (mut sum, mut homogeneous, mut power, mut factorial) = (0.5, 1.0, 1.0, 2.0);
+        for n in 1..=16 {
+            power *= y;
+            homogeneous = x * homogeneous + power;
+            factorial *= f64::from(n + 2);
+            sum += homogeneous / factorial;
+        }
+        sum
+    } else if (x - y).abs() < 1e-5 {
+        let midpoint = f64::midpoint(x, y);
+        ((midpoint - 1.0) * midpoint.exp() + 1.0) / (midpoint * midpoint)
+    } else {
+        (exprel(x) - exprel(y)) / (x - y)
+    }
+}
+fn divided_exprel_increment_ratio(x: f64, y: f64, h: f64) -> f64 {
+    // Factor out h rather than subtracting nearly equal moments.
+    if (x + h).abs().max(y.abs()) < 0.5 {
+        let (mut sum, mut two, mut three, mut power, mut factorial) =
+            (1.0 / 6.0, 1.0, 1.0, 1.0, 6.0);
+        for n in 1..=16 {
+            power *= y;
+            two = x * two + power;
+            three = (x + h) * three + two;
+            factorial *= f64::from(n + 3);
+            sum += three / factorial;
+        }
+        sum
+    } else {
+        let increment = (x.exp() * exprel(h) - exprel(x)) / (x + h);
+        (increment - divided_exprel(x, y)) / (x + h - y)
+    }
+}
+
+impl TurnbullWakemanArithmeticAveragePriceEngine {
+    fn require_flat(context: &PricingContext) -> Result<()> {
+        let model = context.natural_bsm_parameters()?;
+        if model.risk_free_curve().exact_flat_rate().is_none()
+            || model.dividend_curve().exact_flat_rate().is_none()
+        {
+            return Err(Error::UnsupportedOperation(
+                "Turnbull-Wakeman requires flat rates".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+impl PricingEngine<GeometricAveragePriceOption> for AnalyticGeometricAveragePriceEngine {
     /// Prices a geometric average-price option, including forward-start averaging and history.
     ///
     /// # Errors
@@ -34,7 +86,7 @@ impl AnalyticGeometricAveragePriceEngine {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{AnalyticGeometricAveragePriceEngine, GeometricAveragePriceOption,
+    /// use kiyosi::{PricingEngine, AnalyticGeometricAveragePriceEngine, GeometricAveragePriceOption,
     ///     BlackScholesMertonParameters, PricingContext, Date, OptionType};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
@@ -57,11 +109,7 @@ impl AnalyticGeometricAveragePriceEngine {
     /// Returns [`Error::ComputationFailure`] for non-finite derivatives,
     /// and propagates pricing and feasible bumped-pricing errors.
     /// Measures that require unavailable stencils are absent.
-    pub fn price(
-        &self,
-        option: &GeometricAveragePriceOption,
-        context: &PricingContext,
-    ) -> Result<f64> {
+    fn price(&self, option: &GeometricAveragePriceOption, context: &PricingContext) -> Result<f64> {
         context.natural_bsm_parameters()?;
         let o = &option.0;
         let tau = o.validate(context)?;
@@ -130,57 +178,21 @@ impl AnalyticGeometricAveragePriceEngine {
         )?)
     }
 }
-
-fn exprel(x: f64) -> f64 {
-    if x == 0.0 { 1.0 } else { x.exp_m1() / x }
-}
-fn divided_exprel(x: f64, y: f64) -> f64 {
-    if x.abs().max(y.abs()) < 0.5 {
-        let (mut sum, mut homogeneous, mut power, mut factorial) = (0.5, 1.0, 1.0, 2.0);
-        for n in 1..=16 {
-            power *= y;
-            homogeneous = x * homogeneous + power;
-            factorial *= f64::from(n + 2);
-            sum += homogeneous / factorial;
+impl PricingEngine<ArithmeticAveragePriceOption> for TurnbullWakemanArithmeticAveragePriceEngine {
+    fn greek_method(
+        &self,
+        option: &ArithmeticAveragePriceOption,
+        context: &PricingContext,
+    ) -> Result<crate::GreekMethod> {
+        self.validate_applicability(context)?;
+        if context.valuation_time() != option.expiry_time() {
+            Self::require_flat(context)?;
         }
-        sum
-    } else if (x - y).abs() < 1e-5 {
-        let midpoint = f64::midpoint(x, y);
-        ((midpoint - 1.0) * midpoint.exp() + 1.0) / (midpoint * midpoint)
-    } else {
-        (exprel(x) - exprel(y)) / (x - y)
-    }
-}
-fn divided_exprel_increment_ratio(x: f64, y: f64, h: f64) -> f64 {
-    // Factor out h rather than subtracting nearly equal moments.
-    if (x + h).abs().max(y.abs()) < 0.5 {
-        let (mut sum, mut two, mut three, mut power, mut factorial) =
-            (1.0 / 6.0, 1.0, 1.0, 1.0, 6.0);
-        for n in 1..=16 {
-            power *= y;
-            two = x * two + power;
-            three = (x + h) * three + two;
-            factorial *= f64::from(n + 3);
-            sum += three / factorial;
-        }
-        sum
-    } else {
-        let increment = (x.exp() * exprel(h) - exprel(x)) / (x + h);
-        (increment - divided_exprel(x, y)) / (x + h - y)
-    }
-}
-
-impl TurnbullWakemanArithmeticAveragePriceEngine {
-    fn require_flat(context: &PricingContext) -> Result<()> {
-        let model = context.natural_bsm_parameters()?;
-        if model.risk_free_curve().exact_flat_rate().is_none()
-            || model.dividend_curve().exact_flat_rate().is_none()
-        {
-            return Err(Error::UnsupportedOperation(
-                "Turnbull-Wakeman requires flat rates".into(),
-            ));
-        }
-        Ok(())
+        Ok(crate::GreekMethod::for_valuation(
+            option,
+            context,
+            crate::GreekMethod::Numerical,
+        ))
     }
 
     /// Prices the arithmetic approximation, settling realized history at expiry.
@@ -227,7 +239,7 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
     /// Returns [`Error::ComputationFailure`] for non-finite derivatives,
     /// and propagates pricing and feasible bumped-pricing errors.
     /// Measures that require unavailable stencils are absent.
-    pub fn price(
+    fn price(
         &self,
         option: &ArithmeticAveragePriceOption,
         context: &PricingContext,
@@ -351,35 +363,5 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
                     o.sign(),
                 )?,
         )
-    }
-}
-impl PricingEngine<GeometricAveragePriceOption> for AnalyticGeometricAveragePriceEngine {
-    fn price(&self, option: &GeometricAveragePriceOption, context: &PricingContext) -> Result<f64> {
-        Self::price(self, option, context)
-    }
-}
-impl PricingEngine<ArithmeticAveragePriceOption> for TurnbullWakemanArithmeticAveragePriceEngine {
-    fn greek_method(
-        &self,
-        option: &ArithmeticAveragePriceOption,
-        context: &PricingContext,
-    ) -> Result<crate::GreekMethod> {
-        self.validate_applicability(context)?;
-        if context.valuation_time() != option.expiry_time() {
-            Self::require_flat(context)?;
-        }
-        Ok(crate::GreekMethod::for_valuation(
-            option,
-            context,
-            crate::GreekMethod::Numerical,
-        ))
-    }
-
-    fn price(
-        &self,
-        option: &ArithmeticAveragePriceOption,
-        context: &PricingContext,
-    ) -> Result<f64> {
-        Self::price(self, option, context)
     }
 }

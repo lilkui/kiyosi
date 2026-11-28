@@ -87,48 +87,6 @@ impl MonteCarloAccumulatorEngine {
         self.settings
     }
 
-    /// Returns the mean discounted outstanding settlement; see [`Self::new`].
-    ///
-    /// # Errors
-    ///
-    /// Propagates [`Self::price_with_statistics`] sampling and pricing errors,
-    /// without computing or validating uncertainty.
-    ///
-    /// # Panics
-    ///
-    /// Propagates worker panics after the call's parallel work has finished.
-    ///
-    /// # Aborts
-    ///
-    /// Allocation exhaustion follows the allocator's behavior (normally process abort).
-    ///
-    /// # Greeks
-    ///
-    /// Computes requested finite-difference Greeks with shared normal draws.
-    ///
-    /// Pins a request-local seed when none is configured. At expiry Greeks follow
-    /// terminal payoffs, with time Greeks absent. Stencils crossing active
-    /// spot/time events are unavailable, following
-    /// [`crate::numerical_greeks`]. Small bumps can be noisy for discontinuous
-    /// payoffs; shifts control the sampled curve, not statistical accuracy.
-    /// See [`Self::new`] for an example.
-    ///
-    /// ## Errors
-    ///
-    /// Checks flat rates before shift validation, then propagates
-    /// [`crate::numerical_greeks`] and [`Self::price`] errors.
-    ///
-    /// ## Panics
-    ///
-    /// Propagates worker panics after the call's parallel work has finished.
-    ///
-    /// ## Aborts
-    ///
-    /// Allocation exhaustion follows the allocator's behavior (normally process abort).
-    pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
-        Ok(self.price_with_seed(option, context)?.0)
-    }
-
     /// Returns a price with optional standard error and asymptotic 95% confidence interval.
     ///
     /// Uncertainty follows [`MonteCarloEstimate`]; known pseudorandom settlements
@@ -322,7 +280,45 @@ impl PricingEngine<Accumulator> for MonteCarloAccumulatorEngine {
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<Accumulator> + '_>>> {
         prepare_seeded_request!(self, self.settings)
     }
+    /// Returns the mean discounted outstanding settlement; see [`Self::new`].
+    ///
+    /// # Errors
+    ///
+    /// Propagates [`Self::price_with_statistics`] sampling and pricing errors,
+    /// without computing or validating uncertainty.
+    ///
+    /// # Panics
+    ///
+    /// Propagates worker panics after the call's parallel work has finished.
+    ///
+    /// # Aborts
+    ///
+    /// Allocation exhaustion follows the allocator's behavior (normally process abort).
+    ///
+    /// # Greeks
+    ///
+    /// Computes requested finite-difference Greeks with shared normal draws.
+    ///
+    /// Pins a request-local seed when none is configured. At expiry Greeks follow
+    /// terminal payoffs, with time Greeks absent. Stencils crossing active
+    /// spot/time events are unavailable, following
+    /// [`crate::numerical_greeks`]. Small bumps can be noisy for discontinuous
+    /// payoffs; shifts control the sampled curve, not statistical accuracy.
+    /// See [`Self::new`] for an example.
+    ///
+    /// ## Errors
+    ///
+    /// Checks flat rates before shift validation, then propagates
+    /// [`crate::numerical_greeks`] and [`Self::price`] errors.
+    ///
+    /// ## Panics
+    ///
+    /// Propagates worker panics after the call's parallel work has finished.
+    ///
+    /// ## Aborts
+    ///
+    /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
-        self.price(option, context)
+        Ok(self.price_with_seed(option, context)?.0)
     }
 }

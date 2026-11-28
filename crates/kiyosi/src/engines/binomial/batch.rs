@@ -21,7 +21,7 @@ impl CoxRossRubinsteinVanillaEngine {
     ///
     /// Compatible American contracts can share lattice geometry and parallel
     /// work runs on a bounded library pool. Configured American rollback
-    /// tolerances apply as in [`Self::price`].
+    /// tolerances apply as in [`PricingEngine::price`](crate::PricingEngine::price).
     ///
     /// # Examples
     ///

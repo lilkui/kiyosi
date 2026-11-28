@@ -76,6 +76,11 @@ impl QuadratureAutocallableEngine {
     pub fn settings(&self) -> QuadratureSettings {
         self.settings
     }
+}
+impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for QuadratureAutocallableEngine {
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        flat_rates(context).map(|_| ())
+    }
     /// Prices remaining cash flows, resolving current events before future integration.
     ///
     /// Knock-in is strict below its level; knock-out and Phoenix coupon barriers
@@ -95,20 +100,8 @@ impl QuadratureAutocallableEngine {
     /// ([`Error::InvalidInput`]), in that order. Non-finite prices or
     /// unrepresentable transitions return [`Error::ComputationFailure`].
     ///
-    pub fn price<T: AutocallableTerms>(
-        &self,
-        option: &AutocallableNote<T>,
-        context: &PricingContext,
-    ) -> Result<f64> {
-        price(option, context, self.settings, None)
-    }
-}
-impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for QuadratureAutocallableEngine {
-    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        flat_rates(context).map(|_| ())
-    }
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
-        self.price(option, context)
+        price(option, context, self.settings, None)
     }
     fn prepare_coupon_pricer<'a>(
         &'a self,

@@ -66,6 +66,11 @@ impl QuadratureAccumulatorEngine {
     pub fn settings(&self) -> QuadratureSettings {
         self.settings
     }
+}
+impl PricingEngine<Accumulator> for QuadratureAccumulatorEngine {
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        flat_rates(context).map(|_| ())
+    }
     /// Prices outstanding cash flows, applying a current contractual event once.
     ///
     /// Observes knock-out only on the contract's specified dates, before accumulation.
@@ -80,16 +85,8 @@ impl QuadratureAccumulatorEngine {
     /// and impossible history ([`Error::InvalidInput`]), then required
     /// curve coverage ([`Error::InvalidInput`]). Non-finite results or unrepresentable grids
     /// and transitions return [`Error::ComputationFailure`].
-    pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
-        price(option, context, self.settings, None)
-    }
-}
-impl PricingEngine<Accumulator> for QuadratureAccumulatorEngine {
-    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        flat_rates(context).map(|_| ())
-    }
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
-        self.price(option, context)
+        price(option, context, self.settings, None)
     }
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<Accumulator> + '_>>> {
         Ok(Some(Box::new(Request {

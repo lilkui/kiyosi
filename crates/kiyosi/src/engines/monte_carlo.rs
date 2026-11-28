@@ -784,6 +784,90 @@ mod tests {
 /// Parallel requests in a child forked after the parent's first parallel request
 /// return an error. Use a fresh process, such as Python's `spawn` start method.
 /// See [`Self::price`] for an example.
+///
+/// Returns a discounted sample mean, or intrinsic value at expiry.
+///
+/// Near-strike payoffs retain small movements even when terminal spot rounds to strike.
+/// Cancellation follows [`crate::CancellationToken`].
+/// American Greek scenarios with a common grid share Brownian coordinates.
+/// Large normalized exercise grids sample Brownian coordinates backward and
+/// retain one date at a time. Extreme spot ranges use checkpointed windows.
+/// Exercise workspace is capped at 1 GiB per request. Each rollback allows one
+/// billion simulated path steps and
+/// exercise updates combined, counting replayed steps and the exercise
+/// updates of each sensitivity scenario. Concurrent requests own separate
+/// workspaces.
+/// Expiry and terminal-only American calls
+/// (nonpositive dividends and nonnegative rates) do not allocate this grid.
+///
+/// # Errors
+///
+/// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves before life
+/// validation, [`Error::InvalidInput`] outside permitted valuation
+/// bounds, or [`Error::ComputationFailure`] for unstable parameters, nonpositive
+/// or non-finite terminal prices, or non-finite results.
+/// Entropy and thread-creation failures retain their native [`std::io::Error`]
+/// in [`Error::Io`].
+/// American pricing before expiry returns [`Error::InvalidInput`]
+/// for fewer than two exercise intervals, after life validation.
+/// Exercise-grid pricing also returns [`Error::InvalidInput`] when the workspace
+/// or work limit is exceeded, before entropy, worker or path allocation.
+/// Failure to reserve the exercise-grid buffers returns [`Error::ComputationFailure`]
+/// when the allocator reports the failure.
+/// Non-finite American regression matrices, coefficients or continuation values
+/// return [`Error::ComputationFailure`]; finite rank-deficient fits reduce their degree.
+///
+/// # Panics
+///
+/// Propagates worker panics after the call's parallel work has finished.
+///
+/// # Aborts
+///
+/// Allocation exhaustion follows the allocator's behavior (normally process abort).
+///
+/// # Examples
+///
+/// ```rust
+/// use kiyosi::PricingEngine;
+/// use kiyosi::{MonteCarloSettings, MonteCarloVanillaEngine, EuropeanOption,
+///     OptionType, Date, BlackScholesMertonParameters, PricingContext};
+/// # fn main() -> kiyosi::Result<()> {
+/// let start = Date::new(2025, 1, 1)?.start_of_day();
+/// let option = EuropeanOption::new(OptionType::Call, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
+/// let context = PricingContext::new(
+///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
+/// let engine = MonteCarloVanillaEngine::new(kiyosi::MonteCarloGridSettings {
+///     sampling: MonteCarloSettings { seed: Some(42), ..Default::default() },
+///     ..Default::default()
+/// })?;
+/// assert!((engine.price(&option, &context)? - 9.227).abs() < 0.2);
+/// let analysis = engine.price_with_greeks(&option, &context,
+///     kiyosi::GreeksRequest::new([kiyosi::Greek::Delta]))?;
+/// assert!(analysis.require(kiyosi::Greek::Delta)? > 0.0);
+/// # Ok(()) }
+/// ```
+///
+/// # Greeks
+///
+/// Returns finite-difference Greeks using shared normal samples.
+///
+/// Pins one request-local seed, including when the engine has no configured seed.
+/// Replays identical normal draws for every feasible bump; no samples or state
+/// survive the request. At expiry, time Greeks are absent and other Greeks follow terminal payoffs. Uses
+/// [`NumericalShiftSettings`] and [`crate::numerical_greeks`] availability rules.
+/// American calls whose rate stencil crosses zero use the exercise grid on both
+/// rate legs. Before expiry, automatic American spot bumps are 8% of spot.
+/// Exercise decisions amplify small-bump noise; check sampling error and bump bias.
+/// Query the bump with [`PricingEngine::default_spot_shift`].
+///
+/// ## Errors
+///
+/// Rejects nonconstant rate curves before validating shifts, then propagates
+/// [`crate::numerical_greeks`] and [`Self::price`] errors.
+///
+/// ## Examples
+///
+/// See [`Self::price`] for a shared-sample delta example.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MonteCarloVanillaEngine {
     settings: MonteCarloGridSettings,
@@ -1029,97 +1113,6 @@ impl MonteCarloVanillaEngine {
     /// ```
     pub fn settings(&self) -> MonteCarloGridSettings {
         self.settings
-    }
-
-    /// Returns a discounted sample mean, or intrinsic value at expiry.
-    ///
-    /// Near-strike payoffs retain small movements even when terminal spot rounds to strike.
-    /// Cancellation follows [`crate::CancellationToken`].
-    /// American Greek scenarios with a common grid share Brownian coordinates.
-    /// Large normalized exercise grids sample Brownian coordinates backward and
-    /// retain one date at a time. Extreme spot ranges use checkpointed windows.
-    /// Exercise workspace is capped at 1 GiB per request. Each rollback allows one
-    /// billion simulated path steps and
-    /// exercise updates combined, counting replayed steps and the exercise
-    /// updates of each sensitivity scenario. Concurrent requests own separate
-    /// workspaces.
-    /// Expiry and terminal-only American calls
-    /// (nonpositive dividends and nonnegative rates) do not allocate this grid.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves before life
-    /// validation, [`Error::InvalidInput`] outside permitted valuation
-    /// bounds, or [`Error::ComputationFailure`] for unstable parameters, nonpositive
-    /// or non-finite terminal prices, or non-finite results.
-    /// Entropy and thread-creation failures retain their native [`std::io::Error`]
-    /// in [`Error::Io`].
-    /// American pricing before expiry returns [`Error::InvalidInput`]
-    /// for fewer than two exercise intervals, after life validation.
-    /// Exercise-grid pricing also returns [`Error::InvalidInput`] when the workspace
-    /// or work limit is exceeded, before entropy, worker or path allocation.
-    /// Failure to reserve the exercise-grid buffers returns [`Error::ComputationFailure`]
-    /// when the allocator reports the failure.
-    /// Non-finite American regression matrices, coefficients or continuation values
-    /// return [`Error::ComputationFailure`]; finite rank-deficient fits reduce their degree.
-    ///
-    /// # Panics
-    ///
-    /// Propagates worker panics after the call's parallel work has finished.
-    ///
-    /// # Aborts
-    ///
-    /// Allocation exhaustion follows the allocator's behavior (normally process abort).
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use kiyosi::PricingEngine;
-    /// use kiyosi::{MonteCarloSettings, MonteCarloVanillaEngine, EuropeanOption,
-    ///     OptionType, Date, BlackScholesMertonParameters, PricingContext};
-    /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let option = EuropeanOption::new(OptionType::Call, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
-    /// let context = PricingContext::new(
-    ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
-    /// let engine = MonteCarloVanillaEngine::new(kiyosi::MonteCarloGridSettings {
-    ///     sampling: MonteCarloSettings { seed: Some(42), ..Default::default() },
-    ///     ..Default::default()
-    /// })?;
-    /// assert!((engine.price(&option, &context)? - 9.227).abs() < 0.2);
-    /// let analysis = engine.price_with_greeks(&option, &context,
-    ///     kiyosi::GreeksRequest::new([kiyosi::Greek::Delta]))?;
-    /// assert!(analysis.require(kiyosi::Greek::Delta)? > 0.0);
-    /// # Ok(()) }
-    /// ```
-    ///
-    /// # Greeks
-    ///
-    /// Returns finite-difference Greeks using shared normal samples.
-    ///
-    /// Pins one request-local seed, including when the engine has no configured seed.
-    /// Replays identical normal draws for every feasible bump; no samples or state
-    /// survive the request. At expiry, time Greeks are absent and other Greeks follow terminal payoffs. Uses
-    /// [`NumericalShiftSettings`] and [`crate::numerical_greeks`] availability rules.
-    /// American calls whose rate stencil crosses zero use the exercise grid on both
-    /// rate legs. Before expiry, automatic American spot bumps are 8% of spot.
-    /// Exercise decisions amplify small-bump noise; check sampling error and bump bias.
-    /// Query the bump with [`PricingEngine::default_spot_shift`].
-    ///
-    /// ## Errors
-    ///
-    /// Rejects nonconstant rate curves before validating shifts, then propagates
-    /// [`crate::numerical_greeks`] and [`Self::price`] errors.
-    ///
-    /// ## Examples
-    ///
-    /// See [`Self::price`] for a shared-sample delta example.
-    pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
-    where
-        Self: PricingEngine<I>,
-    {
-        context.natural_bsm_parameters()?;
-        <Self as PricingEngine<I>>::price(self, option, context)
     }
 
     /// Returns the price, standard error and asymptotic 95% confidence interval.

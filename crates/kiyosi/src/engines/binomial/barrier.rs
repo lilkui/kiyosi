@@ -38,80 +38,6 @@ impl CoxRossRubinsteinBarrierEngine {
         self.settings
     }
 
-    /// Prices after validating flat rates, inclusive life and prior history.
-    ///
-    /// Resolved payoffs settle before grid validation; resolved vanilla payoffs use
-    /// analytic pricing. Prior at-hit rebates are already paid.
-    /// Settled cash flows do not require curve coverage through expiry.
-    ///
-    /// # Errors
-    ///
-    /// Missing required history returns [`crate::Error::MissingHistory`];
-    /// see the [caller-supplied history contract](crate).
-    ///
-    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves or unsupported
-    /// fixings. Returns [`Error::InvalidInput`] outside life, for impossible history,
-    /// outside required curve coverage, above 16,000 steps when full rollback is needed,
-    /// or when scheduled rollback exceeds its work budget.
-    /// Unstable tree parameters, nodes or results return [`Error::ComputationFailure`].
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use kiyosi::{BarrierOption, BarrierOptionTerms, BarrierType, BinomialSettings,
-    ///     BlackScholesMertonParameters, CoxRossRubinsteinBarrierEngine, Date, OptionType,
-    ///     PricingContext};
-    /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let option = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call, 100.0,
-    ///     start, Date::new(2026, 1, 1)?.start_of_day(), 120.0, BarrierType::UpAndOut))?;
-    /// let context = PricingContext::new(
-    ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
-    /// let engine = CoxRossRubinsteinBarrierEngine::new(BinomialSettings { step_count: 256 })?;
-    /// assert!(engine.price(&option, &context)? > 0.0);
-    /// # Ok(()) }
-    /// ```
-    pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        context.natural_bsm_parameters()?;
-        Ok(self
-            .native(option, context, GreeksRequest::new([]))?
-            .price())
-    }
-
-    /// Returns requested node delta/gamma; other Greeks are absent.
-    ///
-    /// Uses engine-default estimation controls; see [`crate::numerical_greeks`] for custom bumps.
-    /// Terminal stencils use engine-default spot bumps.
-    /// One-step gamma is absent before expiry. Expiry spot Greeks follow terminal payoffs. Current barrier equality also
-    /// suppresses Greeks without a prior touch.
-    /// See [`Self::price`] for a pricing example.
-    ///
-    /// # Errors
-    ///
-    /// Checks flat-rate applicability before shift validation, then reuses
-    /// [`Self::price`] errors. Requested measures other than delta and gamma
-    /// have [`crate::GreekStatus::Unsupported`]; empty requests select price only.
-    pub fn price_with_greeks(
-        &self,
-        option: &BarrierOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-    ) -> Result<PricingResult> {
-        self.greeks_with_settings(option, context, request, Default::default())
-    }
-
-    fn greeks_with_settings(
-        self,
-        option: &BarrierOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-        settings: crate::NumericalShiftSettings,
-    ) -> Result<PricingResult> {
-        super::super::greeks(&self, option, context, request, settings, || {
-            self.native(option, context, request)
-        })
-    }
-
     #[expect(
         clippy::cast_precision_loss,
         clippy::cast_sign_loss,
@@ -978,10 +904,59 @@ impl PricingEngine<BarrierOption> for CoxRossRubinsteinBarrierEngine {
         context.natural_bsm_parameters()?;
         flat_rates(context).map(|_| ())
     }
+    /// Prices after validating flat rates, inclusive life and prior history.
+    ///
+    /// Resolved payoffs settle before grid validation; resolved vanilla payoffs use
+    /// analytic pricing. Prior at-hit rebates are already paid.
+    /// Settled cash flows do not require curve coverage through expiry.
+    ///
+    /// # Errors
+    ///
+    /// Missing required history returns [`crate::Error::MissingHistory`];
+    /// see the [caller-supplied history contract](crate).
+    ///
+    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves or unsupported
+    /// fixings. Returns [`Error::InvalidInput`] outside life, for impossible history,
+    /// outside required curve coverage, above 16,000 steps when full rollback is needed,
+    /// or when scheduled rollback exceeds its work budget.
+    /// Unstable tree parameters, nodes or results return [`Error::ComputationFailure`].
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{PricingEngine, BarrierOption, BarrierOptionTerms, BarrierType, BinomialSettings,
+    ///     BlackScholesMertonParameters, CoxRossRubinsteinBarrierEngine, Date, OptionType,
+    ///     PricingContext};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let option = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call, 100.0,
+    ///     start, Date::new(2026, 1, 1)?.start_of_day(), 120.0, BarrierType::UpAndOut))?;
+    /// let context = PricingContext::new(
+    ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
+    /// let engine = CoxRossRubinsteinBarrierEngine::new(BinomialSettings { step_count: 256 })?;
+    /// assert!(engine.price(&option, &context)? > 0.0);
+    /// # Ok(()) }
+    /// ```
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        Self::price(self, option, context)
+        context.natural_bsm_parameters()?;
+        Ok(self
+            .native(option, context, GreeksRequest::new([]))?
+            .price())
     }
 
+    /// Returns requested node delta/gamma; other Greeks are absent.
+    ///
+    /// Terminal stencils use the request's spot shift. See [`Self::price_with_greeks`]
+    /// for estimation with default shifts.
+    /// One-step gamma is absent before expiry. Expiry spot Greeks follow terminal payoffs. Current barrier equality also
+    /// suppresses Greeks without a prior touch.
+    /// See [`Self::price`] for a pricing example.
+    ///
+    /// # Errors
+    ///
+    /// Checks flat-rate applicability before shift validation, then reuses
+    /// [`Self::price`] errors. Requested measures other than delta and gamma
+    /// have [`crate::GreekStatus::Unsupported`]; empty requests select price only.
     fn price_with_greeks_with_settings(
         &self,
         option: &BarrierOption,
@@ -989,7 +964,9 @@ impl PricingEngine<BarrierOption> for CoxRossRubinsteinBarrierEngine {
         request: GreeksRequest,
         settings: crate::NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        self.greeks_with_settings(option, context, request, settings)
+        super::super::greeks(self, option, context, request, settings, || {
+            self.native(option, context, request)
+        })
     }
     fn prepare_implied_volatility(
         &self,

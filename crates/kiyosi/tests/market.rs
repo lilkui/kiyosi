@@ -1,4 +1,4 @@
-use kiyosi::{Date, Error, RateTermStructure, Timestamp, TradingCalendar};
+use kiyosi::{Date, Error, PricingEngine, RateTermStructure, Timestamp, TradingCalendar};
 
 fn at(year: i32, month: u32, day: u32) -> Timestamp {
     Date::new(year, month, day).unwrap().start_of_day()

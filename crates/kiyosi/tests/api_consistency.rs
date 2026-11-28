@@ -1342,7 +1342,7 @@ fn flat_rate_query_is_independent_of_reference_time() -> Result<()> {
 }
 
 #[test]
-fn native_greek_methods_match_trait_dispatch() -> Result<()> {
+fn default_greek_requests_match_explicit_default_shifts() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = Date::new(2026, 1, 1)?.start_of_day();
     let context = PricingContext::new(

@@ -10,7 +10,7 @@ use crate::{Error, PricingContext, PricingEngine, Result};
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AnalyticRangeAccrualEngine;
 
-impl AnalyticRangeAccrualEngine {
+impl PricingEngine<RangeAccrualOption> for AnalyticRangeAccrualEngine {
     /// Prices the coupon, using spot for a current observation and explicit prior hit history.
     ///
     /// Valuation must lie within the inclusive effective and expiry times.
@@ -59,7 +59,7 @@ impl AnalyticRangeAccrualEngine {
     ///
     /// Propagates [`crate::numerical_greeks`] validation and pricing errors.
     ///
-    pub fn price(&self, option: &RangeAccrualOption, context: &PricingContext) -> Result<f64> {
+    fn price(&self, option: &RangeAccrualOption, context: &PricingContext) -> Result<f64> {
         context.natural_bsm_parameters()?;
         crate::instruments::monitoring::validate_life(option, context)?;
         let valuation = context.valuation_time();
@@ -151,11 +151,5 @@ impl AnalyticRangeAccrualEngine {
         }
         value.add(scaled_cash(hits, scale));
         checked(value.total())
-    }
-}
-
-impl PricingEngine<RangeAccrualOption> for AnalyticRangeAccrualEngine {
-    fn price(&self, option: &RangeAccrualOption, context: &PricingContext) -> Result<f64> {
-        Self::price(self, option, context)
     }
 }

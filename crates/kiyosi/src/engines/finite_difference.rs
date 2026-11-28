@@ -1682,7 +1682,18 @@ macro_rules! vanilla_pricing {
 vanilla_pricing!(EuropeanOption, false);
 vanilla_pricing!(AmericanOption, true);
 
-impl FiniteDifferenceDigitalEngine {
+impl PricingEngine<DigitalOption> for FiniteDifferenceDigitalEngine {
+    fn greek_method(
+        &self,
+        option: &DigitalOption,
+        context: &PricingContext,
+    ) -> Result<crate::GreekMethod> {
+        local_volatility::greek_method(option, context)
+    }
+
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        local_volatility::validate_model(context)
+    }
     /// Prices a digital, settling strictly in the money at expiry.
     ///
     /// Accepts BSM or local volatility with flat or nonconstant rate curves.
@@ -1702,7 +1713,7 @@ impl FiniteDifferenceDigitalEngine {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{FiniteDifferenceDigitalEngine, DigitalOption, OptionType,
+    /// use kiyosi::{PricingEngine, FiniteDifferenceDigitalEngine, DigitalOption, OptionType,
     ///     BlackScholesMertonParameters, Date, PricingContext};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
@@ -1712,7 +1723,7 @@ impl FiniteDifferenceDigitalEngine {
     /// assert!((FiniteDifferenceDigitalEngine::default().price(&option, &context)? - 4.945810910532236).abs() < 0.001);
     /// # Ok(()) }
     /// ```
-    pub fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
+    fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
         Ok(native(
             option,
             Payoff::digital(option),
@@ -1724,23 +1735,6 @@ impl FiniteDifferenceDigitalEngine {
         )?
         .0
         .price())
-    }
-}
-
-impl PricingEngine<DigitalOption> for FiniteDifferenceDigitalEngine {
-    fn greek_method(
-        &self,
-        option: &DigitalOption,
-        context: &PricingContext,
-    ) -> Result<crate::GreekMethod> {
-        local_volatility::greek_method(option, context)
-    }
-
-    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        local_volatility::validate_model(context)
-    }
-    fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
-        Self::price(self, option, context)
     }
     fn price_with_greeks_with_settings(
         &self,

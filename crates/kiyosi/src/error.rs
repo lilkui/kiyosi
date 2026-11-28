@@ -40,7 +40,7 @@ pub enum Error {
     },
     /// Reports invalid numerical results or unavailable computation state.
     ///
-    /// See [`crate::MonteCarloVanillaEngine::price`].
+    /// See [`MonteCarloVanillaEngine::price`](crate::MonteCarloVanillaEngine#method.price).
     ComputationFailure(Cow<'static, str>),
     /// Reports a supplied interval that does not bracket a root in the engine's domain.
     ///
@@ -52,7 +52,7 @@ pub enum Error {
     NonConvergence(Cow<'static, str>),
     /// Preserves native I/O failures, including cancellation, entropy and thread creation.
     ///
-    /// See [`crate::CancellationToken`] and [`crate::MonteCarloVanillaEngine::price`].
+    /// See [`crate::CancellationToken`] and [`MonteCarloVanillaEngine::price`](crate::MonteCarloVanillaEngine#method.price).
     Io(io::Error),
 }
 
@@ -92,7 +92,7 @@ impl From<io::Error> for Error {
 ///
 /// Native I/O details are available through [`Error::Io`] and the standard
 /// error source. This alias does not guarantee recovery from allocator failures
-/// or internal panics. See [`crate::MonteCarloVanillaEngine::price`] for an example.
+/// or internal panics. See [`MonteCarloVanillaEngine::price`](crate::MonteCarloVanillaEngine#method.price) for an example.
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub(crate) fn finite(value: f64, positive: bool, field: &str) -> Result<()> {

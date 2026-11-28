@@ -70,7 +70,7 @@ impl RangeAccrualOption {
     /// Returns [`Error::InvalidInput`] for invalid amounts, bounds or negative
     /// history, then for nonpositive contract life, an empty daily observation schedule,
     /// or history exceeding the number of observations strictly before expiry.
-    /// History relative to valuation is validated by [`crate::AnalyticRangeAccrualEngine::price`].
+    /// History relative to valuation is validated by [`AnalyticRangeAccrualEngine::price`](crate::AnalyticRangeAccrualEngine#method.price).
     ///
     /// # Examples
     ///

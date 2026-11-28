@@ -13,60 +13,52 @@ use crate::instruments::binary_barrier::{Contract, Settlement};
 /// Prices binary barriers and single-touch contracts analytically with flat rates.
 ///
 /// See [`Self::price`] for usage and scheduled-monitoring restrictions.
+///
+/// Prices a binary barrier or touch contract with strictly prior history.
+///
+/// Equality counts as a touch before future monitoring. Unresolved scheduled
+/// monitoring uses the Broadie-Glasserman-Kou (BGK) continuity correction
+/// and must end at expiry. Terminal binary equality at strike pays zero.
+/// Settled cash flows do not require curve coverage through expiry.
+///
+/// # Errors
+///
+/// Missing required history returns [`crate::Error::MissingHistory`];
+/// see the [caller-supplied history contract](crate).
+///
+/// Returns [`crate::Error::UnsupportedOperation`] for nonconstant rate curves or unsupported
+/// schedules. Returns [`crate::Error::InvalidInput`] outside life, for impossible history, or outside required curve coverage.
+/// Non-finite results return [`crate::Error::ComputationFailure`].
+/// Exhausted at-hit payment integration returns [`crate::Error::NonConvergence`].
+///
+/// # Examples
+///
+/// ```rust
+/// use kiyosi::*;
+/// # fn main() -> Result<()> {
+/// let start = Date::new(2025, 1, 1)?.start_of_day();
+/// let mut terms = TouchOptionTerms::new(start, Date::new(2026, 1, 1)?.start_of_day(), 120.0, BarrierType::UpAndIn);
+/// terms.settlement_timing = SettlementTiming::AtHit;
+/// let option = TouchOption::cash(terms, 10.0)?;
+/// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 120.0, start.into())?;
+/// assert_eq!(AnalyticBinaryBarrierEngine.price(&option, &context)?, 10.0);
+/// # Ok(()) }
+/// ```
+///
+/// # Greeks
+///
+/// Computes requested numerical Greeks with shared bump defaults; see [`Self::price`].
+///
+/// Expiry Greeks follow terminal payoffs. Before expiry at positive BSM volatility,
+/// barrier equality without a prior touch leaves spot derivatives absent; rate
+/// and volatility Greeks follow the resolved payoff.
+/// Stencils crossing observations or barriers leave affected Greeks absent.
+///
+/// ## Errors
+///
+/// Reuses [`crate::numerical_greeks`] validation and propagates pricing errors.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AnalyticBinaryBarrierEngine;
-impl AnalyticBinaryBarrierEngine {
-    /// Prices a binary barrier or touch contract with strictly prior history.
-    ///
-    /// Equality counts as a touch before future monitoring. Unresolved scheduled
-    /// monitoring uses the Broadie-Glasserman-Kou (BGK) continuity correction
-    /// and must end at expiry. Terminal binary equality at strike pays zero.
-    /// Settled cash flows do not require curve coverage through expiry.
-    ///
-    /// # Errors
-    ///
-    /// Missing required history returns [`crate::Error::MissingHistory`];
-    /// see the [caller-supplied history contract](crate).
-    ///
-    /// Returns [`crate::Error::UnsupportedOperation`] for nonconstant rate curves or unsupported
-    /// schedules. Returns [`crate::Error::InvalidInput`] outside life, for impossible history, or outside required curve coverage.
-    /// Non-finite results return [`crate::Error::ComputationFailure`].
-    /// Exhausted at-hit payment integration returns [`crate::Error::NonConvergence`].
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use kiyosi::*;
-    /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let mut terms = TouchOptionTerms::new(start, Date::new(2026, 1, 1)?.start_of_day(), 120.0, BarrierType::UpAndIn);
-    /// terms.settlement_timing = SettlementTiming::AtHit;
-    /// let option = TouchOption::cash(terms, 10.0)?;
-    /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 120.0, start.into())?;
-    /// assert_eq!(AnalyticBinaryBarrierEngine.price(&option, &context)?, 10.0);
-    /// # Ok(()) }
-    /// ```
-    ///
-    /// # Greeks
-    ///
-    /// Computes requested numerical Greeks with shared bump defaults; see [`Self::price`].
-    ///
-    /// Expiry Greeks follow terminal payoffs. Before expiry at positive BSM volatility,
-    /// barrier equality without a prior touch leaves spot derivatives absent; rate
-    /// and volatility Greeks follow the resolved payoff.
-    /// Stencils crossing observations or barriers leave affected Greeks absent.
-    ///
-    /// ## Errors
-    ///
-    /// Reuses [`crate::numerical_greeks`] validation and propagates pricing errors.
-    pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
-    where
-        Self: PricingEngine<I>,
-    {
-        <Self as PricingEngine<I>>::price(self, option, context)
-    }
-}
-
 impl Contract<'_> {
     fn vanilla(&self, context: &PricingContext) -> Result<f64> {
         if let Some(digital) = self.digital {
