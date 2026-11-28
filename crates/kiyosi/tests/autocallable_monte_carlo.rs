@@ -1,7 +1,9 @@
 #[path = "support/autocallable.rs"]
 mod autocallable_support;
 
-use kiyosi::engines::{MonteCarloSampling, MonteCarloSettings, QuadratureSettings};
+use kiyosi::engines::{
+    MonteCarloSampling, MonteCarloSettings, MonteCarloUncertaintyStatus, QuadratureSettings,
+};
 use kiyosi::instruments::{AutocallableNote, AutocallableTerms};
 use kiyosi::*;
 
@@ -417,9 +419,15 @@ fn sampling_settings_counts_and_threads_preserve_prices_and_uncertainty() {
                 assert_eq!(serial, parallel);
                 assert_eq!(
                     serial.standard_error().is_some(),
-                    sampling == MonteCarloSampling::PseudoRandom
-                        && path_count > if antithetic { 2 } else { 1 }
+                    sampling == MonteCarloSampling::PseudoRandom && path_count >= 32
                 );
+                if sampling == MonteCarloSampling::PseudoRandom && !antithetic && path_count == 2 {
+                    assert_eq!(
+                        serial.uncertainty_status(),
+                        MonteCarloUncertaintyStatus::ZeroObservedVariance
+                    );
+                    assert_eq!(serial.confidence_interval(), None);
+                }
             }
         }
     }

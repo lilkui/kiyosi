@@ -308,6 +308,25 @@ def test_uncertainty_omission_follows_sampling_and_independent_counts(subtests):
                 assert estimate.uncertainty_status == status
 
 
+def test_missed_digital_payoffs_leave_sampling_uncertainty_unavailable():
+    snapshot = context().replace(
+        model_parameters=m.BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=0.2
+        )
+    )
+    option = i.CashOrNothingOption(option_type="call", strike=160, payout=100, **LIFE)
+    engine = p.MonteCarloDigitalEngine(path_count=100, seed=42, max_active_workers=1)
+    assert p.AnalyticDigitalEngine().price(option, snapshot) == pytest.approx(
+        0.7142450770104051
+    )
+    estimate = engine.price_with_statistics(option, snapshot)
+    assert estimate.price == engine.price(option, snapshot) == 0
+    assert estimate.seed == 42
+    assert estimate.standard_error is None
+    assert estimate.confidence_interval is None
+    assert estimate.uncertainty_status == "zero_observed_variance"
+
+
 def test_terminal_statistics_report_known_values(subtests):
     snapshot = context().replace(spot_price=110, valuation_time=END)
     for name, factory, original in contracts():

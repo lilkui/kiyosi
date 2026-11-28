@@ -4,6 +4,7 @@ use schedule_fixture::schedule as fixture_schedule;
 
 use kiyosi::engines::{
     MonteCarloEstimate, MonteCarloGridSettings, MonteCarloSampling, MonteCarloSettings,
+    MonteCarloUncertaintyStatus,
 };
 use kiyosi::instruments::{OptionContract, SnowballPreset, SnowballPresetTerms};
 use kiyosi::*;
@@ -31,6 +32,32 @@ fn settings() -> MonteCarloSettings {
         max_active_workers: 1,
         ..Default::default()
     }
+}
+
+#[test]
+fn missed_digital_payoffs_leave_sampling_uncertainty_unavailable() -> Result<()> {
+    let (start, end) = dates();
+    let market = PricingContext::new(
+        BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,
+        100.0,
+        start,
+    )?;
+    let option = DigitalOption::cash_or_nothing(OptionType::Call, 160.0, 100.0, start, end)?;
+    let engine = MonteCarloDigitalEngine::new(MonteCarloSettings {
+        path_count: 100,
+        ..settings()
+    })?;
+    assert!(AnalyticDigitalEngine.price(&option, &market)? > 0.7);
+    let estimate = engine.price_with_statistics(&option, &market)?;
+    assert_eq!(estimate.price(), 0.0);
+    assert_eq!(estimate.seed(), Some(42));
+    assert_eq!(estimate.standard_error(), None);
+    assert_eq!(estimate.confidence_interval(), None);
+    assert_eq!(
+        estimate.uncertainty_status(),
+        MonteCarloUncertaintyStatus::ZeroObservedVariance
+    );
+    Ok(())
 }
 
 fn sample<I: OptionContract>(

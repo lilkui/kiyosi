@@ -38,6 +38,10 @@ def sampling_estimates(
     phoenix: PhoenixOption,
     context: PricingContext,
 ) -> None:
+    def check_uncertainty_status(status: MonteCarloUncertaintyStatus) -> None:
+        assert_type(status, MonteCarloUncertaintyStatus)
+
+    check_uncertainty_status("zero_observed_variance")
     assert_type(
         MonteCarloDigitalEngine().price_with_statistics(cash, context),
         MonteCarloEstimate,

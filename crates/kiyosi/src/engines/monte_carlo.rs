@@ -888,7 +888,8 @@ fn validate_step_count(step_count: i32, minimum: i32) -> Result<()> {
 /// for pseudorandom draws, or independent pair means with even antithetic counts;
 /// sparse samples and heavy tails can make the interval unreliable.
 /// Sobol always leaves uncertainty absent. Simulated payoffs with fewer than two
-/// independent observations or odd antithetic counts also leave uncertainty absent.
+/// independent observations, odd antithetic counts or zero observed variance
+/// also leave uncertainty absent.
 /// Known pseudorandom settlements, fixed cash flows and resolved analytic branches
 /// have zero uncertainty. Sampling uncertainty does not measure numerical integration
 /// or model approximation error.
@@ -913,6 +914,9 @@ pub enum MonteCarloUncertaintyStatus {
     InsufficientObservations,
     /// Reports an odd antithetic path count with an unmatched observation.
     IncompleteAntitheticPair,
+    /// Reports zero observed variance in sampled payoffs or antithetic pair means.
+    /// See [`MonteCarloEstimate::uncertainty_status`].
+    ZeroObservedVariance,
 }
 
 impl MonteCarloUncertaintyStatus {
@@ -923,6 +927,7 @@ impl MonteCarloUncertaintyStatus {
             Self::UnsupportedSampling => "unsupported_sampling",
             Self::InsufficientObservations => "insufficient_observations",
             Self::IncompleteAntitheticPair => "incomplete_antithetic_pair",
+            Self::ZeroObservedVariance => "zero_observed_variance",
         }
     }
 }
@@ -976,6 +981,14 @@ impl MonteCarloEstimate {
         settings: MonteCarloSettings,
         seed: Option<u64>,
     ) -> Result<Self> {
+        if seed.is_some() && standard_error == Some(0.0) {
+            return Self::from_statistics(
+                price,
+                None,
+                MonteCarloUncertaintyStatus::ZeroObservedVariance,
+                seed,
+            );
+        }
         let status = if standard_error.is_some() {
             MonteCarloUncertaintyStatus::Available
         } else if settings.sampling == MonteCarloSampling::Sobol {
@@ -1435,10 +1448,6 @@ impl PricingEngine for MonteCarloVanillaEngine {
     }
 }
 
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "Sample counts are bounded by the validated path limit of ten million and fit exactly in f64."
-)]
 fn estimate(
     settings: MonteCarloSettings,
     sample: Moments,
@@ -1448,22 +1457,37 @@ fn estimate(
     seed: Option<u64>,
 ) -> Result<MonteCarloEstimate> {
     let price = scaled_value(sample.scale, sample.mean, log_discount)?;
-    let uncertainty = if settings.antithetic { pairs } else { sample };
     let standard_error = if settings.sampling == MonteCarloSampling::Sobol {
         None
     } else if known {
         Some(0.0)
-    } else if uncertainty.count > 1 && (!settings.antithetic || settings.path_count % 2 == 0) {
-        Some(scaled_value(
-            uncertainty.scale,
-            (uncertainty.m2.max(0.0) / (uncertainty.count - 1) as f64 / uncertainty.count as f64)
-                .sqrt(),
-            log_discount,
-        )?)
     } else {
-        None
+        sampling_standard_error(settings, sample, pairs, log_discount)?
     };
     MonteCarloEstimate::from_sampling(price, standard_error, settings, seed)
+}
+
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "Sample counts are bounded by the validated path limit of ten million and fit exactly in f64."
+)]
+fn sampling_standard_error(
+    settings: MonteCarloSettings,
+    sample: Moments,
+    pairs: Moments,
+    log_discount: f64,
+) -> Result<Option<f64>> {
+    let uncertainty = if settings.antithetic { pairs } else { sample };
+    if settings.sampling == MonteCarloSampling::Sobol
+        || uncertainty.count < 2
+        || settings.antithetic && settings.path_count % 2 != 0
+    {
+        return Ok(None);
+    }
+    let deviation =
+        (uncertainty.m2.max(0.0) / (uncertainty.count - 1) as f64 / uncertainty.count as f64)
+            .sqrt();
+    scaled_value(uncertainty.scale, deviation, log_discount).map(Some)
 }
 
 pub(crate) fn path_means<const N: usize>(
@@ -1503,7 +1527,7 @@ fn path_sample_means<const N: usize>(
         *mean = scaled_value(moment.scale, moment.mean, 0.0)?;
     }
     let standard_error = if statistics {
-        estimate(settings, moments[0], pairs[0], 0.0, false, Some(seed))?.standard_error()
+        sampling_standard_error(settings, moments[0], pairs[0], 0.0)?
     } else {
         None
     };

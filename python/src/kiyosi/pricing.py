@@ -141,6 +141,7 @@ MonteCarloUncertaintyStatus = Literal[
     "unsupported_sampling",
     "insufficient_observations",
     "incomplete_antithetic_pair",
+    "zero_observed_variance",
 ]
 
 

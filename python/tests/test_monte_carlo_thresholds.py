@@ -83,7 +83,9 @@ def test_snowball_thresholds_preserve_price_and_sampling_uncertainty(
     estimate = engine.price_with_statistics(note, market(volatility))
     if antithetic:
         assert estimate.price == pytest.approx(1.07, rel=0, abs=1e-12)
-        assert estimate.standard_error < 1e-14
+        assert estimate.standard_error is None
+        assert estimate.confidence_interval is None
+        assert estimate.uncertainty_status == "zero_observed_variance"
     else:
         assert estimate.price == pytest.approx(
             1.07, rel=0, abs=4 * estimate.standard_error

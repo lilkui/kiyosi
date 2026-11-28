@@ -2,7 +2,7 @@
 mod schedule_fixture;
 use schedule_fixture::schedule as fixture_schedule;
 
-use kiyosi::engines::MonteCarloSettings;
+use kiyosi::engines::{MonteCarloSettings, MonteCarloUncertaintyStatus};
 use kiyosi::*;
 
 fn context(volatility: f64, intraday: bool) -> PricingContext {
@@ -81,11 +81,16 @@ fn snowball_thresholds_preserve_price_and_sampling_uncertainty() {
             let estimate = engine
                 .price_with_statistics(&note, &context(volatility, false))
                 .unwrap();
-            let error = estimate.standard_error().unwrap();
             if antithetic {
                 assert!((estimate.price() - 1.07).abs() < 1e-12);
-                assert!(error < 1e-14);
+                assert_eq!(estimate.standard_error(), None);
+                assert_eq!(estimate.confidence_interval(), None);
+                assert_eq!(
+                    estimate.uncertainty_status(),
+                    MonteCarloUncertaintyStatus::ZeroObservedVariance
+                );
             } else {
+                let error = estimate.standard_error().unwrap();
                 assert!((estimate.price() - 1.07).abs() < 4.0 * error);
                 assert!((error - 0.05 / 256.0).abs() < 1e-6);
             }

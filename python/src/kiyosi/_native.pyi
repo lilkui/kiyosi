@@ -3870,8 +3870,9 @@ class _MonteCarloMethods[Instrument, StatisticsInstrument](_PricingMethods[Instr
         -------
         MonteCarloEstimate
             Mean, optional standard error and asymptotic 95% confidence interval.
-            Sobol, insufficient independent samples and odd antithetic counts omit
-            uncertainty. Known pseudorandom analytic values have zero error.
+            Sobol, insufficient independent samples, odd antithetic counts and
+            zero observed sampling variance omit uncertainty. Known pseudorandom
+            analytic values have zero error.
             Sampling uncertainty does not measure numerical integration bias.
 
         Raises
@@ -4189,10 +4190,10 @@ class MonteCarloEstimate:
     -----
     Standard error uses independent pseudorandom observations or even
     antithetic pair means. The interval is an asymptotic 95% normal confidence
-    interval. Uncertainty is absent for Sobol, insufficient independent samples
-    and odd antithetic counts; known pseudorandom settlements have zero
-    uncertainty. The seed property identifies the actual draws, including for
-    unseeded engines; None means no sampling occurred. Replay requires the same
+    interval. Uncertainty is absent for Sobol, insufficient independent samples,
+    odd antithetic counts and zero observed sampling variance. Known pseudorandom
+    settlements have zero uncertainty. The seed property identifies the actual
+    draws, including for unseeded engines. None means no sampling occurred. Replay requires the same
     inputs, engine controls and build.
     """
 
