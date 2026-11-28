@@ -345,7 +345,7 @@ pub(crate) fn complete_greeks_with_pair(
     result = result.with_request(request, GreeksRequest::all());
     // Entry points validate shifts before any fallible preparation.
     let p0 = result.price();
-    let available = GreeksRequest::new(Greek::ALL.into_iter().filter(|&g| result.has(g)));
+    let available = GreeksRequest::new(Greek::ALL.into_iter().filter(|&g| result.get(g).is_some()));
     let time = context.valuation_time();
     if time == option.expiry_time() {
         return expiry_greeks(option, context, settings, result, |context| {

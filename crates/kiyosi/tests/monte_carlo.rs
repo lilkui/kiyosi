@@ -771,7 +771,7 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
         },
     )
     .unwrap();
-    assert!(!missing.has(Greek::Delta) && !missing.has(Greek::Vega));
+    assert!(missing.get(Greek::Delta).is_none() && missing.get(Greek::Vega).is_none());
     assert_eq!(missing.price(), baseline);
     assert_eq!(engine.price(&option, &context).unwrap(), baseline);
     assert_eq!(context, market());

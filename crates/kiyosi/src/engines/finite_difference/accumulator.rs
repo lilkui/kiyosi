@@ -82,7 +82,7 @@ impl PricingEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
     /// let result = engine.price_with_greeks(&option, &market,
     ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]))?;
     /// assert_eq!(result.price(), engine.price(&option, &market)?);
-    /// assert!(result.has(Greek::Delta));
+    /// assert!(result.get(Greek::Delta).is_some());
     /// # Ok(()) }
     /// ```
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {

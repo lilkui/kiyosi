@@ -167,7 +167,7 @@ fn live_barriers_preserve_in_out_parity_and_analytics() {
     let result = engine
         .price_with_greeks(&option, &context, GreeksRequest::all())
         .unwrap();
-    assert!(Greek::ALL.into_iter().all(|g| result.has(g)));
+    assert!(Greek::ALL.into_iter().all(|g| result.get(g).is_some()));
     let solved = implied_volatility(
         &engine,
         &option,
@@ -210,10 +210,10 @@ fn greeks_do_not_cross_touch_discontinuities_or_history_regimes() {
         Greek::Charm,
         Greek::Color,
     ] {
-        assert!(!result.has(g), "{g:?}");
+        assert!(result.get(g).is_none(), "{g:?}");
     }
-    assert!(result.has(Greek::Vega));
-    assert!(result.has(Greek::Rho));
+    assert!(result.get(Greek::Vega).is_some());
+    assert!(result.get(Greek::Rho).is_some());
     t.observation_schedule = Some(fixture_schedule(
         vec![Date::new(2025, 1, 2).unwrap().start_of_day(), t.expiry_time],
         t.calendar.as_ref(),
@@ -227,7 +227,7 @@ fn greeks_do_not_cross_touch_discontinuities_or_history_regimes() {
         )
         .unwrap();
     assert!(result.require(Greek::Theta).unwrap().is_finite());
-    assert!(result.has(Greek::Vega));
+    assert!(result.get(Greek::Vega).is_some());
 }
 
 #[test]

@@ -563,9 +563,9 @@ fn spline_and_mixed_greeks_match_independent_public_repricing() {
         Greek::Charm,
         Greek::Color,
     ] {
-        assert!(!boundary.has(greek), "{greek:?}");
+        assert!(boundary.get(greek).is_none(), "{greek:?}");
     }
-    assert!(boundary.has(Greek::Vega) && boundary.has(Greek::Rho));
+    assert!(boundary.get(Greek::Vega).is_some() && boundary.get(Greek::Rho).is_some());
 }
 
 #[test]

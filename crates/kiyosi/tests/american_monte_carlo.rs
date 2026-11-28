@@ -586,7 +586,7 @@ fn rate_stencils_crossing_zero_keep_one_exercise_estimator() {
             .unwrap();
         let shift = (rate + requested) - rate;
         if rate - (rate - shift) != shift {
-            assert!(!result.has(Greek::Rho));
+            assert!(result.get(Greek::Rho).is_none());
             continue;
         }
         // A subnormal positive dividend forces the grid without changing BSM coefficients.

@@ -548,7 +548,7 @@ fn greeks_respect_contract_life_and_observations() {
         .unwrap();
     for greek in Greek::ALL {
         assert_eq!(
-            result.has(greek),
+            result.get(greek).is_some(),
             matches!(
                 greek,
                 Greek::Vega | Greek::Volga | Greek::Rho | Greek::DividendRho
@@ -568,7 +568,8 @@ fn greeks_respect_contract_life_and_observations() {
         AnalyticRangeAccrualEngine
             .price_with_greeks(&weekend, &context, GreeksRequest::new([Greek::Theta]))
             .unwrap()
-            .has(Greek::Theta)
+            .get(Greek::Theta)
+            .is_some()
     );
 }
 
@@ -1019,7 +1020,7 @@ fn request_and_solver_errors_preserve_inputs() {
         },
     )
     .unwrap();
-    assert!(!unavailable.has(Greek::Delta));
+    assert!(unavailable.get(Greek::Delta).is_none());
     let settings = ImpliedVolatilitySettings::new(0.1, 0.4);
     assert!(matches!(
         implied_volatility(&engine, &option, &context, -1.0, settings).unwrap_err(),

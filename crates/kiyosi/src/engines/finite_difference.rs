@@ -1068,8 +1068,8 @@ fn complete_greeks(
     if request == GreeksRequest::new([]) || option.all_greeks_unavailable(context) {
         return Ok(result);
     }
-    let missing_delta = request.has(Greek::Delta) && !result.has(Greek::Delta);
-    let missing_gamma = request.has(Greek::Gamma) && !result.has(Greek::Gamma);
+    let missing_delta = request.has(Greek::Delta) && result.get(Greek::Delta).is_none();
+    let missing_gamma = request.has(Greek::Gamma) && result.get(Greek::Gamma).is_none();
     let spot = context.spot_price();
     let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
     if (missing_delta || missing_gamma)
@@ -1522,7 +1522,7 @@ engine_settings!(
     /// let result = engine.price_with_greeks(&option, &context,
     ///     GreeksRequest::new([Greek::Delta]))?;
     /// assert!(result.price() > 0.0);
-    /// assert!(result.has(Greek::Delta));
+    /// assert!(result.get(Greek::Delta).is_some());
     /// # Ok(()) }
     /// ```
 );
@@ -1586,7 +1586,7 @@ engine_settings!(
     /// let result = FiniteDifferenceDoubleTouchEngine::default().price_with_greeks(
     ///     &option, &context, GreeksRequest::new([Greek::Delta]))?;
     /// assert!((result.price() - 0.36726156351907174).abs() < 0.00001);
-    /// assert!(result.has(Greek::Delta));
+    /// assert!(result.get(Greek::Delta).is_some());
     /// # Ok(()) }
     /// ```
 );

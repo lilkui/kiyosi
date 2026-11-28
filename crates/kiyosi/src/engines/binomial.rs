@@ -1145,7 +1145,7 @@ impl PricingEngine<DigitalOption> for CoxRossRubinsteinDigitalEngine {
     /// let result = CoxRossRubinsteinDigitalEngine::default().price_with_greeks(
     ///     &option, &context, GreeksRequest::all())?;
     /// assert!(result.require(Greek::Delta)? > 0.0);
-    /// assert!(!result.has(Greek::Vega));
+    /// assert!(result.get(Greek::Vega).is_none());
     /// # Ok(()) }
     /// ```
     fn price_with_greeks_with_settings(

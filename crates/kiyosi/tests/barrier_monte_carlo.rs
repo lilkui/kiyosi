@@ -249,7 +249,7 @@ fn at_hit_rebate_greeks_require_a_usable_spot_stencil() {
         .unwrap();
         assert_eq!(result.price(), engine.price(&option, &context).unwrap());
         for greek in [Greek::Delta, Greek::Gamma] {
-            assert!(!result.has(greek));
+            assert!(result.get(greek).is_none());
             assert!(matches!(
                 result.require(greek),
                 Err(Error::GreekUnavailable { greek: measure, status: GreekStatus::StencilUnavailable }) if measure == greek
@@ -355,7 +355,7 @@ fn conditional_survival_prices_and_likelihood_greeks_match_analytic() {
                 }
                 assert_eq!(actual.price(), engine.price(&option, &context).unwrap());
                 for greek in Greek::ALL.into_iter().skip(2) {
-                    assert!(!actual.has(greek));
+                    assert!(actual.get(greek).is_none());
                 }
             }
         }
@@ -630,7 +630,7 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
                 result.price(),
                 AnalyticBarrierEngine.price(&option, &context).unwrap()
             );
-            assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
+            assert!(Greek::ALL.into_iter().all(|g| result.get(g).is_none()));
             let later = context
                 .replace(PricingContextChanges {
                     valuation_time: Some(Timestamp::new(day(1, 1).date(), 0, 0, 0, 1).unwrap()),

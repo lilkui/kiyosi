@@ -66,7 +66,7 @@ impl QuadratureAutocallableEngine {
     /// let result = engine.price_with_greeks(&note, &context,
     ///     GreeksRequest::new([Greek::Delta, Greek::Vega]))?;
     /// assert!(result.price().is_finite());
-    /// assert!(result.has(Greek::Delta));
+    /// assert!(result.get(Greek::Delta).is_some());
     /// # Ok(()) }
     /// ```
     pub fn new(settings: QuadratureSettings) -> Result<Self> {

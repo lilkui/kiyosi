@@ -399,7 +399,7 @@ fn greeks_and_implied_volatility_preserve_inputs_and_error_categories() {
     let result = engine
         .price_with_greeks(&option, &ctx, GreeksRequest::all())
         .unwrap();
-    assert!(Greek::ALL.into_iter().all(|g| result.has(g)));
+    assert!(Greek::ALL.into_iter().all(|g| result.get(g).is_some()));
     let scalar = numerical_greeks(
         &engine,
         &option,

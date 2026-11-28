@@ -876,7 +876,7 @@ fn scheduled_decumulator_supports_greeks_and_identifiable_volatility() {
             .unwrap();
         assert_eq!(result.price(), engine.price(&option, &context).unwrap());
         for greek in [Greek::Delta, Greek::Gamma, Greek::Vega] {
-            assert!(result.has(greek), "missing {greek:?}");
+            assert!(result.get(greek).is_some(), "missing {greek:?}");
         }
         if index < 2 {
             let tolerance = if index == 0 { 1e-6 } else { 0.002 };
@@ -991,9 +991,9 @@ fn current_greek_discontinuities_follow_the_knock_out_schedule() {
                         Default::default(),
                     )
                     .unwrap();
-                assert_eq!(result.has(Greek::Delta), !monitored);
-                assert_eq!(result.has(Greek::Gamma), !monitored);
-                assert!(result.has(Greek::Vega));
+                assert_eq!(result.get(Greek::Delta).is_some(), !monitored);
+                assert_eq!(result.get(Greek::Gamma).is_some(), !monitored);
+                assert!(result.get(Greek::Vega).is_some());
             }
         }
         let option = Accumulator::new(terms(direction, Some(Vec::new()))).unwrap();
@@ -1006,8 +1006,8 @@ fn current_greek_discontinuities_follow_the_knock_out_schedule() {
                     Default::default(),
                 )
                 .unwrap();
-            assert!(!result.has(Greek::Delta));
-            assert!(!result.has(Greek::Gamma));
+            assert!(result.get(Greek::Delta).is_none());
+            assert!(result.get(Greek::Gamma).is_none());
         }
     }
 }

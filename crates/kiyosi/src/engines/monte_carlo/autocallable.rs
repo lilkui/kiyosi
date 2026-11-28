@@ -82,7 +82,7 @@ impl MonteCarloAutocallableEngine {
     /// assert_eq!(engine.settings().path_count, 4096);
     /// let result = engine.price_with_greeks(&note, &context,
     ///     GreeksRequest::new([Greek::Rho]))?;
-    /// assert!(result.has(Greek::Rho));
+    /// assert!(result.get(Greek::Rho).is_some());
     /// # Ok(()) }
     /// ```
     pub fn new(settings: MonteCarloSettings) -> Result<Self> {

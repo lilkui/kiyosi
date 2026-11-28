@@ -495,7 +495,7 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
         )
         .unwrap();
         for greek in Greek::ALL {
-            assert!(result.has(greek), "{greek:?}");
+            assert!(result.get(greek).is_some(), "{greek:?}");
         }
         let solved = implied_volatility(
             &engine,

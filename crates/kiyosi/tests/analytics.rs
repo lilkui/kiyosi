@@ -407,7 +407,7 @@ fn volga_and_dividend_rho_preserve_units_curves_and_selectivity() {
                         Greek::ALL
                             .into_iter()
                             .filter(|&g| g != greek)
-                            .all(|g| !numeric.has(g))
+                            .all(|g| numeric.get(g).is_none())
                     );
                 }
             }
@@ -480,8 +480,8 @@ fn new_parameter_greeks_keep_unavailable_stencils_and_bump_errors() {
         },
     )
     .unwrap();
-    assert!(!result.has(Greek::Volga));
-    assert!(result.has(Greek::DividendRho));
+    assert!(result.get(Greek::Volga).is_none());
+    assert!(result.get(Greek::DividendRho).is_some());
     let collapsed = numerical_greeks(
         &AnalyticEuropeanEngine,
         &option,
@@ -493,8 +493,8 @@ fn new_parameter_greeks_keep_unavailable_stencils_and_bump_errors() {
         },
     )
     .unwrap();
-    assert!(collapsed.has(Greek::Volga));
-    assert!(!collapsed.has(Greek::DividendRho));
+    assert!(collapsed.get(Greek::Volga).is_some());
+    assert!(collapsed.get(Greek::DividendRho).is_none());
 
     assert!(matches!(
         numerical_greeks(
@@ -524,7 +524,7 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
     let result = AnalyticEuropeanEngine
         .price_with_greeks(&option, &context, request)
         .unwrap();
-    assert!(result.has(Greek::Delta) && result.has(Greek::Vega));
+    assert!(result.get(Greek::Delta).is_some() && result.get(Greek::Vega).is_some());
     assert_eq!(result.get(Greek::Gamma), None);
     assert!(matches!(
         result.require(Greek::Gamma).unwrap_err(),
@@ -1117,9 +1117,9 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
         Greek::Charm,
         Greek::Color,
     ] {
-        assert!(!result.has(greek), "{greek:?}");
+        assert!(result.get(greek).is_none(), "{greek:?}");
     }
-    assert!(result.has(Greek::Theta) && result.has(Greek::Rho));
+    assert!(result.get(Greek::Theta).is_some() && result.get(Greek::Rho).is_some());
     let collapsed = numerical_greeks(
         &AnalyticEuropeanEngine,
         &option,
@@ -1131,8 +1131,8 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
         },
     )
     .unwrap();
-    assert!(!collapsed.has(Greek::Delta));
-    assert!(collapsed.has(Greek::Vega));
+    assert!(collapsed.get(Greek::Delta).is_none());
+    assert!(collapsed.get(Greek::Vega).is_some());
     let huge_time = numerical_greeks(
         &AnalyticEuropeanEngine,
         &option,
@@ -1182,7 +1182,7 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
         },
     )
     .unwrap();
-    assert!(!speed.has(Greek::Speed));
+    assert!(speed.get(Greek::Speed).is_none());
 }
 
 #[test]

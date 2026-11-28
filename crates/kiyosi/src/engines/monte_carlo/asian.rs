@@ -67,8 +67,8 @@ const STRIKE_TILE: usize = 32;
 /// assert!((engine.price(&option, &context)? - 5.0359).abs() < 0.2);
 /// let result = engine.price_with_greeks(&option, &context,
 ///     kiyosi::GreeksRequest::all())?;
-/// assert!(result.has(kiyosi::Greek::Delta));
-/// assert!(!result.has(kiyosi::Greek::Vega));
+/// assert!(result.get(kiyosi::Greek::Delta).is_some());
+/// assert!(result.get(kiyosi::Greek::Vega).is_none());
 /// let estimate = engine.price_with_statistics(&option, &context)?;
 /// assert!(estimate.standard_error().is_some());
 /// # Ok(()) }

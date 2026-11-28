@@ -112,7 +112,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
     /// let result = engine.price_with_greeks(&note, &market,
     ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]))?;
     /// assert_eq!(result.price(), engine.price(&note, &market)?);
-    /// assert!(result.has(Greek::Delta));
+    /// assert!(result.get(Greek::Delta).is_some());
     /// # Ok(()) }
     /// ```
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {

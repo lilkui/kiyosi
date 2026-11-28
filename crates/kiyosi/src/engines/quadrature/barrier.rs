@@ -102,7 +102,7 @@ impl QuadratureBarrierEngine {
     /// assert!(engine.price(&option, &context)? > 0.0);
     /// let result = engine.price_with_greeks(&option, &context,
     ///     GreeksRequest::new([Greek::Delta]))?;
-    /// assert!(result.has(Greek::Delta));
+    /// assert!(result.get(Greek::Delta).is_some());
     /// # Ok(()) }
     /// ```
     pub fn new(settings: QuadratureSettings) -> Result<Self> {

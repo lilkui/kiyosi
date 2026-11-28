@@ -280,7 +280,7 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
     )
     .unwrap();
     for greek in Greek::ALL {
-        assert!(result.has(greek), "{greek:?}");
+        assert!(result.get(greek).is_some(), "{greek:?}");
     }
     let sigma = implied_volatility(
         &engine,
@@ -533,10 +533,10 @@ fn current_threshold_greeks_and_fixed_node_curve_identifiability() {
         .price_with_greeks(&note, &market(90.0, date(2, 3)), GreeksRequest::all())
         .unwrap();
     for greek in [Greek::Delta, Greek::Gamma, Greek::Speed, Greek::Theta] {
-        assert!(!result.has(greek), "{greek:?}");
+        assert!(result.get(greek).is_none(), "{greek:?}");
     }
-    assert!(result.has(Greek::Vega));
-    assert!(result.has(Greek::Rho));
+    assert!(result.get(Greek::Vega).is_some());
+    assert!(result.get(Greek::Rho).is_some());
     let curve = RateTermStructure::new(start, vec![end], vec![0.99]).unwrap();
     let model = BlackScholesMertonParameters::new(curve, 0.01, 0.2).unwrap();
     let ctx = PricingContext::new(model, 100.0, start).unwrap();
@@ -634,11 +634,11 @@ fn native_spot_greeks_do_not_require_a_feasible_scalar_bump() {
                 },
             )
             .unwrap();
-            assert!(reference.has(Greek::Delta));
-            assert!(!actual.has(Greek::Delta));
-            assert!(reference.has(Greek::Gamma));
-            assert!(!actual.has(Greek::Gamma));
-            assert!(!actual.has(Greek::Speed));
+            assert!(reference.get(Greek::Delta).is_some());
+            assert!(actual.get(Greek::Delta).is_none());
+            assert!(reference.get(Greek::Gamma).is_some());
+            assert!(actual.get(Greek::Gamma).is_none());
+            assert!(actual.get(Greek::Speed).is_none());
         }
     }
 }

@@ -722,7 +722,7 @@ fn analytic_greeks_implied_volatility_and_boundary_availability() {
             Greek::Rho,
             Greek::Theta,
         ] {
-            assert!(result.has(greek));
+            assert!(result.get(greek).is_some());
         }
         let solved = implied_volatility(
             &engine,
@@ -1154,7 +1154,7 @@ fn early_window_history_utc_calendar_and_fixed_cash_greeks() {
     assert!(
         [Greek::Theta, Greek::Charm, Greek::Color]
             .into_iter()
-            .all(|g| !at.has(g))
+            .all(|g| at.get(g).is_none())
     );
 }
 
@@ -1174,7 +1174,7 @@ fn greeks_iv_failures_and_concurrency_preserve_inputs() {
         let result = engine
             .price_with_greeks(&option, &ctx, GreeksRequest::all())
             .unwrap();
-        assert!(Greek::ALL.into_iter().all(|g| result.has(g)));
+        assert!(Greek::ALL.into_iter().all(|g| result.get(g).is_some()));
         let scalar = numerical_greeks(
             &engine,
             &option,

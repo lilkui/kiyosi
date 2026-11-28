@@ -62,7 +62,7 @@ fn terminal_prices_and_likelihood_greeks_match_analytic_and_share_draws() {
                         assert!((got - want).abs() < tolerance, "{got} != {want}");
                     }
                     for greek in Greek::ALL.into_iter().skip(2) {
-                        assert!(!actual.has(greek));
+                        assert!(actual.get(greek).is_none());
                     }
                     assert_eq!(actual.price(), engine.price(&option, &context).unwrap());
                     for max_active_workers in [0, 1, 4] {

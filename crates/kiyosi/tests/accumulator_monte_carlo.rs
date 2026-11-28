@@ -244,7 +244,7 @@ fn shared_sample_greeks_and_volatility_solves_preserve_inputs() {
         Greek::Zomma,
         Greek::Rho,
     ] {
-        assert!(result.has(greek));
+        assert!(result.get(greek).is_some());
     }
     for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
         assert!(result.require(greek).unwrap().is_finite());
@@ -509,10 +509,10 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
             Greek::Charm,
             Greek::Color,
         ] {
-            assert!(!result.has(greek));
+            assert!(result.get(greek).is_none());
         }
-        assert!(result.has(Greek::Vega));
-        assert!(result.has(Greek::Rho));
+        assert!(result.get(Greek::Vega).is_some());
+        assert!(result.get(Greek::Rho).is_some());
     }
     let expired = market(90.0, day(1, 6));
     let result = engine

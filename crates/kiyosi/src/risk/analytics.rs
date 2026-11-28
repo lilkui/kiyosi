@@ -179,10 +179,6 @@ impl PricingResult {
     pub fn get(&self, greek: Greek) -> Option<f64> {
         self.values[greek as usize]
     }
-    /// Reports whether a finite value is available; see [`Self::require`].
-    pub fn has(&self, greek: Greek) -> bool {
-        self.get(greek).is_some()
-    }
     /// Returns the request and availability status of a sensitivity.
     ///
     /// # Examples
@@ -199,7 +195,7 @@ impl PricingResult {
     pub fn status(&self, greek: Greek) -> GreekStatus {
         if !self.requested.has(greek) {
             GreekStatus::NotRequested
-        } else if self.has(greek) {
+        } else if self.get(greek).is_some() {
             GreekStatus::Available
         } else if !self.supported.has(greek) {
             GreekStatus::Unsupported
@@ -259,7 +255,7 @@ impl PricingResult {
             if measures.has(greek)
                 && self.requested.has(greek)
                 && self.supported.has(greek)
-                && !self.has(greek)
+                && self.get(greek).is_none()
             {
                 self.unavailable_stencils.0[greek as usize] = true;
             }

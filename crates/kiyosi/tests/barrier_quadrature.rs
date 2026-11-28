@@ -540,11 +540,11 @@ fn greeks_sensitivities_and_solving_share_scalar_semantics() {
             scalar.require(greek).unwrap()
         );
     }
-    assert!(!actual.has(Greek::Speed));
+    assert!(actual.get(Greek::Speed).is_none());
     let all = engine
         .price_with_greeks(&option, &context, GreeksRequest::all())
         .unwrap();
-    assert!(Greek::ALL.into_iter().all(|g| all.has(g)));
+    assert!(Greek::ALL.into_iter().all(|g| all.get(g).is_some()));
     let solve = |option: &BarrierOption, context: &PricingContext, quote| {
         implied_volatility(
             &engine,

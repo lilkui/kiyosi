@@ -334,7 +334,7 @@ fn prices_and_node_greeks_match_independent_paths_across_supported_terms() {
                                 .abs()
                                     < 1e-10
                             );
-                            assert_eq!(result.has(Greek::Gamma), steps >= 2);
+                            assert_eq!(result.get(Greek::Gamma).is_some(), steps >= 2);
                             if steps >= 2 {
                                 let v: [f64; 3] = std::array::from_fn(|node| {
                                     enumerated(&option, &context, steps, &observed, (2, node))
@@ -348,7 +348,7 @@ fn prices_and_node_greeks_match_independent_paths_across_supported_terms() {
                             }
                             for greek in Greek::ALL {
                                 if !matches!(greek, Greek::Delta | Greek::Gamma) {
-                                    assert!(!result.has(greek));
+                                    assert!(result.get(greek).is_none());
                                 }
                             }
                         }

@@ -53,7 +53,7 @@ fn at_hit_rebate_greeks_require_a_usable_spot_stencil() {
         .unwrap();
     assert_eq!(result.price(), engine.price(&option, &context).unwrap());
     for greek in [Greek::Delta, Greek::Gamma] {
-        assert!(!result.has(greek));
+        assert!(result.get(greek).is_none());
         assert!(matches!(
             result.require(greek),
             Err(Error::GreekUnavailable { greek: measure, status: GreekStatus::StencilUnavailable }) if measure == greek
@@ -151,7 +151,7 @@ fn continuous_prices_and_shared_sample_greeks_match_independent_references() {
             assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 0.003);
             assert!((result.require(Greek::Gamma).unwrap() - gamma).abs() < 0.003);
             assert_eq!(result.price(), engine.price(&option, &context).unwrap());
-            assert!(!result.has(Greek::Vega));
+            assert!(result.get(Greek::Vega).is_none());
         }
     }
 }
@@ -221,7 +221,7 @@ fn pseudo_random_prices_and_likelihood_greeks_match_across_seeds() {
                     Greek::Zomma,
                     Greek::Rho,
                 ] {
-                    assert!(!result.has(greek));
+                    assert!(result.get(greek).is_none());
                 }
             }
         }
@@ -529,7 +529,9 @@ fn current_and_prior_touches_expiry_and_finished_monitoring_resolve_before_sampl
                     let result = engine
                         .price_with_greeks(&option, &context, GreeksRequest::all())
                         .unwrap();
-                    assert!(!result.has(Greek::Delta) && !result.has(Greek::Gamma));
+                    assert!(
+                        result.get(Greek::Delta).is_none() && result.get(Greek::Gamma).is_none()
+                    );
                 }
                 let later = context
                     .replace(PricingContextChanges {
@@ -634,7 +636,7 @@ fn current_and_prior_touches_expiry_and_finished_monitoring_resolve_before_sampl
         let result = engine
             .price_with_greeks(&option, &context, GreeksRequest::all())
             .unwrap();
-        assert!(!result.has(Greek::Delta) && !result.has(Greek::Gamma));
+        assert!(result.get(Greek::Delta).is_none() && result.get(Greek::Gamma).is_none());
     }
 }
 

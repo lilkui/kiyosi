@@ -390,7 +390,7 @@ fn native_greeks_use_all_future_spots_and_fixed_history() {
             }
             for greek in Greek::ALL {
                 assert_eq!(
-                    result.has(greek),
+                    result.get(greek).is_some(),
                     matches!(greek, Greek::Delta | Greek::Gamma)
                 );
             }
@@ -414,8 +414,8 @@ fn native_greeks_use_all_future_spots_and_fixed_history() {
                 Default::default(),
             )
             .unwrap();
-            assert!(scalar.has(Greek::Vega));
-            assert_eq!(scalar.has(Greek::Theta), averaging != valuation);
+            assert!(scalar.get(Greek::Vega).is_some());
+            assert_eq!(scalar.get(Greek::Theta).is_some(), averaging != valuation);
             let quote = result.price();
             let solved = implied_volatility(
                 &engine,

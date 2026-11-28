@@ -417,7 +417,7 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
     let result = engine
         .price_with_greeks(&option, &context, GreeksRequest::all())
         .unwrap();
-    assert!(Greek::ALL.into_iter().all(|g| result.has(g)));
+    assert!(Greek::ALL.into_iter().all(|g| result.get(g).is_some()));
     let controls = ImpliedVolatilitySettings::new(0.15, 0.25);
     assert!(
         (implied_volatility(&engine, &option, &context, result.price(), controls).unwrap() - 0.2)

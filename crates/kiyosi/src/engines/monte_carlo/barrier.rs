@@ -104,7 +104,7 @@ enum Contract<'a> {
 /// let result = engine.price_with_greeks(&option, &context,
 ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]))?;
 /// assert!(result.price() > 0.0);
-/// assert!(result.has(Greek::Delta));
+/// assert!(result.get(Greek::Delta).is_some());
 /// assert_eq!(engine.settings().path_count, 32768);
 /// let estimate = engine.price_with_statistics(&option, &context)?;
 /// assert_eq!(estimate.standard_error(), None); // Sobol omits sampling uncertainty.
@@ -530,7 +530,7 @@ impl MonteCarloBarrierEngine {
                 request = GreeksRequest::new(
                     [Greek::Delta, Greek::Gamma]
                         .into_iter()
-                        .filter(|&greek| derivatives.has(greek)),
+                        .filter(|&greek| derivatives.get(greek).is_some()),
                 );
             }
         }

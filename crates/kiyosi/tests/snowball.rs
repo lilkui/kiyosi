@@ -288,7 +288,7 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
     )
     .unwrap();
     for greek in Greek::ALL {
-        assert!(result.has(greek), "{greek:?}");
+        assert!(result.get(greek).is_some(), "{greek:?}");
     }
     let solved = implied_volatility(
         &engine,
@@ -314,8 +314,8 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
     let result = engine
         .price_with_greeks(&note, &market(110.0, date(2, 3)), GreeksRequest::all())
         .unwrap();
-    assert!(!result.has(Greek::Delta));
-    assert!(!result.has(Greek::Theta));
+    assert!(result.get(Greek::Delta).is_none());
+    assert!(result.get(Greek::Theta).is_none());
     assert_eq!(result.get(Greek::Vega), Some(0.0));
     assert_eq!(result.get(Greek::Rho), Some(0.0));
     assert!(matches!(

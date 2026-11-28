@@ -447,7 +447,7 @@ fn european_tree_refines_to_analytic_price_and_node_greeks() {
                     < 0.04 / f64::from(steps)
             );
             assert_eq!(actual.price(), engine.price(&option, &context).unwrap());
-            assert!(!actual.has(Greek::Vega));
+            assert!(actual.get(Greek::Vega).is_none());
         }
     }
 }
@@ -476,7 +476,7 @@ fn digital_tree_matches_one_step_cash_and_asset_payments() {
         assert!((result.price() - price).abs() < 1e-10);
         assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 1e-10);
         for greek in Greek::ALL {
-            assert_eq!(result.has(greek), greek == Greek::Delta);
+            assert_eq!(result.get(greek).is_some(), greek == Greek::Delta);
         }
     }
 }
@@ -518,7 +518,7 @@ fn american_early_exercise_and_no_dividend_limit() {
         let result = engine
             .price_with_greeks(&american, &context, GreeksRequest::all())
             .unwrap();
-        assert!(Greek::ALL.into_iter().all(|g| result.has(g)));
+        assert!(Greek::ALL.into_iter().all(|g| result.get(g).is_some()));
     }
 }
 
@@ -568,7 +568,7 @@ fn digital_odd_even_and_off_strike_grids_refine_with_negative_carry() {
                                 < budget / spot / spot / sigma / sigma
                         );
                         assert_eq!(actual.price(), engine.price(&option, &context).unwrap());
-                        assert!(!actual.has(Greek::Vega));
+                        assert!(actual.get(Greek::Vega).is_none());
                     }
                 }
             }

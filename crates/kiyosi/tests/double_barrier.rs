@@ -57,7 +57,7 @@ fn continuous_prices_and_greeks_match_independent_quantlib_regressions() {
         assert!((result.price() - price).abs() < 1e-9);
         assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 1e-7);
         assert!((result.require(Greek::Gamma).unwrap() - gamma).abs() < 1e-6);
-        assert!(!result.has(Greek::Vega));
+        assert!(result.get(Greek::Vega).is_none());
         let inside =
             DoubleBarrierOption::new(terms(direction, DoubleBarrierType::KnockIn)).unwrap();
         let vanilla = EuropeanOption::new(
@@ -751,9 +751,9 @@ fn shared_analysis_solver_and_failure_categories_preserve_inputs() {
                 GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Vega]),
             )
             .unwrap();
-        assert!(!result.has(Greek::Delta));
-        assert!(!result.has(Greek::Gamma));
-        assert!(result.has(Greek::Vega));
+        assert!(result.get(Greek::Delta).is_none());
+        assert!(result.get(Greek::Gamma).is_none());
+        assert!(result.get(Greek::Vega).is_some());
     }
     std::thread::scope(|scope| {
         let handles: Vec<_> = (0..4)

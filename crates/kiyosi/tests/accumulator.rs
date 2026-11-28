@@ -746,10 +746,10 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
         Greek::Vanna,
         Greek::Zomma,
     ] {
-        assert!(!result.has(greek));
+        assert!(result.get(greek).is_none());
     }
-    assert!(result.has(Greek::Vega));
-    assert!(result.has(Greek::Rho));
+    assert!(result.get(Greek::Vega).is_some());
+    assert!(result.get(Greek::Rho).is_some());
     let option = Accumulator::new(terms(day(1, 6)))
         .unwrap()
         .replace(AccumulatorChanges {

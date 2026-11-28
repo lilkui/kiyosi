@@ -654,7 +654,7 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
     )
     .unwrap();
     for greek in Greek::ALL {
-        assert!(result.has(greek), "{greek:?}");
+        assert!(result.get(greek).is_some(), "{greek:?}");
     }
     let sigma = implied_volatility(
         &engine,
@@ -670,10 +670,10 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
     let result = engine
         .price_with_greeks(&note, &ctx, GreeksRequest::all())
         .unwrap();
-    assert!(!result.has(Greek::Delta));
-    assert!(!result.has(Greek::Theta));
-    assert!(result.has(Greek::Vega));
-    assert!(result.has(Greek::Rho));
+    assert!(result.get(Greek::Delta).is_none());
+    assert!(result.get(Greek::Theta).is_none());
+    assert!(result.get(Greek::Vega).is_some());
+    assert!(result.get(Greek::Rho).is_some());
 
     let coupon_only = note
         .replace(PhoenixOptionChanges {

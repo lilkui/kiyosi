@@ -206,8 +206,8 @@ fn native_and_mixed_greeks_match_scalar_stencils_and_solver_preserves_inputs() {
         },
     )
     .unwrap();
-    assert!(!collapsed.has(Greek::Delta) && !collapsed.has(Greek::Gamma));
-    assert!(!collapsed.has(Greek::Speed));
+    assert!(collapsed.get(Greek::Delta).is_none() && collapsed.get(Greek::Gamma).is_none());
+    assert!(collapsed.get(Greek::Speed).is_none());
     let sigma = implied_volatility(
         &engine,
         &option,

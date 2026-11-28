@@ -760,7 +760,7 @@ fn spline_greeks_use_one_mesh_and_selective_mixed_requests() {
         },
     )
     .unwrap();
-    assert!(!collapsed.has(Greek::Speed));
+    assert!(collapsed.get(Greek::Speed).is_none());
     let near = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
         asset_upper_boundary: Some(100.5),
         ..Default::default()

@@ -84,7 +84,7 @@ impl PricingEngine<BarrierOption> for FiniteDifferenceBarrierEngine {
     ///     GreeksRequest::new([Greek::Delta]),
     ///     NumericalShiftSettings { spot_shift: Some(0.001), ..Default::default() })?;
     /// assert_eq!(result.price(), engine.price(&option, &context)?);
-    /// assert!(result.has(Greek::Delta));
+    /// assert!(result.get(Greek::Delta).is_some());
     /// # Ok(()) }
     /// ```
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
@@ -231,7 +231,7 @@ impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine 
     /// let result = engine.price_with_greeks(&option, &context,
     ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]))?;
     /// assert!((result.price() - 1.0838814592583166).abs() < 0.001);
-    /// assert!(result.has(Greek::Delta));
+    /// assert!(result.get(Greek::Delta).is_some());
     /// # Ok(()) }
     /// ```
     fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {

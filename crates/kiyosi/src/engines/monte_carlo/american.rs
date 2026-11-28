@@ -1843,7 +1843,7 @@ mod tests {
                     .unwrap();
                 let shift = crate::risk::numerical::symmetric_shift(dividend, shift);
                 if shift == 0.0 {
-                    assert!(!result.has(Greek::DividendRho));
+                    assert!(result.get(Greek::DividendRho).is_none());
                     continue;
                 }
                 let up = engine
@@ -1863,7 +1863,7 @@ mod tests {
                     result.price(),
                     engine.price(&option, &context(dividend)).unwrap()
                 );
-                assert!(!result.has(Greek::Rho));
+                assert!(result.get(Greek::Rho).is_none());
                 let unavailable = crate::numerical_greeks(
                     &engine,
                     &option,
@@ -1875,7 +1875,7 @@ mod tests {
                     },
                 )
                 .unwrap();
-                assert!(!unavailable.has(Greek::DividendRho));
+                assert!(unavailable.get(Greek::DividendRho).is_none());
             }
         }
     }

@@ -247,7 +247,7 @@ impl FiniteDifferenceSolution {
         if stencil
             && [Greek::Delta, Greek::Gamma, Greek::Speed]
                 .into_iter()
-                .any(|g| active.has(g) && !result.has(g))
+                .any(|g| active.has(g) && result.get(g).is_none())
         {
             let sample_request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
             let sample = |spot| {
@@ -256,21 +256,21 @@ impl FiniteDifferenceSolution {
             };
             let up = sample(spot_price + h)?;
             let down = sample(spot_price - h)?;
-            if active.has(Greek::Delta) && !result.has(Greek::Delta) {
+            if active.has(Greek::Delta) && result.get(Greek::Delta).is_none() {
                 result.set(
                     active,
                     Greek::Delta,
                     (up.price() - down.price()) / (2.0 * h),
                 )?;
             }
-            if active.has(Greek::Gamma) && !result.has(Greek::Gamma) {
+            if active.has(Greek::Gamma) && result.get(Greek::Gamma).is_none() {
                 result.set(
                     active,
                     Greek::Gamma,
                     ((up.price() - result.price()) - (result.price() - down.price())) / h / h,
                 )?;
             }
-            if active.has(Greek::Speed) && !result.has(Greek::Speed) {
+            if active.has(Greek::Speed) && result.get(Greek::Speed).is_none() {
                 if let (Some(up), Some(down)) = (up.get(Greek::Gamma), down.get(Greek::Gamma)) {
                     result.set(active, Greek::Speed, (up - down) / (2.0 * h))?;
                 } else {
