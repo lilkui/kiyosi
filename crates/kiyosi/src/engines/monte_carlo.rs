@@ -770,7 +770,7 @@ mod tests {
 /// strike-scaled quadratic regression of continuation values on a
 /// uniform grid, reducing to linear or constant fits for rank-deficient samples.
 /// Calls with nonpositive dividends and nonnegative rates use terminal sampling,
-/// retaining the immediate-exercise lower bound. See [`Self::default_american_spot_shift`].
+/// retaining the immediate-exercise lower bound.
 /// Sobol uses one dimension for terminal sampling or `step_count` for exercise
 /// grids, and `ceil(path_count / 2)` points with antithetic pairing.
 /// Fixed seeds reproduce results across thread counts within the same build.
@@ -1107,7 +1107,9 @@ impl MonteCarloVanillaEngine {
     /// survive the request. At expiry, time Greeks are absent and other Greeks follow terminal payoffs. Uses
     /// [`NumericalShiftSettings`] and [`crate::numerical_greeks`] availability rules.
     /// American calls whose rate stencil crosses zero use the exercise grid on both
-    /// rate legs. For American spot bumps, use [`Self::default_american_spot_shift`].
+    /// rate legs. Before expiry, automatic American spot bumps are 8% of spot.
+    /// Exercise decisions amplify small-bump noise; check sampling error and bump bias.
+    /// Query the bump with [`PricingEngine::default_spot_shift`].
     ///
     /// ## Errors
     ///

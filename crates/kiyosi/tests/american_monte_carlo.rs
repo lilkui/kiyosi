@@ -434,9 +434,7 @@ fn shared_sample_greeks_and_implied_volatility_preserve_inputs() {
     let put = option(OptionType::Put, 100.0);
     let context = market(0.05, 0.02, 0.2, 100.0);
     let shifts = NumericalShiftSettings {
-        spot_shift: Some(MonteCarloVanillaEngine::default_american_spot_shift(
-            &context,
-        )),
+        spot_shift: Some(MonteCarloVanillaEngine::default().default_spot_shift(&put, &context)),
         volatility_shift: Some(0.02),
         rate_shift: 0.01,
         time_shift: Some(std::time::Duration::from_secs(172_800)),

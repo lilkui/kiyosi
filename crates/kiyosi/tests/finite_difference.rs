@@ -725,7 +725,7 @@ fn spline_greeks_use_one_mesh_and_selective_mixed_requests() {
         assert_eq!(selected.values().iter().flatten().count(), 1);
     }
     {
-        let shift = NumericalShiftSettings::default().fallback_spot_shift();
+        let shift = engine.default_spot_shift(&option, &context);
         let h = (context.spot_price() + shift) - context.spot_price();
         let gamma = |spot| {
             engine

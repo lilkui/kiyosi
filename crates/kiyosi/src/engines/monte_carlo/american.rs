@@ -551,32 +551,7 @@ fn evolve_spot(spot: &mut f64, growth: f64) -> Result<f64> {
 }
 
 impl MonteCarloVanillaEngine {
-    /// Returns the American default absolute spot bump, 8% of spot.
-    ///
-    /// Exercise decisions amplify small-bump noise; sampling error and bump bias
-    /// require convergence checks. Other shifts use [`NumericalShiftSettings`] defaults.
-    /// Rust and Python use this value before expiry when `spot_shift` is automatic
-    /// (`None`). Terminal payoffs use the smaller of 0.01 spot units and 1% of spot.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # use kiyosi::*;
-    /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let put = AmericanOption::new(OptionType::Put, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
-    /// let context = PricingContext::new(
-    ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
-    /// let engine = MonteCarloVanillaEngine::new(kiyosi::MonteCarloGridSettings {
-    ///     sampling: MonteCarloSettings { seed: Some(42), ..Default::default() },
-    ///     ..Default::default()
-    /// })?;
-    /// let result = engine.price_with_greeks(&put, &context,
-    ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]))?;
-    /// assert!(result.require(Greek::Delta)? < 0.0);
-    /// # Ok(()) }
-    /// ```
-    pub fn default_american_spot_shift(context: &PricingContext) -> f64 {
+    fn default_american_spot_shift(context: &PricingContext) -> f64 {
         0.08 * context.spot_price()
     }
 

@@ -415,19 +415,8 @@ impl Default for NumericalShiftSettings {
     }
 }
 impl NumericalShiftSettings {
-    /// Returns the explicit bump or the general fallback of 0.01 spot units.
-    ///
-    /// This does not apply the spot-relative cap or an engine-specific automatic bump. Preserve `None`
-    /// when forwarding settings to an engine. American Monte Carlo resolves
-    /// automatic bumps before expiry; see
-    /// [`crate::MonteCarloVanillaEngine::default_american_spot_shift`].
-    pub fn fallback_spot_shift(self) -> f64 {
-        self.spot_shift.unwrap_or(0.01)
-    }
-
     pub(crate) fn spot_shift_at(self, spot: f64) -> f64 {
-        self.spot_shift
-            .unwrap_or_else(|| self.fallback_spot_shift().min(0.01 * spot))
+        self.spot_shift.unwrap_or_else(|| 0.01_f64.min(0.01 * spot))
     }
 
     pub(crate) fn volatility_shift_at(self, volatility: f64) -> f64 {
@@ -657,6 +646,8 @@ pub trait PricingEngine<I = EuropeanOption> {
     /// assert!(method.active_controls().is_empty());
     /// let sampler = MonteCarloVanillaEngine::default();
     /// assert_eq!(sampler.default_spot_shift(&option, &context), 0.01);
+    /// let put = AmericanOption::new(OptionType::Put, 100.0, start, start.add_days(365)?)?;
+    /// assert_eq!(sampler.default_spot_shift(&put, &context), 8.0);
     /// # Ok(()) }
     /// ```
     fn greek_method(&self, option: &I, context: &PricingContext) -> Result<GreekMethod>

@@ -1999,16 +1999,14 @@ fn snowball_coupon_diagnostics_identify_the_supplied_field() -> Result<()> {
 }
 
 #[test]
-fn spot_shift_fallback_is_distinct_from_engine_resolution() -> Result<()> {
+fn automatic_spot_shift_depends_on_the_engine_and_contract() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?,
         100.0,
         start,
     )?;
-    let settings = NumericalShiftSettings::default();
-    assert_eq!(settings.fallback_spot_shift(), 0.01);
-    assert_eq!(settings.spot_shift, None);
+    assert_eq!(NumericalShiftSettings::default().spot_shift, None);
     let european = EuropeanOption::new(OptionType::Put, 100.0, start, start.add_days(365)?)?;
     let american = AmericanOption::new(OptionType::Put, 100.0, start, start.add_days(365)?)?;
     let engine = MonteCarloVanillaEngine::default();
@@ -2017,14 +2015,11 @@ fn spot_shift_fallback_is_distinct_from_engine_resolution() -> Result<()> {
     let fd = FiniteDifferenceVanillaEngine::default();
     assert_eq!(fd.default_spot_shift(&european, &context), 0.01);
     assert_eq!(fd.default_spot_shift(&american, &context), 0.01);
-    assert_eq!(
-        NumericalShiftSettings {
-            spot_shift: Some(0.5),
-            ..settings
-        }
-        .fallback_spot_shift(),
-        0.5
-    );
+    let low_spot = context.replace(PricingContextChanges {
+        spot_price: Some(0.5),
+        ..Default::default()
+    })?;
+    assert_eq!(fd.default_spot_shift(&european, &low_spot), 0.005);
     Ok(())
 }
 
