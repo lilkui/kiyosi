@@ -143,9 +143,6 @@ macro_rules! binary_properties {
             /// Return the cash payout, or None for asset settlement.
             #[getter]
             fn payout(&self) -> Option<f64> { self.0.payout() },
-            /// Return mean fixing spacing in Actual/365 Fixed years.
-            #[getter]
-            fn mean_observation_year_fraction(&self) -> f64 { self.0.mean_observation_year_fraction() }
         );
     };
 }
@@ -349,16 +346,6 @@ binary_properties!(
             kiyosi::BinaryPayoff::Cash(payout) => kiyosi::TouchOption::cash(terms, payout),
             kiyosi::BinaryPayoff::Asset => kiyosi::TouchOption::asset(terms),
         }).map(Self)
-    },
-    /// Return whether touching activates payment.
-    #[getter]
-    fn is_one_touch(&self) -> bool {
-        self.0.is_one_touch()
-    },
-    /// Return whether the barrier triggers upward.
-    #[getter]
-    fn is_up(&self) -> bool {
-        self.0.is_up()
     },
     /// Return at-hit or expiry payment; no-touch contracts settle only at expiry.
     #[getter]

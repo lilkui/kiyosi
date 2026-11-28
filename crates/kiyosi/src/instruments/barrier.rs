@@ -241,12 +241,6 @@ impl BarrierOption {
     pub fn touch_state(&self) -> Option<BarrierTouchState> {
         self.monitoring.touch_state()
     }
-    /// Returns mean spacing in Actual/365 Fixed years, or zero for continuous monitoring.
-    ///
-    /// Scheduled spacing includes effective time to first fixing; see [`Self::new`].
-    pub fn mean_observation_year_fraction(&self) -> f64 {
-        self.monitoring.mean_observation_year_fraction()
-    }
     pub(crate) fn vanilla(&self) -> &EuropeanOption {
         &self.vanilla
     }

@@ -24,7 +24,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
-from support.assertions import assert_decimal_equal, assert_rejection
+from support.assertions import assert_rejection
 from support.terminal import assert_terminal_greeks
 
 KINDS = {
@@ -316,7 +316,6 @@ def test_scheduled_fixing_occurs_only_at_midnight_and_history_is_strict():
     ) == AnalyticEuropeanEngine().price(vanilla, make_context(150, noon))
     assert untouched.observation_times == ((fixing,))
     assert untouched.observation_schedule.times == ((fixing,))
-    assert_decimal_equal(untouched.mean_observation_year_fraction, 1 / 365)
     with pytest.raises(InvalidInputError):
         BarrierOption(
             **make_terms(

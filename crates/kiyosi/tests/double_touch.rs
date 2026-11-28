@@ -838,7 +838,6 @@ fn cash_terms_defaults_validation_and_owning_history() {
     for kind in [DoubleBarrierType::KnockIn, DoubleBarrierType::KnockOut] {
         let t = terms(kind);
         let option = DoubleTouchOption::cash(t.clone(), 1.0).unwrap();
-        assert_eq!(option.is_one_touch(), kind == DoubleBarrierType::KnockIn);
         assert_eq!(option.settlement_timing(), SettlementTiming::AtExpiry);
         assert_eq!(option.observation_mode(), ObservationMode::Continuous);
         assert_eq!(option.touch_state(), None);
@@ -1000,7 +999,7 @@ fn current_prior_and_expiry_payments_resolve_before_grid_validation() {
             let touched = spot != 100.0;
             assert_eq!(
                 result.price(),
-                if touched == option.is_one_touch() {
+                if touched == (option.barrier_type() == DoubleBarrierType::KnockIn) {
                     3.0
                 } else {
                     0.0

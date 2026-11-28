@@ -152,11 +152,6 @@ monitoring_properties!(
     fn barrier_type(&self) -> &'static str {
         crate::conversions::double_barrier_type_name(self.0.barrier_type())
     },
-    /// Return whether touching activates payment.
-    #[getter]
-    fn is_one_touch(&self) -> bool {
-        self.0.is_one_touch()
-    },
     /// Return at-hit or expiry payment; no-touch contracts settle only at expiry.
     #[getter]
     fn settlement_timing(&self) -> &'static str {

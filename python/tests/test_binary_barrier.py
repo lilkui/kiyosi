@@ -24,7 +24,7 @@ from kiyosi.pricing import (
     implied_volatility,
     numerical_greeks,
 )
-from support.assertions import assert_decimal_equal, assert_rejection
+from support.assertions import assert_rejection
 from support.terminal import assert_terminal_greeks
 
 GREEKS = (
@@ -327,8 +327,6 @@ def test_touch_payoffs_select_all_barrier_types_and_validate_settlement(
         with subtests.test(payoff_type=payoff_type, barrier_type=kind):
             option = make_touch(payoff_type, barrier_type=kind)
             assert option.barrier_type == kind
-            assert option.is_up == kind.startswith("up")
-            assert option.is_one_touch == kind.endswith("_in")
             assert option.settlement_timing == "at_expiry"
             assert option.payout == (10 if payoff_type == "cash" else None)
             if kind.endswith("_in"):
@@ -432,7 +430,6 @@ def test_scheduled_boundaries_history_and_owned_dates():
         ) == pytest.approx(expected, rel=0, abs=1e-12)
         assert known.observation_schedule.times == ((fixing,))
         assert known.observation_times == ((fixing,))
-        assert_decimal_equal(known.mean_observation_year_fraction, 1 / 365)
     with pytest.raises(InvalidInputError):
         make_touch(
             observation_times=[datetime(2025, 1, 4)],

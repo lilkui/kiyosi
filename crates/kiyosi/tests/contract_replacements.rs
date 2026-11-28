@@ -700,7 +700,7 @@ fn double_touch_option_replacements_preserve_omissions_and_validate_each_field()
             ..Default::default()
         })
         .unwrap();
-    assert!(!updated.is_one_touch());
+    assert_eq!(updated.barrier_type(), DoubleBarrierType::KnockOut);
     check_field!(
         original,
         DoubleTouchOptionChanges,

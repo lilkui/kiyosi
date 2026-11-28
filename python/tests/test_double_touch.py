@@ -379,7 +379,7 @@ def scheduled_reference(dates, count=1024):
 def test_constructor_defaults_owning_schedules_and_history():
     option = contract()
     assert isinstance(option, DoubleTouchOption)
-    assert option.is_one_touch
+    assert option.barrier_type == "knock_in"
     assert option.settlement_timing == "at_expiry"
     assert option.observation_mode == "continuous"
     assert option.touch_state is None
@@ -395,7 +395,7 @@ def test_constructor_defaults_owning_schedules_and_history():
     scheduled = contract("knock_out", observation_times=dates)
     dates.clear()
     assert scheduled.observation_times == ((FIRST, END))
-    assert not (scheduled.is_one_touch)
+    assert scheduled.barrier_type == "knock_out"
     assert scheduled.settlement_timing == "at_expiry"
     assert "DoubleTouchOption" in repr(scheduled)
     with pytest.raises(AttributeError):
@@ -574,13 +574,13 @@ def test_history_current_touch_past_payments_and_expiry():
             touch_state="untouched",
         )
         result = engine.price_with_greeks(known, market(time=END), greeks="all")
-        assert result.price == (0 if known.is_one_touch else 3)
+        assert result.price == (0 if known.barrier_type == "knock_in" else 3)
         assert_terminal_greeks(result, 0)
         for spot in (80, 120):
             assert engine.price(
                 known,
                 market(spot, time=END),
-            ) == (3 if known.is_one_touch else 0)
+            ) == (3 if known.barrier_type == "knock_in" else 0)
 
 
 def test_early_window_utc_fixing_calendar_and_fixed_cash_greeks():
@@ -1081,7 +1081,9 @@ def test_analytic_history_current_boundaries_and_expiry():
         at_hit = option.settlement_timing == "at_hit"
         for spot in (79, 80, 120, 121):
             expected = (
-                (3 if at_hit else 3 * math.exp(-0.03)) if option.is_one_touch else 0
+                (3 if at_hit else 3 * math.exp(-0.03))
+                if option.barrier_type == "knock_in"
+                else 0
             )
             assert engine.price(option, market(spot)) == pytest.approx(
                 expected, rel=0, abs=1e-12
@@ -1098,7 +1100,9 @@ def test_analytic_history_current_boundaries_and_expiry():
             engine.price(prior, market())
         later = market(time=START + timedelta(days=1))
         expected = (
-            0 if at_hit or not option.is_one_touch else 3 * math.exp(-0.03 * 364 / 365)
+            0
+            if at_hit or option.barrier_type == "knock_out"
+            else 3 * math.exp(-0.03 * 364 / 365)
         )
         assert engine.price(prior, later) == pytest.approx(expected, rel=0, abs=1e-12)
         with pytest.raises(UnsupportedOperationError):
@@ -1119,7 +1123,9 @@ def test_analytic_history_current_boundaries_and_expiry():
                 market(spot, time=END),
                 greeks="all",
             )
-            assert terminal.price == (3 if option.is_one_touch == (spot != 100) else 0)
+            assert terminal.price == (
+                3 if (option.barrier_type == "knock_in") == (spot != 100) else 0
+            )
             assert_terminal_greeks(terminal, None if spot in (80, 120) else 0)
         assert option.touch_state is None
 
@@ -1148,7 +1154,7 @@ def test_analytic_schedules_validate_then_resolve_or_reject():
         for spot in (80, 120):
             expected = (
                 0
-                if not option.is_one_touch
+                if option.barrier_type == "knock_out"
                 else (
                     1
                     if option.settlement_timing == "at_hit"
@@ -1160,7 +1166,9 @@ def test_analytic_schedules_validate_then_resolve_or_reject():
                 market(spot, time=FIRST),
             ) == pytest.approx(expected, rel=0, abs=1e-12)
         expected = (
-            0 if option.is_one_touch else math.exp(-0.03 * (END - after).days / 365)
+            0
+            if option.barrier_type == "knock_in"
+            else math.exp(-0.03 * (END - after).days / 365)
         )
         assert engine.price(
             known,

@@ -5977,10 +5977,6 @@ class BarrierOption:
         """Return an owned schedule, or None for continuous monitoring."""
 
     @property
-    def mean_observation_year_fraction(self) -> float:
-        """Return mean fixing spacing in Actual/365 Fixed years."""
-
-    @property
     def touch_state(self) -> Literal["untouched", "touched"] | None:
         """Return strictly prior touch history, or None if unknown."""
 
@@ -6523,10 +6519,6 @@ class BinaryBarrierOption:
         """Return an owned schedule, or None for continuous monitoring."""
 
     @property
-    def mean_observation_year_fraction(self) -> float:
-        """Return mean fixing spacing in Actual/365 Fixed years."""
-
-    @property
     def touch_state(self) -> Literal["untouched", "touched"] | None:
         """Return strictly prior touch history, or None if unknown."""
 
@@ -6706,10 +6698,6 @@ class TouchOption:
         """Return an owned schedule, or None for continuous monitoring."""
 
     @property
-    def mean_observation_year_fraction(self) -> float:
-        """Return mean fixing spacing in Actual/365 Fixed years."""
-
-    @property
     def touch_state(self) -> Literal["untouched", "touched"] | None:
         """Return strictly prior touch history, or None if unknown."""
 
@@ -6720,14 +6708,6 @@ class TouchOption:
     @property
     def payout(self) -> float | None:
         """Return the cash payout, or None for asset settlement."""
-
-    @property
-    def is_one_touch(self) -> bool:
-        """Return whether touching activates payment."""
-
-    @property
-    def is_up(self) -> bool:
-        """Return whether the barrier triggers upward."""
 
     @property
     def settlement_timing(self) -> Literal["at_hit", "at_expiry"]:
@@ -6872,10 +6852,6 @@ class DoubleTouchOption:
     @property
     def payout(self) -> float:
         """Return the positive finite cash payout."""
-
-    @property
-    def is_one_touch(self) -> bool:
-        """Return whether touching activates payment."""
 
     @property
     def barrier_type(self) -> Literal["knock_in", "knock_out"]:

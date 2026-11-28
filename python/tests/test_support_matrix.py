@@ -278,7 +278,10 @@ def terminal_delta(instrument):
     if isinstance(instrument, ins.BinaryBarrierOption):
         return int(instrument.payoff_type == "asset")
     if isinstance(instrument, ins.TouchOption):
-        return int(instrument.payoff_type == "asset" and not instrument.is_one_touch)
+        return int(
+            instrument.payoff_type == "asset"
+            and instrument.barrier_type.endswith("_out")
+        )
     if isinstance(instrument, ins.Accumulator):
         return 4
     return 0

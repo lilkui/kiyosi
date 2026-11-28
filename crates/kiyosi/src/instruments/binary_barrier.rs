@@ -266,7 +266,7 @@ impl TouchOption {
     /// # fn main() -> Result<()> {
     /// let option = TouchOption::cash(TouchOptionTerms::new(Date::new(2025, 1, 1)?.start_of_day(),
     ///     Date::new(2026, 1, 1)?.start_of_day(), 120.0, BarrierType::UpAndIn), 10.0)?;
-    /// assert!(option.is_one_touch());
+    /// assert_eq!(option.barrier_type(), BarrierType::UpAndIn);
     /// assert_eq!(option.settlement_timing(), SettlementTiming::AtExpiry);
     /// # Ok(()) }
     /// ```
@@ -298,7 +298,7 @@ impl TouchOption {
     /// # fn main() -> Result<()> {
     /// let option = TouchOption::asset(TouchOptionTerms::new(Date::new(2025, 1, 1)?.start_of_day(),
     ///     Date::new(2026, 1, 1)?.start_of_day(), 80.0, BarrierType::DownAndOut))?;
-    /// assert!(!option.is_one_touch());
+    /// assert_eq!(option.barrier_type(), kiyosi::BarrierType::DownAndOut);
     /// assert_eq!(option.payout(), None);
     /// # Ok(()) }
     /// ```
@@ -317,14 +317,6 @@ impl TouchOption {
     /// Returns payment timing; see [`Self::cash`].
     pub fn settlement_timing(&self) -> SettlementTiming {
         self.settlement_timing
-    }
-    /// Reports whether a touch activates payment; see [`Self::cash`].
-    pub fn is_one_touch(&self) -> bool {
-        self.barrier_type().is_knock_in()
-    }
-    /// Reports whether the barrier triggers upward; see [`Self::cash`].
-    pub fn is_up(&self) -> bool {
-        self.barrier_type().is_up()
     }
 }
 
@@ -366,10 +358,6 @@ macro_rules! monitoring_accessors {
             /// See [`Self::observation_schedule`] for access to the schedule with its calendar.
             pub fn observation_times(&self) -> Option<&[Timestamp]> {
                 (!self.monitoring.continuous()).then(|| self.monitoring.observation_times())
-            }
-            /// Returns mean fixing spacing in Actual/365 Fixed years; see [`Self::cash`].
-            pub fn mean_observation_year_fraction(&self) -> f64 {
-                self.monitoring.mean_observation_year_fraction()
             }
             /// Returns strictly prior touch history; see [`Self::replace`].
             pub fn touch_state(&self) -> Option<BarrierTouchState> {

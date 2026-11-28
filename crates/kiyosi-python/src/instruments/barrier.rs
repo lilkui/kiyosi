@@ -197,9 +197,4 @@ monitoring_properties!(
     fn rebate_timing(&self) -> &'static str {
         crate::conversions::rebate_timing_name(self.0.rebate_timing())
     },
-    /// Return mean fixing spacing in Actual/365 Fixed years.
-    #[getter]
-    fn mean_observation_year_fraction(&self) -> f64 {
-        self.0.mean_observation_year_fraction()
-    }
 );

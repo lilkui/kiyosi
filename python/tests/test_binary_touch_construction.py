@@ -80,7 +80,7 @@ def test_touch_constructors_select_the_payment_condition(
         payoff_type=payoff_type,
         payout=payout,
     )
-    assert option.is_one_touch == (condition == "in")
+    assert option.barrier_type == f"{direction}_and_{condition}"
     assert pricing.AnalyticBinaryBarrierEngine().price(option, context) == expected
 
 
@@ -270,7 +270,7 @@ def test_at_hit_settlement_requires_one_touch(subtests):
             settlement_timing="at_hit",
         )
         assert contract.settlement_timing == "at_hit"
-        assert contract.is_one_touch
+        assert contract.barrier_type.endswith("_in")
         with subtests.test(payout=payout), pytest.raises(InvalidInputError):
             ins.TouchOption(
                 payoff_type="cash" if payout is not None else "asset",
@@ -289,7 +289,7 @@ def test_at_hit_settlement_requires_one_touch(subtests):
         settlement_timing="at_hit",
     )
     assert contract.settlement_timing == "at_hit"
-    assert contract.is_one_touch
+    assert contract.barrier_type.endswith("_in")
     with pytest.raises(InvalidInputError):
         ins.DoubleTouchOption(
             **life,

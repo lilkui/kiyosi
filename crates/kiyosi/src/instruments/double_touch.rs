@@ -85,7 +85,7 @@ impl DoubleTouchOption {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = DoubleTouchOption::cash(DoubleTouchOptionTerms::new(start,
     ///     Date::new(2026, 1, 1)?.start_of_day(), 80.0, 120.0, DoubleBarrierType::KnockIn), 10.0)?;
-    /// assert!(option.is_one_touch());
+    /// assert_eq!(option.barrier_type(), DoubleBarrierType::KnockIn);
     /// assert_eq!(option.settlement_timing(), SettlementTiming::AtExpiry);
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.03, 0.01, 0.2)?,
     ///     120.0, start.into())?;
@@ -151,7 +151,7 @@ impl DoubleTouchOption {
         self.payout
     }
     /// Reports whether a touch activates payment; see [`Self::cash`].
-    pub fn is_one_touch(&self) -> bool {
+    pub(crate) fn is_one_touch(&self) -> bool {
         self.monitoring.barrier_type().is_knock_in()
     }
     /// Returns the knock-in or knock-out payment condition; see [`Self::cash`].

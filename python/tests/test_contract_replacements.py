@@ -476,17 +476,10 @@ def test_every_field_replaces_without_mutating_omitted_terms_or_history(subtests
                     if hasattr(original, field):
                         updates.setdefault(field, getattr(original, field))
                 changed = original.replace(**updates)
-                if isinstance(original, i.DoubleTouchOption) and name == "barrier_type":
-                    assert not (changed.is_one_touch)
-                else:
-                    assert getattr(changed, name) == (
-                        tuple(value) if isinstance(value, list) else value
-                    )
-                expected = initial | updates
-                if not (
-                    isinstance(original, i.DoubleTouchOption) and name == "barrier_type"
-                ):
-                    assert changed == factory(**expected)
+                assert getattr(changed, name) == (
+                    tuple(value) if isinstance(value, list) else value
+                )
+                assert changed == factory(**(initial | updates))
                 if name in NULLABLE:
                     assert (
                         getattr(original.replace(**updates | {name: None}), name)
