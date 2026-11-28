@@ -1,3 +1,4 @@
+use kiyosi::VanillaBatchEngine;
 use kiyosi::*;
 
 fn dates() -> (Timestamp, Timestamp) {
@@ -47,7 +48,7 @@ fn european_surface_matches_independent_strips_and_preserves_order() -> Result<(
         end,
     ];
     let strikes = [110.0, 90.0, 100.0, 90.0, 95.0];
-    let rows = engine.price_european_surface(&option, &market, &expiries, &strikes)?;
+    let rows = engine.price_surface(&option, &market, &expiries, &strikes)?;
     assert_eq!(rows.len(), expiries.len(), "expiry row count");
     assert_eq!(rows[0], rows[5]);
     assert_eq!(rows[1], [0.0, 10.0, 0.0, 10.0, 5.0]);
@@ -72,7 +73,7 @@ fn european_surface_matches_independent_strips_and_preserves_order() -> Result<(
         }
     }
     assert!(matches!(
-        engine.price_european_surface(&option, &market, &[end.add_days(1)?], &strikes),
+        engine.price_surface(&option, &market, &[end.add_days(1)?], &strikes),
         Err(Error::InvalidInput(_))
     ));
     Ok(())
@@ -1126,7 +1127,7 @@ fn american_local_volatility_strips_match_refined_scalar_pricing() -> Result<()>
     let strikes = [110.0, 88.0, 100.0, 96.0, 105.0, 100.0, 90.0, 101.0, 113.0];
     let batch = engine(800, 400, 400.0);
     let reference = engine(1600, 800, 400.0);
-    let prices = batch.price_american_strikes(&option, &market, &strikes)?;
+    let prices = batch.price_strikes(&option, &market, &strikes)?;
     assert_eq!(prices.len(), strikes.len(), "strike quote count");
     assert_eq!(prices[2].to_bits(), prices[5].to_bits());
     for (strike, price) in strikes.into_iter().zip(prices) {
@@ -1154,13 +1155,13 @@ fn american_local_surface_matches_separate_expiry_strips() -> Result<()> {
         end,
     ];
     let strikes = [105.0, 90.0, 100.0, 95.0, 110.0, 95.0];
-    let rows = engine.price_american_surface(&put, &snapshot, &expiries, &strikes)?;
+    let rows = engine.price_surface(&put, &snapshot, &expiries, &strikes)?;
     assert_eq!(rows.len(), expiries.len(), "expiry row count");
     assert_eq!(rows[0], rows[5]);
     assert_eq!(rows[2], [5.0, 0.0, 0.0, 0.0, 10.0, 0.0]);
     for (expiry, row) in expiries.into_iter().zip(rows) {
         let option = AmericanOption::new(OptionType::Put, 100.0, start, expiry)?;
-        let reference = engine.price_american_strikes(&option, &snapshot, &strikes)?;
+        let reference = engine.price_strikes(&option, &snapshot, &strikes)?;
         assert_eq!(row.len(), strikes.len(), "strike quote count");
         assert_eq!(
             reference.len(),

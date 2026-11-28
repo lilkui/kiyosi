@@ -1,3 +1,4 @@
+use kiyosi::VanillaBatchEngine;
 use kiyosi::*;
 
 fn dates() -> (Timestamp, Timestamp) {
@@ -1310,7 +1311,7 @@ fn american_strike_batch_matches_scalar_prices_in_input_order() -> Result<()> {
     let context = market(100.0, 0.05, 0.02, 0.25);
     let engine = FiniteDifferenceVanillaEngine::default();
     let strikes = [110.0, 90.0, 100.0, 95.0, 105.0, 90.0];
-    let prices = engine.price_american_strikes(&option, &context, &strikes)?;
+    let prices = engine.price_strikes(&option, &context, &strikes)?;
     assert_eq!(prices.len(), strikes.len(), "strike quote count");
     assert_eq!(prices[1], prices[5]);
     for (&strike, price) in strikes.iter().zip(prices) {
@@ -1340,7 +1341,7 @@ fn bsm_european_surface_matches_analytic_across_dated_rates() -> Result<()> {
     let expiries = [end, start, start.add_days(110)?, start.add_days(225)?, end];
     let strikes = [110.0, 90.0, 100.0, 95.0, 90.0];
     let engine = FiniteDifferenceVanillaEngine::default();
-    let rows = engine.price_european_surface(&template, &context, &expiries, &strikes)?;
+    let rows = engine.price_surface(&template, &context, &expiries, &strikes)?;
     assert_eq!(rows.len(), expiries.len(), "expiry row count");
     assert_eq!(rows[0], rows[4]);
     for (&expiry, row) in expiries.iter().zip(rows) {
@@ -1371,13 +1372,13 @@ fn european_surface_caps_combined_expiry_rollbacks() -> Result<()> {
         .map(|days| end.add_days(-days))
         .collect::<Result<Vec<_>>>()?;
     assert!(matches!(
-        engine.price_european_surface(&option, &market(100.0, 0.05, 0.02, 0.2), &expiries, &[100.0]),
+        engine.price_surface(&option, &market(100.0, 0.05, 0.02, 0.2), &expiries, &[100.0]),
         Err(Error::InvalidInput(message)) if message.contains("one billion grid updates")
     ));
     let context = market(100.0, 0.05, 0.02, 0.0);
     assert_eq!(
         engine
-            .price_european_surface(&option, &context, &expiries, &[100.0])?
+            .price_surface(&option, &context, &expiries, &[100.0])?
             .len(),
         180
     );
@@ -1396,7 +1397,7 @@ fn american_fd_strike_batch_caps_combined_rollbacks() -> Result<()> {
     })?;
     let strikes: Vec<_> = (50..180).map(f64::from).collect();
     assert!(matches!(
-        engine.price_american_strikes(&option, &market(100.0, 0.05, 0.02, 0.2), &strikes),
+        engine.price_strikes(&option, &market(100.0, 0.05, 0.02, 0.2), &strikes),
         Err(Error::InvalidInput(message)) if message.contains("one billion grid updates")
     ));
     Ok(())
@@ -1416,13 +1417,13 @@ fn american_surface_caps_combined_expiry_rollbacks() -> Result<()> {
         .map(|days| end.add_days(-days))
         .collect::<Result<Vec<_>>>()?;
     assert!(matches!(
-        engine.price_american_surface(&option, &market(100.0, 0.05, 0.02, 0.2), &expiries, &[100.0]),
+        engine.price_surface(&option, &market(100.0, 0.05, 0.02, 0.2), &expiries, &[100.0]),
         Err(Error::InvalidInput(message)) if message.contains("one billion grid updates")
     ));
     let context = market(100.0, 0.05, 0.02, 0.0);
     assert_eq!(
         engine
-            .price_american_surface(&option, &context, &expiries, &[100.0])?
+            .price_surface(&option, &context, &expiries, &[100.0])?
             .len(),
         expiries.len()
     );
@@ -1450,7 +1451,7 @@ fn american_bsm_surface_matches_independent_strips_and_preserves_order() -> Resu
         end,
     ];
     let strikes = [110.0, 90.0, 100.0, 95.0, 90.0];
-    let rows = engine.price_american_surface(&template, &context, &expiries, &strikes)?;
+    let rows = engine.price_surface(&template, &context, &expiries, &strikes)?;
     assert_eq!(rows.len(), expiries.len(), "expiry row count");
     assert_eq!(rows[0], rows[5]);
     assert_eq!(rows[1], [10.0, 0.0, 0.0, 0.0, 0.0]);
@@ -1461,7 +1462,7 @@ fn american_bsm_surface_matches_independent_strips_and_preserves_order() -> Resu
             expiry_time: Some(expiry),
             ..Default::default()
         })?;
-        let expected = engine.price_american_strikes(&option, &context, &strikes)?;
+        let expected = engine.price_strikes(&option, &context, &strikes)?;
         assert_eq!(
             expected.len(),
             strikes.len(),
@@ -1488,9 +1489,8 @@ fn american_surface_keeps_the_shared_grid_with_outliers_and_duplicates() -> Resu
     )?;
     let engine = FiniteDifferenceVanillaEngine::default();
     let expiries = [end, start.add_days(145)?, start.add_days(260)?];
-    let shared =
-        engine.price_american_surface(&template, &context, &expiries, &[90.0, 100.0, 110.0])?;
-    let mixed = engine.price_american_surface(
+    let shared = engine.price_surface(&template, &context, &expiries, &[90.0, 100.0, 110.0])?;
+    let mixed = engine.price_surface(
         &template,
         &context,
         &expiries,
@@ -1513,7 +1513,7 @@ fn american_surface_keeps_the_shared_grid_with_outliers_and_duplicates() -> Resu
         );
     }
     assert_eq!(
-        engine.price_american_strikes(&template, &context, &[100.0; 8])?,
+        engine.price_strikes(&template, &context, &[100.0; 8])?,
         vec![engine.price(&template, &context)?; 8]
     );
     Ok(())

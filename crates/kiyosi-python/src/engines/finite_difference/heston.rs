@@ -1,6 +1,7 @@
 use crate::conversions::integer;
 use crate::engines::binomial;
 use crate::error::domain;
+use kiyosi::VanillaBatchEngine;
 use pyo3::{prelude::*, types::PyTuple};
 
 /// Finite-difference prices for European and American options under Heston.
@@ -174,16 +175,9 @@ engine_methods!(
             #[pyo3(from_py_with = crate::conversions::finite_difference_strikes)] strikes: Vec<f64>,
         ) -> PyResult<Bound<'py, PyTuple>> {
             let context = &context.0;
-            let values = match &instrument {
-                binomial::VanillaInstrument::European(option) => {
-                    let option = &option.0;
-                    crate::cancellation::run(py, || self.0.price_european_strikes(option, context, &strikes))
-                }
-                binomial::VanillaInstrument::American(option) => {
-                    let option = &option.0;
-                    crate::cancellation::run(py, || self.0.price_american_strikes(option, context, &strikes))
-                }
-            }?;
+            let values = binomial::with_vanilla!(&instrument, option,
+                crate::cancellation::run(py, || self.0.price_strikes(option, context, &strikes))
+            )?;
             crate::conversions::python_tuple(py, domain(values)?, Ok)
         }
 
@@ -231,20 +225,9 @@ engine_methods!(
         ) -> PyResult<Bound<'py, PyTuple>> {
             let (expiries, strikes) = crate::conversions::surface_inputs(expiries, strikes)?;
             let context = &context.0;
-            let rows = match instrument {
-                binomial::VanillaInstrument::European(option) => {
-                    let option = &option.0;
-                    crate::cancellation::run(py, || {
-                        self.0.price_european_surface(option, context, &expiries, &strikes)
-                    })
-                }
-                binomial::VanillaInstrument::American(option) => {
-                    let option = &option.0;
-                    crate::cancellation::run(py, || {
-                        self.0.price_american_surface(option, context, &expiries, &strikes)
-                    })
-                }
-            }?;
+            let rows = binomial::with_vanilla!(instrument, option, crate::cancellation::run(py, || {
+                self.0.price_surface(option, context, &expiries, &strikes)
+            }))?;
             crate::conversions::python_tuple(py, domain(rows)?, |row| {
                 crate::conversions::python_tuple(py, row, Ok)
             })

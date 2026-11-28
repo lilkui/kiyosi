@@ -174,6 +174,7 @@ pub use engines::finite_difference::{
     FiniteDifferenceDigitalEngine, FiniteDifferenceDoubleBarrierEngine,
     FiniteDifferenceDoubleTouchEngine, FiniteDifferenceEngine, FiniteDifferenceScheme,
     FiniteDifferenceSettings, FiniteDifferenceSolution, FiniteDifferenceVanillaEngine,
+    VanillaBatchEngine,
 };
 pub use engines::monte_carlo::{
     MonteCarloAccumulatorEngine, MonteCarloAsianEngine, MonteCarloAutocallableEngine,

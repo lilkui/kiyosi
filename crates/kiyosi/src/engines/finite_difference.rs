@@ -24,6 +24,7 @@ use diffusion::Diffusion;
 use grid::{SpatialGrid, TimeGrid};
 pub use solution::{FiniteDifferenceEngine, FiniteDifferenceSolution};
 use step::Stepper;
+pub use strike_batch::VanillaBatchEngine;
 
 /// Selects the finite-difference time-marching scheme.
 ///
@@ -1371,6 +1372,13 @@ engine_settings!(
 engine_settings!(
     FiniteDifferenceVanillaEngine,
     "Prices European and American vanilla contracts with uniform or concentrated finite-difference grids.",
+    ///
+    /// Use [`VanillaBatchEngine`] for strikes or strike–expiry surfaces. Compatible BSM
+    /// strikes share a rescaled solution with automatic boundaries. Compatible European
+    /// expiries share a log-spot grid and propagation with separate damping. Compatible
+    /// American surfaces share rollback on a normalized grid for flat-rate BSM or step
+    /// factors on an absolute grid for local volatility. Other strikes or expiries may
+    /// use separate solves. Check convergence across the strike range and expiries.
     ///
     /// # Pricing
     ///

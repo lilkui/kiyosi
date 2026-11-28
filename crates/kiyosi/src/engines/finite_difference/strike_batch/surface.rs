@@ -14,39 +14,7 @@ use crate::engines::finite_difference::{
 use crate::{Error, FiniteDifferenceSettings, ModelParameters, Timestamp};
 
 impl FiniteDifferenceVanillaEngine {
-    /// Prices a European strike and expiry surface in input order.
-    ///
-    /// Uses the template's direction and effective time. Compatible Black–Scholes–Merton
-    /// and local-volatility strips share one log-spot grid and propagation. Each expiry
-    /// uses separate damping.
-    /// Short tenors and other strips use [`Self::price_strikes`].
-    /// Check convergence at the shortest maturity and across the strike range.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use kiyosi::{BlackScholesMertonParameters, Date, EuropeanOption,
-    ///     FiniteDifferenceVanillaEngine, OptionType, PricingContext};
-    /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let end = start.add_days(365)?;
-    /// let call = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
-    /// let model = BlackScholesMertonParameters::new(0.05, 0.02, 0.25)?;
-    /// let market = PricingContext::new(model, 100.0, start)?;
-    /// let rows = FiniteDifferenceVanillaEngine::default().price_european_surface(
-    ///     &call, &market, &[start.add_days(180)?, end], &[90.0, 95.0, 100.0, 110.0],
-    /// )?;
-    /// assert!(rows[0][2] < rows[1][2]);
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::InvalidInput`] for oversized output, excessive estimated
-    /// rollback work across the surface, invalid strikes, or expiries outside
-    /// contract life or model coverage. Errors return no partial surface.
-    pub fn price_european_surface(
+    pub(in crate::engines::finite_difference) fn price_european_surface(
         &self,
         template: &EuropeanOption,
         context: &PricingContext,
@@ -95,7 +63,7 @@ impl FiniteDifferenceVanillaEngine {
                 .iter()
                 .map(|&expiry| {
                     crate::cancellation::check()?;
-                    self.price_strikes(&contract(expiry)?, context, strikes)
+                    self.price_european_strikes(&contract(expiry)?, context, strikes)
                 })
                 .collect::<Result<Vec<_>>>()
         };

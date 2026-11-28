@@ -1,4 +1,5 @@
 use kiyosi::PricingEngine;
+use kiyosi::VanillaBatchEngine;
 
 use kiyosi::Timestamp;
 use kiyosi::{
@@ -30,7 +31,7 @@ fn american_heston_surface_caps_combined_expiry_rollbacks() -> kiyosi::Result<()
         .map(|days| end.add_days(-days))
         .collect::<kiyosi::Result<Vec<_>>>()?;
     assert!(matches!(
-        engine.price_american_surface(&option, &context(0.3, -0.7), &expiries, &[100.0]),
+        engine.price_surface(&option, &context(0.3, -0.7), &expiries, &[100.0]),
         Err(Error::InvalidInput(message)) if message.contains("one billion grid updates")
     ));
     Ok(())
@@ -46,7 +47,7 @@ fn european_surface_matches_analytic_prices_and_preserves_both_input_orders() ->
     let strikes = [110.0, 90.0, 100.0, 90.0];
     let expiries = [end, start, middle, end];
     let engine = FiniteDifferenceHestonVanillaEngine::default();
-    let rows = engine.price_european_surface(&template, &market, &expiries, &strikes)?;
+    let rows = engine.price_surface(&template, &market, &expiries, &strikes)?;
     assert_eq!(rows.len(), expiries.len());
     assert_eq!(rows[0], rows[3]);
     assert_eq!(rows[1], [0.0, 10.0, 0.0, 10.0]);
@@ -61,11 +62,11 @@ fn european_surface_matches_analytic_prices_and_preserves_both_input_orders() ->
         }
     }
     assert_eq!(
-        engine.price_european_surface(&template, &market, &[end], &[])?,
+        engine.price_surface(&template, &market, &[end], &[])?,
         vec![Vec::<f64>::new()]
     );
     assert!(matches!(
-        engine.price_european_surface(&template, &market, &[start.add_days(-1)?], &strikes),
+        engine.price_surface(&template, &market, &[start.add_days(-1)?], &strikes),
         Err(Error::InvalidInput(_))
     ));
     Ok(())
@@ -79,7 +80,7 @@ fn american_surface_matches_scalar_expiries_and_preserves_order() -> kiyosi::Res
     let expiries = [end, start, start.add_days(30)?, start.add_days(90)?, end];
     let strikes = [110.0, 90.0, 100.0, 90.0];
     let engine = FiniteDifferenceHestonVanillaEngine::default();
-    let rows = engine.price_american_surface(&template, &market, &expiries, &strikes)?;
+    let rows = engine.price_surface(&template, &market, &expiries, &strikes)?;
     assert_eq!(rows.len(), expiries.len());
     assert_eq!(rows[0], rows[4]);
     assert_eq!(rows[1], [10.0, 0.0, 0.0, 0.0]);
@@ -90,7 +91,7 @@ fn american_surface_matches_scalar_expiries_and_preserves_order() -> kiyosi::Res
             expiry_time: Some(expiry),
             ..Default::default()
         })?;
-        let strip = engine.price_american_strikes(&option, &market, &strikes)?;
+        let strip = engine.price_strikes(&option, &market, &strikes)?;
         assert_eq!(strip.len(), strikes.len(), "independent strike quote count");
         for (value, reference) in row.into_iter().zip(strip) {
             assert!(
@@ -121,7 +122,7 @@ fn automatic_american_surface_uses_an_independent_mesh_for_short_tenors() -> kiy
     let european = EuropeanOption::new(OptionType::Call, 100.0, start, short)?;
     let reference = AnalyticHestonEuropeanEngine::default().price(&european, &market)?;
     for expiries in [&[short, end][..], &[short, mid, end][..]] {
-        let rows = engine.price_american_surface(&call, &market, expiries, &[100.0])?;
+        let rows = engine.price_surface(&call, &market, expiries, &[100.0])?;
         assert!(
             (rows[0][0] - reference).abs() < 1e-6,
             "{} vs {reference}",
@@ -172,8 +173,8 @@ fn heston_strike_batches_match_independent_prices_in_input_order() -> kiyosi::Re
     let call = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
     let put = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
     let strikes = [110.0, 90.0, 100.0, 90.0];
-    let calls = engine.price_european_strikes(&call, &market, &strikes)?;
-    let puts = engine.price_american_strikes(&put, &market, &strikes)?;
+    let calls = engine.price_strikes(&call, &market, &strikes)?;
+    let puts = engine.price_strikes(&put, &market, &strikes)?;
     assert_eq!(calls.len(), strikes.len(), "call quote count");
     assert_eq!(puts.len(), strikes.len(), "put quote count");
     for ((strike, actual_call), actual_put) in strikes.into_iter().zip(calls).zip(puts) {
@@ -191,11 +192,11 @@ fn heston_strike_batches_match_independent_prices_in_input_order() -> kiyosi::Re
         );
     }
     assert_eq!(
-        engine.price_european_strikes(&call, &market, &[])?,
+        engine.price_strikes(&call, &market, &[])?,
         Vec::<f64>::new()
     );
     assert!(matches!(
-        engine.price_european_strikes(&call, &market, &[90.0, 0.0]),
+        engine.price_strikes(&call, &market, &[90.0, 0.0]),
         Err(Error::InvalidInput(_))
     ));
     Ok(())
@@ -776,8 +777,8 @@ fn fixed_heston_strike_batches_preserve_boundary_and_payoff_order() -> kiyosi::R
         ..Default::default()
     })?;
     for market in [context(0.3, -0.7), context(0.0, 0.0)] {
-        let calls = engine.price_european_strikes(&call, &market, &strikes)?;
-        let puts = engine.price_american_strikes(&put, &market, &strikes)?;
+        let calls = engine.price_strikes(&call, &market, &strikes)?;
+        let puts = engine.price_strikes(&put, &market, &strikes)?;
         assert_eq!(calls.len(), strikes.len(), "call quote count");
         assert_eq!(puts.len(), strikes.len(), "put quote count");
         assert_eq!(calls[1], calls[3]);
@@ -797,7 +798,7 @@ fn fixed_heston_strike_batches_preserve_boundary_and_payoff_order() -> kiyosi::R
             );
         }
         assert!(matches!(
-            engine.price_european_strikes(&call, &market, &[90.0, 400.0]),
+            engine.price_strikes(&call, &market, &[90.0, 400.0]),
             Err(Error::InvalidInput(_))
         ));
     }
@@ -820,7 +821,7 @@ fn dense_fixed_heston_batch_resolves_the_full_strike_range() -> kiyosi::Result<(
         let option = EuropeanOption::new(direction, 100.0, start, end)?;
         let expected =
             AnalyticHestonEuropeanEngine::default().price_strikes(&option, &market, &strikes)?;
-        let actual = engine.price_european_strikes(&option, &market, &strikes)?;
+        let actual = engine.price_strikes(&option, &market, &strikes)?;
         assert_eq!(actual.len(), strikes.len());
         assert_eq!(expected.len(), strikes.len(), "analytic quote count");
         for ((strike, actual), expected) in strikes.iter().zip(actual).zip(expected) {
@@ -852,13 +853,12 @@ fn dense_european_surface_fits_the_indexed_payoff_work_budget() -> kiyosi::Resul
         asset_upper_boundary: Some(400.0),
         ..Default::default()
     })?;
-    let surface = engine.price_european_surface(&template, &market, &expiries, &strikes)?;
+    let surface = engine.price_surface(&template, &market, &expiries, &strikes)?;
     assert_eq!(surface.len(), expiries.len());
     for (&expiry, row) in expiries.iter().zip(&surface) {
         assert_eq!(row.len(), strikes.len(), "strike quote count at {expiry:?}");
     }
-    let selected =
-        engine.price_european_surface(&template, &market, &[expiries[0], end], &strikes)?;
+    let selected = engine.price_surface(&template, &market, &[expiries[0], end], &strikes)?;
     assert_eq!(selected.len(), 2, "selected expiry row count");
     for (index, expected) in [0, expiries.len() - 1].into_iter().zip(selected) {
         assert_eq!(
@@ -897,14 +897,14 @@ fn dated_american_expiry_tiles_match_independent_strips() -> kiyosi::Result<()> 
         start.add_days(340)?,
         end,
     ];
-    let rows = engine.price_american_surface(&template, &market, &expiries, &strikes)?;
+    let rows = engine.price_surface(&template, &market, &expiries, &strikes)?;
     assert_eq!(rows.len(), expiries.len(), "expiry row count");
     assert_eq!(rows[0], rows[8]);
     for (&expiry, row) in expiries.iter().zip(rows) {
         assert_eq!(row.len(), strikes.len(), "strike quote count");
         assert_eq!(row[1].to_bits(), row[3].to_bits());
         let option = AmericanOption::new(OptionType::Put, 100.0, start, expiry)?;
-        let strip = engine.price_american_strikes(&option, &market, &strikes)?;
+        let strip = engine.price_strikes(&option, &market, &strikes)?;
         assert_eq!(strip.len(), strikes.len(), "independent strike quote count");
         for (value, reference) in row.into_iter().zip(strip) {
             assert!(

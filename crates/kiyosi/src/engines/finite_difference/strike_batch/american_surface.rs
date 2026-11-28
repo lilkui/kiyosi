@@ -6,37 +6,7 @@ use super::{
 };
 
 impl FiniteDifferenceVanillaEngine {
-    /// Prices an American strike and expiry surface in input order.
-    ///
-    /// Compatible flat-rate calendar-time BSM strikes and tenors share a
-    /// rollback per strike group on a normalized log-spot grid. Compatible local-volatility
-    /// tenors share step factors on an absolute spot grid. Other strips use
-    /// [`Self::price_american_strikes`]. Check convergence over the surface.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use kiyosi::{AmericanOption, BlackScholesMertonParameters, Date,
-    ///     FiniteDifferenceVanillaEngine, OptionType, PricingContext};
-    /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let end = start.add_days(365)?;
-    /// let put = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
-    /// let model = BlackScholesMertonParameters::new(0.05, 0.02, 0.25)?;
-    /// let market = PricingContext::new(model, 100.0, start)?;
-    /// let rows = FiniteDifferenceVanillaEngine::default().price_american_surface(
-    ///     &put, &market, &[start.add_days(180)?, end], &[90.0, 100.0, 110.0],
-    /// )?;
-    /// assert!(rows[1][1] > rows[0][1]);
-    /// # Ok(()) }
-    /// ```
-    ///
-    /// # Errors
-    ///
-    /// Returns [`crate::Error::InvalidInput`] for invalid strikes, expiries outside
-    /// contract life, oversized output, or excessive combined rollback work.
-    /// Pricing and cancellation errors return no partial output.
-    pub fn price_american_surface(
+    pub(in crate::engines::finite_difference) fn price_american_surface(
         &self,
         template: &AmericanOption,
         context: &PricingContext,

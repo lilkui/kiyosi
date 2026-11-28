@@ -7,7 +7,10 @@ pub(super) use american_surface::AmericanSurface;
 use std::collections::{HashMap, HashSet};
 use std::ops::RangeInclusive;
 
-use crate::{AmericanOption, AmericanOptionChanges, FiniteDifferenceSolution};
+use crate::{
+    AmericanOption, AmericanOptionChanges, FiniteDifferenceHestonVanillaEngine,
+    FiniteDifferenceSolution, Timestamp,
+};
 
 use super::diffusion::{BusinessDiffusion, Diffusion};
 use super::grid::{StrikeMoments, concentrate, project_payoff, spot_floor};
@@ -18,21 +21,126 @@ use super::{
     validate_workspace,
 };
 
-impl FiniteDifferenceVanillaEngine {
-    /// Prices European vanilla options across strikes in input order.
+/// Prices batches of vanilla options under one market snapshot.
+///
+/// The template selects European or American exercise. See [`Self::price_surface`]
+/// for an example.
+pub trait VanillaBatchEngine<I = EuropeanOption>: PricingEngine<I> {
+    /// Prices a template across strikes in input order, including duplicates.
     ///
-    /// Uses the template's direction and dates. Compatible BSM strikes share a
-    /// rescaled solution with automatic boundaries. Compatible calendar-time
-    /// BSM with fixed boundaries and local-volatility strikes share an
-    /// absolute-spot mesh. Outliers can use individual solves. Check convergence
-    /// over the full strike range.
+    /// The template supplies direction and contract dates. Compatible strikes
+    /// share numerical work. Check convergence over the requested strike range.
+    /// The example in [`Self::price_surface`] also works for a single expiry with
+    /// `engine.price_strikes(&template, &market, &strikes)?`.
     ///
     /// # Errors
     ///
-    /// Returns invalid input for nonpositive or non-finite strikes and propagates pricing
-    /// and cancellation errors without returning partial results. Excessive
-    /// workspace or combined rollback work returns [`crate::Error::InvalidInput`].
-    pub fn price_strikes(
+    /// Rejects nonpositive or non-finite strikes and requests exceeding work or
+    /// workspace limits. Pricing and cancellation failures return no partial prices.
+    fn price_strikes(
+        &self,
+        template: &I,
+        context: &PricingContext,
+        strikes: &[f64],
+    ) -> Result<Vec<f64>>;
+
+    /// Prices a strike–expiry surface with one row per expiry and one column per strike.
+    ///
+    /// Preserves input order and duplicate dates and strikes. The template supplies
+    /// direction and effective time. Expiries must be at or after valuation and
+    /// the effective time. American valuation must be at or after the effective time.
+    /// Compatible expiries share grids or rollback work. Check convergence over
+    /// the requested surface.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kiyosi::{AmericanOption, BlackScholesMertonParameters, Date,
+    ///     FiniteDifferenceVanillaEngine, OptionType, PricingContext, VanillaBatchEngine};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 2)?.start_of_day();
+    /// let expiries = [start.add_days(90)?, start.add_days(180)?];
+    /// let strikes = [95.0, 100.0, 105.0];
+    /// let template = AmericanOption::new(OptionType::Put, 100.0, start, expiries[1])?;
+    /// let model = BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?;
+    /// let market = PricingContext::new(model, 100.0, start)?;
+    /// let engine = FiniteDifferenceVanillaEngine::default();
+    /// let prices = engine.price_strikes(&template, &market, &strikes)?;
+    /// assert!(prices[0] < prices[2]);
+    /// let rows = engine.price_surface(&template, &market, &expiries, &strikes)?;
+    /// assert_eq!(rows.len(), expiries.len());
+    /// assert_eq!(rows[0].len(), strikes.len());
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Rejects invalid dates or strikes and requests exceeding work or workspace
+    /// limits. Pricing and cancellation failures return no partial surface.
+    fn price_surface(
+        &self,
+        template: &I,
+        context: &PricingContext,
+        expiries: &[Timestamp],
+        strikes: &[f64],
+    ) -> Result<Vec<Vec<f64>>>;
+}
+
+macro_rules! vanilla_batch {
+    ($engine:ty, $option:ty, $strikes:ident, $surface:ident) => {
+        impl VanillaBatchEngine<$option> for $engine {
+            #[inline]
+            fn price_strikes(
+                &self,
+                template: &$option,
+                context: &PricingContext,
+                strikes: &[f64],
+            ) -> Result<Vec<f64>> {
+                self.$strikes(template, context, strikes)
+            }
+
+            #[inline]
+            fn price_surface(
+                &self,
+                template: &$option,
+                context: &PricingContext,
+                expiries: &[Timestamp],
+                strikes: &[f64],
+            ) -> Result<Vec<Vec<f64>>> {
+                self.$surface(template, context, expiries, strikes)
+            }
+        }
+    };
+}
+
+vanilla_batch!(
+    FiniteDifferenceVanillaEngine,
+    EuropeanOption,
+    price_european_strikes,
+    price_european_surface
+);
+vanilla_batch!(
+    FiniteDifferenceVanillaEngine,
+    AmericanOption,
+    price_american_strikes,
+    price_american_surface
+);
+vanilla_batch!(
+    FiniteDifferenceHestonVanillaEngine,
+    EuropeanOption,
+    price_european_strikes,
+    price_european_surface
+);
+vanilla_batch!(
+    FiniteDifferenceHestonVanillaEngine,
+    AmericanOption,
+    price_american_strikes,
+    price_american_surface
+);
+
+impl FiniteDifferenceVanillaEngine {
+    pub(super) fn price_european_strikes(
         &self,
         option: &EuropeanOption,
         context: &PricingContext,
@@ -139,36 +247,7 @@ impl FiniteDifferenceVanillaEngine {
         })
     }
 
-    /// Prices American vanilla options across strikes in input order.
-    ///
-    /// Uses the template's direction and dates. Compatible Black–Scholes–Merton
-    /// strikes with automatic asset boundaries share a rescaled solution. Nearby
-    /// local-volatility strikes share an absolute-spot grid and step factors.
-    /// Other strikes use individual solves. Check convergence across the strike range.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use kiyosi::{AmericanOption, BlackScholesMertonParameters, Date,
-    ///     FiniteDifferenceVanillaEngine, OptionType, PricingContext};
-    /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let put = AmericanOption::new(OptionType::Put, 100.0, start, start.add_days(365)?)?;
-    /// let model = BlackScholesMertonParameters::new(0.05, 0.02, 0.25)?;
-    /// let market = PricingContext::new(model, 100.0, start)?;
-    /// let prices = FiniteDifferenceVanillaEngine::default()
-    ///     .price_american_strikes(&put, &market, &[90.0, 95.0, 100.0, 105.0])?;
-    /// assert!(prices[0] < prices[3]);
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// # Errors
-    ///
-    /// Returns [`crate::Error::InvalidInput`] for nonpositive or non-finite strikes
-    /// or valuation outside contract life, or excessive workspace or combined
-    /// rollback work. Pricing and cancellation errors return no partial results.
-    pub fn price_american_strikes(
+    pub(super) fn price_american_strikes(
         &self,
         option: &AmericanOption,
         context: &PricingContext,

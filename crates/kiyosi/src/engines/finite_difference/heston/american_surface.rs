@@ -10,22 +10,7 @@ use super::{
 };
 
 impl FiniteDifferenceHestonVanillaEngine {
-    /// Prices an American strike and expiry surface in input order.
-    ///
-    /// With flat rates and time-homogeneous dynamics, one rollback supplies each
-    /// time to maturity. Fixed asset bounds use strike tiles on absolute meshes.
-    /// Compatible dated curves with automatic bounds share factored operators in
-    /// expiry tiles. Other markets use independent expiry rollbacks.
-    /// The longest maturity sets each shared mesh. Flat-rate short tenors use
-    /// individual expiry meshes. Check convergence across the surface.
-    /// See [`Self::price_american_strikes`] for the contract and market inputs.
-    ///
-    /// # Errors
-    ///
-    /// Propagates strike-batch errors and rejects oversized output, excessive
-    /// combined rollback work, or expiries before valuation or the effective
-    /// time. Cancellation returns no partial surface.
-    pub fn price_american_surface(
+    pub(in crate::engines::finite_difference) fn price_american_surface(
         &self,
         template: &AmericanOption,
         context: &PricingContext,

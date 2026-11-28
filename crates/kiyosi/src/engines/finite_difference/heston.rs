@@ -133,6 +133,13 @@ impl HestonFiniteDifferenceSettings {
 /// [`crate::Error::ComputationFailure`] for unrepresentable grids, intermediates or
 /// invalid prices. Fixed grids do not report error-target nonconvergence.
 ///
+/// # Batch pricing
+///
+/// Use [`crate::VanillaBatchEngine`] for strikes or strike–expiry surfaces. European
+/// surfaces share a forward grid spanning the longest maturity. Compatible American
+/// surfaces share rollback across tenors or factored operators in expiry tiles.
+/// Check mesh and domain convergence across the surface, including short tenors.
+///
 /// # Greeks
 ///
 /// Returns the price with requested Greeks marked unsupported; see [`Self::new`].
@@ -183,49 +190,7 @@ impl FiniteDifferenceHestonVanillaEngine {
         self.settings
     }
 
-    /// Prices European vanilla options across strikes using the template's direction and dates.
-    ///
-    /// The result preserves input order and duplicates. The automatic domain covers
-    /// the entire spot-to-strike range in a single rollback. Compatible strikes
-    /// with an explicit asset boundary share an absolute grid and its factors.
-    /// A European batch with the spot on a grid node can value all payoffs
-    /// using weights from one transposed rollback.
-    /// Check convergence with mesh refinement across the full range.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use kiyosi::{Date, EuropeanOption, FiniteDifferenceHestonVanillaEngine,
-    ///     HestonParameterInputs, HestonParameters, OptionType, PricingContext};
-    ///
-    /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let end = Date::new(2026, 1, 1)?.start_of_day();
-    /// let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
-    /// let model = HestonParameters::new(HestonParameterInputs {
-    ///     risk_free_rate: 0.05.into(),
-    ///     dividend_yield: 0.02.into(),
-    ///     initial_variance: 0.04,
-    ///     long_run_variance: 0.04,
-    ///     mean_reversion_speed: 1.5,
-    ///     vol_of_vol: 0.3,
-    ///     correlation: -0.7,
-    /// })?;
-    /// let market = PricingContext::new(model, 100.0, start)?;
-    /// let prices = FiniteDifferenceHestonVanillaEngine::default()
-    ///     .price_european_strikes(&option, &market, &[90.0, 110.0])?;
-    /// assert!(prices[0] > prices[1]);
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// # Errors
-    ///
-    /// Propagates scalar pricing errors for the supplied strikes and returns
-    /// [`crate::Error::InvalidInput`] for a nonpositive or non-finite strike or excessive
-    /// workspace or combined rollback work.
-    /// An error or cancellation returns no partial prices.
-    pub fn price_european_strikes(
+    pub(super) fn price_european_strikes(
         &self,
         template: &EuropeanOption,
         context: &PricingContext,
@@ -241,14 +206,7 @@ impl FiniteDifferenceHestonVanillaEngine {
         )
     }
 
-    /// Prices American vanilla options across strikes using the template's direction and dates.
-    ///
-    /// Uses the batch semantics of [`Self::price_european_strikes`] with early exercise.
-    ///
-    /// # Errors
-    ///
-    /// Propagates the validation and pricing errors of [`Self::price_european_strikes`].
-    pub fn price_american_strikes(
+    pub(super) fn price_american_strikes(
         &self,
         template: &AmericanOption,
         context: &PricingContext,
@@ -264,25 +222,7 @@ impl FiniteDifferenceHestonVanillaEngine {
         )
     }
 
-    /// Prices a European strike and expiry surface on a shared forward grid.
-    ///
-    /// The template supplies the payoff direction and effective time. Outer rows
-    /// follow `expiries`, and each row follows `strikes`, including duplicates.
-    /// Time steps span the longest maturity and include every requested expiry.
-    /// Check mesh and domain convergence, especially for short maturities and
-    /// wide strike ranges. See [`Self::price_european_strikes`] for the inputs.
-    ///
-    /// # Examples
-    ///
-    /// With the template, market and dates in [`Self::price_european_strikes`],
-    /// pass `&[start.add_days(90)?, end]` and `&[90.0, 110.0]` to price both
-    /// strikes at both expiries. The first row contains the 90-day prices.
-    ///
-    /// # Errors
-    ///
-    /// Propagates scalar validation and pricing errors and rejects excessive
-    /// output size or grid work. Cancellation returns no partial prices.
-    pub fn price_european_surface(
+    pub(in crate::engines::finite_difference) fn price_european_surface(
         &self,
         template: &EuropeanOption,
         context: &PricingContext,
