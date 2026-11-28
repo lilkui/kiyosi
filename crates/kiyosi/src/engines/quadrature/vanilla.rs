@@ -1,6 +1,8 @@
+use std::{cell::Cell, rc::Rc};
+
 use super::gaussian::{
-    CubicInterpolation, Layer, Polynomial, TerminalPiece, TransitionCache, integrate_terminal,
-    integration_nodes,
+    CubicInterpolation, Layer, Polynomial, TerminalPiece, TransitionCache, WORK_BUDGET,
+    charge_work, integrate_terminal, integration_nodes,
 };
 use super::{QuadratureSettings, flat_rates, simpson};
 use crate::engines::Payoff;
@@ -12,6 +14,25 @@ use crate::{
     AmericanOption, Error, EuropeanOption, PricingContext, PricingEngine, Result,
     VanillaOptionChanges,
 };
+
+const MAX_BATCH_STRIKES: usize = 1 << 20;
+
+/// Checks the input count for an American quadrature strike batch.
+///
+/// See [`QuadratureVanillaEngine::price_strikes`] for a pricing example.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidInput`] above 1,048,576 strikes, including duplicates.
+#[doc(hidden)]
+pub fn validate_quadrature_strike_batch_size(count: usize) -> Result<()> {
+    if count > MAX_BATCH_STRIKES {
+        return Err(Error::InvalidInput(
+            "quadrature strike batch exceeds 1,048,576 strikes".into(),
+        ));
+    }
+    Ok(())
+}
 
 /// Configures vanilla spatial quadrature and American exercise intervals.
 ///
@@ -169,6 +190,8 @@ impl QuadratureVanillaEngine {
     ///
     /// # Errors
     ///
+    /// Returns [`Error::InvalidInput`] above 1,048,576 strikes or one billion
+    /// estimated rollback and query visits.
     /// Propagates invalid input, unsupported market, numerical and
     /// cancellation errors. A failed request returns no partial prices.
     pub fn price_strikes(
@@ -177,6 +200,7 @@ impl QuadratureVanillaEngine {
         context: &PricingContext,
         strikes: &[f64],
     ) -> Result<Vec<f64>> {
+        validate_quadrature_strike_batch_size(strikes.len())?;
         let (rate, dividend) = flat_rates(context)?;
         validate_life(option, context)?;
         let expiry = option.expiry_time();
@@ -191,10 +215,20 @@ impl QuadratureVanillaEngine {
         })?;
         let time = context.valuation_time().years_until(expiry);
         let unit = Payoff::vanilla(option.option_type(), 1.0, true);
+        let work = Rc::new(Cell::new(WORK_BUDGET));
+        if !strikes.is_empty() && crate::engines::deterministic::enabled(context) {
+            let market =
+                crate::engines::deterministic::AmericanExerciseMarket::new(context, expiry)?;
+            charge_work(&work, market.interval_count().saturating_mul(strikes.len()))?;
+            for &strike in strikes {
+                crate::cancellation::check()?;
+                prices.push(market.price(Payoff { strike, ..unit }, context)?);
+            }
+            return Ok(prices);
+        }
         let curve = if strikes.len() > 1
             && time > 0.0
             && self.settings.time_step_count > 1
-            && !crate::engines::deterministic::enabled(context)
             && !(unit.sign > 0.0 && rate >= 0.0 && dividend <= 0.0)
         {
             let carry = (rate - dividend) * time;
@@ -206,6 +240,7 @@ impl QuadratureVanillaEngine {
                 width,
                 rate,
                 self.settings,
+                Some(&work),
             ) {
                 Ok(curve) => Some(curve),
                 Err(error @ Error::Io(_)) => return Err(error),
@@ -224,7 +259,7 @@ impl QuadratureVanillaEngine {
             let ratio = spot / strike;
             if let Some(curve) = curve.as_ref().filter(|_| ratio.is_normal()) {
                 let value = match curve
-                    .price(unit, ratio)
+                    .price(unit, ratio, Some(&work))
                     .and_then(|price| checked(price * strike))
                 {
                     Ok(price) => Some(price),
@@ -238,7 +273,14 @@ impl QuadratureVanillaEngine {
                     continue;
                 }
             }
-            prices.push(self.price(&contract, context)?);
+            prices.push(price_american_validated(
+                &contract,
+                context,
+                self.settings,
+                (rate, dividend),
+                None,
+                Some(&work),
+            )?);
         }
         Ok(prices)
     }
@@ -335,17 +377,27 @@ fn price_american(
     settings: QuadratureVanillaSettings,
     cache: Option<&mut Vec<(AmericanCurveKey, AmericanCurve)>>,
 ) -> Result<f64> {
-    let (rate, dividend) = flat_rates(context)?;
+    let rates = flat_rates(context)?;
     validate_life(option, context)?;
-    let expiry = option.expiry_time();
-    context.validate_curve_horizon(expiry)?;
+    context.validate_curve_horizon(option.expiry_time())?;
+    price_american_validated(option, context, settings, rates, cache, None)
+}
+
+fn price_american_validated(
+    option: &AmericanOption,
+    context: &PricingContext,
+    settings: QuadratureVanillaSettings,
+    (rate, dividend): (f64, f64),
+    cache: Option<&mut Vec<(AmericanCurveKey, AmericanCurve)>>,
+    work: Option<&Rc<Cell<usize>>>,
+) -> Result<f64> {
     let payoff = Payoff::vanilla(option.option_type(), option.strike(), true);
     if crate::engines::deterministic::enabled(context) {
         return crate::engines::deterministic::vanilla(option, payoff, context);
     }
     let spot = context.spot_price();
     let valuation = context.valuation_time();
-    let time = valuation.years_until(expiry);
+    let time = valuation.years_until(option.expiry_time());
     if time == 0.0 {
         return checked(payoff.value(spot));
     }
@@ -358,7 +410,17 @@ fn price_american(
     }
     let carry = (rate - dividend) * time;
     let (width, half_variance) = log_transition(context, time, carry)?;
-    let build = || american_curve(payoff, time, carry - half_variance, width, rate, settings);
+    let build = || {
+        american_curve(
+            payoff,
+            time,
+            carry - half_variance,
+            width,
+            rate,
+            settings,
+            work,
+        )
+    };
     let price = if let Some(cache) = cache {
         // The numerical stencils alternate between at most two active scenarios.
         let key = AmericanCurveKey {
@@ -368,7 +430,7 @@ fn price_american(
         };
         if let Some(index) = cache.iter().position(|(candidate, _)| *candidate == key) {
             let entry = cache.remove(index);
-            let price = entry.1.price(payoff, spot)?;
+            let price = entry.1.price(payoff, spot, work)?;
             cache.push(entry);
             price
         } else {
@@ -376,12 +438,12 @@ fn price_american(
                 cache.remove(0);
             }
             let curve = build()?;
-            let price = curve.price(payoff, spot)?;
+            let price = curve.price(payoff, spot, work)?;
             cache.push((key, curve));
             price
         }
     } else {
-        build()?.price(payoff, spot)?
+        build()?.price(payoff, spot, work)?
     };
     Ok(price.max(european()?))
 }
@@ -452,7 +514,10 @@ struct AmericanCurve {
 }
 
 impl AmericanCurve {
-    fn price(&self, payoff: Payoff, spot: f64) -> Result<f64> {
+    fn price(&self, payoff: Payoff, spot: f64, work: Option<&Rc<Cell<usize>>>) -> Result<f64> {
+        if let Some(work) = work {
+            charge_work(work, self.nodes.len())?;
+        }
         let [drift, deviation, discount] = self.transition;
         let continuation = self.layer.evaluate(
             &self.nodes,
@@ -473,6 +538,7 @@ fn american_curve(
     width: f64,
     rate: f64,
     settings: QuadratureVanillaSettings,
+    work: Option<&Rc<Cell<usize>>>,
 ) -> Result<AmericanCurve> {
     let intervals = f64::from(settings.time_step_count);
     let deviation = width / intervals.sqrt();
@@ -488,7 +554,13 @@ fn american_curve(
     let cache_tails = settings.time_step_count > 2
         && deviation >= 1e-5
         && cache.reserve_workspace(nodes.len() * size_of::<TailWeights>());
-    cache.validate_rollback_work(&nodes, drift_step, deviation, settings.time_step_count)?;
+    cache.validate_rollback_work(
+        &nodes,
+        drift_step,
+        deviation,
+        settings.time_step_count,
+        work,
+    )?;
     let interpolation = CubicInterpolation::new(&nodes);
     let intrinsic: Vec<_> = nodes
         .iter()
@@ -661,4 +733,39 @@ fn tail(payoff: Payoff, nodes: &[f64], values: &[f64]) -> Result<TerminalPiece> 
         cash,
         asset: slope,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::OptionType;
+
+    #[test]
+    fn american_quadrature_rollbacks_draw_from_the_same_budget() -> Result<()> {
+        let settings = QuadratureVanillaSettings {
+            asset_step_count: 16,
+            time_step_count: 4,
+            ..Default::default()
+        };
+        let work = Rc::new(Cell::new(WORK_BUDGET));
+        let rollback = || {
+            american_curve(
+                Payoff::vanilla(OptionType::Put, 100.0, true),
+                1.0,
+                0.01,
+                0.2,
+                0.05,
+                settings,
+                Some(&work),
+            )
+        };
+        rollback()?;
+        let cost = WORK_BUDGET - work.get();
+        assert!(cost > 0);
+        work.set(cost);
+        rollback()?;
+        assert_eq!(work.get(), 0);
+        assert!(matches!(rollback(), Err(Error::InvalidInput(_))));
+        Ok(())
+    }
 }

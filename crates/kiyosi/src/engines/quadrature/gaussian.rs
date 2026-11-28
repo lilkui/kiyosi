@@ -14,7 +14,7 @@ use std::{
 const LOG_DENSITY: f64 = -0.918_938_533_204_672_7;
 const LOG_HALF_SUBNORMAL: f64 = -745.133_219_101_941_2;
 const WORKSPACE_BUDGET: usize = 256 << 20;
-const WORK_BUDGET: usize = 1_000_000_000;
+pub(super) const WORK_BUDGET: usize = 1_000_000_000;
 // Includes the hash entry and transient capacity growth during construction.
 const BYTES_PER_CACHED_MOMENT: usize = 256;
 const MAX_TRANSITIONS: usize = 8;
@@ -464,8 +464,19 @@ fn cells_within(nodes: &[f64], mean: f64, radius: f64) -> Range<usize> {
 
 fn excessive_rollback_work() -> Error {
     Error::InvalidInput(
-        "quadrature rollback exceeds one billion node and cell visits; reduce step counts".into(),
+        "quadrature rollback or query work exceeds one billion node and cell visits; reduce step counts or batch size"
+            .into(),
     )
+}
+
+pub(super) fn charge_work(remaining: &Counter<usize>, work: usize) -> Result<()> {
+    remaining.set(
+        remaining
+            .get()
+            .checked_sub(work)
+            .ok_or_else(excessive_rollback_work)?,
+    );
+    Ok(())
 }
 
 fn remaining_rollback_work(nodes: &[f64], layers: usize, visits: usize) -> Result<usize> {
@@ -600,26 +611,30 @@ impl TransitionCache {
     }
 
     pub fn validate_rollback_work(
-        &self,
+        &mut self,
         nodes: &[f64],
         drift: f64,
         deviation: f64,
         intervals: i32,
+        batch_work: Option<&Rc<Counter<usize>>>,
     ) -> Result<()> {
+        if let Some(batch_work) = batch_work {
+            self.tail_work = Rc::clone(batch_work);
+        }
         let exercise_steps = (intervals.unsigned_abs() - 1) as usize;
-        let mut work = remaining_rollback_work(nodes, 1, exercise_steps)?;
+        let fixed_work = WORK_BUDGET - remaining_rollback_work(nodes, 1, exercise_steps)?;
         // The first rollback integrates terminal pieces directly, without interpolated cells.
         let continuation_steps = exercise_steps.saturating_sub(1);
-        if continuation_steps > 0 {
-            work = work
-                .checked_sub(
-                    self.transition_work(nodes, drift, deviation)?
-                        .saturating_mul(continuation_steps),
-                )
-                .ok_or_else(excessive_rollback_work)?;
-        }
-        self.tail_work.set(work);
-        Ok(())
+        let continuation_work = if continuation_steps > 0 {
+            self.transition_work(nodes, drift, deviation)?
+                .saturating_mul(continuation_steps)
+        } else {
+            0
+        };
+        charge_work(
+            &self.tail_work,
+            fixed_work.saturating_add(continuation_work),
+        )
     }
 
     pub fn validate_scheduled_work(

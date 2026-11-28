@@ -60,17 +60,7 @@ pub(super) fn vanilla_to_expiry(
     let start = context.valuation_time();
     let spot = context.spot_price();
     if payoff.is_american() {
-        let risk = Curve::new(model.risk_free_curve(), start, end)?;
-        let dividend = Curve::new(model.dividend_curve(), start, end)?;
-        return market_exercise_value(
-            payoff,
-            context,
-            end,
-            &risk,
-            &dividend,
-            &market_exercise_times(context, end),
-            None,
-        );
+        return AmericanExerciseMarket::new(context, end)?.price(payoff, context);
     }
     context.validate_curve_coverage(end)?;
     let risk_log = model.risk_free_curve().log_factor(start, end)?;
@@ -119,28 +109,30 @@ fn exercise_boundary(payoff: Payoff, risk: &Curve, dividend: &Curve) -> Result<f
 #[derive(PartialEq)]
 pub(super) struct AmericanExercise {
     payoff: Payoff,
+    market: AmericanExerciseMarket,
+    boundary: f64,
+}
+
+#[derive(PartialEq)]
+pub(super) struct AmericanExerciseMarket {
     risk: Curve,
     dividend: Curve,
     expiry: Timestamp,
     times: Vec<Timestamp>,
-    boundary: f64,
 }
 
-impl AmericanExercise {
-    pub(super) fn new(payoff: Payoff, context: &PricingContext, expiry: Timestamp) -> Result<Self> {
+impl AmericanExerciseMarket {
+    pub(super) fn new(context: &PricingContext, expiry: Timestamp) -> Result<Self> {
         let model = context.model_parameters();
         let start = context.valuation_time();
         let risk = Curve::new(model.risk_free_curve(), start, expiry)?;
         let dividend = Curve::new(model.dividend_curve(), start, expiry)?;
-        let times = market_exercise_times(context, expiry);
-        let boundary = exercise_boundary(payoff, &risk, &dividend)?;
+        let times = market_exercise_times(context, expiry)?;
         Ok(Self {
-            payoff,
             risk,
             dividend,
             expiry,
             times,
-            boundary,
         })
     }
 
@@ -148,16 +140,45 @@ impl AmericanExercise {
         self.times.len()
     }
 
-    pub(super) fn price(&self, context: &PricingContext) -> Result<f64> {
+    pub(super) fn price(&self, payoff: Payoff, context: &PricingContext) -> Result<f64> {
+        self.evaluate(payoff, context, None)
+    }
+
+    fn evaluate(
+        &self,
+        payoff: Payoff,
+        context: &PricingContext,
+        observe: Option<&mut dyn FnMut(f64, f64, f64)>,
+    ) -> Result<f64> {
         market_exercise_value(
-            self.payoff,
+            payoff,
             context,
             self.expiry,
             &self.risk,
             &self.dividend,
             &self.times,
-            None,
+            observe,
         )
+    }
+}
+
+impl AmericanExercise {
+    pub(super) fn new(payoff: Payoff, context: &PricingContext, expiry: Timestamp) -> Result<Self> {
+        let market = AmericanExerciseMarket::new(context, expiry)?;
+        let boundary = exercise_boundary(payoff, &market.risk, &market.dividend)?;
+        Ok(Self {
+            payoff,
+            market,
+            boundary,
+        })
+    }
+
+    pub(super) fn interval_count(&self) -> usize {
+        self.market.interval_count()
+    }
+
+    pub(super) fn price(&self, context: &PricingContext) -> Result<f64> {
+        self.market.price(self.payoff, context)
     }
 
     pub(super) fn at_spot_discontinuity(
@@ -188,22 +209,22 @@ impl AmericanExercise {
         }
         let (from, to) = (low_time.min(high_time), low_time.max(high_time));
         let middle = from.midpoint(to);
-        let r = self.risk.rate(middle);
-        let q = self.dividend.rate(middle);
+        let r = self.market.risk.rate(middle);
+        let q = self.market.dividend.rate(middle);
         // A stationary optimum can move smoothly inside a single rate interval.
         // Across different intervals the stencil can mix distinct exercise branches.
         if !stationary_exercise_maximum(self.payoff, r, q)
-            || self.risk.ends_between(from, to).next().is_some()
-            || self.dividend.ends_between(from, to).next().is_some()
+            || self.market.risk.ends_between(from, to).next().is_some()
+            || self.market.dividend.ends_between(from, to).next().is_some()
         {
             return Ok(true);
         }
         // With monotone dividend discounts, exercise times outside this interval
         // cannot have slopes between the two winners and take over inside the bump.
         let mut start = 0.0;
-        for end in self.dividend.ends() {
+        for end in self.market.dividend.ends() {
             crate::cancellation::check()?;
-            if q.signum() * self.dividend.rate(start) < 0.0 {
+            if q.signum() * self.market.dividend.rate(start) < 0.0 {
                 return Ok(true);
             }
             start = end;
@@ -227,15 +248,9 @@ impl AmericanExercise {
                 alternative = f64::max(alternative, value);
             }
         };
-        let price = market_exercise_value(
-            self.payoff,
-            context,
-            self.expiry,
-            &self.risk,
-            &self.dividend,
-            &self.times,
-            Some(&mut observe),
-        )?;
+        let price = self
+            .market
+            .evaluate(self.payoff, context, Some(&mut observe))?;
         let tied = alternative > 0.0 && price - alternative <= 4.0 * f64::EPSILON * price;
         Ok((best_time, best_log_delta, tied))
     }
@@ -252,23 +267,22 @@ fn stationary_exercise_maximum(payoff: Payoff, r: f64, q: f64) -> bool {
         && payoff.sign * r.signum() * (q - r) < 0.0
 }
 
-fn market_exercise_times(context: &PricingContext, expiry: Timestamp) -> Vec<Timestamp> {
+fn market_exercise_times(context: &PricingContext, expiry: Timestamp) -> Result<Vec<Timestamp>> {
     let start = context.valuation_time();
     let model = context.model_parameters();
-    let mut times: Vec<_> = [model.risk_free_curve(), model.dividend_curve()]
-        .into_iter()
-        .flat_map(|curve| {
-            curve
-                .nodes_after(start)
-                .iter()
-                .copied()
-                .take_while(|&t| t < expiry)
-        })
-        .collect();
+    let mut times = Vec::new();
+    for curve in [model.risk_free_curve(), model.dividend_curve()] {
+        let nodes = curve.nodes_after(start);
+        let end = nodes.partition_point(|&node| node < expiry);
+        for chunk in nodes[..end].chunks(1024) {
+            crate::cancellation::check()?;
+            times.extend_from_slice(chunk);
+        }
+    }
     times.sort_unstable();
     times.dedup();
     times.push(expiry);
-    times
+    Ok(times)
 }
 
 fn market_exercise_value(

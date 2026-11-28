@@ -10,6 +10,7 @@ pub use barrier::{QuadratureBarrierEngine, QuadratureSettings};
 mod digital;
 pub use digital::QuadratureDigitalEngine;
 mod vanilla;
+pub use vanilla::validate_quadrature_strike_batch_size;
 pub use vanilla::{QuadratureVanillaEngine, QuadratureVanillaSettings};
 
 use super::flat_rates;

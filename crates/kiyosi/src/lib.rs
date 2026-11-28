@@ -162,6 +162,7 @@ pub mod binding_support {
         validate_finite_difference_strike_batch_size, validate_finite_difference_surface_size,
     };
     pub use crate::engines::monte_carlo::validate_monte_carlo_strike_batch_size;
+    pub use crate::engines::quadrature::validate_quadrature_strike_batch_size;
     pub use crate::instruments::asian::DEFAULT_REALIZED_AVERAGE;
     pub use crate::instruments::autocallable::{
         DEFAULT_AUTOCALLABLE_REBATE_RATE, DEFAULT_PHOENIX_LOCKOUT_PERIODS,

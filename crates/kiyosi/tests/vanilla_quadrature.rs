@@ -343,6 +343,30 @@ fn european_quadrature_counts_panels_across_sections() -> Result<()> {
 }
 
 #[test]
+fn american_quadrature_bounds_market_replay_across_strikes() -> Result<()> {
+    let (start, end) = dates();
+    let mut times = (1..=8192)
+        .map(|hour| start.add_micros(hour * 3_600_000_000))
+        .collect::<Result<Vec<_>>>()?;
+    times.push(end);
+    let factors = vec![1.0; times.len()];
+    let risk = RateTermStructure::new(start, times, factors)?;
+    let model = BlackScholesMertonParameters::new(risk, 0.0, 0.0)?;
+    let context = PricingContext::new(model, 100.0, start)?;
+    let put = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let engine = QuadratureVanillaEngine::default();
+    assert_eq!(
+        engine.price_strikes(&put, &context, &[110.0, 90.0, 110.0])?,
+        [10.0, 0.0, 10.0]
+    );
+    assert!(matches!(
+        engine.price_strikes(&put, &context, &vec![110.0; 125_000]),
+        Err(Error::InvalidInput(message)) if message.contains("node and cell visits")
+    ));
+    Ok(())
+}
+
+#[test]
 fn american_quadrature_strike_batch_matches_scalar_continuation() -> Result<()> {
     let (start, end) = dates();
     let context = market(100.0, 0.05, 0.06, 0.25);

@@ -175,7 +175,7 @@ quadrature_engine!(
         /// context : PricingContext
         ///     Flat-rate Black–Scholes–Merton snapshot.
         /// strikes : iterable of float
-        ///     Finite positive strikes.
+        ///     Up to 1,048,576 finite positive strikes, including duplicates.
         ///
         /// Returns
         /// -------
@@ -184,6 +184,9 @@ quadrature_engine!(
         ///
         /// Raises
         /// ------
+        /// InvalidInputError
+        ///     If the batch exceeds the strike limit or one billion estimated
+        ///     rollback and query visits.
         /// KiyosiError
         ///     If contract, market, strike or pricing validation fails.
         /// OSError
@@ -201,7 +204,7 @@ quadrature_engine!(
                 crate::instruments::american::AmericanOption,
             >,
             context: &PricingContext,
-            #[pyo3(from_py_with = crate::conversions::reals)] strikes: Vec<f64>,
+            #[pyo3(from_py_with = crate::conversions::quadrature_strikes)] strikes: Vec<f64>,
         ) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
             let instrument = &instrument.0;
             let prices = domain(crate::cancellation::run(py, || {

@@ -51,6 +51,31 @@ def test_european_quadrature_preserves_finite_large_prices(direction):
     )
 
 
+def test_american_quadrature_rejects_oversized_strike_iterable():
+    def strikes():
+        for _ in range(1_048_577):
+            yield 100.0
+        pytest.fail("read past the first strike exceeding the batch limit")
+
+    with pytest.raises(InvalidInputError, match="strike batch exceeds"):
+        pricing.QuadratureVanillaEngine().price_strikes(
+            contract(AmericanOption, "put"), market(), strikes=strikes()
+        )
+
+
+def test_american_quadrature_bounds_market_replay_across_strikes():
+    times = [START + timedelta(hours=hour) for hour in range(1, 8193)] + [END]
+    risk = RateTermStructure(
+        reference_time=START, times=times, factors=[1.0] * len(times)
+    )
+    snapshot = market(100, risk, 0, 0, valuation=START)
+    put = contract(AmericanOption, "put")
+    engine = pricing.QuadratureVanillaEngine()
+    assert engine.price_strikes(put, snapshot, strikes=(110, 90, 110)) == (10, 0, 10)
+    with pytest.raises(InvalidInputError, match="node and cell visits"):
+        engine.price_strikes(put, snapshot, strikes=(110.0,) * 125_000)
+
+
 def test_settings_defaults_and_conversion_boundaries(subtests):
     factory = pricing.QuadratureVanillaEngine
     engine = factory()

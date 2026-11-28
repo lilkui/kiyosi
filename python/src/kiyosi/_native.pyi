@@ -2452,7 +2452,7 @@ class QuadratureVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
         context : PricingContext
             Flat-rate Black–Scholes–Merton snapshot.
         strikes : iterable of float
-            Finite positive strikes.
+            Up to 1,048,576 finite positive strikes, including duplicates.
 
         Returns
         -------
@@ -2461,6 +2461,9 @@ class QuadratureVanillaEngine(_PricingMethods[EuropeanOption | AmericanOption]):
 
         Raises
         ------
+        InvalidInputError
+            If the batch exceeds the strike limit or one billion estimated
+            rollback and query visits.
         KiyosiError
             If contract, market, strike or pricing validation fails.
         OSError
