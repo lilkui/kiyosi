@@ -38,6 +38,33 @@ fn american_heston_surface_caps_combined_expiry_rollbacks() -> kiyosi::Result<()
 }
 
 #[test]
+fn automatic_heston_strike_batch_ignores_template_strike() -> kiyosi::Result<()> {
+    let (start, end) = dates();
+    let market = context(0.3, -0.7);
+    let model = market
+        .model_parameters()
+        .as_heston()?
+        .replace(kiyosi::HestonParameterChanges {
+            risk_free_rate: Some((-1.0).into()),
+            ..Default::default()
+        })?;
+    let market = PricingContext::new(model, market.spot_price(), start)?;
+    let engine = FiniteDifferenceHestonVanillaEngine::default();
+    let template = EuropeanOption::new(OptionType::Put, 100.0, start, end)?;
+    let large = EuropeanOption::new(OptionType::Put, 1e308, start, end)?;
+    let strikes = [110.0, 90.0, 110.0];
+    let expected = engine.price_strikes(&template, &market, &strikes)?;
+    let actual = engine.price_strikes(&large, &market, &strikes)?;
+    assert_eq!(actual, expected);
+    for (price, strike) in actual.into_iter().zip(strikes) {
+        let contract = EuropeanOption::new(OptionType::Put, strike, start, end)?;
+        let scalar = engine.price(&contract, &market)?;
+        assert!((price - scalar).abs() < 1e-5, "{price} vs {scalar}");
+    }
+    Ok(())
+}
+
+#[test]
 fn european_surface_matches_analytic_prices_and_preserves_both_input_orders() -> kiyosi::Result<()>
 {
     let (start, end) = dates();

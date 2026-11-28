@@ -187,6 +187,22 @@ def test_heston_strike_batches_match_independent_prices_in_input_order():
         engine.price_strikes(call, market, strikes=(90, True))
 
 
+def test_automatic_heston_strike_batch_ignores_template_strike():
+    engine = FiniteDifferenceHestonVanillaEngine()
+    market = context(model(risk_free_rate=-1))
+    template = option(option_type="put")
+    strikes = (110, 90, 110)
+    actual = engine.price_strikes(
+        template.replace(strike=1e308), market, strikes=strikes
+    )
+    assert actual == engine.price_strikes(template, market, strikes=strikes)
+    assert actual == pytest.approx(
+        [engine.price(template.replace(strike=strike), market) for strike in strikes],
+        rel=0,
+        abs=1e-5,
+    )
+
+
 def test_explicit_heston_strike_batch_matches_scalar_prices():
     engine = FiniteDifferenceHestonVanillaEngine(asset_upper_boundary=400)
     market = context(model())

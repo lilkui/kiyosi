@@ -470,6 +470,11 @@ fn price_strikes(
     context.validate_curve_coverage(option.expiry_time())?;
     super::validate_finite_difference_strike_batch_size(strikes.len())?;
     let spot = context.spot_price();
+    // The shared grid uses market spot as its reference strike.
+    let payoff = Payoff {
+        strike: spot,
+        ..payoff
+    };
     let mut low = f64::INFINITY;
     let mut high = 0.0_f64;
     let active = context.valuation_time() < option.expiry_time()
