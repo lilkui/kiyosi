@@ -1366,74 +1366,78 @@ class TradingCalendar:
             If end precedes start.
         """
 
-def weekdays_calendar() -> TradingCalendar:
-    """Create a Monday-through-Friday calendar with a 261-day basis.
+    @staticmethod
+    def weekdays() -> TradingCalendar:
+        """Create a Monday-through-Friday calendar with a 261-day basis.
 
-    Returns
-    -------
-    TradingCalendar
-        Calendar with the stated annualization basis.
-    """
+        Returns
+        -------
+        TradingCalendar
+            Calendar with the stated annualization basis.
+        """
 
-def all_days_calendar() -> TradingCalendar:
-    """Create a calendar with every date open and a 365-day basis.
+    @staticmethod
+    def all_days() -> TradingCalendar:
+        """Create a calendar with every date open and a 365-day basis.
 
-    Returns
-    -------
-    TradingCalendar
-        Calendar with the stated annualization basis.
-    """
+        Returns
+        -------
+        TradingCalendar
+            Calendar with the stated annualization basis.
+        """
 
-def sse_calendar() -> TradingCalendar:
-    """Create a Shanghai Stock Exchange (SSE) calendar with a 243-day basis.
+    @staticmethod
+    def sse() -> TradingCalendar:
+        """Create a Shanghai Stock Exchange (SSE) calendar with a 243-day basis.
 
-    Returns
-    -------
-    TradingCalendar
-        Calendar with the stated annualization basis.
+        Returns
+        -------
+        TradingCalendar
+            Calendar with the stated annualization basis.
 
-    Notes
-    -----
-    Uses recorded and forecast weekday closures for 1991-2099, and weekdays
-    outside that range. Forecasts omit ad-hoc closures.
-    """
+        Notes
+        -----
+        Uses recorded and forecast weekday closures for 1991-2099, and weekdays
+        outside that range. Forecasts omit ad-hoc closures.
+        """
 
-def custom_calendar(
-    *,
-    base: TradingCalendar,
-    closed_dates: Iterable[date] = (),
-    open_dates: Iterable[date] = (),
-    trading_days_per_year: SupportsIndex | None = None,
-) -> TradingCalendar:
-    """Derive a calendar from a base calendar and open and closed date overrides.
+    @staticmethod
+    def custom(
+        *,
+        base: TradingCalendar,
+        closed_dates: Iterable[date] = (),
+        open_dates: Iterable[date] = (),
+        trading_days_per_year: SupportsIndex | None = None,
+    ) -> TradingCalendar:
+        """Derive a calendar from a base calendar and open and closed date overrides.
 
-    Parameters
-    ----------
-    base : TradingCalendar
-        Base calendar.
-    closed_dates : iterable of date, optional
-        Dates forced closed; duplicates and unsorted input are accepted.
-    open_dates : iterable of date, optional
-        Dates forced open, including weekends; must not also be closed.
-    trading_days_per_year : int or None, optional
-        Positive annualization basis, or None to retain the base basis.
+        Parameters
+        ----------
+        base : TradingCalendar
+            Base calendar.
+        closed_dates : iterable of date, optional
+            Dates forced closed; duplicates and unsorted input are accepted.
+        open_dates : iterable of date, optional
+            Dates forced open, including weekends; must not also be closed.
+        trading_days_per_year : int or None, optional
+            Positive annualization basis, or None to retain the base basis.
 
-    Returns
-    -------
-    TradingCalendar
-        Calendar with normalized overrides and the selected annualization basis.
+        Returns
+        -------
+        TradingCalendar
+            Calendar with normalized overrides and the selected annualization basis.
 
-    Raises
-    ------
-    InvalidInputError
-        If a date is both open and closed, or the annualization basis is
-        nonpositive.
+        Raises
+        ------
+        InvalidInputError
+            If a date is both open and closed, or the annualization basis is
+            nonpositive.
 
-    Notes
-    -----
-    Date conversion polls Python signals. Large override merges release the GIL
-    and poll Python signals during normalization.
-    """
+        Notes
+        -----
+        Date conversion polls Python signals. Large override merges release the GIL
+        and poll Python signals during normalization.
+        """
 
 class ObservationSchedule:
     """Ordered observation times with sequence access.
@@ -1456,8 +1460,7 @@ class ObservationSchedule:
 
     Notes
     -----
-    Construct from explicit times, or use fixed_interval_schedule or
-    monthly_schedule. Bounds and calendar validate the input; the schedule owns
+    Construct from explicit times, or use fixed_interval or monthly. Bounds and calendar validate the input; the schedule owns
     its times and calendar. The times property returns a
     copy; forward and reverse iteration retrieve timestamps lazily and retain
     the schedule owner. Integer indexing accepts
@@ -1491,94 +1494,95 @@ class ObservationSchedule:
     def __getitem__(self, index: slice) -> ObservationSchedule: ...
     def __iter__(self) -> Iterator[datetime]: ...
     def __reversed__(self) -> Iterator[datetime]: ...
+    @staticmethod
+    def fixed_interval(
+        *,
+        start_time: datetime,
+        end_time: datetime,
+        interval_days: SupportsIndex,
+        observation_clock_time: time,
+        calendar: TradingCalendar = ...,
+    ) -> ObservationSchedule:
+        """Create adjusted observations at positive fixed calendar-day intervals.
 
-def fixed_interval_schedule(
-    *,
-    start_time: datetime,
-    end_time: datetime,
-    interval_days: SupportsIndex,
-    observation_clock_time: time,
-    calendar: TradingCalendar = ...,
-) -> ObservationSchedule:
-    """Create adjusted observations at positive fixed calendar-day intervals.
+        Parameters
+        ----------
+        start_time : datetime.datetime
+            First timestamp of the interval.
+        end_time : datetime.datetime
+            Last timestamp of the interval.
+        interval_days : int
+            Positive calendar-day spacing of unadjusted observations, up to 2**63 - 1.
+        observation_clock_time : datetime.time
+            Required observation time of day, without timezone information.
+        calendar : TradingCalendar, optional
+            Trading calendar. Defaults to weekdays with a 261-day basis.
 
-    Parameters
-    ----------
-    start_time : datetime.datetime
-        First timestamp of the interval.
-    end_time : datetime.datetime
-        Last timestamp of the interval.
-    interval_days : int
-        Positive calendar-day spacing of unadjusted observations, up to 2**63 - 1.
-    observation_clock_time : datetime.time
-        Required observation time of day, without timezone information.
-    calendar : TradingCalendar, optional
-        Trading calendar. Defaults to weekdays with a 261-day basis.
+        Returns
+        -------
+        ObservationSchedule
+            Ordered observation times and their validation calendar.
 
-    Returns
-    -------
-    ObservationSchedule
-        Ordered observation times and their validation calendar.
+        Raises
+        ------
+        InvalidInputError
+            If end_time precedes start_time or interval_days is nonpositive.
+        TypeError
+            If interval_days is not an integer or is bool.
+        OverflowError
+            If interval_days is outside the signed 64-bit range.
 
-    Raises
-    ------
-    InvalidInputError
-        If end_time precedes start_time or interval_days is nonpositive.
-    TypeError
-        If interval_days is not an integer or is bool.
-    OverflowError
-        If interval_days is outside the signed 64-bit range.
+        Notes
+        -----
+        Exclude start_time and include candidates through end_time. Following
+        adjustment merges collisions and stops before crossing ``end_time``;
+        ``end_time`` need not appear.
+        Long scans release the GIL and poll Python signals.
+        """
 
-    Notes
-    -----
-    Exclude start_time and include candidates through end_time. Following
-    adjustment merges collisions and stops before crossing ``end_time``;
-    ``end_time`` need not appear.
-    Long scans release the GIL and poll Python signals.
-    """
+    @staticmethod
+    def monthly(
+        *,
+        start_time: datetime,
+        end_time: datetime,
+        first_observation_month: SupportsIndex,
+        observation_clock_time: time,
+        calendar: TradingCalendar = ...,
+    ) -> ObservationSchedule:
+        """Create monthly observations anchored to the start_time day.
 
-def monthly_schedule(
-    *,
-    start_time: datetime,
-    end_time: datetime,
-    first_observation_month: SupportsIndex,
-    observation_clock_time: time,
-    calendar: TradingCalendar = ...,
-) -> ObservationSchedule:
-    """Create monthly observations anchored to the start_time day.
+        Parameters
+        ----------
+        start_time : datetime.datetime
+            First timestamp of the interval.
+        end_time : datetime.datetime
+            Last timestamp of the interval.
+        first_observation_month : int
+            Positive month offset from start_time to the first observation.
+        observation_clock_time : datetime.time
+            Required observation time of day, without timezone information.
+        calendar : TradingCalendar, optional
+            Trading calendar. Defaults to weekdays with a 261-day basis.
 
-    Parameters
-    ----------
-    start_time : datetime.datetime
-        First timestamp of the interval.
-    end_time : datetime.datetime
-        Last timestamp of the interval.
-    first_observation_month : int
-        Positive month offset from start_time to the first observation.
-    observation_clock_time : datetime.time
-        Required observation time of day, without timezone information.
-    calendar : TradingCalendar, optional
-        Trading calendar. Defaults to weekdays with a 261-day basis.
+        Returns
+        -------
+        ObservationSchedule
+            Ordered observation times and their validation calendar.
 
-    Returns
-    -------
-    ObservationSchedule
-        Ordered observation times and their validation calendar.
+        Raises
+        ------
+        InvalidInputError
+            If end_time precedes start_time or first_observation_month is
+            nonpositive.
 
-    Raises
-    ------
-    InvalidInputError
-        If end_time precedes start_time or first_observation_month is
-        nonpositive.
-
-    Notes
-    -----
-    Clamp each candidate to its month end while retaining the original
-    starting-day anchor for later months. Exclude start_time and include
-    candidates through end_time. Following adjustment merges collisions and
-    stops before crossing ``end_time``; ``end_time`` need not appear.
-    Long scans release the GIL and poll Python signals.
-    """
+        Notes
+        -----
+        Clamp each candidate to its month end while retaining the original
+        starting-day anchor for later months. Exclude start_time and include
+        candidates through end_time. Following adjustment merges collisions and
+        stops before crossing ``end_time``; ``end_time`` need not appear.
+        Long scans release the GIL and poll Python signals.
+        """
 
 class PricingContext:
     """Market snapshot for one valuation instant.
@@ -7153,8 +7157,8 @@ def autocallable_observations(
     >>> from datetime import datetime, time
     >>> from kiyosi import instruments as ins, market
     >>> start, end = datetime(2025, 1, 2, 15), datetime(2025, 1, 10, 15)
-    >>> calendar = market.custom_calendar(
-    ...     base=market.weekdays_calendar(),
+    >>> calendar = market.TradingCalendar.custom(
+    ...     base=market.TradingCalendar.weekdays(),
     ...     closed_dates=[datetime(2025, 1, 6).date()],
     ... )
     >>> schedule = market.ObservationSchedule(
@@ -7421,6 +7425,910 @@ class SnowballOption:
     @property
     def calendar(self) -> TradingCalendar:
         """Return an owned copy of the contract's monitoring calendar."""
+
+    @staticmethod
+    def standard(
+        *,
+        coupon_rate: _Real,
+        initial_spot: _Real,
+        knock_in_level: _Real,
+        knock_out_level: _Real,
+        autocall_times: Iterable[datetime],
+        effective_time: datetime,
+        expiry_time: datetime,
+        knock_in_observation_clock_time: time,
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
+        principal_redemption_ratio: _Real = ...,
+        rebate_rate: _Real = ...,
+        annual_rebate_rate: _Real = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
+    ) -> SnowballOption:
+        """Create constant knock-out coupons and levels with daily knock-in monitoring.
+
+        Parameters
+        ----------
+        coupon_rate : float
+            Finite annual coupon rate in decimal units.
+        initial_spot : float
+            Positive reference spot used to normalize downside losses.
+        knock_in_level : float
+            Positive strict downside threshold.
+        knock_out_level : float
+            Positive inclusive knock-out threshold.
+        autocall_times : iterable of datetime.datetime
+            Strictly increasing knock-out and coupon observation times within life.
+        effective_time : datetime.datetime
+            Inclusive contract start.
+        expiry_time : datetime.datetime
+            Inclusive expiry time.
+        knock_in_observation_clock_time : datetime.time
+            Daily knock-in observation clock on trading days.
+        barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+            Events strictly before valuation. None is unknown; no_event means no prior
+            knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+            knocked_out means settled with no remaining value. The engine handles
+            observations at valuation using current spot. Callers supply applicable state.
+        principal_redemption_ratio : float, optional
+            Nonnegative normalized principal, independent of coupons and losses.
+        rebate_rate : float, optional
+            Finite nonnegative flat rebate per unit of original notional, default 0.
+        annual_rebate_rate : float, optional
+            Finite nonnegative annualized rebate rate, default 0. Accrues from
+            effective time to actual knock-out or expiry using Actual/365 Fixed,
+            including intraday time and nontrading days. Both rebates are additive
+            to coupons and principal gains or losses and pay once at termination.
+            A note knocked out before valuation is settled and has zero value.
+        calendar : TradingCalendar, optional
+            Explicit calendar override; omission or Ellipsis inherits an
+            ObservationSchedule calendar, otherwise weekdays.
+
+        Returns
+        -------
+        SnowballOption
+            Validated owned contract.
+
+        Raises
+        ------
+        InvalidInputError
+            If contractual amounts, life times or observation terms are invalid.
+
+        Notes
+        -----
+        Knock-in is observed on every trading day.
+
+        The returned SnowballOption stores observation and maturity coupons separately.
+        To edit its first annual observation coupon while preserving coupon spreads,
+        use the returned note's quoting operation:
+
+        .. code-block:: python
+
+            edited = note.with_coupon(
+                first_observation_coupon=0.15,
+                quote_convention="shift_maturity_coupon",
+            )
+
+        This convention shifts the maturity coupon by the same amount. Use
+        preserve_maturity_coupon to keep maturity fixed. Replacing only
+        maturity_coupon_rate edits only the maturity coupon.
+        """
+
+    @staticmethod
+    def european(
+        *,
+        coupon_rate: _Real,
+        initial_spot: _Real,
+        knock_in_level: _Real,
+        knock_out_level: _Real,
+        autocall_times: Iterable[datetime],
+        effective_time: datetime,
+        expiry_time: datetime,
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
+        principal_redemption_ratio: _Real = ...,
+        rebate_rate: _Real = ...,
+        annual_rebate_rate: _Real = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
+    ) -> SnowballOption:
+        """Create a snowball with knock-in observed only at expiry.
+
+        Parameters
+        ----------
+        coupon_rate : float
+            Finite annual coupon rate in decimal units.
+        initial_spot : float
+            Positive reference spot used to normalize downside losses.
+        knock_in_level : float
+            Positive strict downside threshold.
+        knock_out_level : float
+            Positive inclusive knock-out threshold.
+        autocall_times : iterable of datetime.datetime
+            Strictly increasing knock-out and coupon observation times within life.
+        effective_time : datetime.datetime
+            Inclusive contract start.
+        expiry_time : datetime.datetime
+            Inclusive expiry time.
+        barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+            Events strictly before valuation. None is unknown; no_event means no prior
+            knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+            knocked_out means settled with no remaining value. The engine handles
+            observations at valuation using current spot. Callers supply applicable state.
+        principal_redemption_ratio : float, optional
+            Nonnegative normalized principal, independent of coupons and losses.
+        rebate_rate : float, optional
+            Finite nonnegative flat rebate per unit of original notional, default 0.
+        annual_rebate_rate : float, optional
+            Finite nonnegative annualized rebate rate, default 0. Accrues from
+            effective time to actual knock-out or expiry using Actual/365 Fixed,
+            including intraday time and nontrading days. Both rebates are additive
+            to coupons and principal gains or losses and pay once at termination.
+            A note knocked out before valuation is settled and has zero value.
+        calendar : TradingCalendar, optional
+            Explicit calendar override; omission or Ellipsis inherits an
+            ObservationSchedule calendar, otherwise weekdays.
+
+        Returns
+        -------
+        SnowballOption
+            Validated owned contract.
+
+        Raises
+        ------
+        InvalidInputError
+            If contractual amounts, life times or observation terms are invalid.
+
+        Notes
+        -----
+        Knock-in is observed only at expiry.
+
+        The returned SnowballOption stores observation and maturity coupons separately.
+        To edit its first annual observation coupon while preserving coupon spreads,
+        use the returned note's quoting operation:
+
+        .. code-block:: python
+
+            edited = note.with_coupon(
+                first_observation_coupon=0.15,
+                quote_convention="shift_maturity_coupon",
+            )
+
+        This convention shifts the maturity coupon by the same amount. Use
+        preserve_maturity_coupon to keep maturity fixed. Replacing only
+        maturity_coupon_rate edits only the maturity coupon.
+        """
+
+    @staticmethod
+    def step_down(
+        *,
+        coupon_rate: _Real,
+        initial_spot: _Real,
+        knock_in_level: _Real,
+        initial_knock_out_level: _Real,
+        knock_out_level_decrement: _Real,
+        autocall_times: Iterable[datetime],
+        effective_time: datetime,
+        expiry_time: datetime,
+        knock_in_observation_clock_time: time,
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
+        principal_redemption_ratio: _Real = ...,
+        rebate_rate: _Real = ...,
+        annual_rebate_rate: _Real = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
+    ) -> SnowballOption:
+        """Create a snowball with decreasing knock-out levels.
+
+        Parameters
+        ----------
+        coupon_rate : float
+            Finite annual coupon rate in decimal units.
+        initial_spot : float
+            Positive reference spot used to normalize downside losses.
+        knock_in_level : float
+            Positive strict downside threshold.
+        initial_knock_out_level : float
+            Positive knock-out threshold at the first observation.
+        knock_out_level_decrement : float
+            Absolute price decrement after each observation; may be negative.
+        autocall_times : iterable of datetime.datetime
+            Strictly increasing knock-out and coupon observation times within life.
+        effective_time : datetime.datetime
+            Inclusive contract start.
+        expiry_time : datetime.datetime
+            Inclusive expiry time.
+        knock_in_observation_clock_time : datetime.time
+            Daily knock-in observation clock on trading days.
+        barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+            Events strictly before valuation. None is unknown; no_event means no prior
+            knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+            knocked_out means settled with no remaining value. The engine handles
+            observations at valuation using current spot. Callers supply applicable state.
+        principal_redemption_ratio : float, optional
+            Nonnegative normalized principal, independent of coupons and losses.
+        rebate_rate : float, optional
+            Finite nonnegative flat rebate per unit of original notional, default 0.
+        annual_rebate_rate : float, optional
+            Finite nonnegative annualized rebate rate, default 0. Accrues from
+            effective time to actual knock-out or expiry using Actual/365 Fixed,
+            including intraday time and nontrading days. Both rebates are additive
+            to coupons and principal gains or losses and pay once at termination.
+            A note knocked out before valuation is settled and has zero value.
+        calendar : TradingCalendar, optional
+            Explicit calendar override; omission or Ellipsis inherits an
+            ObservationSchedule calendar, otherwise weekdays.
+
+        Returns
+        -------
+        SnowballOption
+            Validated owned contract.
+
+        Raises
+        ------
+        InvalidInputError
+            If contractual amounts, life times or observation terms are invalid.
+
+        Notes
+        -----
+        Knock-in is observed on every trading day. Decrements apply after each observation; the first uses the initial
+        value. Signed coupons and decrements are accepted if all expanded terms are
+        valid.
+
+        The returned SnowballOption stores observation and maturity coupons separately.
+        To edit its first annual observation coupon while preserving coupon spreads,
+        use the returned note's quoting operation:
+
+        .. code-block:: python
+
+            edited = note.with_coupon(
+                first_observation_coupon=0.15,
+                quote_convention="shift_maturity_coupon",
+            )
+
+        This convention shifts the maturity coupon by the same amount. Use
+        preserve_maturity_coupon to keep maturity fixed. Replacing only
+        maturity_coupon_rate edits only the maturity coupon.
+        """
+
+    @staticmethod
+    def both_down(
+        *,
+        initial_coupon_rate: _Real,
+        initial_spot: _Real,
+        knock_in_level: _Real,
+        initial_knock_out_level: _Real,
+        coupon_rate_decrement: _Real,
+        knock_out_level_decrement: _Real,
+        autocall_times: Iterable[datetime],
+        effective_time: datetime,
+        expiry_time: datetime,
+        knock_in_observation_clock_time: time,
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
+        principal_redemption_ratio: _Real = ...,
+        rebate_rate: _Real = ...,
+        annual_rebate_rate: _Real = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
+    ) -> SnowballOption:
+        """Create a snowball with decreasing coupons and knock-out levels.
+
+        Parameters
+        ----------
+        initial_coupon_rate : float
+            Annual coupon rate at the first observation.
+        initial_spot : float
+            Positive reference spot used to normalize downside losses.
+        knock_in_level : float
+            Positive strict downside threshold.
+        initial_knock_out_level : float
+            Positive knock-out threshold at the first observation.
+        coupon_rate_decrement : float
+            Absolute decimal-rate decrement after each observation.
+        knock_out_level_decrement : float
+            Absolute price decrement after each observation; may be negative.
+        autocall_times : iterable of datetime.datetime
+            Strictly increasing knock-out and coupon observation times within life.
+        effective_time : datetime.datetime
+            Inclusive contract start.
+        expiry_time : datetime.datetime
+            Inclusive expiry time.
+        knock_in_observation_clock_time : datetime.time
+            Daily knock-in observation clock on trading days.
+        barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+            Events strictly before valuation. None is unknown; no_event means no prior
+            knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+            knocked_out means settled with no remaining value. The engine handles
+            observations at valuation using current spot. Callers supply applicable state.
+        principal_redemption_ratio : float, optional
+            Nonnegative normalized principal, independent of coupons and losses.
+        rebate_rate : float, optional
+            Finite nonnegative flat rebate per unit of original notional, default 0.
+        annual_rebate_rate : float, optional
+            Finite nonnegative annualized rebate rate, default 0. Accrues from
+            effective time to actual knock-out or expiry using Actual/365 Fixed,
+            including intraday time and nontrading days. Both rebates are additive
+            to coupons and principal gains or losses and pay once at termination.
+            A note knocked out before valuation is settled and has zero value.
+        calendar : TradingCalendar, optional
+            Explicit calendar override; omission or Ellipsis inherits an
+            ObservationSchedule calendar, otherwise weekdays.
+
+        Returns
+        -------
+        SnowballOption
+            Validated owned contract.
+
+        Raises
+        ------
+        InvalidInputError
+            If contractual amounts, life times or observation terms are invalid.
+
+        Notes
+        -----
+        Knock-in is observed on every trading day. Decrements apply after each observation; the first uses the initial
+        value. Signed coupons and decrements are accepted if all expanded terms are
+        valid. Maturity uses the final observation coupon.
+
+        The returned SnowballOption stores observation and maturity coupons separately.
+        To edit its first annual observation coupon while preserving coupon spreads,
+        use the returned note's quoting operation:
+
+        .. code-block:: python
+
+            edited = note.with_coupon(
+                first_observation_coupon=0.15,
+                quote_convention="shift_maturity_coupon",
+            )
+
+        This convention shifts the maturity coupon by the same amount. Use
+        preserve_maturity_coupon to keep maturity fixed. Replacing only
+        maturity_coupon_rate edits only the maturity coupon.
+        """
+
+    @staticmethod
+    def dual_coupon(
+        *,
+        knock_out_coupon_rate: _Real,
+        initial_spot: _Real,
+        knock_in_level: _Real,
+        knock_out_level: _Real,
+        maturity_coupon_rate: _Real,
+        autocall_times: Iterable[datetime],
+        effective_time: datetime,
+        expiry_time: datetime,
+        knock_in_observation_clock_time: time,
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
+        principal_redemption_ratio: _Real = ...,
+        rebate_rate: _Real = ...,
+        annual_rebate_rate: _Real = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
+    ) -> SnowballOption:
+        """Create a snowball with separate knock-out and maturity coupons.
+
+        Parameters
+        ----------
+        knock_out_coupon_rate : float
+            Annual coupon rate for knock-out settlement.
+        initial_spot : float
+            Positive reference spot used to normalize downside losses.
+        knock_in_level : float
+            Positive strict downside threshold.
+        knock_out_level : float
+            Positive inclusive knock-out threshold.
+        maturity_coupon_rate : float
+            Finite annual maturity coupon rate in decimal units.
+        autocall_times : iterable of datetime.datetime
+            Strictly increasing knock-out and coupon observation times within life.
+        effective_time : datetime.datetime
+            Inclusive contract start.
+        expiry_time : datetime.datetime
+            Inclusive expiry time.
+        knock_in_observation_clock_time : datetime.time
+            Daily knock-in observation clock on trading days.
+        barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+            Events strictly before valuation. None is unknown; no_event means no prior
+            knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+            knocked_out means settled with no remaining value. The engine handles
+            observations at valuation using current spot. Callers supply applicable state.
+        principal_redemption_ratio : float, optional
+            Nonnegative normalized principal, independent of coupons and losses.
+        rebate_rate : float, optional
+            Finite nonnegative flat rebate per unit of original notional, default 0.
+        annual_rebate_rate : float, optional
+            Finite nonnegative annualized rebate rate, default 0. Accrues from
+            effective time to actual knock-out or expiry using Actual/365 Fixed,
+            including intraday time and nontrading days. Both rebates are additive
+            to coupons and principal gains or losses and pay once at termination.
+            A note knocked out before valuation is settled and has zero value.
+        calendar : TradingCalendar, optional
+            Explicit calendar override; omission or Ellipsis inherits an
+            ObservationSchedule calendar, otherwise weekdays.
+
+        Returns
+        -------
+        SnowballOption
+            Validated owned contract.
+
+        Raises
+        ------
+        InvalidInputError
+            If contractual amounts, life times or observation terms are invalid.
+
+        Notes
+        -----
+        Knock-in is observed on every trading day.
+
+        The returned SnowballOption stores observation and maturity coupons separately.
+        To edit its first annual observation coupon while preserving coupon spreads,
+        use the returned note's quoting operation:
+
+        .. code-block:: python
+
+            edited = note.with_coupon(
+                first_observation_coupon=0.15,
+                quote_convention="shift_maturity_coupon",
+            )
+
+        This convention shifts the maturity coupon by the same amount. Use
+        preserve_maturity_coupon to keep maturity fixed. Replacing only
+        maturity_coupon_rate edits only the maturity coupon.
+        """
+
+    @staticmethod
+    def parachute(
+        *,
+        coupon_rate: _Real,
+        initial_spot: _Real,
+        knock_in_level: _Real,
+        knock_out_level: _Real,
+        final_knock_out_level: _Real,
+        autocall_times: Iterable[datetime],
+        effective_time: datetime,
+        expiry_time: datetime,
+        knock_in_observation_clock_time: time,
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
+        principal_redemption_ratio: _Real = ...,
+        rebate_rate: _Real = ...,
+        annual_rebate_rate: _Real = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
+    ) -> SnowballOption:
+        """Create a snowball with a distinct final knock-out level.
+
+        Parameters
+        ----------
+        coupon_rate : float
+            Finite annual coupon rate in decimal units.
+        initial_spot : float
+            Positive reference spot used to normalize downside losses.
+        knock_in_level : float
+            Positive strict downside threshold.
+        knock_out_level : float
+            Positive inclusive knock-out threshold.
+        final_knock_out_level : float
+            Positive threshold replacing only the final knock-out level.
+        autocall_times : iterable of datetime.datetime
+            Strictly increasing knock-out and coupon observation times within life.
+        effective_time : datetime.datetime
+            Inclusive contract start.
+        expiry_time : datetime.datetime
+            Inclusive expiry time.
+        knock_in_observation_clock_time : datetime.time
+            Daily knock-in observation clock on trading days.
+        barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+            Events strictly before valuation. None is unknown; no_event means no prior
+            knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+            knocked_out means settled with no remaining value. The engine handles
+            observations at valuation using current spot. Callers supply applicable state.
+        principal_redemption_ratio : float, optional
+            Nonnegative normalized principal, independent of coupons and losses.
+        rebate_rate : float, optional
+            Finite nonnegative flat rebate per unit of original notional, default 0.
+        annual_rebate_rate : float, optional
+            Finite nonnegative annualized rebate rate, default 0. Accrues from
+            effective time to actual knock-out or expiry using Actual/365 Fixed,
+            including intraday time and nontrading days. Both rebates are additive
+            to coupons and principal gains or losses and pay once at termination.
+            A note knocked out before valuation is settled and has zero value.
+        calendar : TradingCalendar, optional
+            Explicit calendar override; omission or Ellipsis inherits an
+            ObservationSchedule calendar, otherwise weekdays.
+
+        Returns
+        -------
+        SnowballOption
+            Validated owned contract.
+
+        Raises
+        ------
+        InvalidInputError
+            If contractual amounts, life times or observation terms are invalid.
+
+        Notes
+        -----
+        Knock-in is observed on every trading day.
+
+        The returned SnowballOption stores observation and maturity coupons separately.
+        To edit its first annual observation coupon while preserving coupon spreads,
+        use the returned note's quoting operation:
+
+        .. code-block:: python
+
+            edited = note.with_coupon(
+                first_observation_coupon=0.15,
+                quote_convention="shift_maturity_coupon",
+            )
+
+        This convention shifts the maturity coupon by the same amount. Use
+        preserve_maturity_coupon to keep maturity fixed. Replacing only
+        maturity_coupon_rate edits only the maturity coupon.
+        """
+
+    @staticmethod
+    def otm(
+        *,
+        coupon_rate: _Real,
+        initial_spot: _Real,
+        knock_in_level: _Real,
+        knock_out_level: _Real,
+        upper_strike: _Real,
+        autocall_times: Iterable[datetime],
+        effective_time: datetime,
+        expiry_time: datetime,
+        knock_in_observation_clock_time: time,
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
+        principal_redemption_ratio: _Real = ...,
+        rebate_rate: _Real = ...,
+        annual_rebate_rate: _Real = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
+    ) -> SnowballOption:
+        """Create a snowball with a replaced upper terminal strike.
+
+        Parameters
+        ----------
+        coupon_rate : float
+            Finite annual coupon rate in decimal units.
+        initial_spot : float
+            Positive reference spot used to normalize downside losses.
+        knock_in_level : float
+            Positive strict downside threshold.
+        knock_out_level : float
+            Positive inclusive knock-out threshold.
+        upper_strike : float
+            Positive upper terminal settlement strike.
+        autocall_times : iterable of datetime.datetime
+            Strictly increasing knock-out and coupon observation times within life.
+        effective_time : datetime.datetime
+            Inclusive contract start.
+        expiry_time : datetime.datetime
+            Inclusive expiry time.
+        knock_in_observation_clock_time : datetime.time
+            Daily knock-in observation clock on trading days.
+        barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+            Events strictly before valuation. None is unknown; no_event means no prior
+            knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+            knocked_out means settled with no remaining value. The engine handles
+            observations at valuation using current spot. Callers supply applicable state.
+        principal_redemption_ratio : float, optional
+            Nonnegative normalized principal, independent of coupons and losses.
+        rebate_rate : float, optional
+            Finite nonnegative flat rebate per unit of original notional, default 0.
+        annual_rebate_rate : float, optional
+            Finite nonnegative annualized rebate rate, default 0. Accrues from
+            effective time to actual knock-out or expiry using Actual/365 Fixed,
+            including intraday time and nontrading days. Both rebates are additive
+            to coupons and principal gains or losses and pay once at termination.
+            A note knocked out before valuation is settled and has zero value.
+        calendar : TradingCalendar, optional
+            Explicit calendar override; omission or Ellipsis inherits an
+            ObservationSchedule calendar, otherwise weekdays.
+
+        Returns
+        -------
+        SnowballOption
+            Validated owned contract.
+
+        Raises
+        ------
+        InvalidInputError
+            If contractual amounts, life times or observation terms are invalid.
+
+        Notes
+        -----
+        Knock-in is observed on every trading day.
+
+        The returned SnowballOption stores observation and maturity coupons separately.
+        To edit its first annual observation coupon while preserving coupon spreads,
+        use the returned note's quoting operation:
+
+        .. code-block:: python
+
+            edited = note.with_coupon(
+                first_observation_coupon=0.15,
+                quote_convention="shift_maturity_coupon",
+            )
+
+        This convention shifts the maturity coupon by the same amount. Use
+        preserve_maturity_coupon to keep maturity fixed. Replacing only
+        maturity_coupon_rate edits only the maturity coupon.
+        """
+
+    @staticmethod
+    def loss_capped(
+        *,
+        coupon_rate: _Real,
+        initial_spot: _Real,
+        knock_in_level: _Real,
+        knock_out_level: _Real,
+        lower_strike: _Real,
+        autocall_times: Iterable[datetime],
+        effective_time: datetime,
+        expiry_time: datetime,
+        knock_in_observation_clock_time: time,
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
+        principal_redemption_ratio: _Real = ...,
+        rebate_rate: _Real = ...,
+        annual_rebate_rate: _Real = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
+    ) -> SnowballOption:
+        """Create a snowball whose lower terminal strike caps downside loss.
+
+        Parameters
+        ----------
+        coupon_rate : float
+            Finite annual coupon rate in decimal units.
+        initial_spot : float
+            Positive reference spot used to normalize downside losses.
+        knock_in_level : float
+            Positive strict downside threshold.
+        knock_out_level : float
+            Positive inclusive knock-out threshold.
+        lower_strike : float
+            Nonnegative lower terminal strike, at most the upper strike.
+        autocall_times : iterable of datetime.datetime
+            Strictly increasing knock-out and coupon observation times within life.
+        effective_time : datetime.datetime
+            Inclusive contract start.
+        expiry_time : datetime.datetime
+            Inclusive expiry time.
+        knock_in_observation_clock_time : datetime.time
+            Daily knock-in observation clock on trading days.
+        barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+            Events strictly before valuation. None is unknown; no_event means no prior
+            knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+            knocked_out means settled with no remaining value. The engine handles
+            observations at valuation using current spot. Callers supply applicable state.
+        principal_redemption_ratio : float, optional
+            Nonnegative normalized principal, independent of coupons and losses.
+        rebate_rate : float, optional
+            Finite nonnegative flat rebate per unit of original notional, default 0.
+        annual_rebate_rate : float, optional
+            Finite nonnegative annualized rebate rate, default 0. Accrues from
+            effective time to actual knock-out or expiry using Actual/365 Fixed,
+            including intraday time and nontrading days. Both rebates are additive
+            to coupons and principal gains or losses and pay once at termination.
+            A note knocked out before valuation is settled and has zero value.
+        calendar : TradingCalendar, optional
+            Explicit calendar override; omission or Ellipsis inherits an
+            ObservationSchedule calendar, otherwise weekdays.
+
+        Returns
+        -------
+        SnowballOption
+            Validated owned contract.
+
+        Raises
+        ------
+        InvalidInputError
+            If contractual amounts, life times or observation terms are invalid.
+
+        Notes
+        -----
+        Knock-in is observed on every trading day.
+
+        The returned SnowballOption stores observation and maturity coupons separately.
+        To edit its first annual observation coupon while preserving coupon spreads,
+        use the returned note's quoting operation:
+
+        .. code-block:: python
+
+            edited = note.with_coupon(
+                first_observation_coupon=0.15,
+                quote_convention="shift_maturity_coupon",
+            )
+
+        This convention shifts the maturity coupon by the same amount. Use
+        preserve_maturity_coupon to keep maturity fixed. Replacing only
+        maturity_coupon_rate edits only the maturity coupon.
+        """
+
+    @staticmethod
+    def early_profit(
+        *,
+        first_coupon_rate: _Real,
+        initial_spot: _Real,
+        knock_in_level: _Real,
+        knock_out_level: _Real,
+        second_coupon_rate: _Real,
+        first_stage_end_time: datetime,
+        autocall_times: Iterable[datetime],
+        effective_time: datetime,
+        expiry_time: datetime,
+        knock_in_observation_clock_time: time,
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
+        principal_redemption_ratio: _Real = ...,
+        rebate_rate: _Real = ...,
+        annual_rebate_rate: _Real = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
+    ) -> SnowballOption:
+        """Create a two-stage early-profit snowball.
+
+        Parameters
+        ----------
+        first_coupon_rate : float
+            Finite signed annual coupon rate through first_stage_end_time.
+        initial_spot : float
+            Positive reference spot used to normalize downside losses.
+        knock_in_level : float
+            Positive strict downside threshold.
+        knock_out_level : float
+            Positive inclusive knock-out threshold.
+        second_coupon_rate : float
+            Finite signed annual coupon rate after the cutoff and at maturity.
+        first_stage_end_time : datetime.datetime
+            Inclusive first-stage end within life and strictly before expiry.
+        autocall_times : iterable of datetime.datetime
+            Strictly increasing knock-out and coupon observation times within life.
+        effective_time : datetime.datetime
+            Inclusive contract start.
+        expiry_time : datetime.datetime
+            Inclusive expiry time.
+        knock_in_observation_clock_time : datetime.time
+            Daily knock-in observation clock on trading days.
+        barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+            Events strictly before valuation. None is unknown; no_event means no prior
+            knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+            knocked_out means settled with no remaining value. The engine handles
+            observations at valuation using current spot. Callers supply applicable state.
+        principal_redemption_ratio : float, optional
+            Nonnegative normalized principal, independent of coupons and losses.
+        rebate_rate : float, optional
+            Finite nonnegative flat rebate per unit of original notional, default 0.
+        annual_rebate_rate : float, optional
+            Finite nonnegative annualized rebate rate, default 0. Accrues from
+            effective time to actual knock-out or expiry using Actual/365 Fixed,
+            including intraday time and nontrading days. Both rebates are additive
+            to coupons and principal gains or losses and pay once at termination.
+            A note knocked out before valuation is settled and has zero value.
+        calendar : TradingCalendar, optional
+            Explicit calendar override; omission or Ellipsis inherits an
+            ObservationSchedule calendar, otherwise weekdays.
+
+        Returns
+        -------
+        SnowballOption
+            Validated owned contract.
+
+        Raises
+        ------
+        InvalidInputError
+            If contractual amounts, life times or observation terms are invalid.
+
+        Notes
+        -----
+        Knock-in is observed on every trading day. Knock-out uses the observation's stage rate over the whole holding period.
+        Maturity uses the final stage rate. Cutoffs need not be observation or trading
+        times, stages may have no autocall_observations, and rates need not decrease.
+
+        The returned SnowballOption stores observation and maturity coupons separately.
+        To edit its first annual observation coupon while preserving coupon spreads,
+        use the returned note's quoting operation:
+
+        .. code-block:: python
+
+            edited = note.with_coupon(
+                first_observation_coupon=0.15,
+                quote_convention="shift_maturity_coupon",
+            )
+
+        This convention shifts the maturity coupon by the same amount. Use
+        preserve_maturity_coupon to keep maturity fixed. Replacing only
+        maturity_coupon_rate edits only the maturity coupon.
+        """
+
+    @staticmethod
+    def butterfly(
+        *,
+        first_coupon_rate: _Real,
+        initial_spot: _Real,
+        knock_in_level: _Real,
+        knock_out_level: _Real,
+        second_coupon_rate: _Real,
+        third_coupon_rate: _Real,
+        first_stage_end_time: datetime,
+        second_stage_end_time: datetime,
+        autocall_times: Iterable[datetime],
+        effective_time: datetime,
+        expiry_time: datetime,
+        knock_in_observation_clock_time: time,
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
+        principal_redemption_ratio: _Real = ...,
+        rebate_rate: _Real = ...,
+        annual_rebate_rate: _Real = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
+    ) -> SnowballOption:
+        """Create a three-stage butterfly snowball.
+
+        Parameters
+        ----------
+        first_coupon_rate : float
+            Finite signed annual coupon rate through first_stage_end_time.
+        initial_spot : float
+            Positive reference spot used to normalize downside losses.
+        knock_in_level : float
+            Positive strict downside threshold.
+        knock_out_level : float
+            Positive inclusive knock-out threshold.
+        second_coupon_rate : float
+            Finite signed annual coupon in the second stage.
+        third_coupon_rate : float
+            Finite signed annual coupon in the third stage and at maturity.
+        first_stage_end_time : datetime.datetime
+            Inclusive first-stage end within life and before second_stage_end_time.
+        second_stage_end_time : datetime.datetime
+            Inclusive second-stage end strictly before expiry.
+        autocall_times : iterable of datetime.datetime
+            Strictly increasing knock-out and coupon observation times within life.
+        effective_time : datetime.datetime
+            Inclusive contract start.
+        expiry_time : datetime.datetime
+            Inclusive expiry time.
+        knock_in_observation_clock_time : datetime.time
+            Daily knock-in observation clock on trading days.
+        barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+            Events strictly before valuation. None is unknown; no_event means no prior
+            knock-in or knock-out; knocked_in means an outstanding knocked-in note;
+            knocked_out means settled with no remaining value. The engine handles
+            observations at valuation using current spot. Callers supply applicable state.
+        principal_redemption_ratio : float, optional
+            Nonnegative normalized principal, independent of coupons and losses.
+        rebate_rate : float, optional
+            Finite nonnegative flat rebate per unit of original notional, default 0.
+        annual_rebate_rate : float, optional
+            Finite nonnegative annualized rebate rate, default 0. Accrues from
+            effective time to actual knock-out or expiry using Actual/365 Fixed,
+            including intraday time and nontrading days. Both rebates are additive
+            to coupons and principal gains or losses and pay once at termination.
+            A note knocked out before valuation is settled and has zero value.
+        calendar : TradingCalendar, optional
+            Explicit calendar override; omission or Ellipsis inherits an
+            ObservationSchedule calendar, otherwise weekdays.
+
+        Returns
+        -------
+        SnowballOption
+            Validated owned contract.
+
+        Raises
+        ------
+        InvalidInputError
+            If contractual amounts, life times or observation terms are invalid.
+
+        Notes
+        -----
+        Knock-in is observed on every trading day. Knock-out uses the observation's stage rate over the whole holding period.
+        Maturity uses the final stage rate. Cutoffs need not be observation or trading
+        times, stages may have no autocall_observations, and rates need not decrease.
+
+        The returned SnowballOption stores observation and maturity coupons separately.
+        To edit its first annual observation coupon while preserving coupon spreads,
+        use the returned note's quoting operation:
+
+        .. code-block:: python
+
+            edited = note.with_coupon(
+                first_observation_coupon=0.15,
+                quote_convention="shift_maturity_coupon",
+            )
+
+        This convention shifts the maturity coupon by the same amount. Use
+        preserve_maturity_coupon to keep maturity fixed. Replacing only
+        maturity_coupon_rate edits only the maturity coupon.
+        """
 
 class KnockOutObservation:
     """One Phoenix knock-out observation with a positive inclusive threshold.
@@ -7797,6 +8705,356 @@ class PhoenixOption:
     @property
     def coupon_times(self) -> tuple[datetime, ...]:
         """Return copied exact coupon observation times."""
+
+    @staticmethod
+    def standard(
+        *,
+        coupon_per_period: _Real,
+        initial_spot: _Real,
+        knock_in_level: _Real,
+        knock_out_level: _Real,
+        coupon_barrier_level: _Real,
+        knock_in_observation_clock_time: time,
+        autocall_times: Iterable[datetime],
+        effective_time: datetime,
+        expiry_time: datetime,
+        lockout_periods: SupportsIndex = ...,
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
+        principal_redemption_ratio: _Real = ...,
+        rebate_rate: _Real = ...,
+        annual_rebate_rate: _Real = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
+    ) -> PhoenixOption:
+        """Create a standard Phoenix with a constant knock-out barrier and optional initial lockout.
+
+        Parameters
+        ----------
+        coupon_per_period : float
+            Finite signed coupon proportion per qualifying observation; not
+            annualized.
+        initial_spot : float
+            Positive reference spot used to normalize downside losses.
+        knock_in_level : float
+            Positive strict knock-in threshold.
+        knock_out_level : float
+            Positive inclusive threshold at the first eligible knock-out observation.
+        coupon_barrier_level : float
+            Finite nonnegative inclusive coupon threshold, also tested on knock-out times.
+        knock_in_observation_clock_time : datetime.time
+            Daily knock-in observation clock on trading days.
+        autocall_times : iterable of datetime.datetime
+            Strictly increasing observation and payment times within life.
+        effective_time : datetime.datetime
+            Inclusive contract start.
+        expiry_time : datetime.datetime
+            Inclusive expiry time.
+        lockout_periods : int, optional
+            Initial observations excluded from knock-out; defaults to zero and must
+            leave at least one eligible observation. Coupon and knock-in observations
+            apply during the lockout.
+        barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+            State strictly before valuation. None is unknown; no_event means no prior
+            knock-in or knock-out, knocked_in means outstanding after knock-in, and
+            knocked_out means settled. Current observations use current spot.
+        principal_redemption_ratio : float, optional
+            Nonnegative normalized principal, independent of coupon and loss
+            components.
+        rebate_rate : float, optional
+            Finite nonnegative flat rebate per unit of original notional, default 0.
+        annual_rebate_rate : float, optional
+            Finite nonnegative annualized rebate rate, default 0. Accrues from
+            effective time to actual knock-out or expiry using Actual/365 Fixed,
+            including intraday time and nontrading days. Both rebates are additive
+            to coupons and principal gains or losses and pay once at termination.
+            A note knocked out before valuation is settled and has zero value.
+        calendar : TradingCalendar, optional
+            Explicit calendar override; omission or Ellipsis inherits an
+            ObservationSchedule calendar, otherwise weekdays.
+
+        Returns
+        -------
+        PhoenixOption
+            Validated owned contract with daily knock-in, initial spot as upper strike and zero lower strike.
+
+        Raises
+        ------
+        InvalidInputError
+            If numeric terms, lockout, times or observations are invalid.
+        TypeError
+            If a supplied representation is invalid, including Boolean or fractional counts.
+        OverflowError
+            If a count is negative or outside the native unsigned integer range.
+
+        Notes
+        -----
+        Coupons pay once per qualifying observation, including a qualifying
+        knock-out, with no day accrual or memory. Knock-out and coupon barriers are
+        inclusive; knock-in is strict. Observation times are payment times; no
+        observation is implicitly added at expiry. Calendar compatibility is
+        checked on construction; history consistency is checked during pricing.
+        Past coupons are settled.
+        """
+
+    @staticmethod
+    def step_down(
+        *,
+        coupon_per_period: _Real,
+        initial_spot: _Real,
+        knock_in_level: _Real,
+        initial_knock_out_level: _Real,
+        coupon_barrier_level: _Real,
+        knock_out_level_decrement: _Real,
+        knock_in_observation_clock_time: time,
+        autocall_times: Iterable[datetime],
+        effective_time: datetime,
+        expiry_time: datetime,
+        lockout_periods: SupportsIndex = ...,
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
+        principal_redemption_ratio: _Real = ...,
+        rebate_rate: _Real = ...,
+        annual_rebate_rate: _Real = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
+    ) -> PhoenixOption:
+        """Create a step-down Phoenix whose first eligible knock-out uses the initial level.
+
+        Parameters
+        ----------
+        coupon_per_period : float
+            Finite signed coupon proportion per qualifying observation; not
+            annualized.
+        initial_spot : float
+            Positive reference spot used to normalize downside losses.
+        knock_in_level : float
+            Positive strict knock-in threshold.
+        initial_knock_out_level : float
+            Positive inclusive threshold at the first eligible knock-out observation.
+        coupon_barrier_level : float
+            Finite nonnegative inclusive coupon threshold, also tested on knock-out times.
+        knock_out_level_decrement : float
+            Finite nonnegative absolute decrement after each eligible observation; lockout does not consume ladder steps.
+        knock_in_observation_clock_time : datetime.time
+            Daily knock-in observation clock on trading days.
+        autocall_times : iterable of datetime.datetime
+            Strictly increasing observation and payment times within life.
+        effective_time : datetime.datetime
+            Inclusive contract start.
+        expiry_time : datetime.datetime
+            Inclusive expiry time.
+        lockout_periods : int, optional
+            Initial observations excluded from knock-out; defaults to zero and must
+            leave at least one eligible observation. Coupon and knock-in observations
+            apply during the lockout.
+        barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+            State strictly before valuation. None is unknown; no_event means no prior
+            knock-in or knock-out, knocked_in means outstanding after knock-in, and
+            knocked_out means settled. Current observations use current spot.
+        principal_redemption_ratio : float, optional
+            Nonnegative normalized principal, independent of coupon and loss
+            components.
+        rebate_rate : float, optional
+            Finite nonnegative flat rebate per unit of original notional, default 0.
+        annual_rebate_rate : float, optional
+            Finite nonnegative annualized rebate rate, default 0. Accrues from
+            effective time to actual knock-out or expiry using Actual/365 Fixed,
+            including intraday time and nontrading days. Both rebates are additive
+            to coupons and principal gains or losses and pay once at termination.
+            A note knocked out before valuation is settled and has zero value.
+        calendar : TradingCalendar, optional
+            Explicit calendar override; omission or Ellipsis inherits an
+            ObservationSchedule calendar, otherwise weekdays.
+
+        Returns
+        -------
+        PhoenixOption
+            Validated owned contract with daily knock-in, initial spot as upper strike and zero lower strike.
+
+        Raises
+        ------
+        InvalidInputError
+            If numeric terms, lockout, times or observations are invalid.
+        TypeError
+            If a supplied representation is invalid, including Boolean or fractional counts.
+        OverflowError
+            If a count is negative or outside the native unsigned integer range.
+
+        Notes
+        -----
+        Coupons pay once per qualifying observation, including a qualifying
+        knock-out, with no day accrual or memory. Knock-out and coupon barriers are
+        inclusive; knock-in is strict. Observation times are payment times; no
+        observation is implicitly added at expiry. Calendar compatibility is
+        checked on construction; history consistency is checked during pricing.
+        Past coupons are settled.
+        """
+
+    @staticmethod
+    def fixed_coupon(
+        *,
+        coupon_per_period: _Real,
+        initial_spot: _Real,
+        knock_in_level: _Real,
+        knock_out_level: _Real,
+        autocall_times: Iterable[datetime],
+        effective_time: datetime,
+        expiry_time: datetime,
+        lockout_periods: SupportsIndex = ...,
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
+        principal_redemption_ratio: _Real = ...,
+        rebate_rate: _Real = ...,
+        annual_rebate_rate: _Real = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
+    ) -> PhoenixOption:
+        """Create a fixed coupon note with unconditional surviving coupons.
+
+        Parameters
+        ----------
+        coupon_per_period : float
+            Finite signed coupon proportion per qualifying observation; not
+            annualized.
+        initial_spot : float
+            Positive reference spot used to normalize downside losses.
+        knock_in_level : float
+            Positive strict knock-in threshold.
+        knock_out_level : float
+            Positive inclusive threshold at the first eligible knock-out observation.
+        autocall_times : iterable of datetime.datetime
+            Strictly increasing observation and payment times within life.
+        effective_time : datetime.datetime
+            Inclusive contract start.
+        expiry_time : datetime.datetime
+            Inclusive expiry time.
+        lockout_periods : int, optional
+            Initial observations excluded from knock-out; defaults to zero and must
+            leave at least one eligible observation. Coupon and knock-in observations
+            apply during the lockout.
+        barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+            State strictly before valuation. None is unknown; no_event means no prior
+            knock-in or knock-out, knocked_in means outstanding after knock-in, and
+            knocked_out means settled. Current observations use current spot.
+        principal_redemption_ratio : float, optional
+            Nonnegative normalized principal, independent of coupon and loss
+            components.
+        rebate_rate : float, optional
+            Finite nonnegative flat rebate per unit of original notional, default 0.
+        annual_rebate_rate : float, optional
+            Finite nonnegative annualized rebate rate, default 0. Accrues from
+            effective time to actual knock-out or expiry using Actual/365 Fixed,
+            including intraday time and nontrading days. Both rebates are additive
+            to coupons and principal gains or losses and pay once at termination.
+            A note knocked out before valuation is settled and has zero value.
+        calendar : TradingCalendar, optional
+            Explicit calendar override; omission or Ellipsis inherits an
+            ObservationSchedule calendar, otherwise weekdays.
+
+        Returns
+        -------
+        PhoenixOption
+            Validated owned contract with expiry-only knock-in, knock-in level as upper strike and zero lower strike.
+
+        Raises
+        ------
+        InvalidInputError
+            If numeric terms, lockout, times or observations are invalid.
+        TypeError
+            If a supplied representation is invalid, including Boolean or fractional counts.
+        OverflowError
+            If a count is negative or outside the native unsigned integer range.
+
+        Notes
+        -----
+        Coupons pay once per qualifying observation, including a qualifying
+        knock-out, with no day accrual or memory. Knock-out and coupon barriers are
+        inclusive; knock-in is strict. Observation times are payment times; no
+        observation is implicitly added at expiry. Calendar compatibility is
+        checked on construction; history consistency is checked during pricing.
+        Past coupons are settled.
+        """
+
+    @staticmethod
+    def digital_coupon(
+        *,
+        coupon_per_period: _Real,
+        initial_spot: _Real,
+        knock_in_level: _Real,
+        knock_out_level: _Real,
+        coupon_barrier_level: _Real,
+        autocall_times: Iterable[datetime],
+        effective_time: datetime,
+        expiry_time: datetime,
+        lockout_periods: SupportsIndex = ...,
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
+        principal_redemption_ratio: _Real = ...,
+        rebate_rate: _Real = ...,
+        annual_rebate_rate: _Real = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
+    ) -> PhoenixOption:
+        """Create a digital coupon note with barrier-conditional fixed coupons.
+
+        Parameters
+        ----------
+        coupon_per_period : float
+            Finite signed coupon proportion per qualifying observation; not
+            annualized.
+        initial_spot : float
+            Positive reference spot used to normalize downside losses.
+        knock_in_level : float
+            Positive strict knock-in threshold.
+        knock_out_level : float
+            Positive inclusive threshold at the first eligible knock-out observation.
+        coupon_barrier_level : float
+            Finite nonnegative inclusive coupon threshold, also tested on knock-out times.
+        autocall_times : iterable of datetime.datetime
+            Strictly increasing observation and payment times within life.
+        effective_time : datetime.datetime
+            Inclusive contract start.
+        expiry_time : datetime.datetime
+            Inclusive expiry time.
+        lockout_periods : int, optional
+            Initial observations excluded from knock-out; defaults to zero and must
+            leave at least one eligible observation. Coupon and knock-in observations
+            apply during the lockout.
+        barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+            State strictly before valuation. None is unknown; no_event means no prior
+            knock-in or knock-out, knocked_in means outstanding after knock-in, and
+            knocked_out means settled. Current observations use current spot.
+        principal_redemption_ratio : float, optional
+            Nonnegative normalized principal, independent of coupon and loss
+            components.
+        rebate_rate : float, optional
+            Finite nonnegative flat rebate per unit of original notional, default 0.
+        annual_rebate_rate : float, optional
+            Finite nonnegative annualized rebate rate, default 0. Accrues from
+            effective time to actual knock-out or expiry using Actual/365 Fixed,
+            including intraday time and nontrading days. Both rebates are additive
+            to coupons and principal gains or losses and pay once at termination.
+            A note knocked out before valuation is settled and has zero value.
+        calendar : TradingCalendar, optional
+            Explicit calendar override; omission or Ellipsis inherits an
+            ObservationSchedule calendar, otherwise weekdays.
+
+        Returns
+        -------
+        PhoenixOption
+            Validated owned contract with expiry-only knock-in, knock-in level as upper strike and zero lower strike.
+
+        Raises
+        ------
+        InvalidInputError
+            If numeric terms, lockout, times or observations are invalid.
+        TypeError
+            If a supplied representation is invalid, including Boolean or fractional counts.
+        OverflowError
+            If a count is negative or outside the native unsigned integer range.
+
+        Notes
+        -----
+        Coupons pay once per qualifying observation, including a qualifying
+        knock-out, with no day accrual or memory. Knock-out and coupon barriers are
+        inclusive; knock-in is strict. Observation times are payment times; no
+        observation is implicitly added at expiry. Calendar compatibility is
+        checked on construction; history consistency is checked during pricing.
+        Past coupons are settled.
+        """
 
 class BinarySnowballOption:
     """Snowball with knock-out coupons and no knock-in or downside loss.
@@ -8226,708 +9484,6 @@ class TernarySnowballOption:
     def calendar(self) -> TradingCalendar:
         """Return an owned copy of the contract's monitoring calendar."""
 
-def standard_snowball(
-    *,
-    coupon_rate: _Real,
-    initial_spot: _Real,
-    knock_in_level: _Real,
-    knock_out_level: _Real,
-    autocall_times: Iterable[datetime],
-    effective_time: datetime,
-    expiry_time: datetime,
-    knock_in_observation_clock_time: time,
-    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_redemption_ratio: _Real = ...,
-    rebate_rate: _Real = ...,
-    annual_rebate_rate: _Real = ...,
-    calendar: TradingCalendar | EllipsisType = ...,
-) -> SnowballOption:
-    """Create constant knock-out coupons and levels with daily knock-in monitoring.
-
-    Parameters
-    ----------
-    coupon_rate : float
-        Finite annual coupon rate in decimal units.
-    initial_spot : float
-        Positive reference spot used to normalize downside losses.
-    knock_in_level : float
-        Positive strict downside threshold.
-    knock_out_level : float
-        Positive inclusive knock-out threshold.
-    autocall_times : iterable of datetime.datetime
-        Strictly increasing knock-out and coupon observation times within life.
-    effective_time : datetime.datetime
-        Inclusive contract start.
-    expiry_time : datetime.datetime
-        Inclusive expiry time.
-    knock_in_observation_clock_time : datetime.time
-        Daily knock-in observation clock on trading days.
-    barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Events strictly before valuation. None is unknown; no_event means no prior
-        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
-        knocked_out means settled with no remaining value. The engine handles
-        observations at valuation using current spot. Callers supply applicable state.
-    principal_redemption_ratio : float, optional
-        Nonnegative normalized principal, independent of coupons and losses.
-    rebate_rate : float, optional
-        Finite nonnegative flat rebate per unit of original notional, default 0.
-    annual_rebate_rate : float, optional
-        Finite nonnegative annualized rebate rate, default 0. Accrues from
-        effective time to actual knock-out or expiry using Actual/365 Fixed,
-        including intraday time and nontrading days. Both rebates are additive
-        to coupons and principal gains or losses and pay once at termination.
-        A note knocked out before valuation is settled and has zero value.
-    calendar : TradingCalendar, optional
-        Explicit calendar override; omission or Ellipsis inherits an
-        ObservationSchedule calendar, otherwise weekdays.
-
-    Returns
-    -------
-    SnowballOption
-        Validated owned contract.
-
-    Raises
-    ------
-    InvalidInputError
-        If contractual amounts, life times or observation terms are invalid.
-
-    Notes
-    -----
-    Knock-in is observed on every trading day.
-
-    The returned SnowballOption stores observation and maturity coupons separately.
-    To edit its first annual observation coupon while preserving coupon spreads,
-    use the returned note's quoting operation:
-
-    .. code-block:: python
-
-        edited = note.with_coupon(
-            first_observation_coupon=0.15,
-            quote_convention="shift_maturity_coupon",
-        )
-
-    This convention shifts the maturity coupon by the same amount. Use
-    preserve_maturity_coupon to keep maturity fixed. Replacing only
-    maturity_coupon_rate edits only the maturity coupon.
-    """
-
-def european_snowball(
-    *,
-    coupon_rate: _Real,
-    initial_spot: _Real,
-    knock_in_level: _Real,
-    knock_out_level: _Real,
-    autocall_times: Iterable[datetime],
-    effective_time: datetime,
-    expiry_time: datetime,
-    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_redemption_ratio: _Real = ...,
-    rebate_rate: _Real = ...,
-    annual_rebate_rate: _Real = ...,
-    calendar: TradingCalendar | EllipsisType = ...,
-) -> SnowballOption:
-    """Create a snowball with knock-in observed only at expiry.
-
-    Parameters
-    ----------
-    coupon_rate : float
-        Finite annual coupon rate in decimal units.
-    initial_spot : float
-        Positive reference spot used to normalize downside losses.
-    knock_in_level : float
-        Positive strict downside threshold.
-    knock_out_level : float
-        Positive inclusive knock-out threshold.
-    autocall_times : iterable of datetime.datetime
-        Strictly increasing knock-out and coupon observation times within life.
-    effective_time : datetime.datetime
-        Inclusive contract start.
-    expiry_time : datetime.datetime
-        Inclusive expiry time.
-    barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Events strictly before valuation. None is unknown; no_event means no prior
-        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
-        knocked_out means settled with no remaining value. The engine handles
-        observations at valuation using current spot. Callers supply applicable state.
-    principal_redemption_ratio : float, optional
-        Nonnegative normalized principal, independent of coupons and losses.
-    rebate_rate : float, optional
-        Finite nonnegative flat rebate per unit of original notional, default 0.
-    annual_rebate_rate : float, optional
-        Finite nonnegative annualized rebate rate, default 0. Accrues from
-        effective time to actual knock-out or expiry using Actual/365 Fixed,
-        including intraday time and nontrading days. Both rebates are additive
-        to coupons and principal gains or losses and pay once at termination.
-        A note knocked out before valuation is settled and has zero value.
-    calendar : TradingCalendar, optional
-        Explicit calendar override; omission or Ellipsis inherits an
-        ObservationSchedule calendar, otherwise weekdays.
-
-    Returns
-    -------
-    SnowballOption
-        Validated owned contract.
-
-    Raises
-    ------
-    InvalidInputError
-        If contractual amounts, life times or observation terms are invalid.
-
-    Notes
-    -----
-    Knock-in is observed only at expiry.
-
-    The returned SnowballOption stores observation and maturity coupons separately.
-    To edit its first annual observation coupon while preserving coupon spreads,
-    use the returned note's quoting operation:
-
-    .. code-block:: python
-
-        edited = note.with_coupon(
-            first_observation_coupon=0.15,
-            quote_convention="shift_maturity_coupon",
-        )
-
-    This convention shifts the maturity coupon by the same amount. Use
-    preserve_maturity_coupon to keep maturity fixed. Replacing only
-    maturity_coupon_rate edits only the maturity coupon.
-    """
-
-def step_down_snowball(
-    *,
-    coupon_rate: _Real,
-    initial_spot: _Real,
-    knock_in_level: _Real,
-    initial_knock_out_level: _Real,
-    knock_out_level_decrement: _Real,
-    autocall_times: Iterable[datetime],
-    effective_time: datetime,
-    expiry_time: datetime,
-    knock_in_observation_clock_time: time,
-    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_redemption_ratio: _Real = ...,
-    rebate_rate: _Real = ...,
-    annual_rebate_rate: _Real = ...,
-    calendar: TradingCalendar | EllipsisType = ...,
-) -> SnowballOption:
-    """Create a snowball with decreasing knock-out levels.
-
-    Parameters
-    ----------
-    coupon_rate : float
-        Finite annual coupon rate in decimal units.
-    initial_spot : float
-        Positive reference spot used to normalize downside losses.
-    knock_in_level : float
-        Positive strict downside threshold.
-    initial_knock_out_level : float
-        Positive knock-out threshold at the first observation.
-    knock_out_level_decrement : float
-        Absolute price decrement after each observation; may be negative.
-    autocall_times : iterable of datetime.datetime
-        Strictly increasing knock-out and coupon observation times within life.
-    effective_time : datetime.datetime
-        Inclusive contract start.
-    expiry_time : datetime.datetime
-        Inclusive expiry time.
-    knock_in_observation_clock_time : datetime.time
-        Daily knock-in observation clock on trading days.
-    barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Events strictly before valuation. None is unknown; no_event means no prior
-        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
-        knocked_out means settled with no remaining value. The engine handles
-        observations at valuation using current spot. Callers supply applicable state.
-    principal_redemption_ratio : float, optional
-        Nonnegative normalized principal, independent of coupons and losses.
-    rebate_rate : float, optional
-        Finite nonnegative flat rebate per unit of original notional, default 0.
-    annual_rebate_rate : float, optional
-        Finite nonnegative annualized rebate rate, default 0. Accrues from
-        effective time to actual knock-out or expiry using Actual/365 Fixed,
-        including intraday time and nontrading days. Both rebates are additive
-        to coupons and principal gains or losses and pay once at termination.
-        A note knocked out before valuation is settled and has zero value.
-    calendar : TradingCalendar, optional
-        Explicit calendar override; omission or Ellipsis inherits an
-        ObservationSchedule calendar, otherwise weekdays.
-
-    Returns
-    -------
-    SnowballOption
-        Validated owned contract.
-
-    Raises
-    ------
-    InvalidInputError
-        If contractual amounts, life times or observation terms are invalid.
-
-    Notes
-    -----
-    Knock-in is observed on every trading day. Decrements apply after each observation; the first uses the initial
-    value. Signed coupons and decrements are accepted if all expanded terms are
-    valid.
-
-    The returned SnowballOption stores observation and maturity coupons separately.
-    To edit its first annual observation coupon while preserving coupon spreads,
-    use the returned note's quoting operation:
-
-    .. code-block:: python
-
-        edited = note.with_coupon(
-            first_observation_coupon=0.15,
-            quote_convention="shift_maturity_coupon",
-        )
-
-    This convention shifts the maturity coupon by the same amount. Use
-    preserve_maturity_coupon to keep maturity fixed. Replacing only
-    maturity_coupon_rate edits only the maturity coupon.
-    """
-
-def both_down_snowball(
-    *,
-    initial_coupon_rate: _Real,
-    initial_spot: _Real,
-    knock_in_level: _Real,
-    initial_knock_out_level: _Real,
-    coupon_rate_decrement: _Real,
-    knock_out_level_decrement: _Real,
-    autocall_times: Iterable[datetime],
-    effective_time: datetime,
-    expiry_time: datetime,
-    knock_in_observation_clock_time: time,
-    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_redemption_ratio: _Real = ...,
-    rebate_rate: _Real = ...,
-    annual_rebate_rate: _Real = ...,
-    calendar: TradingCalendar | EllipsisType = ...,
-) -> SnowballOption:
-    """Create a snowball with decreasing coupons and knock-out levels.
-
-    Parameters
-    ----------
-    initial_coupon_rate : float
-        Annual coupon rate at the first observation.
-    initial_spot : float
-        Positive reference spot used to normalize downside losses.
-    knock_in_level : float
-        Positive strict downside threshold.
-    initial_knock_out_level : float
-        Positive knock-out threshold at the first observation.
-    coupon_rate_decrement : float
-        Absolute decimal-rate decrement after each observation.
-    knock_out_level_decrement : float
-        Absolute price decrement after each observation; may be negative.
-    autocall_times : iterable of datetime.datetime
-        Strictly increasing knock-out and coupon observation times within life.
-    effective_time : datetime.datetime
-        Inclusive contract start.
-    expiry_time : datetime.datetime
-        Inclusive expiry time.
-    knock_in_observation_clock_time : datetime.time
-        Daily knock-in observation clock on trading days.
-    barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Events strictly before valuation. None is unknown; no_event means no prior
-        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
-        knocked_out means settled with no remaining value. The engine handles
-        observations at valuation using current spot. Callers supply applicable state.
-    principal_redemption_ratio : float, optional
-        Nonnegative normalized principal, independent of coupons and losses.
-    rebate_rate : float, optional
-        Finite nonnegative flat rebate per unit of original notional, default 0.
-    annual_rebate_rate : float, optional
-        Finite nonnegative annualized rebate rate, default 0. Accrues from
-        effective time to actual knock-out or expiry using Actual/365 Fixed,
-        including intraday time and nontrading days. Both rebates are additive
-        to coupons and principal gains or losses and pay once at termination.
-        A note knocked out before valuation is settled and has zero value.
-    calendar : TradingCalendar, optional
-        Explicit calendar override; omission or Ellipsis inherits an
-        ObservationSchedule calendar, otherwise weekdays.
-
-    Returns
-    -------
-    SnowballOption
-        Validated owned contract.
-
-    Raises
-    ------
-    InvalidInputError
-        If contractual amounts, life times or observation terms are invalid.
-
-    Notes
-    -----
-    Knock-in is observed on every trading day. Decrements apply after each observation; the first uses the initial
-    value. Signed coupons and decrements are accepted if all expanded terms are
-    valid. Maturity uses the final observation coupon.
-
-    The returned SnowballOption stores observation and maturity coupons separately.
-    To edit its first annual observation coupon while preserving coupon spreads,
-    use the returned note's quoting operation:
-
-    .. code-block:: python
-
-        edited = note.with_coupon(
-            first_observation_coupon=0.15,
-            quote_convention="shift_maturity_coupon",
-        )
-
-    This convention shifts the maturity coupon by the same amount. Use
-    preserve_maturity_coupon to keep maturity fixed. Replacing only
-    maturity_coupon_rate edits only the maturity coupon.
-    """
-
-def dual_coupon_snowball(
-    *,
-    knock_out_coupon_rate: _Real,
-    initial_spot: _Real,
-    knock_in_level: _Real,
-    knock_out_level: _Real,
-    maturity_coupon_rate: _Real,
-    autocall_times: Iterable[datetime],
-    effective_time: datetime,
-    expiry_time: datetime,
-    knock_in_observation_clock_time: time,
-    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_redemption_ratio: _Real = ...,
-    rebate_rate: _Real = ...,
-    annual_rebate_rate: _Real = ...,
-    calendar: TradingCalendar | EllipsisType = ...,
-) -> SnowballOption:
-    """Create a snowball with separate knock-out and maturity coupons.
-
-    Parameters
-    ----------
-    knock_out_coupon_rate : float
-        Annual coupon rate for knock-out settlement.
-    initial_spot : float
-        Positive reference spot used to normalize downside losses.
-    knock_in_level : float
-        Positive strict downside threshold.
-    knock_out_level : float
-        Positive inclusive knock-out threshold.
-    maturity_coupon_rate : float
-        Finite annual maturity coupon rate in decimal units.
-    autocall_times : iterable of datetime.datetime
-        Strictly increasing knock-out and coupon observation times within life.
-    effective_time : datetime.datetime
-        Inclusive contract start.
-    expiry_time : datetime.datetime
-        Inclusive expiry time.
-    knock_in_observation_clock_time : datetime.time
-        Daily knock-in observation clock on trading days.
-    barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Events strictly before valuation. None is unknown; no_event means no prior
-        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
-        knocked_out means settled with no remaining value. The engine handles
-        observations at valuation using current spot. Callers supply applicable state.
-    principal_redemption_ratio : float, optional
-        Nonnegative normalized principal, independent of coupons and losses.
-    rebate_rate : float, optional
-        Finite nonnegative flat rebate per unit of original notional, default 0.
-    annual_rebate_rate : float, optional
-        Finite nonnegative annualized rebate rate, default 0. Accrues from
-        effective time to actual knock-out or expiry using Actual/365 Fixed,
-        including intraday time and nontrading days. Both rebates are additive
-        to coupons and principal gains or losses and pay once at termination.
-        A note knocked out before valuation is settled and has zero value.
-    calendar : TradingCalendar, optional
-        Explicit calendar override; omission or Ellipsis inherits an
-        ObservationSchedule calendar, otherwise weekdays.
-
-    Returns
-    -------
-    SnowballOption
-        Validated owned contract.
-
-    Raises
-    ------
-    InvalidInputError
-        If contractual amounts, life times or observation terms are invalid.
-
-    Notes
-    -----
-    Knock-in is observed on every trading day.
-
-    The returned SnowballOption stores observation and maturity coupons separately.
-    To edit its first annual observation coupon while preserving coupon spreads,
-    use the returned note's quoting operation:
-
-    .. code-block:: python
-
-        edited = note.with_coupon(
-            first_observation_coupon=0.15,
-            quote_convention="shift_maturity_coupon",
-        )
-
-    This convention shifts the maturity coupon by the same amount. Use
-    preserve_maturity_coupon to keep maturity fixed. Replacing only
-    maturity_coupon_rate edits only the maturity coupon.
-    """
-
-def parachute_snowball(
-    *,
-    coupon_rate: _Real,
-    initial_spot: _Real,
-    knock_in_level: _Real,
-    knock_out_level: _Real,
-    final_knock_out_level: _Real,
-    autocall_times: Iterable[datetime],
-    effective_time: datetime,
-    expiry_time: datetime,
-    knock_in_observation_clock_time: time,
-    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_redemption_ratio: _Real = ...,
-    rebate_rate: _Real = ...,
-    annual_rebate_rate: _Real = ...,
-    calendar: TradingCalendar | EllipsisType = ...,
-) -> SnowballOption:
-    """Create a snowball with a distinct final knock-out level.
-
-    Parameters
-    ----------
-    coupon_rate : float
-        Finite annual coupon rate in decimal units.
-    initial_spot : float
-        Positive reference spot used to normalize downside losses.
-    knock_in_level : float
-        Positive strict downside threshold.
-    knock_out_level : float
-        Positive inclusive knock-out threshold.
-    final_knock_out_level : float
-        Positive threshold replacing only the final knock-out level.
-    autocall_times : iterable of datetime.datetime
-        Strictly increasing knock-out and coupon observation times within life.
-    effective_time : datetime.datetime
-        Inclusive contract start.
-    expiry_time : datetime.datetime
-        Inclusive expiry time.
-    knock_in_observation_clock_time : datetime.time
-        Daily knock-in observation clock on trading days.
-    barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Events strictly before valuation. None is unknown; no_event means no prior
-        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
-        knocked_out means settled with no remaining value. The engine handles
-        observations at valuation using current spot. Callers supply applicable state.
-    principal_redemption_ratio : float, optional
-        Nonnegative normalized principal, independent of coupons and losses.
-    rebate_rate : float, optional
-        Finite nonnegative flat rebate per unit of original notional, default 0.
-    annual_rebate_rate : float, optional
-        Finite nonnegative annualized rebate rate, default 0. Accrues from
-        effective time to actual knock-out or expiry using Actual/365 Fixed,
-        including intraday time and nontrading days. Both rebates are additive
-        to coupons and principal gains or losses and pay once at termination.
-        A note knocked out before valuation is settled and has zero value.
-    calendar : TradingCalendar, optional
-        Explicit calendar override; omission or Ellipsis inherits an
-        ObservationSchedule calendar, otherwise weekdays.
-
-    Returns
-    -------
-    SnowballOption
-        Validated owned contract.
-
-    Raises
-    ------
-    InvalidInputError
-        If contractual amounts, life times or observation terms are invalid.
-
-    Notes
-    -----
-    Knock-in is observed on every trading day.
-
-    The returned SnowballOption stores observation and maturity coupons separately.
-    To edit its first annual observation coupon while preserving coupon spreads,
-    use the returned note's quoting operation:
-
-    .. code-block:: python
-
-        edited = note.with_coupon(
-            first_observation_coupon=0.15,
-            quote_convention="shift_maturity_coupon",
-        )
-
-    This convention shifts the maturity coupon by the same amount. Use
-    preserve_maturity_coupon to keep maturity fixed. Replacing only
-    maturity_coupon_rate edits only the maturity coupon.
-    """
-
-def otm_snowball(
-    *,
-    coupon_rate: _Real,
-    initial_spot: _Real,
-    knock_in_level: _Real,
-    knock_out_level: _Real,
-    upper_strike: _Real,
-    autocall_times: Iterable[datetime],
-    effective_time: datetime,
-    expiry_time: datetime,
-    knock_in_observation_clock_time: time,
-    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_redemption_ratio: _Real = ...,
-    rebate_rate: _Real = ...,
-    annual_rebate_rate: _Real = ...,
-    calendar: TradingCalendar | EllipsisType = ...,
-) -> SnowballOption:
-    """Create a snowball with a replaced upper terminal strike.
-
-    Parameters
-    ----------
-    coupon_rate : float
-        Finite annual coupon rate in decimal units.
-    initial_spot : float
-        Positive reference spot used to normalize downside losses.
-    knock_in_level : float
-        Positive strict downside threshold.
-    knock_out_level : float
-        Positive inclusive knock-out threshold.
-    upper_strike : float
-        Positive upper terminal settlement strike.
-    autocall_times : iterable of datetime.datetime
-        Strictly increasing knock-out and coupon observation times within life.
-    effective_time : datetime.datetime
-        Inclusive contract start.
-    expiry_time : datetime.datetime
-        Inclusive expiry time.
-    knock_in_observation_clock_time : datetime.time
-        Daily knock-in observation clock on trading days.
-    barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Events strictly before valuation. None is unknown; no_event means no prior
-        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
-        knocked_out means settled with no remaining value. The engine handles
-        observations at valuation using current spot. Callers supply applicable state.
-    principal_redemption_ratio : float, optional
-        Nonnegative normalized principal, independent of coupons and losses.
-    rebate_rate : float, optional
-        Finite nonnegative flat rebate per unit of original notional, default 0.
-    annual_rebate_rate : float, optional
-        Finite nonnegative annualized rebate rate, default 0. Accrues from
-        effective time to actual knock-out or expiry using Actual/365 Fixed,
-        including intraday time and nontrading days. Both rebates are additive
-        to coupons and principal gains or losses and pay once at termination.
-        A note knocked out before valuation is settled and has zero value.
-    calendar : TradingCalendar, optional
-        Explicit calendar override; omission or Ellipsis inherits an
-        ObservationSchedule calendar, otherwise weekdays.
-
-    Returns
-    -------
-    SnowballOption
-        Validated owned contract.
-
-    Raises
-    ------
-    InvalidInputError
-        If contractual amounts, life times or observation terms are invalid.
-
-    Notes
-    -----
-    Knock-in is observed on every trading day.
-
-    The returned SnowballOption stores observation and maturity coupons separately.
-    To edit its first annual observation coupon while preserving coupon spreads,
-    use the returned note's quoting operation:
-
-    .. code-block:: python
-
-        edited = note.with_coupon(
-            first_observation_coupon=0.15,
-            quote_convention="shift_maturity_coupon",
-        )
-
-    This convention shifts the maturity coupon by the same amount. Use
-    preserve_maturity_coupon to keep maturity fixed. Replacing only
-    maturity_coupon_rate edits only the maturity coupon.
-    """
-
-def loss_capped_snowball(
-    *,
-    coupon_rate: _Real,
-    initial_spot: _Real,
-    knock_in_level: _Real,
-    knock_out_level: _Real,
-    lower_strike: _Real,
-    autocall_times: Iterable[datetime],
-    effective_time: datetime,
-    expiry_time: datetime,
-    knock_in_observation_clock_time: time,
-    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_redemption_ratio: _Real = ...,
-    rebate_rate: _Real = ...,
-    annual_rebate_rate: _Real = ...,
-    calendar: TradingCalendar | EllipsisType = ...,
-) -> SnowballOption:
-    """Create a snowball whose lower terminal strike caps downside loss.
-
-    Parameters
-    ----------
-    coupon_rate : float
-        Finite annual coupon rate in decimal units.
-    initial_spot : float
-        Positive reference spot used to normalize downside losses.
-    knock_in_level : float
-        Positive strict downside threshold.
-    knock_out_level : float
-        Positive inclusive knock-out threshold.
-    lower_strike : float
-        Nonnegative lower terminal strike, at most the upper strike.
-    autocall_times : iterable of datetime.datetime
-        Strictly increasing knock-out and coupon observation times within life.
-    effective_time : datetime.datetime
-        Inclusive contract start.
-    expiry_time : datetime.datetime
-        Inclusive expiry time.
-    knock_in_observation_clock_time : datetime.time
-        Daily knock-in observation clock on trading days.
-    barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Events strictly before valuation. None is unknown; no_event means no prior
-        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
-        knocked_out means settled with no remaining value. The engine handles
-        observations at valuation using current spot. Callers supply applicable state.
-    principal_redemption_ratio : float, optional
-        Nonnegative normalized principal, independent of coupons and losses.
-    rebate_rate : float, optional
-        Finite nonnegative flat rebate per unit of original notional, default 0.
-    annual_rebate_rate : float, optional
-        Finite nonnegative annualized rebate rate, default 0. Accrues from
-        effective time to actual knock-out or expiry using Actual/365 Fixed,
-        including intraday time and nontrading days. Both rebates are additive
-        to coupons and principal gains or losses and pay once at termination.
-        A note knocked out before valuation is settled and has zero value.
-    calendar : TradingCalendar, optional
-        Explicit calendar override; omission or Ellipsis inherits an
-        ObservationSchedule calendar, otherwise weekdays.
-
-    Returns
-    -------
-    SnowballOption
-        Validated owned contract.
-
-    Raises
-    ------
-    InvalidInputError
-        If contractual amounts, life times or observation terms are invalid.
-
-    Notes
-    -----
-    Knock-in is observed on every trading day.
-
-    The returned SnowballOption stores observation and maturity coupons separately.
-    To edit its first annual observation coupon while preserving coupon spreads,
-    use the returned note's quoting operation:
-
-    .. code-block:: python
-
-        edited = note.with_coupon(
-            first_observation_coupon=0.15,
-            quote_convention="shift_maturity_coupon",
-        )
-
-    This convention shifts the maturity coupon by the same amount. Use
-    preserve_maturity_coupon to keep maturity fixed. Replacing only
-    maturity_coupon_rate edits only the maturity coupon.
-    """
-
 class Accumulator:
     """Daily purchases or sales settled at scheduled knock-out or expiry.
 
@@ -9199,544 +9755,6 @@ class QuadratureAccumulatorEngine(_PricingMethods[Accumulator]):
     @property
     def integration_standard_deviations(self) -> float:
         """Return the integration extent in standard deviations."""
-
-def standard_phoenix(
-    *,
-    coupon_per_period: _Real,
-    initial_spot: _Real,
-    knock_in_level: _Real,
-    knock_out_level: _Real,
-    coupon_barrier_level: _Real,
-    knock_in_observation_clock_time: time,
-    autocall_times: Iterable[datetime],
-    effective_time: datetime,
-    expiry_time: datetime,
-    lockout_periods: SupportsIndex = ...,
-    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_redemption_ratio: _Real = ...,
-    rebate_rate: _Real = ...,
-    annual_rebate_rate: _Real = ...,
-    calendar: TradingCalendar | EllipsisType = ...,
-) -> PhoenixOption:
-    """Create a standard Phoenix with a constant knock-out barrier and optional initial lockout.
-
-    Parameters
-    ----------
-    coupon_per_period : float
-        Finite signed coupon proportion per qualifying observation; not
-        annualized.
-    initial_spot : float
-        Positive reference spot used to normalize downside losses.
-    knock_in_level : float
-        Positive strict knock-in threshold.
-    knock_out_level : float
-        Positive inclusive threshold at the first eligible knock-out observation.
-    coupon_barrier_level : float
-        Finite nonnegative inclusive coupon threshold, also tested on knock-out times.
-    knock_in_observation_clock_time : datetime.time
-        Daily knock-in observation clock on trading days.
-    autocall_times : iterable of datetime.datetime
-        Strictly increasing observation and payment times within life.
-    effective_time : datetime.datetime
-        Inclusive contract start.
-    expiry_time : datetime.datetime
-        Inclusive expiry time.
-    lockout_periods : int, optional
-        Initial observations excluded from knock-out; defaults to zero and must
-        leave at least one eligible observation. Coupon and knock-in observations
-        apply during the lockout.
-    barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        State strictly before valuation. None is unknown; no_event means no prior
-        knock-in or knock-out, knocked_in means outstanding after knock-in, and
-        knocked_out means settled. Current observations use current spot.
-    principal_redemption_ratio : float, optional
-        Nonnegative normalized principal, independent of coupon and loss
-        components.
-    rebate_rate : float, optional
-        Finite nonnegative flat rebate per unit of original notional, default 0.
-    annual_rebate_rate : float, optional
-        Finite nonnegative annualized rebate rate, default 0. Accrues from
-        effective time to actual knock-out or expiry using Actual/365 Fixed,
-        including intraday time and nontrading days. Both rebates are additive
-        to coupons and principal gains or losses and pay once at termination.
-        A note knocked out before valuation is settled and has zero value.
-    calendar : TradingCalendar, optional
-        Explicit calendar override; omission or Ellipsis inherits an
-        ObservationSchedule calendar, otherwise weekdays.
-
-    Returns
-    -------
-    PhoenixOption
-        Validated owned contract with daily knock-in, initial spot as upper strike and zero lower strike.
-
-    Raises
-    ------
-    InvalidInputError
-        If numeric terms, lockout, times or observations are invalid.
-    TypeError
-        If a supplied representation is invalid, including Boolean or fractional counts.
-    OverflowError
-        If a count is negative or outside the native unsigned integer range.
-
-    Notes
-    -----
-    Coupons pay once per qualifying observation, including a qualifying
-    knock-out, with no day accrual or memory. Knock-out and coupon barriers are
-    inclusive; knock-in is strict. Observation times are payment times; no
-    observation is implicitly added at expiry. Calendar compatibility is
-    checked on construction; history consistency is checked during pricing.
-    Past coupons are settled.
-    """
-
-def step_down_phoenix(
-    *,
-    coupon_per_period: _Real,
-    initial_spot: _Real,
-    knock_in_level: _Real,
-    initial_knock_out_level: _Real,
-    coupon_barrier_level: _Real,
-    knock_out_level_decrement: _Real,
-    knock_in_observation_clock_time: time,
-    autocall_times: Iterable[datetime],
-    effective_time: datetime,
-    expiry_time: datetime,
-    lockout_periods: SupportsIndex = ...,
-    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_redemption_ratio: _Real = ...,
-    rebate_rate: _Real = ...,
-    annual_rebate_rate: _Real = ...,
-    calendar: TradingCalendar | EllipsisType = ...,
-) -> PhoenixOption:
-    """Create a step-down Phoenix whose first eligible knock-out uses the initial level.
-
-    Parameters
-    ----------
-    coupon_per_period : float
-        Finite signed coupon proportion per qualifying observation; not
-        annualized.
-    initial_spot : float
-        Positive reference spot used to normalize downside losses.
-    knock_in_level : float
-        Positive strict knock-in threshold.
-    initial_knock_out_level : float
-        Positive inclusive threshold at the first eligible knock-out observation.
-    coupon_barrier_level : float
-        Finite nonnegative inclusive coupon threshold, also tested on knock-out times.
-    knock_out_level_decrement : float
-        Finite nonnegative absolute decrement after each eligible observation; lockout does not consume ladder steps.
-    knock_in_observation_clock_time : datetime.time
-        Daily knock-in observation clock on trading days.
-    autocall_times : iterable of datetime.datetime
-        Strictly increasing observation and payment times within life.
-    effective_time : datetime.datetime
-        Inclusive contract start.
-    expiry_time : datetime.datetime
-        Inclusive expiry time.
-    lockout_periods : int, optional
-        Initial observations excluded from knock-out; defaults to zero and must
-        leave at least one eligible observation. Coupon and knock-in observations
-        apply during the lockout.
-    barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        State strictly before valuation. None is unknown; no_event means no prior
-        knock-in or knock-out, knocked_in means outstanding after knock-in, and
-        knocked_out means settled. Current observations use current spot.
-    principal_redemption_ratio : float, optional
-        Nonnegative normalized principal, independent of coupon and loss
-        components.
-    rebate_rate : float, optional
-        Finite nonnegative flat rebate per unit of original notional, default 0.
-    annual_rebate_rate : float, optional
-        Finite nonnegative annualized rebate rate, default 0. Accrues from
-        effective time to actual knock-out or expiry using Actual/365 Fixed,
-        including intraday time and nontrading days. Both rebates are additive
-        to coupons and principal gains or losses and pay once at termination.
-        A note knocked out before valuation is settled and has zero value.
-    calendar : TradingCalendar, optional
-        Explicit calendar override; omission or Ellipsis inherits an
-        ObservationSchedule calendar, otherwise weekdays.
-
-    Returns
-    -------
-    PhoenixOption
-        Validated owned contract with daily knock-in, initial spot as upper strike and zero lower strike.
-
-    Raises
-    ------
-    InvalidInputError
-        If numeric terms, lockout, times or observations are invalid.
-    TypeError
-        If a supplied representation is invalid, including Boolean or fractional counts.
-    OverflowError
-        If a count is negative or outside the native unsigned integer range.
-
-    Notes
-    -----
-    Coupons pay once per qualifying observation, including a qualifying
-    knock-out, with no day accrual or memory. Knock-out and coupon barriers are
-    inclusive; knock-in is strict. Observation times are payment times; no
-    observation is implicitly added at expiry. Calendar compatibility is
-    checked on construction; history consistency is checked during pricing.
-    Past coupons are settled.
-    """
-
-def fixed_coupon_note(
-    *,
-    coupon_per_period: _Real,
-    initial_spot: _Real,
-    knock_in_level: _Real,
-    knock_out_level: _Real,
-    autocall_times: Iterable[datetime],
-    effective_time: datetime,
-    expiry_time: datetime,
-    lockout_periods: SupportsIndex = ...,
-    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_redemption_ratio: _Real = ...,
-    rebate_rate: _Real = ...,
-    annual_rebate_rate: _Real = ...,
-    calendar: TradingCalendar | EllipsisType = ...,
-) -> PhoenixOption:
-    """Create a fixed coupon note with unconditional surviving coupons.
-
-    Parameters
-    ----------
-    coupon_per_period : float
-        Finite signed coupon proportion per qualifying observation; not
-        annualized.
-    initial_spot : float
-        Positive reference spot used to normalize downside losses.
-    knock_in_level : float
-        Positive strict knock-in threshold.
-    knock_out_level : float
-        Positive inclusive threshold at the first eligible knock-out observation.
-    autocall_times : iterable of datetime.datetime
-        Strictly increasing observation and payment times within life.
-    effective_time : datetime.datetime
-        Inclusive contract start.
-    expiry_time : datetime.datetime
-        Inclusive expiry time.
-    lockout_periods : int, optional
-        Initial observations excluded from knock-out; defaults to zero and must
-        leave at least one eligible observation. Coupon and knock-in observations
-        apply during the lockout.
-    barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        State strictly before valuation. None is unknown; no_event means no prior
-        knock-in or knock-out, knocked_in means outstanding after knock-in, and
-        knocked_out means settled. Current observations use current spot.
-    principal_redemption_ratio : float, optional
-        Nonnegative normalized principal, independent of coupon and loss
-        components.
-    rebate_rate : float, optional
-        Finite nonnegative flat rebate per unit of original notional, default 0.
-    annual_rebate_rate : float, optional
-        Finite nonnegative annualized rebate rate, default 0. Accrues from
-        effective time to actual knock-out or expiry using Actual/365 Fixed,
-        including intraday time and nontrading days. Both rebates are additive
-        to coupons and principal gains or losses and pay once at termination.
-        A note knocked out before valuation is settled and has zero value.
-    calendar : TradingCalendar, optional
-        Explicit calendar override; omission or Ellipsis inherits an
-        ObservationSchedule calendar, otherwise weekdays.
-
-    Returns
-    -------
-    PhoenixOption
-        Validated owned contract with expiry-only knock-in, knock-in level as upper strike and zero lower strike.
-
-    Raises
-    ------
-    InvalidInputError
-        If numeric terms, lockout, times or observations are invalid.
-    TypeError
-        If a supplied representation is invalid, including Boolean or fractional counts.
-    OverflowError
-        If a count is negative or outside the native unsigned integer range.
-
-    Notes
-    -----
-    Coupons pay once per qualifying observation, including a qualifying
-    knock-out, with no day accrual or memory. Knock-out and coupon barriers are
-    inclusive; knock-in is strict. Observation times are payment times; no
-    observation is implicitly added at expiry. Calendar compatibility is
-    checked on construction; history consistency is checked during pricing.
-    Past coupons are settled.
-    """
-
-def digital_coupon_note(
-    *,
-    coupon_per_period: _Real,
-    initial_spot: _Real,
-    knock_in_level: _Real,
-    knock_out_level: _Real,
-    coupon_barrier_level: _Real,
-    autocall_times: Iterable[datetime],
-    effective_time: datetime,
-    expiry_time: datetime,
-    lockout_periods: SupportsIndex = ...,
-    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_redemption_ratio: _Real = ...,
-    rebate_rate: _Real = ...,
-    annual_rebate_rate: _Real = ...,
-    calendar: TradingCalendar | EllipsisType = ...,
-) -> PhoenixOption:
-    """Create a digital coupon note with barrier-conditional fixed coupons.
-
-    Parameters
-    ----------
-    coupon_per_period : float
-        Finite signed coupon proportion per qualifying observation; not
-        annualized.
-    initial_spot : float
-        Positive reference spot used to normalize downside losses.
-    knock_in_level : float
-        Positive strict knock-in threshold.
-    knock_out_level : float
-        Positive inclusive threshold at the first eligible knock-out observation.
-    coupon_barrier_level : float
-        Finite nonnegative inclusive coupon threshold, also tested on knock-out times.
-    autocall_times : iterable of datetime.datetime
-        Strictly increasing observation and payment times within life.
-    effective_time : datetime.datetime
-        Inclusive contract start.
-    expiry_time : datetime.datetime
-        Inclusive expiry time.
-    lockout_periods : int, optional
-        Initial observations excluded from knock-out; defaults to zero and must
-        leave at least one eligible observation. Coupon and knock-in observations
-        apply during the lockout.
-    barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        State strictly before valuation. None is unknown; no_event means no prior
-        knock-in or knock-out, knocked_in means outstanding after knock-in, and
-        knocked_out means settled. Current observations use current spot.
-    principal_redemption_ratio : float, optional
-        Nonnegative normalized principal, independent of coupon and loss
-        components.
-    rebate_rate : float, optional
-        Finite nonnegative flat rebate per unit of original notional, default 0.
-    annual_rebate_rate : float, optional
-        Finite nonnegative annualized rebate rate, default 0. Accrues from
-        effective time to actual knock-out or expiry using Actual/365 Fixed,
-        including intraday time and nontrading days. Both rebates are additive
-        to coupons and principal gains or losses and pay once at termination.
-        A note knocked out before valuation is settled and has zero value.
-    calendar : TradingCalendar, optional
-        Explicit calendar override; omission or Ellipsis inherits an
-        ObservationSchedule calendar, otherwise weekdays.
-
-    Returns
-    -------
-    PhoenixOption
-        Validated owned contract with expiry-only knock-in, knock-in level as upper strike and zero lower strike.
-
-    Raises
-    ------
-    InvalidInputError
-        If numeric terms, lockout, times or observations are invalid.
-    TypeError
-        If a supplied representation is invalid, including Boolean or fractional counts.
-    OverflowError
-        If a count is negative or outside the native unsigned integer range.
-
-    Notes
-    -----
-    Coupons pay once per qualifying observation, including a qualifying
-    knock-out, with no day accrual or memory. Knock-out and coupon barriers are
-    inclusive; knock-in is strict. Observation times are payment times; no
-    observation is implicitly added at expiry. Calendar compatibility is
-    checked on construction; history consistency is checked during pricing.
-    Past coupons are settled.
-    """
-
-def early_profit_snowball(
-    *,
-    first_coupon_rate: _Real,
-    initial_spot: _Real,
-    knock_in_level: _Real,
-    knock_out_level: _Real,
-    second_coupon_rate: _Real,
-    first_stage_end_time: datetime,
-    autocall_times: Iterable[datetime],
-    effective_time: datetime,
-    expiry_time: datetime,
-    knock_in_observation_clock_time: time,
-    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_redemption_ratio: _Real = ...,
-    rebate_rate: _Real = ...,
-    annual_rebate_rate: _Real = ...,
-    calendar: TradingCalendar | EllipsisType = ...,
-) -> SnowballOption:
-    """Create a two-stage early-profit snowball.
-
-    Parameters
-    ----------
-    first_coupon_rate : float
-        Finite signed annual coupon rate through first_stage_end_time.
-    initial_spot : float
-        Positive reference spot used to normalize downside losses.
-    knock_in_level : float
-        Positive strict downside threshold.
-    knock_out_level : float
-        Positive inclusive knock-out threshold.
-    second_coupon_rate : float
-        Finite signed annual coupon rate after the cutoff and at maturity.
-    first_stage_end_time : datetime.datetime
-        Inclusive first-stage end within life and strictly before expiry.
-    autocall_times : iterable of datetime.datetime
-        Strictly increasing knock-out and coupon observation times within life.
-    effective_time : datetime.datetime
-        Inclusive contract start.
-    expiry_time : datetime.datetime
-        Inclusive expiry time.
-    knock_in_observation_clock_time : datetime.time
-        Daily knock-in observation clock on trading days.
-    barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Events strictly before valuation. None is unknown; no_event means no prior
-        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
-        knocked_out means settled with no remaining value. The engine handles
-        observations at valuation using current spot. Callers supply applicable state.
-    principal_redemption_ratio : float, optional
-        Nonnegative normalized principal, independent of coupons and losses.
-    rebate_rate : float, optional
-        Finite nonnegative flat rebate per unit of original notional, default 0.
-    annual_rebate_rate : float, optional
-        Finite nonnegative annualized rebate rate, default 0. Accrues from
-        effective time to actual knock-out or expiry using Actual/365 Fixed,
-        including intraday time and nontrading days. Both rebates are additive
-        to coupons and principal gains or losses and pay once at termination.
-        A note knocked out before valuation is settled and has zero value.
-    calendar : TradingCalendar, optional
-        Explicit calendar override; omission or Ellipsis inherits an
-        ObservationSchedule calendar, otherwise weekdays.
-
-    Returns
-    -------
-    SnowballOption
-        Validated owned contract.
-
-    Raises
-    ------
-    InvalidInputError
-        If contractual amounts, life times or observation terms are invalid.
-
-    Notes
-    -----
-    Knock-in is observed on every trading day. Knock-out uses the observation's stage rate over the whole holding period.
-    Maturity uses the final stage rate. Cutoffs need not be observation or trading
-    times, stages may have no autocall_observations, and rates need not decrease.
-
-    The returned SnowballOption stores observation and maturity coupons separately.
-    To edit its first annual observation coupon while preserving coupon spreads,
-    use the returned note's quoting operation:
-
-    .. code-block:: python
-
-        edited = note.with_coupon(
-            first_observation_coupon=0.15,
-            quote_convention="shift_maturity_coupon",
-        )
-
-    This convention shifts the maturity coupon by the same amount. Use
-    preserve_maturity_coupon to keep maturity fixed. Replacing only
-    maturity_coupon_rate edits only the maturity coupon.
-    """
-
-def butterfly_snowball(
-    *,
-    first_coupon_rate: _Real,
-    initial_spot: _Real,
-    knock_in_level: _Real,
-    knock_out_level: _Real,
-    second_coupon_rate: _Real,
-    third_coupon_rate: _Real,
-    first_stage_end_time: datetime,
-    second_stage_end_time: datetime,
-    autocall_times: Iterable[datetime],
-    effective_time: datetime,
-    expiry_time: datetime,
-    knock_in_observation_clock_time: time,
-    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_redemption_ratio: _Real = ...,
-    rebate_rate: _Real = ...,
-    annual_rebate_rate: _Real = ...,
-    calendar: TradingCalendar | EllipsisType = ...,
-) -> SnowballOption:
-    """Create a three-stage butterfly snowball.
-
-    Parameters
-    ----------
-    first_coupon_rate : float
-        Finite signed annual coupon rate through first_stage_end_time.
-    initial_spot : float
-        Positive reference spot used to normalize downside losses.
-    knock_in_level : float
-        Positive strict downside threshold.
-    knock_out_level : float
-        Positive inclusive knock-out threshold.
-    second_coupon_rate : float
-        Finite signed annual coupon in the second stage.
-    third_coupon_rate : float
-        Finite signed annual coupon in the third stage and at maturity.
-    first_stage_end_time : datetime.datetime
-        Inclusive first-stage end within life and before second_stage_end_time.
-    second_stage_end_time : datetime.datetime
-        Inclusive second-stage end strictly before expiry.
-    autocall_times : iterable of datetime.datetime
-        Strictly increasing knock-out and coupon observation times within life.
-    effective_time : datetime.datetime
-        Inclusive contract start.
-    expiry_time : datetime.datetime
-        Inclusive expiry time.
-    knock_in_observation_clock_time : datetime.time
-        Daily knock-in observation clock on trading days.
-    barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
-        Events strictly before valuation. None is unknown; no_event means no prior
-        knock-in or knock-out; knocked_in means an outstanding knocked-in note;
-        knocked_out means settled with no remaining value. The engine handles
-        observations at valuation using current spot. Callers supply applicable state.
-    principal_redemption_ratio : float, optional
-        Nonnegative normalized principal, independent of coupons and losses.
-    rebate_rate : float, optional
-        Finite nonnegative flat rebate per unit of original notional, default 0.
-    annual_rebate_rate : float, optional
-        Finite nonnegative annualized rebate rate, default 0. Accrues from
-        effective time to actual knock-out or expiry using Actual/365 Fixed,
-        including intraday time and nontrading days. Both rebates are additive
-        to coupons and principal gains or losses and pay once at termination.
-        A note knocked out before valuation is settled and has zero value.
-    calendar : TradingCalendar, optional
-        Explicit calendar override; omission or Ellipsis inherits an
-        ObservationSchedule calendar, otherwise weekdays.
-
-    Returns
-    -------
-    SnowballOption
-        Validated owned contract.
-
-    Raises
-    ------
-    InvalidInputError
-        If contractual amounts, life times or observation terms are invalid.
-
-    Notes
-    -----
-    Knock-in is observed on every trading day. Knock-out uses the observation's stage rate over the whole holding period.
-    Maturity uses the final stage rate. Cutoffs need not be observation or trading
-    times, stages may have no autocall_observations, and rates need not decrease.
-
-    The returned SnowballOption stores observation and maturity coupons separately.
-    To edit its first annual observation coupon while preserving coupon spreads,
-    use the returned note's quoting operation:
-
-    .. code-block:: python
-
-        edited = note.with_coupon(
-            first_observation_coupon=0.15,
-            quote_convention="shift_maturity_coupon",
-        )
-
-    This convention shifts the maturity coupon by the same amount. Use
-    preserve_maturity_coupon to keep maturity fixed. Replacing only
-    maturity_coupon_rate edits only the maturity coupon.
-    """
 
 class FiniteDifferenceSolution:
     """Owned fixed-time solution for repeated spot pricing without another rollback.

@@ -7,7 +7,10 @@ import pytest
 import QuantLib as ql
 from kiyosi import InvalidInputError, UnsupportedOperationError, pricing
 from kiyosi.instruments import Accumulator
-from kiyosi.market import all_days_calendar, monthly_schedule, weekdays_calendar
+from kiyosi.market import (
+    ObservationSchedule,
+    TradingCalendar,
+)
 from support.assertions import assert_rejection
 from test_accumulator import START, market
 
@@ -109,7 +112,7 @@ def terminal_reference(option, context):
 def test_fixed_purchases_before_terminal_knockout_match_analytic_settlement():
     option = contract(
         acceleration_factor=1,
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
         knock_out_observation_times=[END],
     )
     context = market(108, START + timedelta(days=1), volatility=0.20)
@@ -168,12 +171,12 @@ def test_direction_dates_defaults_history_replacement_and_ownership(subtests):
     signature = inspect.signature(Accumulator)
     assert signature.parameters["knock_out_observation_times"].default is None
     assert signature.parameters["option_type"].kind == inspect.Parameter.KEYWORD_ONLY
-    schedule = monthly_schedule(
+    schedule = ObservationSchedule.monthly(
         observation_clock_time=clock_time(),
         start_time=START,
         end_time=datetime(2025, 2, 3),
         first_observation_month=1,
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
     )
     assert contract(
         expiry_time=datetime(2025, 2, 3),
@@ -217,7 +220,7 @@ def test_trading_calendar_validation_precedes_pricing(subtests):
         contract(knock_out_observation_times=[datetime(2025, 1, 4)])
     weekend = contract(
         knock_out_observation_times=[datetime(2025, 1, 4)],
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
     )
     weekend_expiry = contract(
         expiry_time=datetime(2025, 1, 5),
@@ -227,7 +230,7 @@ def test_trading_calendar_validation_precedes_pricing(subtests):
         with subtests.test(engine=type(engine).__name__):
             assert (
                 engine.price(
-                    weekend.replace(calendar=all_days_calendar()),
+                    weekend.replace(calendar=TradingCalendar.all_days()),
                     market(110, END),
                 )
                 == 40
@@ -661,7 +664,7 @@ def test_terminal_digital_portfolios_match_quantlib(
 def test_unmonitored_daily_accumulator_matches_the_conditional_digital_portfolio():
     option = contract(
         expiry_time=START + timedelta(days=365),
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
         accumulated_quantity=None,
         knock_out_settled=None,
         knock_out_observation_times=[],
@@ -700,7 +703,7 @@ def test_unmonitored_accumulator_combines_quantity_and_discount_before_exponenti
         daily_quantity=daily,
         acceleration_factor=1,
         expiry_time=START + timedelta(days=365),
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
         accumulated_quantity=None,
         knock_out_settled=None,
         knock_out_observation_times=[],

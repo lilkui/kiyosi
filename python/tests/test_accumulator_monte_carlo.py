@@ -18,9 +18,7 @@ from kiyosi import (
 from kiyosi.instruments import Accumulator
 from kiyosi.market import (
     RateTermStructure,
-    all_days_calendar,
-    custom_calendar,
-    weekdays_calendar,
+    TradingCalendar,
 )
 from kiyosi.pricing import MonteCarloAccumulatorEngine as MC
 from kiyosi.pricing import numerical_greeks
@@ -221,18 +219,30 @@ def test_counts_sobol_antithetic_and_shared_engine_threads():
 def test_midnight_intraday_calendar_and_omitted_history():
     engine = MC(path_count=2, seed=42)
     note = contract(datetime(2025, 1, 6))
-    holiday = custom_calendar(
-        base=weekdays_calendar(), closed_dates=[(datetime(2025, 1, 3)).date()]
+    holiday = TradingCalendar.custom(
+        base=TradingCalendar.weekdays(), closed_dates=[(datetime(2025, 1, 3)).date()]
     )
     for context, calendar, expected in (
-        (market(90, datetime(2025, 1, 3), 1e-20, 0, 0), weekdays_calendar(), -70),
+        (
+            market(90, datetime(2025, 1, 3), 1e-20, 0, 0),
+            TradingCalendar.weekdays(),
+            -70,
+        ),
         (
             market(90, datetime(2025, 1, 3, 0, 0, 0, 1), 1e-20, 0, 0),
-            weekdays_calendar(),
+            TradingCalendar.weekdays(),
             -50,
         ),
-        (market(90, datetime(2025, 1, 4), 1e-20, 0, 0), weekdays_calendar(), -50),
-        (market(90, datetime(2025, 1, 3), 1e-20, 0, 0), all_days_calendar(), -110),
+        (
+            market(90, datetime(2025, 1, 4), 1e-20, 0, 0),
+            TradingCalendar.weekdays(),
+            -50,
+        ),
+        (
+            market(90, datetime(2025, 1, 3), 1e-20, 0, 0),
+            TradingCalendar.all_days(),
+            -110,
+        ),
         (
             market(90, datetime(2025, 1, 3), 1e-20, 0, 0),
             holiday,
@@ -472,7 +482,7 @@ def test_sobol_dimension_limit_preserves_known_settlements():
     note = contract(datetime(2090, 1, 2))
     context = market(valuation=START + timedelta(days=1))
     note = note.replace(
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
         accumulated_quantity=note.accumulated_quantity,
         knock_out_settled=note.knock_out_settled,
     )

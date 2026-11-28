@@ -423,7 +423,7 @@ def test_scheduled_explicit_stability_retains_the_uniform_grid_bound():
 
 
 def test_scheduled_barrier_work_limit_counts_damping_half_steps():
-    from kiyosi.market import all_days_calendar
+    from kiyosi.market import TradingCalendar
 
     dates = [START + timedelta(days=day) for day in range(1, 2001)]
     instrument = option(
@@ -431,7 +431,7 @@ def test_scheduled_barrier_work_limit_counts_damping_half_steps():
         "call",
         expiry_time=dates[-1],
         observation_times=dates,
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
     )
     engine = pricing.FiniteDifferenceBarrierEngine(
         asset_step_count=300_000, time_step_count=1

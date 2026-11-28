@@ -27,8 +27,7 @@ from kiyosi.instruments import (
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
-    all_days_calendar,
-    weekdays_calendar,
+    TradingCalendar,
 )
 from kiyosi.pricing import numerical_greeks
 from price_differences import price_differences
@@ -51,7 +50,7 @@ def test_finite_difference_greek_workspaces_preserve_independent_prices(subtests
     )
     shifts = {"spot_shift": 0.25, "volatility_shift": 0.002, "rate_shift": 0.001}
     note = SnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         maturity_coupon_rate=0.06,
         initial_spot=100,
         knock_in_level=80,
@@ -107,7 +106,7 @@ def test_past_knock_out_levels_do_not_size_the_grid(upper):
         valuation_time=valuation,
     )
     note = BinarySnowballOption(
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
         maturity_coupon_rate=0.1,
         effective_time=start,
         expiry_time=end,
@@ -141,7 +140,7 @@ def test_automatic_domains_converge_to_volatile_terminal_portfolios(subtests):
         valuation_time=start,
     )
     binary = BinarySnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         maturity_coupon_rate=0,
         effective_time=start,
         expiry_time=end,
@@ -185,7 +184,7 @@ def test_automatic_domains_converge_to_volatile_terminal_portfolios(subtests):
     for note, value in (
         (
             SnowballOption(
-                calendar=weekdays_calendar(),
+                calendar=TradingCalendar.weekdays(),
                 **common,
                 **downside,
                 maturity_coupon_rate=0,
@@ -195,7 +194,7 @@ def test_automatic_domains_converge_to_volatile_terminal_portfolios(subtests):
         ),
         (
             PhoenixOption(
-                calendar=weekdays_calendar(),
+                calendar=TradingCalendar.weekdays(),
                 **common,
                 **downside,
                 coupon_per_period=0.1,
@@ -212,7 +211,7 @@ def test_automatic_domains_converge_to_volatile_terminal_portfolios(subtests):
         ),
         (
             TernarySnowballOption(
-                calendar=weekdays_calendar(),
+                calendar=TradingCalendar.weekdays(),
                 **common,
                 maturity_coupon_rate=0.1,
                 minimum_coupon_rate=0,
@@ -369,7 +368,7 @@ def test_finite_difference_volatility_trials_refresh_operators_and_isolate_reque
             ),
         )
         for kind, terms, engine_type in cases:
-            note = kind(calendar=weekdays_calendar(), **common, **terms)
+            note = kind(calendar=TradingCalendar.weekdays(), **common, **terms)
             for scheme in (
                 "explicit_euler",
                 "implicit_euler",
@@ -491,7 +490,7 @@ def test_coupon_endpoint_batches_preserve_layer_changes_and_isolation(subtests, 
         ),
     )
     for kind, terms, engine_type in cases:
-        note = kind(calendar=weekdays_calendar(), **common, **terms)
+        note = kind(calendar=TradingCalendar.weekdays(), **common, **terms)
         engines = [
             (
                 engine_type(
@@ -548,7 +547,7 @@ def test_coupon_endpoint_batches_preserve_layer_changes_and_isolation(subtests, 
                         alternate_terms["maturity_coupon_rate"] = 0.12
                 alternate_quote = engine.price(
                     kind(
-                        calendar=weekdays_calendar(),
+                        calendar=TradingCalendar.weekdays(),
                         **common,
                         **alternate_terms,
                     ),
@@ -625,7 +624,7 @@ def test_autocallable_requests_revalidate_contracts_and_calendars(subtests):
     common = {
         "effective_time": start,
         "expiry_time": end,
-        "calendar": all_days_calendar(),
+        "calendar": TradingCalendar.all_days(),
     }
     coupons = {
         "maturity_coupon_rate": 0.06,
@@ -732,7 +731,7 @@ def test_autocallable_requests_revalidate_contracts_and_calendars(subtests):
                     )
                 ) / (2 * rate_shift)
                 with pytest.raises(InvalidInputError):
-                    note.replace(calendar=weekdays_calendar())
+                    note.replace(calendar=TradingCalendar.weekdays())
                 with pytest.raises(MissingHistoryError) as error:
                     engine.price_with_greeks(missing_history, base, ["vega", "rho"])
                 assert type(error.value) is MissingHistoryError
@@ -775,7 +774,7 @@ def test_irrelevant_knock_in_events_preserve_spot_and_time_greeks(subtests):
 
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     note = SnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         maturity_coupon_rate=0,
         initial_spot=100,
         knock_in_level=75,
@@ -835,7 +834,7 @@ def test_default_time_greeks_respect_remaining_knock_in_events(state, reference_
     )
     engine = pricing.FiniteDifferenceAutocallableEngine()
     note = SnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         maturity_coupon_rate=0.06,
         initial_spot=100,
         knock_in_level=75,
@@ -886,7 +885,7 @@ def test_expiry_only_knock_in_matches_analytic_terminal_portfolios(subtests, sch
         "expiry_time": end,
     }
     snowball = SnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         **common,
         maturity_coupon_rate=0.06,
         initial_spot=100,
@@ -897,7 +896,7 @@ def test_expiry_only_knock_in_matches_analytic_terminal_portfolios(subtests, sch
         ),
     )
     phoenix = PhoenixOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         **common,
         coupon_per_period=0.08,
         initial_spot=100,
@@ -913,7 +912,7 @@ def test_expiry_only_knock_in_matches_analytic_terminal_portfolios(subtests, sch
         ],
     )
     ternary = TernarySnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         **common,
         maturity_coupon_rate=0.06,
         minimum_coupon_rate=0.02,
@@ -980,7 +979,7 @@ def test_protected_snowball_uses_observation_paths_with_stochastic_knock_out(sub
         datetime(2026, 1, 1),
     )
     terms = {
-        "calendar": all_days_calendar(),
+        "calendar": TradingCalendar.all_days(),
         "maturity_coupon_rate": 0,
         "initial_spot": 100,
         "knock_in_level": 75,
@@ -1061,7 +1060,7 @@ def test_fixed_finite_difference_autocallables_retain_rate_sensitivity():
 
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     note = BinarySnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         maturity_coupon_rate=0,
         effective_time=start,
         expiry_time=end,

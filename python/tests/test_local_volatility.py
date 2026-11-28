@@ -14,7 +14,7 @@ from kiyosi.market import (
     LocalVolatilitySurface,
     PricingContext,
     RateTermStructure,
-    weekdays_calendar,
+    TradingCalendar,
 )
 from support.assertions import assert_decimal_equal
 from support.terminal import assert_terminal_greeks
@@ -588,7 +588,7 @@ def test_nonflat_rates_and_shared_concurrent_pricing():
 @pytest.mark.parametrize("business_time", [False, True])
 def test_european_strike_strip_matches_refined_local_volatility_prices(business_time):
     clock = (
-        {"variance_time_convention": "business", "calendar": weekdays_calendar()}
+        {"variance_time_convention": "business", "calendar": TradingCalendar.weekdays()}
         if business_time
         else {}
     )

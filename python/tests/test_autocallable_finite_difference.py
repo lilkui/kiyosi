@@ -15,7 +15,10 @@ from kiyosi.instruments import (
     KnockInObservation,
     autocallable_observations,
 )
-from kiyosi.market import RateTermStructure, weekdays_calendar
+from kiyosi.market import (
+    RateTermStructure,
+    TradingCalendar,
+)
 from kiyosi.pricing import FiniteDifferenceAutocallableEngine as FD
 from kiyosi.pricing import (
     implied_phoenix_coupon,
@@ -126,7 +129,7 @@ def test_engine_defaults_and_representation_errors(subtests):
 @pytest.mark.parametrize("shift", (200, 1e-300))
 def test_native_spot_greeks_survive_infeasible_scalar_bumps(coupon, shift):
     note = BinarySnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         maturity_coupon_rate=0,
         effective_time=START,
         expiry_time=END,
@@ -153,7 +156,7 @@ def test_native_spot_greeks_survive_infeasible_scalar_bumps(coupon, shift):
 def test_explicit_uniform_log_grid_checks_stencil_stability():
     end = datetime(2026, 1, 1)
     note = BinarySnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         maturity_coupon_rate=0,
         effective_time=START,
         expiry_time=end,
@@ -216,7 +219,7 @@ def test_event_greeks_node_curves_and_failed_replacement():
 
 def test_fixed_prices_and_unidentifiable_parameters_validate_first():
     note = BinarySnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         maturity_coupon_rate=0,
         effective_time=START,
         expiry_time=END,

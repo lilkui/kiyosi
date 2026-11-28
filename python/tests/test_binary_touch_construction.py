@@ -15,7 +15,7 @@ def test_touch_construction_inherits_schedule_calendar_and_honors_overrides(
     payoff_type, barrier_type
 ):
     start, end = datetime(2025, 1, 3), datetime(2025, 1, 4)
-    calendar = market.all_days_calendar()
+    calendar = market.TradingCalendar.all_days()
     schedule = market.ObservationSchedule(
         times=[end], start_time=start, end_time=end, calendar=calendar
     )
@@ -34,7 +34,7 @@ def test_touch_construction_inherits_schedule_calendar_and_honors_overrides(
     assert option.observation_times == (end,)
     assert option.touch_state == "untouched"
     with pytest.raises(InvalidInputError):
-        ins.TouchOption(**terms, calendar=market.weekdays_calendar())
+        ins.TouchOption(**terms, calendar=market.TradingCalendar.weekdays())
 
 
 def test_touch_construction_preserves_payoff_and_monitoring_conversion_order():
@@ -123,7 +123,7 @@ def test_constructors_preserve_settlement_monitoring_and_terminal_payments(subte
     single = {"barrier_level": 120, "barrier_type": "up_and_in"}
     binary = dict(single, option_type="call", strike=100)
     double = {"lower_barrier": 80, "upper_barrier": 120}
-    calendar = market.all_days_calendar()
+    calendar = market.TradingCalendar.all_days()
     monitoring = {
         "observation_times": [end],
         "touch_state": "untouched",
@@ -197,7 +197,7 @@ def test_constructors_preserve_settlement_monitoring_and_terminal_payments(subte
             else:
                 assert engine.price(contract.replace(payout=5), context) == expected / 2
             with pytest.raises(InvalidInputError):
-                contract.replace(calendar=market.weekdays_calendar())
+                contract.replace(calendar=market.TradingCalendar.weekdays())
             assert contract.calendar == calendar
 
 
@@ -220,7 +220,7 @@ def test_constructors_validate_representations_and_domain_inputs(subtests):
             {"lower_barrier": 80, "upper_barrier": 120, "barrier_type": "knock_in"},
         ),
     ):
-        fields = dict(life, **specific, calendar=market.all_days_calendar())
+        fields = dict(life, **specific, calendar=market.TradingCalendar.all_days())
         if cls is not ins.DoubleTouchOption:
             fields["payoff_type"] = "cash"
         for changes, error in (
@@ -232,7 +232,7 @@ def test_constructors_validate_representations_and_domain_inputs(subtests):
             ({"expiry_time": start.replace(year=2024)}, InvalidInputError),
             (
                 {
-                    "calendar": market.weekdays_calendar(),
+                    "calendar": market.TradingCalendar.weekdays(),
                     "observation_times": [end],
                 },
                 InvalidInputError,

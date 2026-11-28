@@ -16,7 +16,10 @@ from kiyosi import (
     pricing,
 )
 from kiyosi.instruments import EuropeanOption
-from kiyosi.market import RateTermStructure, all_days_calendar
+from kiyosi.market import (
+    RateTermStructure,
+    TradingCalendar,
+)
 from kiyosi.pricing import numerical_greeks
 from support.assertions import assert_rejection
 from test_double_barrier import END, START, contract, market, reference
@@ -518,7 +521,7 @@ def test_sobol_dimension_limit_includes_unobserved_expiry_leg():
     option = contract(
         expiry_time=dates[-1] + timedelta(days=1),
         observation_times=dates,
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
     )
     engine = pricing.MonteCarloBarrierEngine(path_count=1, seed=42, sampling="sobol")
     assert_rejection(InvalidInputError, engine.price, option, market())

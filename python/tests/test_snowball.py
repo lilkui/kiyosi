@@ -24,9 +24,7 @@ from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
     RateTermStructure,
-    all_days_calendar,
-    custom_calendar,
-    weekdays_calendar,
+    TradingCalendar,
 )
 from kiyosi.pricing import (
     QuadratureAutocallableEngine,
@@ -41,7 +39,7 @@ START, END = datetime(2025, 1, 1), datetime(2025, 4, 1)
 
 def contract(**changes):
     fields = {
-        "calendar": weekdays_calendar(),
+        "calendar": TradingCalendar.weekdays(),
         "maturity_coupon_rate": 0.06,
         "initial_spot": 100,
         "knock_in_level": 80,
@@ -378,7 +376,7 @@ def test_daily_layers_and_domain_convergence():
     prices = []
     for mode in ("at_expiry", "every_trading_day"):
         note = contract(
-            calendar=all_days_calendar(),
+            calendar=TradingCalendar.all_days(),
             knock_in_level=95,
             knock_in_observation=(
                 KnockInObservation.every_trading_day(clock_time())
@@ -610,8 +608,8 @@ def test_all_greeks_and_volatility_recovery_against_digital_formula(subtests):
 
 def test_two_event_prices_match_independent_conditional_payoff_integral():
     middle = datetime(2025, 2, 3)
-    calendar = custom_calendar(
-        base=all_days_calendar(),
+    calendar = TradingCalendar.custom(
+        base=TradingCalendar.all_days(),
         closed_dates=[
             (START + timedelta(days=i)).date()
             for i in range(91)
@@ -701,7 +699,7 @@ def test_two_event_prices_match_independent_conditional_payoff_integral():
 def test_dense_deterministic_ladders_and_short_terminal_transition():
     dates = [START + timedelta(days=i) for i in range(1, 33)]
     note = contract(
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
         expiry_time=dates[-1],
         barrier_state="no_event",
         principal_redemption_ratio=0.5,

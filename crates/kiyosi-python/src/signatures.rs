@@ -4,10 +4,10 @@ use pyo3::types::{PyDict, PyTuple};
 pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     let defaults = PyDict::new(py);
     macro_rules! register {
-        ([$($name:ident),+ $(,)?], $($field:ident = $value:expr),+ $(,)?) => {{
+        ([$($name:ident $(.$method:ident)?),+ $(,)?], $($field:ident = $value:expr),+ $(,)?) => {{
             let values = PyDict::new(py);
             $(values.set_item(stringify!($field), $value)?;)+
-            $(defaults.set_item(stringify!($name), &values)?;)+
+            $(defaults.set_item(concat!(stringify!($name) $(, ".", stringify!($method))?), &values)?;)+
         }};
     }
 
@@ -40,16 +40,16 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
             SnowballOption,
             BinarySnowballOption,
             TernarySnowballOption,
-            standard_snowball,
-            european_snowball,
-            step_down_snowball,
-            both_down_snowball,
-            dual_coupon_snowball,
-            parachute_snowball,
-            otm_snowball,
-            loss_capped_snowball,
-            early_profit_snowball,
-            butterfly_snowball,
+            SnowballOption.standard,
+            SnowballOption.european,
+            SnowballOption.step_down,
+            SnowballOption.both_down,
+            SnowballOption.dual_coupon,
+            SnowballOption.parachute,
+            SnowballOption.otm,
+            SnowballOption.loss_capped,
+            SnowballOption.early_profit,
+            SnowballOption.butterfly,
         ],
         rebate_rate = kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE,
         annual_rebate_rate = kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE,
@@ -57,10 +57,10 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     );
     register!(
         [
-            fixed_coupon_note,
-            standard_phoenix,
-            step_down_phoenix,
-            digital_coupon_note,
+            PhoenixOption.fixed_coupon,
+            PhoenixOption.standard,
+            PhoenixOption.step_down,
+            PhoenixOption.digital_coupon,
         ],
         rebate_rate = kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE,
         annual_rebate_rate = kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE,
@@ -83,13 +83,13 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     register!(
         [
             RangeAccrualOption,
-            fixed_interval_schedule,
-            monthly_schedule
+            ObservationSchedule.fixed_interval,
+            ObservationSchedule.monthly,
         ],
         calendar = crate::calendar::TradingCalendar::default(),
     );
     register!(
-        [custom_calendar],
+        [TradingCalendar.custom],
         closed_dates = PyTuple::empty(py),
         open_dates = PyTuple::empty(py),
     );

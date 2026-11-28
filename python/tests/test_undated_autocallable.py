@@ -13,7 +13,7 @@ from kiyosi.instruments import (
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
-    weekdays_calendar,
+    TradingCalendar,
 )
 from kiyosi.pricing import QuadratureAutocallableEngine
 
@@ -36,7 +36,7 @@ def contract(state):
             [EVENT, END], [110, 110], knock_out_coupon_rates=[0.08, 0.08]
         ),
         barrier_state=state,
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
     )
 
 

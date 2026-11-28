@@ -17,7 +17,10 @@ from kiyosi import (
     pricing,
 )
 from kiyosi.instruments import EuropeanOption
-from kiyosi.market import RateTermStructure, weekdays_calendar
+from kiyosi.market import (
+    RateTermStructure,
+    TradingCalendar,
+)
 from kiyosi.pricing import numerical_greeks
 from support.assertions import assert_rejection
 from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, option
@@ -349,7 +352,7 @@ def test_applicability_precedes_request_solver_and_expiry_validation():
         option(
             observation_times=[datetime(2025, 1, 4)],
             touch_state="touched",
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
         )
     for sigma in (1e200, 1e308):
         assert_rejection(

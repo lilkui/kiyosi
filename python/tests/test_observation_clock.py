@@ -15,10 +15,9 @@ from kiyosi.instruments import (
 )
 from kiyosi.market import (
     BlackScholesMertonParameters,
+    ObservationSchedule,
     PricingContext,
-    fixed_interval_schedule,
-    monthly_schedule,
-    weekdays_calendar,
+    TradingCalendar,
 )
 from kiyosi.pricing import (
     AnalyticRangeAccrualEngine,
@@ -103,14 +102,14 @@ def test_clock_requires_naive_time_and_preserves_microseconds(subtests):
 
 
 def test_generated_sequences_use_explicit_clock_and_complete_upper_bound():
-    schedule = monthly_schedule(
+    schedule = ObservationSchedule.monthly(
         start_time=datetime(2025, 1, 31, 9),
         end_time=datetime(2025, 3, 31, 14),
         first_observation_month=1,
         observation_clock_time=CLOCK,
     )
     assert list(schedule) == [datetime(2025, 2, 28, 15, 0, 0, 123456)]
-    empty = fixed_interval_schedule(
+    empty = ObservationSchedule.fixed_interval(
         start_time=datetime(2025, 1, 3, 16),
         end_time=datetime(2025, 1, 6, 14),
         interval_days=1,
@@ -185,7 +184,7 @@ def test_accumulator_allows_no_daily_events_and_does_not_add_units_at_expiry():
 
 def test_daily_knock_in_does_not_observe_off_clock_maturity(subtests):
     note = SnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         knock_in_observation=KnockInObservation.every_trading_day(time(15)),
         barrier_state="no_event",
         **snowball_terms(),
@@ -255,7 +254,7 @@ def test_future_accumulation_occurs_once_before_off_clock_maturity(subtests):
 
 def test_future_pricing_after_last_observation_does_not_add_maturity_knock_in(subtests):
     note = SnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         knock_in_observation=KnockInObservation.every_trading_day(time(15)),
         barrier_state="no_event",
         **snowball_terms(),
@@ -281,7 +280,7 @@ def test_future_pricing_after_last_observation_does_not_add_maturity_knock_in(su
 
 def test_knock_in_observation_replacement_switches_rule_and_clock_atomically():
     expiry = SnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         knock_in_observation=KnockInObservation.at_expiry(),
         **snowball_terms(),
     )
@@ -340,7 +339,7 @@ def test_completed_daily_monitoring_has_no_implied_volatility_or_expiry_greeks_j
     subtests,
 ):
     daily = SnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         knock_in_observation=KnockInObservation.every_trading_day(time(15)),
         barrier_state="no_event",
         **(

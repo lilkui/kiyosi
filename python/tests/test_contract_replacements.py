@@ -8,7 +8,7 @@ import pytest
 from kiyosi import InvalidInputError
 from kiyosi import instruments as i
 from kiyosi.instruments import KnockInObservation
-from kiyosi.market import all_days_calendar, weekdays_calendar
+from kiyosi.market import TradingCalendar
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 
@@ -147,7 +147,7 @@ def contract_inputs():
     yield (
         i.SnowballOption,
         {
-            "calendar": weekdays_calendar(),
+            "calendar": TradingCalendar.weekdays(),
             "maturity_coupon_rate": 0.1,
             "initial_spot": 100,
             "knock_in_level": 80,
@@ -166,7 +166,7 @@ def contract_inputs():
     yield (
         i.PhoenixOption,
         {
-            "calendar": weekdays_calendar(),
+            "calendar": TradingCalendar.weekdays(),
             "coupon_per_period": 0.1,
             "initial_spot": 100,
             "knock_in_level": 80,
@@ -190,7 +190,7 @@ def contract_inputs():
     yield (
         i.BinarySnowballOption,
         {
-            "calendar": weekdays_calendar(),
+            "calendar": TradingCalendar.weekdays(),
             "maturity_coupon_rate": 0.1,
             "barrier_state": "no_event",
             "principal_redemption_ratio": 1,
@@ -204,7 +204,7 @@ def contract_inputs():
     yield (
         i.TernarySnowballOption,
         {
-            "calendar": weekdays_calendar(),
+            "calendar": TradingCalendar.weekdays(),
             "maturity_coupon_rate": 0.1,
             "minimum_coupon_rate": 0.02,
             "knock_in_level": 80,
@@ -248,7 +248,7 @@ def contracts():
 
 
 UPDATES = {
-    "calendar": all_days_calendar(),
+    "calendar": TradingCalendar.all_days(),
     "option_type": "put",
     "strike": 105,
     "effective_time": datetime(2025, 1, 2),
@@ -313,7 +313,10 @@ def test_monitoring_schedules_round_trip_for_continuous_and_scheduled_contracts(
             continue
         with subtests.test(contract=factory.__name__):
             continuous = factory(
-                **(fields | {"touch_state": None, "calendar": all_days_calendar()})
+                **(
+                    fields
+                    | {"touch_state": None, "calendar": TradingCalendar.all_days()}
+                )
             )
             assert continuous.observation_schedule is None
             assert (

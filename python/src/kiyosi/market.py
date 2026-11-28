@@ -49,10 +49,10 @@ Build monthly observations from a month-end anchor. February is clamped
 without moving the March anchor:
 
 >>> from datetime import datetime, time
->>> schedule = monthly_schedule(
+>>> schedule = ObservationSchedule.monthly(
 ...     start_time=datetime(2025, 1, 31), end_time=datetime(2025, 3, 31),
 ...     first_observation_month=1, observation_clock_time=time(0),
-...     calendar=all_days_calendar(),
+...     calendar=TradingCalendar.all_days(),
 ... )
 >>> list(schedule)
 [datetime.datetime(2025, 2, 28, 0, 0), datetime.datetime(2025, 3, 31, 0, 0)]
@@ -69,12 +69,6 @@ from ._native import (
     PricingContext,
     RateTermStructure,
     TradingCalendar,
-    all_days_calendar,
-    custom_calendar,
-    fixed_interval_schedule,
-    monthly_schedule,
-    sse_calendar,
-    weekdays_calendar,
 )
 
 BusinessDayConvention = Literal["following", "preceding"]
@@ -89,10 +83,4 @@ __all__ = [
     "PricingContext",
     "RateTermStructure",
     "TradingCalendar",
-    "all_days_calendar",
-    "custom_calendar",
-    "fixed_interval_schedule",
-    "monthly_schedule",
-    "sse_calendar",
-    "weekdays_calendar",
 ]

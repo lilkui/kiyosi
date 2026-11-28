@@ -149,20 +149,20 @@ def test_stochastic_terminal_rebate_matches_discounted_payment(factory):
 
 
 @pytest.mark.parametrize(
-    "name,extra",
+    "factory,extra",
     [
         (
-            "standard_snowball",
+            instruments.SnowballOption.standard,
             {"coupon_rate": 0.08, "knock_in_observation_clock_time": time()},
         ),
-        ("european_snowball", {"coupon_rate": 0.08}),
-        ("fixed_coupon_note", {"coupon_per_period": 0.01}),
+        (instruments.SnowballOption.european, {"coupon_rate": 0.08}),
+        (instruments.PhoenixOption.fixed_coupon, {"coupon_per_period": 0.01}),
         (
-            "digital_coupon_note",
+            instruments.PhoenixOption.digital_coupon,
             {"coupon_per_period": 0.01, "coupon_barrier_level": 90},
         ),
         (
-            "standard_phoenix",
+            instruments.PhoenixOption.standard,
             {
                 "coupon_per_period": 0.01,
                 "coupon_barrier_level": 90,
@@ -171,8 +171,7 @@ def test_stochastic_terminal_rebate_matches_discounted_payment(factory):
         ),
     ],
 )
-def test_presets_preserve_rebates_and_discoverable_defaults(name, extra):
-    factory = getattr(instruments, name)
+def test_presets_preserve_rebates_and_discoverable_defaults(factory, extra):
     fields = dict(
         initial_spot=100,
         knock_in_level=80,

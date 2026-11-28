@@ -181,14 +181,16 @@ def test_contract_schedule_and_solver_signature_defaults_can_be_forwarded():
     assert option.rebate_timing == "at_expiry"
     assert option.observation_mode == "continuous"
     assert option.observation_times is None
-    arguments = inspect.signature(market.monthly_schedule).bind(
+    arguments = inspect.signature(market.ObservationSchedule.monthly).bind(
         observation_clock_time=clock_time(),
         start_time=start,
         end_time=datetime(2025, 3, 3),
         first_observation_month=1,
     )
     arguments.apply_defaults()
-    assert list(market.monthly_schedule(*arguments.args, **arguments.kwargs)) == [
+    assert list(
+        market.ObservationSchedule.monthly(*arguments.args, **arguments.kwargs)
+    ) == [
         datetime(2025, 2, 3),
         datetime(2025, 3, 3),
     ]
@@ -593,40 +595,54 @@ def test_constructors_and_factories_match_declared_keywords(subtests):
     stub = ast.parse(
         (Path(kiyosi.__file__).parent / "_native.pyi").read_text(encoding="utf-8")
     )
-    factories = [pricing.implied_volatility]
+    implied_volatility = next(
+        node.args
+        for node in stub.body
+        if isinstance(node, ast.FunctionDef) and node.name == "implied_volatility"
+    )
+    factories = [(pricing.implied_volatility, implied_volatility)]
+    factory_owners = {
+        "TradingCalendar",
+        "ObservationSchedule",
+        "SnowballOption",
+        "PhoenixOption",
+    }
     for module in (instruments, market):
         for node in stub.body:
             if getattr(node, "name", None) not in module.__all__:
                 continue
-            if isinstance(node, ast.FunctionDef) or (
-                isinstance(node, ast.ClassDef)
-                and any(
-                    isinstance(member, ast.FunctionDef) and member.name == "__init__"
-                    for member in node.body
+            if isinstance(node, ast.FunctionDef):
+                factories.append((getattr(module, node.name), node.args))
+            elif isinstance(node, ast.ClassDef):
+                owner = getattr(module, node.name)
+                constructor = next(
+                    (
+                        member
+                        for member in node.body
+                        if isinstance(member, ast.FunctionDef)
+                        and member.name == "__init__"
+                    ),
+                    None,
                 )
-            ):
-                factories.append(getattr(module, node.name))
-    assert factories
-    for factory in factories:
-        declaration = next(
-            node
-            for node in stub.body
-            if isinstance(node, (ast.ClassDef, ast.FunctionDef))
-            and node.name == factory.__name__
-        )
-        arguments = (
-            next(
-                member
-                for member in declaration.body
-                if isinstance(member, ast.FunctionDef) and member.name == "__init__"
-            ).args
-            if isinstance(declaration, ast.ClassDef)
-            else declaration.args
-        )
+                if constructor is not None:
+                    factories.append((owner, constructor.args))
+                if node.name not in factory_owners:
+                    continue
+                for member in node.body:
+                    if isinstance(member, ast.FunctionDef) and any(
+                        isinstance(decorator, ast.Name)
+                        and decorator.id == "staticmethod"
+                        for decorator in member.decorator_list
+                    ):
+                        assert isinstance(
+                            inspect.getattr_static(owner, member.name), staticmethod
+                        )
+                        factories.append((getattr(owner, member.name), member.args))
+    for factory, arguments in factories:
         positional = tuple(arg.arg for arg in arguments.args if arg.arg != "self")
         keywords = tuple(arg.arg for arg in arguments.kwonlyargs)
         signature = inspect.signature(factory)
-        with subtests.test(api=factory.__name__):
+        with subtests.test(api=factory.__qualname__):
             assert tuple(signature.parameters) == positional + keywords
             for name in positional:
                 assert (
@@ -682,7 +698,7 @@ def test_constructors_and_factories_match_declared_keywords(subtests):
 def test_autocallable_clocks_follow_monitoring_mode(cls, extra):
     start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
     common = {
-        "calendar": market.weekdays_calendar(),
+        "calendar": market.TradingCalendar.weekdays(),
         "knock_in_level": 80,
         "effective_time": start,
         "expiry_time": end,

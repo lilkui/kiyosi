@@ -75,7 +75,7 @@ def seed_cases():
         (
             "snowball",
             p.MonteCarloAutocallableEngine,
-            i.standard_snowball(
+            i.SnowballOption.standard(
                 coupon_rate=0.1,
                 initial_spot=100,
                 knock_in_level=80,

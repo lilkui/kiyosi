@@ -13,7 +13,7 @@ from kiyosi.instruments import (
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
-    all_days_calendar,
+    TradingCalendar,
 )
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -227,7 +227,7 @@ def test_restarts_match_implicit_half_steps_without_extra_observations(subtests)
             barrier_type="up_and_out" if up else "down_and_out",
             rebate=2,
             rebate_timing=timing,
-            calendar=all_days_calendar(),
+            calendar=TradingCalendar.all_days(),
             observation_times=[START + timedelta(days=i) for i in (90, 180, 270, 360)],
         )
         results = [

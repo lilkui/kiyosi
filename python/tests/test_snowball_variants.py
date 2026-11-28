@@ -20,7 +20,10 @@ from kiyosi.instruments import (
     SnowballOption,
     TernarySnowballOption,
 )
-from kiyosi.market import RateTermStructure, weekdays_calendar
+from kiyosi.market import (
+    RateTermStructure,
+    TradingCalendar,
+)
 from kiyosi.pricing import (
     FiniteDifferenceAutocallableEngine,
     MonteCarloAutocallableEngine,
@@ -35,7 +38,7 @@ from test_snowball import END, START, autocallable_observations, market, structu
 
 def test_fixed_snowball_payment_needs_only_the_risk_curve():
     note = BinarySnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         maturity_coupon_rate=0,
         effective_time=START,
         expiry_time=END,
@@ -58,7 +61,7 @@ def test_fixed_snowball_payment_needs_only_the_risk_curve():
 
 
 def test_european_snowball_signature_defaults_can_be_forwarded():
-    factory = instruments.european_snowball
+    factory = instruments.SnowballOption.european
     signature = inspect.signature(factory)
     assert "knock_in_observation_clock_time" not in signature.parameters
     fields = {
@@ -81,7 +84,7 @@ def test_european_snowball_signature_defaults_can_be_forwarded():
 def test_quadrature_covers_drift_into_future_knock_out():
     end = datetime(2026, 1, 1)
     note = BinarySnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         maturity_coupon_rate=0,
         effective_time=START,
         expiry_time=end,
@@ -107,7 +110,7 @@ def test_quadrature_covers_drift_into_future_knock_out():
 def test_quadrature_covers_drift_below_future_knock_out():
     end = datetime(2026, 1, 1)
     note = SnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         maturity_coupon_rate=0,
         initial_spot=100,
         knock_in_level=80,
@@ -163,9 +166,9 @@ def test_fixed_terminal_regions_and_no_binary_monitoring():
             [END], [110], knock_out_coupon_rates=[0.08]
         ),
     }
-    binary = BinarySnowballOption(calendar=weekdays_calendar(), **common)
+    binary = BinarySnowballOption(calendar=TradingCalendar.weekdays(), **common)
     ternary = TernarySnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         **common,
         minimum_coupon_rate=-0.02,
         knock_in_level=80,
@@ -212,7 +215,7 @@ def make_fixed(kind, **changes):
             knock_in_observation=KnockInObservation.at_expiry(),
         )
     fields.update(changes)
-    return kind(calendar=weekdays_calendar(), **fields)
+    return kind(calendar=TradingCalendar.weekdays(), **fields)
 
 
 def test_existing_quantlib_terminal_portfolios(subtests):
@@ -243,7 +246,9 @@ def test_existing_quantlib_terminal_portfolios(subtests):
                         else KnockInObservation.at_expiry()
                     ),
                 )
-            note = getattr(instruments, kind)(calendar=weekdays_calendar(), **fields)
+            note = getattr(instruments, kind)(
+                calendar=TradingCalendar.weekdays(), **fields
+            )
             ctx = market(
                 inputs["spot"],
                 datetime.fromisoformat(inputs["valuation"]),
@@ -270,7 +275,7 @@ def test_all_eight_presets_match_explicit_terms(subtests):
     }
     cases = [
         (
-            "standard_snowball",
+            SnowballOption.standard,
             {"coupon_rate": 0.125, "knock_out_level": 110},
             [110] * 3,
             [0.125] * 3,
@@ -280,7 +285,7 @@ def test_all_eight_presets_match_explicit_terms(subtests):
             "every_trading_day",
         ),
         (
-            "european_snowball",
+            SnowballOption.european,
             {"coupon_rate": 0.125, "knock_out_level": 110},
             [110] * 3,
             [0.125] * 3,
@@ -290,7 +295,7 @@ def test_all_eight_presets_match_explicit_terms(subtests):
             "at_expiry",
         ),
         (
-            "step_down_snowball",
+            SnowballOption.step_down,
             {
                 "coupon_rate": 0.125,
                 "initial_knock_out_level": 110,
@@ -304,7 +309,7 @@ def test_all_eight_presets_match_explicit_terms(subtests):
             "every_trading_day",
         ),
         (
-            "both_down_snowball",
+            SnowballOption.both_down,
             {
                 "initial_coupon_rate": 0.125,
                 "initial_knock_out_level": 110,
@@ -319,7 +324,7 @@ def test_all_eight_presets_match_explicit_terms(subtests):
             "every_trading_day",
         ),
         (
-            "dual_coupon_snowball",
+            SnowballOption.dual_coupon,
             {
                 "knock_out_coupon_rate": 0.125,
                 "knock_out_level": 110,
@@ -333,7 +338,7 @@ def test_all_eight_presets_match_explicit_terms(subtests):
             "every_trading_day",
         ),
         (
-            "parachute_snowball",
+            SnowballOption.parachute,
             {
                 "coupon_rate": 0.125,
                 "knock_out_level": 110,
@@ -347,7 +352,7 @@ def test_all_eight_presets_match_explicit_terms(subtests):
             "every_trading_day",
         ),
         (
-            "otm_snowball",
+            SnowballOption.otm,
             {"coupon_rate": 0.125, "knock_out_level": 110, "upper_strike": 90},
             [110] * 3,
             [0.125] * 3,
@@ -357,7 +362,7 @@ def test_all_eight_presets_match_explicit_terms(subtests):
             "every_trading_day",
         ),
         (
-            "loss_capped_snowball",
+            SnowballOption.loss_capped,
             {"coupon_rate": 0.125, "knock_out_level": 110, "lower_strike": 60},
             [110] * 3,
             [0.125] * 3,
@@ -368,9 +373,9 @@ def test_all_eight_presets_match_explicit_terms(subtests):
         ),
     ]
     engine = QuadratureAutocallableEngine()
-    for name, extra, levels, coupons, maturity, upper, lower, mode in cases:
-        with subtests.test(preset=name):
-            actual = getattr(instruments, name)(
+    for factory, extra, levels, coupons, maturity, upper, lower, mode in cases:
+        with subtests.test(preset=factory.__qualname__):
+            actual = factory(
                 **(
                     {"knock_in_observation_clock_time": clock_time()}
                     if mode == "every_trading_day"
@@ -380,7 +385,7 @@ def test_all_eight_presets_match_explicit_terms(subtests):
                 **extra,
             )
             explicit = SnowballOption(
-                calendar=weekdays_calendar(),
+                calendar=TradingCalendar.weekdays(),
                 maturity_coupon_rate=maturity,
                 initial_spot=100,
                 knock_in_level=80,
@@ -419,12 +424,12 @@ def test_all_eight_presets_match_explicit_terms(subtests):
                     vars(instruments)
                     | {
                         "datetime": __import__("datetime"),
-                        "weekdays_calendar": weekdays_calendar,
+                        "TradingCalendar": TradingCalendar,
                     },
                 )
                 == actual
             )
-    defaults = instruments.standard_snowball(
+    defaults = instruments.SnowballOption.standard(
         knock_in_observation_clock_time=clock_time(),
         coupon_rate=0.08,
         initial_spot=100,
@@ -450,7 +455,7 @@ def test_native_representations_validation_timing_and_ownership():
                 vars(instruments)
                 | {
                     "datetime": __import__("datetime"),
-                    "weekdays_calendar": weekdays_calendar,
+                    "TradingCalendar": TradingCalendar,
                 },
             )
             == note
@@ -583,33 +588,33 @@ def test_preset_rejections_and_strict_numeric_conversion():
     ):
         for value in (True, "100"):
             with pytest.raises(TypeError):
-                instruments.standard_snowball(
+                instruments.SnowballOption.standard(
                     knock_in_observation_clock_time=clock_time(),
                     **(common | {field: value}),
                 )
     assert_rejection(
         InvalidInputError,
-        instruments.standard_snowball,
+        instruments.SnowballOption.standard,
         knock_in_observation_clock_time=clock_time(),
         **(common | {"autocall_times": []}),
     )
     assert_rejection(
         InvalidInputError,
-        instruments.loss_capped_snowball,
+        instruments.SnowballOption.loss_capped,
         knock_in_observation_clock_time=clock_time(),
         **common,
         lower_strike=101,
     )
     assert_rejection(
         InvalidInputError,
-        instruments.parachute_snowball,
+        instruments.SnowballOption.parachute,
         knock_in_observation_clock_time=clock_time(),
         **common,
         final_knock_out_level=0,
     )
     assert_rejection(
         InvalidInputError,
-        instruments.otm_snowball,
+        instruments.SnowballOption.otm,
         knock_in_observation_clock_time=clock_time(),
         **common,
         upper_strike=math.nan,
@@ -618,13 +623,13 @@ def test_preset_rejections_and_strict_numeric_conversion():
     stepped["initial_knock_out_level"] = stepped.pop("knock_out_level")
     assert_rejection(
         InvalidInputError,
-        instruments.step_down_snowball,
+        instruments.SnowballOption.step_down,
         knock_in_observation_clock_time=clock_time(),
         **stepped,
         knock_out_level_decrement=math.inf,
     )
     # A negative decrement is supported if the expanded levels remain positive.
-    note = instruments.step_down_snowball(
+    note = instruments.SnowballOption.step_down(
         knock_in_observation_clock_time=clock_time(),
         **(stepped | {"autocall_times": [datetime(2025, 2, 3), END]}),
         knock_out_level_decrement=-2,

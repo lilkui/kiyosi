@@ -27,12 +27,14 @@ def values():
     model = m.BlackScholesMertonParameters(
         risk_free_rate=curve, dividend_yield=0.02, volatility=0.2
     )
-    calendar = m.custom_calendar(
-        base=m.custom_calendar(base=m.sse_calendar(), closed_dates=[START.date()]),
+    calendar = m.TradingCalendar.custom(
+        base=m.TradingCalendar.custom(
+            base=m.TradingCalendar.sse(), closed_dates=[START.date()]
+        ),
         open_dates=[datetime(2025, 1, 4).date()],
         trading_days_per_year=260,
     )
-    schedule = m.monthly_schedule(
+    schedule = m.ObservationSchedule.monthly(
         observation_clock_time=clock_time(),
         start_time=START,
         end_time=END,
@@ -67,10 +69,10 @@ def values():
             correlation=-0.5,
         ),
         calendar,
-        m.weekdays_calendar(),
-        m.all_days_calendar(),
+        m.TradingCalendar.weekdays(),
+        m.TradingCalendar.all_days(),
         schedule,
-        m.fixed_interval_schedule(
+        m.ObservationSchedule.fixed_interval(
             observation_clock_time=clock_time(),
             start_time=START,
             end_time=END,
@@ -129,13 +131,13 @@ def values():
             **life,
         ),
         i.SnowballOption(
-            calendar=m.weekdays_calendar(),
+            calendar=m.TradingCalendar.weekdays(),
             knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             maturity_coupon_rate=0.1,
             **common,
         ),
         i.PhoenixOption(
-            calendar=m.weekdays_calendar(),
+            calendar=m.TradingCalendar.weekdays(),
             knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             coupon_per_period=0.1,
             **dict(
@@ -149,13 +151,13 @@ def values():
             ),
         ),
         i.BinarySnowballOption(
-            calendar=m.weekdays_calendar(),
+            calendar=m.TradingCalendar.weekdays(),
             maturity_coupon_rate=0.1,
             autocall_observations=common["autocall_observations"],
             **life,
         ),
         i.TernarySnowballOption(
-            calendar=m.weekdays_calendar(),
+            calendar=m.TradingCalendar.weekdays(),
             knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             maturity_coupon_rate=0.1,
             minimum_coupon_rate=0.02,
@@ -194,7 +196,7 @@ def test_owned_collection_properties_reject_silent_edits():
         surface.values[0][0] = 0.5
     observation = i.AutocallableObservation.snowball(END, 110, coupon_rate=0.1)
     note = i.BinarySnowballOption(
-        calendar=m.weekdays_calendar(),
+        calendar=m.TradingCalendar.weekdays(),
         maturity_coupon_rate=0.1,
         effective_time=START,
         expiry_time=END,
@@ -336,7 +338,7 @@ def test_repr_and_engine_replacement_ignore_constructor_only_parameters(
             ],
             effective_time=START,
             expiry_time=END,
-            calendar=m.weekdays_calendar(),
+            calendar=m.TradingCalendar.weekdays(),
         ),
     )
     representations = [repr(value) for value in objects]
@@ -424,8 +426,8 @@ def test_repr_memory_is_bounded_for_surfaces_contexts_and_contract_calendars(sub
     context = m.PricingContext(
         model_parameters=model, spot_price=100, valuation_time=START
     )
-    calendar = m.custom_calendar(
-        base=m.weekdays_calendar(),
+    calendar = m.TradingCalendar.custom(
+        base=m.TradingCalendar.weekdays(),
         closed_dates=[(START - timedelta(days=n + 1)).date() for n in range(5000)],
     )
     contracts = [
@@ -469,7 +471,7 @@ def test_repr_bounds_large_contract_schedules(subtests):
                 knock_out_observation_times=times,
                 accumulated_quantity=original.accumulated_quantity,
                 knock_out_settled=original.knock_out_settled,
-                calendar=m.all_days_calendar(),
+                calendar=m.TradingCalendar.all_days(),
             )
         elif isinstance(
             original,
@@ -494,7 +496,7 @@ def test_repr_bounds_large_contract_schedules(subtests):
                 expiry_time=times[-1],
                 **observation_fields,
                 barrier_state=original.barrier_state,
-                calendar=m.all_days_calendar(),
+                calendar=m.TradingCalendar.all_days(),
             )
 
         else:
@@ -509,8 +511,8 @@ def test_repr_bounds_large_contract_schedules(subtests):
 def test_calendar_repr_identifies_base_and_overrides():
     from datetime import timedelta
 
-    base = m.weekdays_calendar()
-    calendar = m.custom_calendar(
+    base = m.TradingCalendar.weekdays()
+    calendar = m.TradingCalendar.custom(
         base=base,
         closed_dates=[START.date()],
         open_dates=[datetime(2025, 1, 4).date()],
@@ -522,7 +524,7 @@ def test_calendar_repr_identifies_base_and_overrides():
     assert "open_dates=[datetime.date(2025, 1, 4)]" in repr(calendar)
     assert repr(calendar) != repr(base)
     assert not (calendar.is_trading_day(START.date()))
-    large = m.custom_calendar(
+    large = m.TradingCalendar.custom(
         base=base,
         closed_dates=[START.date() + timedelta(days=n) for n in range(100)],
     )

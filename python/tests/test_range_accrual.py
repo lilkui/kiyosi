@@ -19,9 +19,7 @@ from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
     RateTermStructure,
-    all_days_calendar,
-    custom_calendar,
-    weekdays_calendar,
+    TradingCalendar,
 )
 from kiyosi.pricing import (
     AnalyticRangeAccrualEngine,
@@ -44,7 +42,7 @@ def instant(value):
 
 def contract(**changes):
     values = {
-        "calendar": all_days_calendar(),
+        "calendar": TradingCalendar.all_days(),
         "notional": 1000,
         "annual_coupon_rate": 0.12,
         "lower_bound": 95,
@@ -179,7 +177,7 @@ def test_schedule_snapshots_survive_calendar_replacement_and_owner_deletion():
     original = contract(expiry_time=START + timedelta(days=3))
     snapshot = original.observation_schedule
     closed = (START + timedelta(days=1)).date()
-    calendar = custom_calendar(base=original.calendar, closed_dates=[closed])
+    calendar = TradingCalendar.custom(base=original.calendar, closed_dates=[closed])
     updated = original.replace(calendar=calendar)
     assert tuple(updated.observation_schedule) == tuple(snapshot)[1:]
     assert updated.observation_schedule.calendar == calendar
@@ -513,7 +511,7 @@ def test_history_must_fit_observations_strictly_before_expiry(expiry_offset, max
     with pytest.raises(InvalidInputError):
         RangeAccrualOption(**fields, realized_hit_count=maximum + 1)
     option = RangeAccrualOption(**fields, realized_hit_count=maximum)
-    closed = custom_calendar(base=option.calendar, closed_dates=[first.date()])
+    closed = TradingCalendar.custom(base=option.calendar, closed_dates=[first.date()])
     for changes in (
         {"realized_hit_count": maximum + 1},
         {"expiry_time": first},
@@ -566,7 +564,7 @@ def test_history_midnight_and_intraday_within_contract_life(subtests):
 
 def test_weekend_calendar_full_term_and_zero_coupon():
     option = contract(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         effective_time=datetime(2025, 1, 3),
         expiry_time=datetime(2025, 1, 6),
     )
@@ -575,7 +573,9 @@ def test_weekend_calendar_full_term_and_zero_coupon():
     assert engine.price(option, context) == pytest.approx(
         reference(option, context), rel=0, abs=1e-12
     )
-    sunday = contract(calendar=weekdays_calendar(), expiry_time=datetime(2025, 1, 5))
+    sunday = contract(
+        calendar=TradingCalendar.weekdays(), expiry_time=datetime(2025, 1, 5)
+    )
     assert engine.price(sunday, market()) == pytest.approx(
         reference(sunday, market()), rel=0, abs=1e-12
     )
@@ -587,13 +587,13 @@ def test_weekend_calendar_full_term_and_zero_coupon():
         InvalidInputError,
         engine.price,
         contract(
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
         ),
         short,
     )
     assert (
         engine.price(
-            contract(calendar=weekdays_calendar(), annual_coupon_rate=0),
+            contract(calendar=TradingCalendar.weekdays(), annual_coupon_rate=0),
             short,
         )
         == 0
@@ -602,7 +602,7 @@ def test_weekend_calendar_full_term_and_zero_coupon():
         InvalidInputError,
         engine.price,
         contract(
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
         ),
         market(dividend=short_curve),
     )
@@ -625,7 +625,7 @@ def test_weekend_calendar_full_term_and_zero_coupon():
     assert_rejection(
         MissingHistoryError,
         engine.price,
-        contract(calendar=weekdays_calendar(), annual_coupon_rate=0),
+        contract(calendar=TradingCalendar.weekdays(), annual_coupon_rate=0),
         market(START + timedelta(days=3)),
     )
 
@@ -803,7 +803,7 @@ def test_smoothed_greeks_against_independent_reference(subtests):
     h, v, r = 0.1, 0.0001, 0.0001
     for days, rate, dividend in ((8, 0.04, 0.01), (15, curve, -0.01)):
         option = contract(
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
             effective_time=START + timedelta(days=2),
             expiry_time=START + timedelta(days=days),
         )
@@ -893,7 +893,7 @@ def test_smoothed_greeks_against_independent_reference(subtests):
 def test_curve_knot_uses_right_hand_time_greek_between_observations():
     valuation = START + timedelta(days=3)
     option = contract(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         effective_time=START + timedelta(days=2),
         expiry_time=START + timedelta(days=5),
     )
@@ -974,8 +974,8 @@ def test_adjacent_range_bounds_keep_positive_probability_away_from_spot():
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     lower = 100.0
     upper = math.nextafter(lower, math.inf)
-    calendar = custom_calendar(
-        base=all_days_calendar(),
+    calendar = TradingCalendar.custom(
+        base=TradingCalendar.all_days(),
         closed_dates=[start.date() + timedelta(days=offset) for offset in range(365)],
     )
     option = RangeAccrualOption(

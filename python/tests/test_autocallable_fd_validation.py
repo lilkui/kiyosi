@@ -12,7 +12,7 @@ from kiyosi.instruments import AutocallableObservation, BinarySnowballOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
-    weekdays_calendar,
+    TradingCalendar,
 )
 
 
@@ -31,7 +31,7 @@ def test_autocallable_engines_share_domain_validation_precedence(subtests, histo
     }
     with pytest.raises(InvalidInputError):
         BinarySnowballOption(
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
             **(
                 fields
                 | {
@@ -43,7 +43,7 @@ def test_autocallable_engines_share_domain_validation_precedence(subtests, histo
             expiry_time=end,
         )
     note = BinarySnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         **fields,
         expiry_time=datetime(2025, 1, 3),
     )

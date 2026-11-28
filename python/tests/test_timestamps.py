@@ -23,12 +23,10 @@ from kiyosi.instruments import (
 )
 from kiyosi.market import (
     BlackScholesMertonParameters,
+    ObservationSchedule,
     PricingContext,
     RateTermStructure,
-    custom_calendar,
-    fixed_interval_schedule,
-    monthly_schedule,
-    weekdays_calendar,
+    TradingCalendar,
 )
 from kiyosi.pricing import (
     AnalyticBarrierEngine,
@@ -83,8 +81,8 @@ def accumulator_engines():
 
 def test_closed_date_settlement_preserves_open_date_observations():
     start, observation, valuation = time(2, 16), time(3, 15), time(3, 16)
-    calendar = custom_calendar(
-        base=weekdays_calendar(), closed_dates=[date(2025, 1, 6)]
+    calendar = TradingCalendar.custom(
+        base=TradingCalendar.weekdays(), closed_dates=[date(2025, 1, 6)]
     )
     for expiry in (time(4, 16), time(5, 16), time(6, 16)):
         life = {
@@ -178,8 +176,8 @@ def test_closed_date_settlement_preserves_open_date_observations():
 
 
 def test_contract_schedules_expose_effective_observations(subtests):
-    calendar = custom_calendar(
-        base=weekdays_calendar(), closed_dates=[date(2025, 1, 7)]
+    calendar = TradingCalendar.custom(
+        base=TradingCalendar.weekdays(), closed_dates=[date(2025, 1, 7)]
     )
     clock = clock_time(15, microsecond=123456)
     start = datetime(2025, 1, 6, 15, microsecond=123456)
@@ -347,7 +345,7 @@ def test_time_inputs_reject_dates_timezones_and_lost_precision(subtests):
             lambda value=value: autocallable_observations(
                 [value], [110], knock_out_coupon_rates=[0]
             ),
-            lambda value=value: fixed_interval_schedule(
+            lambda value=value: ObservationSchedule.fixed_interval(
                 observation_clock_time=clock_time(),
                 start_time=value,
                 end_time=time(7, 15),
@@ -356,9 +354,9 @@ def test_time_inputs_reject_dates_timezones_and_lost_precision(subtests):
         ):
             with subtests.test(value=value), pytest.raises(TypeError):
                 operation()
-    assert weekdays_calendar().is_trading_day(date(2025, 1, 6))
+    assert TradingCalendar.weekdays().is_trading_day(date(2025, 1, 6))
     with pytest.raises(TypeError):
-        weekdays_calendar().is_trading_day(time(6, 9))
+        TradingCalendar.weekdays().is_trading_day(time(6, 9))
 
 
 def test_intraday_expiry_and_accrual_preserve_microseconds(subtests):
@@ -398,14 +396,14 @@ def test_observation_schedules_preserve_clock_and_full_timestamp_order(subtests)
     def clock(month, day, hour):
         return datetime(2025, month, day, hour, 11, 12, 123456)
 
-    schedule = monthly_schedule(
+    schedule = ObservationSchedule.monthly(
         observation_clock_time=clock_time(10, 11, 12, 123456),
         start_time=clock(1, 31, 10),
         end_time=clock(3, 31, 15),
         first_observation_month=1,
     )
     assert schedule.times == ((clock(2, 28, 10), clock(3, 31, 10)))
-    fixed = fixed_interval_schedule(
+    fixed = ObservationSchedule.fixed_interval(
         observation_clock_time=clock_time(10, 11, 12, 123456),
         start_time=clock(1, 3, 10),
         end_time=clock(1, 7, 9),
@@ -505,7 +503,7 @@ def test_daily_history_uses_observation_clock_and_inclusive_start(subtests):
             single = option.replace(effective_time=time(7, 15))
             assert engine.price(single, market(time(7, 15))) == 5
     note = SnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         knock_in_observation=KnockInObservation.every_trading_day(clock_time(15)),
         maturity_coupon_rate=0.06,
         initial_spot=100,
@@ -548,7 +546,7 @@ def test_explicit_accumulator_knock_outs_do_not_add_daily_quantity(
 
 def test_autocallable_explicit_events_do_not_trigger_daily_knock_in(subtests):
     note = SnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         knock_in_observation=KnockInObservation.every_trading_day(clock_time(15)),
         maturity_coupon_rate=0.12,
         initial_spot=100,
@@ -620,7 +618,7 @@ def test_finite_difference_rejects_unresolvable_microsecond_events():
     first = datetime(9998, 1, 1, 10, microsecond=1)
     last = first.replace(microsecond=2)
     note = PhoenixOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         coupon_per_period=0.01,
         initial_spot=100,
         knock_in_level=1,

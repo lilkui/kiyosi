@@ -13,8 +13,7 @@ from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
     RateTermStructure,
-    all_days_calendar,
-    weekdays_calendar,
+    TradingCalendar,
 )
 from support.terminal import ALL_GREEKS
 
@@ -59,7 +58,7 @@ def test_structured_knock_out_uses_exact_quoted_forward():
     model = BlackScholesMertonParameters(
         risk_free_rate=curve, dividend_yield=0, volatility=0
     )
-    calendar = all_days_calendar()
+    calendar = TradingCalendar.all_days()
     note = ins.SnowballOption(
         calendar=calendar,
         maturity_coupon_rate=0,
@@ -158,7 +157,7 @@ def test_structured_knock_out_preserves_a_forward_just_below_the_barrier():
         valuation_time=start,
     )
     terms = {
-        "calendar": all_days_calendar(),
+        "calendar": TradingCalendar.all_days(),
         "effective_time": start,
         "expiry_time": end,
     }
@@ -199,7 +198,7 @@ def test_accumulator_settlement_preserves_the_quoted_strike_difference():
         risk_free_rate=curve, dividend_yield=0, volatility=0
     )
     option = ins.Accumulator(
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
         strike=100,
         knock_out_level=200,
         daily_quantity=1e14,
@@ -505,14 +504,14 @@ def cases():
     }
     for contract in (
         ins.SnowballOption(
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
             knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             **note,
             **downside,
             maturity_coupon_rate=0.1,
         ),
         ins.PhoenixOption(
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
             knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             **dict(
                 {
@@ -533,12 +532,12 @@ def cases():
             coupon_per_period=0.1,
         ),
         ins.BinarySnowballOption(
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
             **note,
             maturity_coupon_rate=0.1,
         ),
         ins.TernarySnowballOption(
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
             knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
             **note,
             knock_in_level=80,
@@ -579,7 +578,7 @@ def cases():
             annual_coupon_rate=0.1,
             lower_bound=100,
             upper_bound=110,
-            calendar=all_days_calendar(),
+            calendar=TradingCalendar.all_days(),
         ),
         ("AnalyticRangeAccrualEngine",),
         100 * 4 / 365,
@@ -805,7 +804,7 @@ def test_deterministic_touch_discounts_across_distinct_curve_knots(sign, dense):
         payoff_type="cash",
         payout=7,
         settlement_timing="at_hit",
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
     )
     hit_time = 270 / 365 + (0.025 - (0.08 * 90 + 0.01 * 90 - 0.02 * 90) / 365) / 0.1
     expected = 7 * math.exp(risk(270) - sign * 0.15 * (hit_time - 270 / 365))
@@ -1074,7 +1073,7 @@ def test_future_structured_events_discount_coupons_and_settle_accumulated_units(
     subtests,
 ):
     middle, end = START + timedelta(days=180), START + timedelta(days=365)
-    calendar = all_days_calendar()
+    calendar = TradingCalendar.all_days()
     context = PricingContext(
         model_parameters=BlackScholesMertonParameters(
             risk_free_rate=0.1, dividend_yield=0, volatility=0
@@ -1162,7 +1161,7 @@ def test_expiry_only_knock_in_ignores_earlier_recovered_breaches(family):
             [300, 300],
             knock_out_coupon_rates=[0] * 2,
         ),
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
     )
     assert getattr(pricing, family + "AutocallableEngine")().price(
         note, context
@@ -1305,7 +1304,7 @@ def test_accumulator_discounts_large_settlement_before_rounding(
         expiry_time=end,
         observation_clock_time=clock_time(),
         knock_out_observation_times=[end],
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
     )
     expected = math.exp(math.log(purchases) + math.log(1e301) - 750)
     for engine in (

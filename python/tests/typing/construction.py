@@ -16,10 +16,11 @@ from kiyosi.instruments import (
     TernarySnowballOption,
     TouchOption,
     autocallable_observations,
-    standard_phoenix,
-    step_down_phoenix,
 )
-from kiyosi.market import PricingContext, weekdays_calendar
+from kiyosi.market import (
+    PricingContext,
+    TradingCalendar,
+)
 from kiyosi.pricing import (
     CouponQuoteConvention,
     QuadratureAutocallableEngine,
@@ -151,7 +152,7 @@ def phoenix_periodic_coupon() -> None:
     observations = [KnockOutObservation(end, 110)]
     assert_type(
         PhoenixOption(
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
             knock_in_observation=KnockInObservation.at_expiry(),
             coupon_per_period=0.01,
             initial_spot=100,
@@ -166,7 +167,7 @@ def phoenix_periodic_coupon() -> None:
         PhoenixOption,
     )
     PhoenixOption(  # ty: ignore[missing-argument]
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         knock_in_observation=KnockInObservation.at_expiry(),
         initial_spot=100,
         knock_in_level=80,
@@ -202,7 +203,7 @@ def phoenix_replacements(note: PhoenixOption) -> None:
 
 def phoenix_presets(start: datetime, end: datetime) -> None:
     assert_type(
-        standard_phoenix(
+        PhoenixOption.standard(
             coupon_per_period=0.01,
             initial_spot=100,
             knock_in_level=80,
@@ -217,7 +218,7 @@ def phoenix_presets(start: datetime, end: datetime) -> None:
         PhoenixOption,
     )
     assert_type(
-        step_down_phoenix(
+        PhoenixOption.step_down(
             coupon_per_period=0.01,
             initial_spot=100,
             knock_in_level=80,
@@ -391,7 +392,7 @@ def expiry_only_snowballs() -> None:
     observations = [AutocallableObservation.snowball(end, 110, coupon_rate=0)]
     assert_type(
         SnowballOption(
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
             maturity_coupon_rate=0.1,
             initial_spot=100,
             knock_in_level=80,
@@ -406,7 +407,7 @@ def expiry_only_snowballs() -> None:
     )
     assert_type(
         TernarySnowballOption(
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
             maturity_coupon_rate=0.1,
             minimum_coupon_rate=0.02,
             knock_in_level=80,

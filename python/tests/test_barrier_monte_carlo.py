@@ -16,7 +16,10 @@ from kiyosi import (
     pricing,
 )
 from kiyosi.instruments import EuropeanOption
-from kiyosi.market import RateTermStructure, all_days_calendar
+from kiyosi.market import (
+    RateTermStructure,
+    TradingCalendar,
+)
 from kiyosi.pricing import numerical_greeks
 from support.assertions import assert_rejection
 from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, option
@@ -60,7 +63,7 @@ def test_scheduled_barrier_checks_path_budget_before_building_steps():
         "down_and_out",
         "call",
         expiry_time=end,
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
         observation_times=[START + timedelta(microseconds=i) for i in range(1, 101)],
     )
     engine = pricing.MonteCarloBarrierEngine(path_count=10_000_000, seed=42)
@@ -632,10 +635,10 @@ def test_scaled_rare_hits_and_only_requested_greek_failures():
         context,
         "gamma",
     )
-    from kiyosi.market import weekdays_calendar
+    from kiyosi.market import TradingCalendar
 
     with pytest.raises(InvalidInputError):
         option(
             observation_times=[START + timedelta(days=3)],
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
         )

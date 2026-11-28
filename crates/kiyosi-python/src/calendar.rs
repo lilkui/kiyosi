@@ -172,98 +172,98 @@ impl TradingCalendar {
         py.check_signals()?;
         domain(self.0.trading_year_fraction(start, end))
     }
-}
 
-/// Create a Monday-through-Friday calendar with a 261-day basis.
-///
-/// Returns
-/// -------
-/// TradingCalendar
-///     Calendar with the stated annualization basis.
-///
-#[pyfunction]
-pub(crate) fn weekdays_calendar() -> TradingCalendar {
-    TradingCalendar::default()
-}
-
-/// Create a calendar with every date open and a 365-day basis.
-///
-/// Returns
-/// -------
-/// TradingCalendar
-///     Calendar with the stated annualization basis.
-///
-#[pyfunction]
-pub(crate) fn all_days_calendar() -> TradingCalendar {
-    TradingCalendar(kiyosi::TradingCalendar::all_days())
-}
-
-/// Create a Shanghai Stock Exchange (SSE) calendar with a 243-day basis.
-///
-/// Returns
-/// -------
-/// TradingCalendar
-///     Calendar with the stated annualization basis.
-///
-/// Notes
-/// -----
-/// Uses recorded and forecast weekday closures for 1991-2099, and weekdays
-/// outside that range. Forecasts omit ad-hoc closures.
-///
-#[pyfunction]
-pub(crate) fn sse_calendar() -> TradingCalendar {
-    TradingCalendar(kiyosi::TradingCalendar::sse())
-}
-
-/// Derive a calendar from a base calendar and open and closed date overrides.
-///
-/// Parameters
-/// ----------
-/// base : TradingCalendar
-///     Base calendar.
-/// closed_dates : iterable of date, optional
-///     Dates forced closed; duplicates and unsorted input are accepted.
-/// open_dates : iterable of date, optional
-///     Dates forced open, including weekends; must not also be closed.
-/// trading_days_per_year : int or None, optional
-///     Positive annualization basis, or None to retain the base basis.
-///
-/// Returns
-/// -------
-/// TradingCalendar
-///     Calendar with normalized overrides and the selected annualization basis.
-///
-/// Raises
-/// ------
-/// InvalidInputError
-///     If a date is both open and closed, or the annualization basis is
-///     nonpositive.
-///
-/// Notes
-/// -----
-/// Date conversion polls Python signals. Large override merges release the GIL
-/// and poll Python signals during normalization.
-///
-#[pyfunction]
-#[pyo3(signature = (*, base, closed_dates=Vec::new(), open_dates=Vec::new(), trading_days_per_year=None))]
-pub(crate) fn custom_calendar(
-    py: Python<'_>,
-    base: &TradingCalendar,
-    #[pyo3(from_py_with = dates)] closed_dates: Vec<kiyosi::Date>,
-    #[pyo3(from_py_with = dates)] open_dates: Vec<kiyosi::Date>,
-    trading_days_per_year: Option<&Bound<'_, PyAny>>,
-) -> PyResult<TradingCalendar> {
-    let basis = trading_days_per_year.map(integer).transpose()?;
-    let mut count = closed_dates.len() + open_dates.len();
-    if count != 0 {
-        if let Some((_, closed, open)) = base.0.overrides() {
-            count += closed.len() + open.len();
-        }
+    /// Create a Monday-through-Friday calendar with a 261-day basis.
+    ///
+    /// Returns
+    /// -------
+    /// TradingCalendar
+    ///     Calendar with the stated annualization basis.
+    ///
+    #[staticmethod]
+    fn weekdays() -> TradingCalendar {
+        TradingCalendar::default()
     }
-    run_date_scan(py, count as u64, || {
-        kiyosi::TradingCalendar::custom(base.0.clone(), closed_dates, open_dates, basis)
-    })
-    .map(TradingCalendar)
+
+    /// Create a calendar with every date open and a 365-day basis.
+    ///
+    /// Returns
+    /// -------
+    /// TradingCalendar
+    ///     Calendar with the stated annualization basis.
+    ///
+    #[staticmethod]
+    fn all_days() -> TradingCalendar {
+        TradingCalendar(kiyosi::TradingCalendar::all_days())
+    }
+
+    /// Create a Shanghai Stock Exchange (SSE) calendar with a 243-day basis.
+    ///
+    /// Returns
+    /// -------
+    /// TradingCalendar
+    ///     Calendar with the stated annualization basis.
+    ///
+    /// Notes
+    /// -----
+    /// Uses recorded and forecast weekday closures for 1991-2099, and weekdays
+    /// outside that range. Forecasts omit ad-hoc closures.
+    ///
+    #[staticmethod]
+    fn sse() -> TradingCalendar {
+        TradingCalendar(kiyosi::TradingCalendar::sse())
+    }
+
+    /// Derive a calendar from a base calendar and open and closed date overrides.
+    ///
+    /// Parameters
+    /// ----------
+    /// base : TradingCalendar
+    ///     Base calendar.
+    /// closed_dates : iterable of date, optional
+    ///     Dates forced closed; duplicates and unsorted input are accepted.
+    /// open_dates : iterable of date, optional
+    ///     Dates forced open, including weekends; must not also be closed.
+    /// trading_days_per_year : int or None, optional
+    ///     Positive annualization basis, or None to retain the base basis.
+    ///
+    /// Returns
+    /// -------
+    /// TradingCalendar
+    ///     Calendar with normalized overrides and the selected annualization basis.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInputError
+    ///     If a date is both open and closed, or the annualization basis is
+    ///     nonpositive.
+    ///
+    /// Notes
+    /// -----
+    /// Date conversion polls Python signals. Large override merges release the GIL
+    /// and poll Python signals during normalization.
+    ///
+    #[staticmethod]
+    #[pyo3(signature = (*, base, closed_dates=Vec::new(), open_dates=Vec::new(), trading_days_per_year=None))]
+    fn custom(
+        py: Python<'_>,
+        base: &TradingCalendar,
+        #[pyo3(from_py_with = dates)] closed_dates: Vec<kiyosi::Date>,
+        #[pyo3(from_py_with = dates)] open_dates: Vec<kiyosi::Date>,
+        trading_days_per_year: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<TradingCalendar> {
+        let basis = trading_days_per_year.map(integer).transpose()?;
+        let mut count = closed_dates.len() + open_dates.len();
+        if count != 0 {
+            if let Some((_, closed, open)) = base.0.overrides() {
+                count += closed.len() + open.len();
+            }
+        }
+        run_date_scan(py, count as u64, || {
+            kiyosi::TradingCalendar::custom(base.0.clone(), closed_dates, open_dates, basis)
+        })
+        .map(TradingCalendar)
+    }
 }
 
 pub(crate) fn builtin_name(calendar: &kiyosi::TradingCalendar) -> PyResult<&'static str> {

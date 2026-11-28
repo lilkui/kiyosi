@@ -23,7 +23,7 @@ def test_deterministic_barrier_uses_current_and_future_fixings_after_dense_histo
         rebate=2,
         rebate_timing="at_hit",
         touch_state="untouched",
-        calendar=market.all_days_calendar(),
+        calendar=market.TradingCalendar.all_days(),
         observation_times=(
             *(start + timedelta(seconds=offset) for offset in range(4096)),
             valuation,
@@ -155,12 +155,14 @@ def test_barrier_calendars_are_owned_and_preserved_by_replacement(subtests):
     for factory, fields, engines in cases:
         with pytest.raises(InvalidInputError):
             factory(**common, **fields)
-        original = factory(**common, **fields, calendar=market.all_days_calendar())
-        owned = original.replace(calendar=market.all_days_calendar())
+        original = factory(
+            **common, **fields, calendar=market.TradingCalendar.all_days()
+        )
+        owned = original.replace(calendar=market.TradingCalendar.all_days())
         with subtests.test(factory=factory.__name__):
-            assert original.calendar == market.all_days_calendar()
+            assert original.calendar == market.TradingCalendar.all_days()
             assert owned == factory(
-                **common, **fields, calendar=market.all_days_calendar()
+                **common, **fields, calendar=market.TradingCalendar.all_days()
             )
             assert owned.replace() == owned
             assert owned.replace() == owned

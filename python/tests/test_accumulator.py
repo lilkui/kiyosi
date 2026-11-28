@@ -19,9 +19,7 @@ from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
     RateTermStructure,
-    all_days_calendar,
-    custom_calendar,
-    weekdays_calendar,
+    TradingCalendar,
 )
 from kiyosi.pricing import numerical_greeks
 from support.assertions import assert_rejection
@@ -44,7 +42,7 @@ def test_refined_daily_accumulator_with_distant_knock_out_matches_unmonitored_li
         acceleration_factor=2,
         effective_time=START,
         expiry_time=START + timedelta(days=days),
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
         observation_clock_time=clock_time(),
     )
     context = market(
@@ -130,7 +128,7 @@ def contract(
         accumulated_quantity=quantity,
         effective_time=START,
         expiry_time=end,
-        calendar=weekdays_calendar() if calendar is None else calendar,
+        calendar=TradingCalendar.weekdays() if calendar is None else calendar,
     )
 
 
@@ -250,8 +248,8 @@ def test_quadrature_tails_exclude_closed_dates_and_purchases_at_knock_out(
 ):
     expiry = datetime(2025, 1, 4)
     knock_out_time = datetime(2025, 1, 3)
-    calendar = custom_calendar(
-        base=weekdays_calendar(), closed_dates=[datetime(2025, 1, 2).date()]
+    calendar = TradingCalendar.custom(
+        base=TradingCalendar.weekdays(), closed_dates=[datetime(2025, 1, 2).date()]
     )
     engine = pricing.QuadratureAccumulatorEngine()
     context = market(spot=spot, volatility=1e-8)

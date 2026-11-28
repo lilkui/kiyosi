@@ -9,8 +9,8 @@ from typing import assert_type
 from kiyosi.instruments import EuropeanOption, PhoenixOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
+    ObservationSchedule,
     PricingContext,
-    fixed_interval_schedule,
 )
 from kiyosi.pricing import (
     CoxRossRubinsteinVanillaEngine,
@@ -39,7 +39,7 @@ def numeric_protocol_inputs() -> None:
     assert_type(tree.step_count, int)
     assert_type(tree.replace(rollback_tolerance=None).rollback_tolerance, float | None)
     assert_type(MonteCarloVanillaEngine(seed=Index()).seed, int | None)
-    schedule = fixed_interval_schedule(
+    schedule = ObservationSchedule.fixed_interval(
         observation_clock_time=clock_time(),
         start_time=start,
         end_time=end,

@@ -281,7 +281,7 @@ def test_terminal_autocallable_stencils_preserve_knock_in_and_redemption_regimes
 ):
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     note = ins.SnowballOption(
-        calendar=market.weekdays_calendar(),
+        calendar=market.TradingCalendar.weekdays(),
         maturity_coupon_rate=0.06,
         initial_spot=100,
         knock_in_level=80,

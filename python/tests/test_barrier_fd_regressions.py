@@ -10,7 +10,7 @@ from kiyosi.market import (
     LocalVolatilityParameters,
     LocalVolatilitySurface,
     PricingContext,
-    all_days_calendar,
+    TradingCalendar,
 )
 
 
@@ -26,7 +26,7 @@ def test_scheduled_barrier_rejects_drift_that_overwhelms_grid_diffusion():
         barrier_type="up_and_in",
         rebate=2,
         observation_times=[start + timedelta(days=day) for day in (30, 100, 365)],
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
     )
     context = PricingContext(
         model_parameters=BlackScholesMertonParameters(

@@ -15,7 +15,7 @@ from kiyosi.market import (
     LocalVolatilityParameters,
     LocalVolatilitySurface,
     PricingContext,
-    weekdays_calendar,
+    TradingCalendar,
 )
 from quantlib_reference.local_volatility_paths import (
     END,
@@ -86,14 +86,14 @@ def contracts():
             "barrier_state": "no_event",
         }
         result[f"snowball_{suffix}"] = ins.SnowballOption(
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
             **common,
             **loss,
             **state,
             maturity_coupon_rate=0.06,
         )
         result[f"ternary_{suffix}"] = ins.TernarySnowballOption(
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
             **common,
             **state,
             maturity_coupon_rate=0.06,
@@ -101,7 +101,7 @@ def contracts():
             knock_in_level=95,
         )
         result[f"phoenix_{suffix}"] = ins.PhoenixOption(
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
             **dates,
             **loss,
             **state,
@@ -116,7 +116,7 @@ def contracts():
             ],
         )
     result["binary_snowball"] = ins.BinarySnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         **common,
         maturity_coupon_rate=0.06,
     )

@@ -63,8 +63,8 @@ The four Phoenix preset factories accept one ``autocall_times`` sequence and a
 ``lockout_periods`` count, defaulting to zero. They expand the entire sequence
 into coupon observations and omit the initial count from knock-out observations.
 The knock-out list must contain at least one observation. The contract owns both
-lists, and replacements edit either list directly. ``standard_phoenix`` uses a
-constant knock-out barrier; ``step_down_phoenix`` starts its absolute barrier
+lists, and replacements edit either list directly. ``PhoenixOption.standard`` uses a
+constant knock-out barrier; ``PhoenixOption.step_down`` starts its absolute barrier
 ladder at the first generated knock-out observation. Both use daily knock-in
 and initial spot as the upper loss strike.
 
@@ -77,7 +77,7 @@ Examples
 Edit a preset's observation and maturity coupons together:
 
 >>> from datetime import datetime, time
->>> note = standard_snowball(
+>>> note = SnowballOption.standard(
 ...     coupon_rate=0.12, initial_spot=100, knock_in_level=80, knock_out_level=110,
 ...     effective_time=datetime(2025, 1, 2), expiry_time=datetime(2026, 1, 2),
 ...     autocall_times=[datetime(2026, 1, 2)], knock_in_observation_clock_time=time(15),
@@ -135,20 +135,6 @@ from ._native import (
     TernarySnowballOption,
     TouchOption,
     autocallable_observations,
-    both_down_snowball,
-    butterfly_snowball,
-    digital_coupon_note,
-    dual_coupon_snowball,
-    early_profit_snowball,
-    european_snowball,
-    fixed_coupon_note,
-    loss_capped_snowball,
-    otm_snowball,
-    parachute_snowball,
-    standard_phoenix,
-    standard_snowball,
-    step_down_phoenix,
-    step_down_snowball,
 )
 
 OptionType = Literal["call", "put"]
@@ -177,18 +163,4 @@ __all__ = [
     "TernarySnowballOption",
     "TouchOption",
     "autocallable_observations",
-    "both_down_snowball",
-    "butterfly_snowball",
-    "digital_coupon_note",
-    "dual_coupon_snowball",
-    "early_profit_snowball",
-    "european_snowball",
-    "fixed_coupon_note",
-    "loss_capped_snowball",
-    "otm_snowball",
-    "parachute_snowball",
-    "standard_phoenix",
-    "standard_snowball",
-    "step_down_phoenix",
-    "step_down_snowball",
 ]

@@ -1,7 +1,7 @@
 use crate::calendar::TradingCalendar;
 use crate::engines::analytic;
 use crate::market::{BlackScholesMertonParameters, PricingContext};
-use crate::{calendar, engines, error, instruments, market, risk, schedule};
+use crate::{engines, error, instruments, market, risk, schedule};
 use pyo3::prelude::*;
 
 macro_rules! pricing_classes {
@@ -153,29 +153,11 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
             .getattr("Literal")?
             .get_item(pyo3::types::PyTuple::new(py, names)?)?,
     )?;
-    register_functions!(
-        instruments::autocallable::standard_snowball,
-        instruments::autocallable::european_snowball,
-        instruments::autocallable::step_down_snowball,
-        instruments::autocallable::both_down_snowball,
-        instruments::autocallable::dual_coupon_snowball,
-        instruments::autocallable::parachute_snowball,
-        instruments::autocallable::otm_snowball,
-        instruments::autocallable::loss_capped_snowball,
-    );
     module.add_class::<instruments::autocallable::AutocallableObservation>()?;
     module.add_class::<instruments::autocallable::KnockOutObservation>()?;
     module.add_class::<instruments::autocallable::CouponObservation>()?;
     module.add_class::<instruments::autocallable::KnockInObservation>()?;
-    register_functions!(
-        instruments::autocallable::fixed_coupon_note,
-        instruments::autocallable::standard_phoenix,
-        instruments::autocallable::step_down_phoenix,
-        instruments::autocallable::digital_coupon_note,
-        instruments::autocallable::early_profit_snowball,
-        instruments::autocallable::butterfly_snowball,
-        instruments::autocallable::autocallable_observations,
-    );
+    register_functions!(instruments::autocallable::autocallable_observations,);
     module.add_class::<engines::monte_carlo::MonteCarloEstimate>()?;
     register_functions!(engines::monte_carlo::configure_monte_carlo_pool,);
     module.add_class::<BlackScholesMertonParameters>()?;
@@ -193,12 +175,6 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
         risk::numerical_greeks,
         risk::implied_snowball_coupon,
         risk::implied_phoenix_coupon,
-        calendar::weekdays_calendar,
-        calendar::all_days_calendar,
-        calendar::sse_calendar,
-        calendar::custom_calendar,
-        schedule::fixed_interval_schedule,
-        schedule::monthly_schedule,
     );
     crate::signatures::register(py, module)
 }

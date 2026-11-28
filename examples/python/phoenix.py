@@ -4,15 +4,17 @@ from datetime import datetime, time
 
 from kiyosi.instruments import (
     KnockOutObservation,
-    fixed_coupon_note,
-    standard_phoenix,
-    step_down_phoenix,
+    PhoenixOption,
 )
-from kiyosi.market import BlackScholesMertonParameters, PricingContext, monthly_schedule
+from kiyosi.market import (
+    BlackScholesMertonParameters,
+    ObservationSchedule,
+    PricingContext,
+)
 from kiyosi.pricing import FiniteDifferenceAutocallableEngine, implied_phoenix_coupon
 
 start, end = datetime(2025, 1, 2, 15), datetime(2025, 7, 2, 15)
-times = monthly_schedule(
+times = ObservationSchedule.monthly(
     start_time=start,
     end_time=end,
     first_observation_month=1,
@@ -34,7 +36,7 @@ context = PricingContext(
 engine = FiniteDifferenceAutocallableEngine()
 
 # 前两期正常观察票息和敲入，从第三期开始允许敲出。
-standard = standard_phoenix(
+standard = PhoenixOption.standard(
     coupon_per_period=0.01,
     initial_spot=100,
     knock_in_level=80,
@@ -58,7 +60,7 @@ assert custom.coupon_observations == standard.coupon_observations
 assert custom.knock_out_times[0] not in custom.coupon_times
 
 # 首次敲出观察时，障碍为 103，此后每次敲出观察递减 1。
-step_down = step_down_phoenix(
+step_down = PhoenixOption.step_down(
     coupon_per_period=0.01,
     initial_spot=100,
     knock_in_level=80,
@@ -74,7 +76,7 @@ step_down = step_down_phoenix(
 
 # FCN 工厂返回 Phoenix 合约：无条件固定每期票息，到期才观察敲入。
 # coupon_per_period=0.01 表示每期本金的 1%，不按天数折算。
-fcn = fixed_coupon_note(
+fcn = PhoenixOption.fixed_coupon(
     coupon_per_period=0.01,
     initial_spot=100,
     knock_in_level=80,

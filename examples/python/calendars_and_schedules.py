@@ -4,21 +4,17 @@ from datetime import date, datetime, time
 
 from kiyosi.market import (
     ObservationSchedule,
-    custom_calendar,
-    fixed_interval_schedule,
-    monthly_schedule,
-    sse_calendar,
-    weekdays_calendar,
+    TradingCalendar,
 )
 
-calendar = sse_calendar()
+calendar = TradingCalendar.sse()
 holiday = date(2025, 1, 1)
 print(f"元旦是否交易：{calendar.is_trading_day(holiday)}")
 print(f"顺延至交易日：{calendar.adjust(holiday, 'following')}")
 
 # 日历只分类或调整日期；不会自动修改合约的生效、到期时间。
 start, end = datetime(2025, 1, 2, 15), datetime(2025, 7, 2, 15)
-monthly = monthly_schedule(
+monthly = ObservationSchedule.monthly(
     start_time=start,
     end_time=end,
     first_observation_month=1,
@@ -26,7 +22,7 @@ monthly = monthly_schedule(
     calendar=calendar,
 )
 print("月度观察日程：", list(monthly))
-fortnightly = fixed_interval_schedule(
+fortnightly = ObservationSchedule.fixed_interval(
     start_time=start,
     end_time=end,
     interval_days=14,
@@ -36,8 +32,8 @@ fortnightly = fixed_interval_schedule(
 print("每 14 个自然日锚定的观察日程：", list(fortnightly))
 
 # 自定义日历可覆盖基础日历中的开、休市日期；此处仅演示覆盖机制。
-custom = custom_calendar(
-    base=weekdays_calendar(),
+custom = TradingCalendar.custom(
+    base=TradingCalendar.weekdays(),
     closed_dates=[date(2025, 1, 3)],
     open_dates=[date(2025, 1, 4)],
 )

@@ -19,8 +19,7 @@ from kiyosi.instruments import (
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
-    all_days_calendar,
-    weekdays_calendar,
+    TradingCalendar,
 )
 from kiyosi.pricing import numerical_greeks
 from price_differences import price_differences
@@ -29,7 +28,7 @@ from price_differences import price_differences
 def test_scalar_price_survives_confidence_interval_overflow():
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     note = BinarySnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         maturity_coupon_rate=0,
         principal_redemption_ratio=0,
         effective_time=start,
@@ -65,7 +64,7 @@ def test_shared_spot_simulations_match_separate_seeded_prices(subtests):
     cases = [
         (
             BinarySnowballOption(
-                calendar=weekdays_calendar(),
+                calendar=TradingCalendar.weekdays(),
                 maturity_coupon_rate=0.05,
                 **terms,
                 autocall_observations=autocallable_observations(
@@ -91,7 +90,7 @@ def test_shared_spot_simulations_match_separate_seeded_prices(subtests):
             [
                 (
                     SnowballOption(
-                        calendar=weekdays_calendar(),
+                        calendar=TradingCalendar.weekdays(),
                         maturity_coupon_rate=0.06,
                         initial_spot=100,
                         upper_strike=100,
@@ -107,7 +106,7 @@ def test_shared_spot_simulations_match_separate_seeded_prices(subtests):
                 ),
                 (
                     PhoenixOption(
-                        calendar=weekdays_calendar(),
+                        calendar=TradingCalendar.weekdays(),
                         coupon_per_period=0.08,
                         initial_spot=100,
                         upper_strike=100,
@@ -130,7 +129,7 @@ def test_shared_spot_simulations_match_separate_seeded_prices(subtests):
                 ),
                 (
                     TernarySnowballOption(
-                        calendar=weekdays_calendar(),
+                        calendar=TradingCalendar.weekdays(),
                         maturity_coupon_rate=0.06,
                         minimum_coupon_rate=0.02,
                         **common,
@@ -203,7 +202,7 @@ def test_irrelevant_knock_in_events_preserve_spot_and_time_greeks(subtests):
 
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     note = SnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         maturity_coupon_rate=0,
         initial_spot=100,
         knock_in_level=75,
@@ -263,7 +262,7 @@ def test_default_time_greeks_respect_remaining_knock_in_events(state, reference_
     )
     engine = pricing.MonteCarloAutocallableEngine(path_count=64, seed=42)
     note = SnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         maturity_coupon_rate=0.06,
         initial_spot=100,
         knock_in_level=75,
@@ -293,7 +292,7 @@ def test_default_time_greeks_respect_remaining_knock_in_events(state, reference_
 def test_fixed_implied_volatility_preserves_non_finite_pricing_errors(subtests):
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     note = BinarySnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         maturity_coupon_rate=1e308,
         principal_redemption_ratio=1e308,
         effective_time=start,
@@ -347,7 +346,7 @@ def test_contract_calendar_controls_daily_monte_carlo_observations(subtests):
         }
         for mode in ("at_expiry", "every_trading_day"):
             snowball = SnowballOption(
-                calendar=weekdays_calendar(),
+                calendar=TradingCalendar.weekdays(),
                 **terms,
                 initial_spot=100,
                 knock_in_level=90,
@@ -359,14 +358,14 @@ def test_contract_calendar_controls_daily_monte_carlo_observations(subtests):
                     else KnockInObservation.at_expiry()
                 ),
             )
-            binary = BinarySnowballOption(calendar=weekdays_calendar(), **terms)
+            binary = BinarySnowballOption(calendar=TradingCalendar.weekdays(), **terms)
             for note in (binary, snowball):
                 with subtests.test(
                     observations=observations,
                     note=type(note).__name__,
                     mode=mode,
                 ):
-                    all_days = note.replace(calendar=all_days_calendar())
+                    all_days = note.replace(calendar=TradingCalendar.all_days())
                     if isinstance(note, SnowballOption) and mode == "every_trading_day":
                         weekend = datetime(2025, 1, 4)
                         assert weekend not in note.knock_in_observation_schedule
@@ -398,7 +397,7 @@ def check_autocallable(subtests, note, context, expected):
 
 def test_current_knockouts_pay_only_contractual_coupon(subtests):
     common = {
-        "calendar": all_days_calendar(),
+        "calendar": TradingCalendar.all_days(),
         "effective_time": START,
         "expiry_time": END,
     }
@@ -459,7 +458,7 @@ def test_current_knockouts_pay_only_contractual_coupon(subtests):
 @pytest.mark.parametrize("spot,expected", ((50, 0.85), (90, 1.15), (105, 1.25)))
 def test_historical_knockin_and_terminal_caps(subtests, spot, expected):
     common = {
-        "calendar": all_days_calendar(),
+        "calendar": TradingCalendar.all_days(),
         "initial_spot": 100,
         "knock_in_level": 80,
         "knock_in_observation": KnockInObservation.every_trading_day(clock_time()),

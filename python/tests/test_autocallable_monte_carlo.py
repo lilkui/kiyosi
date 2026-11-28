@@ -18,7 +18,10 @@ from kiyosi.instruments import (
     KnockOutObservation,
     autocallable_observations,
 )
-from kiyosi.market import RateTermStructure, weekdays_calendar
+from kiyosi.market import (
+    RateTermStructure,
+    TradingCalendar,
+)
 from kiyosi.pricing import MonteCarloAutocallableEngine as MC
 from kiyosi.pricing import (
     QuadratureAutocallableEngine,
@@ -400,7 +403,7 @@ def test_solvers_reject_fixed_cashflows_and_preserve_state():
     )
     assert unseeded.seed is None
     fixed = BinarySnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         maturity_coupon_rate=0,
         effective_time=START,
         expiry_time=END,

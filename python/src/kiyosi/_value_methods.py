@@ -115,7 +115,7 @@ _repr_formatter.maxother = 160
 def _repr(value: Any) -> str:
     fields = _fields(value)
     name = type(value).__name__
-    if fields.get("calendar") == _native.weekdays_calendar() and not isinstance(
+    if fields.get("calendar") == _native.TradingCalendar.weekdays() and not isinstance(
         value,
         (
             _native.BlackScholesMertonParameters,

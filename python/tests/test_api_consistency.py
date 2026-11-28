@@ -154,7 +154,7 @@ def test_autocallable_constructors_require_an_explicit_observation_clock(subtest
         "effective_time": start,
         "expiry_time": end,
         "knock_in_level": 80,
-        "calendar": market.weekdays_calendar(),
+        "calendar": market.TradingCalendar.weekdays(),
     }
     snowball = ins.AutocallableObservation.snowball(end, 110, coupon_rate=0.1)
     phoenix = ins.KnockOutObservation(end, 110)
@@ -232,7 +232,7 @@ def test_autocallable_constructors_require_an_explicit_calendar(subtests):
                     cls(**fields, calendar=invalid)
             note = cls(**fields, calendar=calendar)
             assert note.calendar == calendar
-            assert "calendar=weekdays_calendar()" in repr(note)
+            assert "calendar=TradingCalendar.weekdays()" in repr(note)
 
 
 def test_autocallable_calendars_control_knock_in_after_record_conversion():
@@ -241,8 +241,8 @@ def test_autocallable_calendars_control_knock_in_after_record_conversion():
         datetime(2025, 1, 6, 15),
         datetime(2025, 1, 10, 15),
     )
-    calendar = market.custom_calendar(
-        base=market.weekdays_calendar(), closed_dates=[at.date()]
+    calendar = market.TradingCalendar.custom(
+        base=market.TradingCalendar.weekdays(), closed_dates=[at.date()]
     )
     schedule = market.ObservationSchedule(
         times=[end], start_time=start, end_time=end, calendar=calendar
@@ -277,12 +277,14 @@ def test_autocallable_calendars_control_knock_in_after_record_conversion():
     assert engine.price(note, context) == pytest.approx(
         (1 + coupon) * math.exp(-0.05 * 4 / 365), rel=0, abs=1e-12
     )
-    weekday_note = ins.SnowballOption(**fields, calendar=market.weekdays_calendar())
+    weekday_note = ins.SnowballOption(
+        **fields, calendar=market.TradingCalendar.weekdays()
+    )
     assert at in weekday_note.knock_in_observation_schedule
     assert engine.price(weekday_note, context) == pytest.approx(
         79.999 * math.exp(-0.02 * 4 / 365) / 100, rel=0, abs=1e-12
     )
-    preset = ins.standard_snowball(
+    preset = ins.SnowballOption.standard(
         coupon_rate=0.1,
         initial_spot=100,
         knock_in_level=80,
@@ -322,7 +324,7 @@ def test_observation_terms_control_cashflows():
     engine = pricing.QuadratureAutocallableEngine()
     for coupon, expected in ((0, 1), (0.12, 1.12)):
         note = ins.BinarySnowballOption(
-            calendar=market.weekdays_calendar(),
+            calendar=market.TradingCalendar.weekdays(),
             maturity_coupon_rate=0.12,
             effective_time=start,
             expiry_time=end,
@@ -334,7 +336,7 @@ def test_observation_terms_control_cashflows():
         assert engine.price(note, context) == pytest.approx(expected, rel=0, abs=1e-12)
     for barrier, expected in ((0, 1.03), (90, 1)):
         note = ins.PhoenixOption(
-            calendar=market.weekdays_calendar(),
+            calendar=market.TradingCalendar.weekdays(),
             coupon_per_period=0.03,
             initial_spot=100,
             knock_in_level=80,
@@ -573,7 +575,7 @@ def test_european_pre_effective_pricing_preserves_contract_and_model_coverage(su
 def test_snowball_coupon_diagnostics_identify_the_supplied_field(subtests, invalid):
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     common = {
-        "calendar": market.weekdays_calendar(),
+        "calendar": market.TradingCalendar.weekdays(),
         "effective_time": start,
         "expiry_time": end,
         "autocall_observations": ins.autocallable_observations(
@@ -647,7 +649,7 @@ def test_structured_engines_require_curve_coverage_only_for_remaining_cashflows(
         expiry_time=end,
     )
     note = ins.BinarySnowballOption(
-        calendar=market.weekdays_calendar(),
+        calendar=market.TradingCalendar.weekdays(),
         maturity_coupon_rate=0.1,
         effective_time=start,
         expiry_time=end,
@@ -843,7 +845,7 @@ def test_contractual_calendars_are_validated_before_pricing(subtests):
             ),
         ),
         (
-            ins.standard_snowball,
+            ins.SnowballOption.standard,
             dict(
                 life,
                 initial_spot=100,
@@ -870,11 +872,11 @@ def test_contractual_calendars_are_validated_before_pricing(subtests):
     for factory, fields in factories:
         with subtests.test(contract=factory.__name__):
             with pytest.raises(InvalidInputError):
-                factory(**fields, calendar=market.weekdays_calendar())
-            option = factory(**fields, calendar=market.all_days_calendar())
+                factory(**fields, calendar=market.TradingCalendar.weekdays())
+            option = factory(**fields, calendar=market.TradingCalendar.all_days())
             with pytest.raises(InvalidInputError):
-                option.replace(calendar=market.weekdays_calendar())
-            assert option.calendar == market.all_days_calendar()
+                option.replace(calendar=market.TradingCalendar.weekdays())
+            assert option.calendar == market.TradingCalendar.all_days()
             assert option.replace() == option
 
 
@@ -986,7 +988,7 @@ def test_structured_contract_calendars_control_observations_and_survive_replacem
     price = engine.price(accrual, expiry)
     assert price == pytest.approx(360 / 365, rel=0, abs=1e-12)
     daily = accrual.replace(
-        calendar=market.all_days_calendar(),
+        calendar=market.TradingCalendar.all_days(),
         realized_hit_count=accrual.realized_hit_count,
     )
     assert engine.price(daily, expiry) == pytest.approx(price / 3, rel=0, abs=1e-12)
@@ -999,7 +1001,7 @@ def test_structured_contract_calendars_control_observations_and_survive_replacem
         effective_time=start,
         expiry_time=end,
     )
-    note = ins.standard_snowball(
+    note = ins.SnowballOption.standard(
         knock_in_observation_clock_time=clock_time(),
         coupon_rate=0.1,
         initial_spot=100,
@@ -1008,7 +1010,7 @@ def test_structured_contract_calendars_control_observations_and_survive_replacem
         autocall_times=[end],
         effective_time=start,
         expiry_time=end,
-        calendar=market.all_days_calendar(),
+        calendar=market.TradingCalendar.all_days(),
     )
     for value in (daily, accumulator, note):
         assert value.replace().calendar == value.calendar
@@ -1233,7 +1235,7 @@ def test_integer_inputs_share_the_index_protocol(subtests):
         def __index__(self):
             return self.value
 
-    schedule = market.fixed_interval_schedule(
+    schedule = market.ObservationSchedule.fixed_interval(
         observation_clock_time=clock_time(),
         start_time=datetime(2025, 1, 1),
         end_time=datetime(2025, 1, 10),
@@ -2176,7 +2178,7 @@ def test_independent_observation_types_reject_mixed_records():
     coupon = ins.CouponObservation(end, 0)
     with pytest.raises(TypeError):
         ins.BinarySnowballOption(
-            calendar=market.weekdays_calendar(),
+            calendar=market.TradingCalendar.weekdays(),
             maturity_coupon_rate=0.1,
             autocall_observations=[coupon],
             effective_time=start,
@@ -2184,7 +2186,7 @@ def test_independent_observation_types_reject_mixed_records():
         )
     with pytest.raises(TypeError):
         ins.PhoenixOption(
-            calendar=market.weekdays_calendar(),
+            calendar=market.TradingCalendar.weekdays(),
             coupon_per_period=0.1,
             initial_spot=100,
             knock_in_level=80,

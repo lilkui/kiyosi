@@ -13,9 +13,7 @@ from kiyosi.market import (
     LocalVolatilityParameters,
     LocalVolatilitySurface,
     PricingContext,
-    all_days_calendar,
-    custom_calendar,
-    weekdays_calendar,
+    TradingCalendar,
 )
 from test_local_volatility_fd_contracts import representatives
 from test_support_matrix import HESTON_ENGINES, terminal_cases
@@ -76,10 +74,10 @@ def test_model_clock_defaults_replacement_and_validation(kind):
     with pytest.raises(InvalidInputError):
         factory(**fields, variance_time_convention="business")
     with pytest.raises(InvalidInputError):
-        factory(**fields, calendar=weekdays_calendar())
+        factory(**fields, calendar=TradingCalendar.weekdays())
     with pytest.raises(TypeError):
         factory(**fields, variance_time_convention=None)
-    calendar = weekdays_calendar()
+    calendar = TradingCalendar.weekdays()
     changed = base.replace(variance_time_convention="business", calendar=calendar)
     assert changed.variance_time_convention == "business"
     assert changed.calendar == calendar
@@ -127,10 +125,14 @@ def test_heston_rejects_business_clock_at_model_boundary():
     assert base.calendar is None
     with pytest.raises(UnsupportedOperationError):
         HestonParameters(
-            **fields, variance_time_convention="business", calendar=weekdays_calendar()
+            **fields,
+            variance_time_convention="business",
+            calendar=TradingCalendar.weekdays(),
         )
     with pytest.raises(UnsupportedOperationError):
-        base.replace(variance_time_convention="business", calendar=weekdays_calendar())
+        base.replace(
+            variance_time_convention="business", calendar=TradingCalendar.weekdays()
+        )
     assert base == HestonParameters(**fields)
 
 
@@ -142,8 +144,8 @@ def test_heston_rejects_business_clock_at_model_boundary():
 def test_european_matches_independent_two_clock_formula(
     basis, closed_friday, trading_days
 ):
-    calendar = custom_calendar(
-        base=weekdays_calendar(),
+    calendar = TradingCalendar.custom(
+        base=TradingCalendar.weekdays(),
         trading_days_per_year=basis,
         closed_dates=[FRIDAY.date()] if closed_friday else [],
     )
@@ -167,7 +169,7 @@ def test_all_days_365_matches_natural_clock_and_keeps_surface_dates():
         FRIDAY,
         MONDAY,
         variance_time_convention="business",
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
     )
     natural = business.replace(
         variance_time_convention="actual_365_fixed", calendar=None
@@ -185,7 +187,7 @@ def test_all_days_365_matches_natural_clock_for_finite_difference_theta(product)
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     natural = bsm(risk_free_rate=0.05, volatility=0.04)
     business = natural.replace(
-        variance_time_convention="business", calendar=all_days_calendar()
+        variance_time_convention="business", calendar=TradingCalendar.all_days()
     )
     settings = {"asset_step_count": 80, "time_step_count": 80}
     if product == "vanilla":
@@ -209,7 +211,7 @@ def test_all_days_365_matches_natural_clock_for_barriers_and_continuations():
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     natural = bsm(risk_free_rate=0.05, volatility=1.0)
     business = natural.replace(
-        variance_time_convention="business", calendar=all_days_calendar()
+        variance_time_convention="business", calendar=TradingCalendar.all_days()
     )
     natural, business = context(natural, start), context(business, start)
     terms = {
@@ -249,7 +251,7 @@ def test_changing_local_volatility_uses_natural_dates_and_business_variance():
         MONDAY,
         surface=surface,
         variance_time_convention="business",
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
     )
     # Sigma is 0.2 + 0.1*d in natural days. Only [0, .5] and [2.5, 3] are open.
     integral = lambda d: 0.2**2 * d + 0.2 * 0.1 * d**2 + 0.1**2 * d**3 / 3
@@ -268,7 +270,7 @@ def test_changing_local_volatility_uses_natural_dates_and_business_variance():
 
 def test_business_clock_every_fd_product_and_scheme(subtests):
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
-    calendar = weekdays_calendar()
+    calendar = TradingCalendar.weekdays()
     constant = context(
         bsm(variance_time_convention="business", calendar=calendar), start
     )
@@ -301,7 +303,7 @@ def test_business_clock_every_fd_product_and_scheme(subtests):
 
 def test_business_clock_each_supported_contract(subtests):
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
-    calendar = weekdays_calendar()
+    calendar = TradingCalendar.weekdays()
     constant = context(
         bsm(variance_time_convention="business", calendar=calendar), start
     )
@@ -325,7 +327,7 @@ def test_weekday_strike_batch_uses_one_rescaled_solution():
     end = FRIDAY + timedelta(days=365)
     option = european(end=end)
     market = context(
-        bsm(variance_time_convention="business", calendar=weekdays_calendar())
+        bsm(variance_time_convention="business", calendar=TradingCalendar.weekdays())
     )
     engine = fd(asset_step_count=400, time_step_count=400)
     strikes = (110, 80, 100, 95, 85, 110)
@@ -356,7 +358,7 @@ def test_unsupported_engines_reject_business_time_before_shortcuts(subtests):
                             bsm(
                                 volatility=volatility,
                                 variance_time_convention="business",
-                                calendar=weekdays_calendar(),
+                                calendar=TradingCalendar.weekdays(),
                             ),
                             at,
                             105,
@@ -371,7 +373,8 @@ def test_closed_horizon_keeps_carry_discount_and_continuous_monitoring():
     start = datetime(2026, 11, 14)
     end = start + timedelta(days=1)
     market = context(
-        bsm(variance_time_convention="business", calendar=weekdays_calendar()), start
+        bsm(variance_time_convention="business", calendar=TradingCalendar.weekdays()),
+        start,
     )
     expected = 100 * math.exp(-0.02 / 365) - 90 * math.exp(-0.07 / 365)
     assert fd().price(european(start, end, 90), market) == pytest.approx(
@@ -390,14 +393,16 @@ def test_closed_horizon_keeps_carry_discount_and_continuous_monitoring():
         asset_step_count=800, time_step_count=500
     )
     assert engine.price(barrier, market) < 0.002
-    scheduled = barrier.replace(observation_times=[start], calendar=all_days_calendar())
+    scheduled = barrier.replace(
+        observation_times=[start], calendar=TradingCalendar.all_days()
+    )
     assert engine.price(scheduled, market) == pytest.approx(expected, rel=0, abs=0.001)
     local_market = context(
         local(
             start,
             end,
             variance_time_convention="business",
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
         ),
         start,
     )
@@ -411,7 +416,10 @@ def test_closed_horizon_keeps_carry_discount_and_continuous_monitoring():
 def test_barriers_settle_exact_touches_before_variance_resumes(kind):
     start = datetime(2026, 11, 14)
     end = start + timedelta(days=3)
-    clock = {"variance_time_convention": "business", "calendar": weekdays_calendar()}
+    clock = {
+        "variance_time_convention": "business",
+        "calendar": TradingCalendar.weekdays(),
+    }
     model = bsm(**clock) if kind == "bsm" else local(start, end, **clock)
     market = context(model, start)
     terms = {"effective_time": start, "expiry_time": end, "barrier_level": 100.01}
@@ -443,7 +451,8 @@ def test_missed_closed_date_fixing_rolls_pending_barrier_to_reopen():
     start = datetime(2026, 11, 14)
     sunday, monday, tuesday = [start + timedelta(days=n) for n in (1, 2, 3)]
     market = context(
-        bsm(variance_time_convention="business", calendar=weekdays_calendar()), start
+        bsm(variance_time_convention="business", calendar=TradingCalendar.weekdays()),
+        start,
     )
     barrier = ins.BarrierOption(
         option_type="call",
@@ -452,7 +461,7 @@ def test_missed_closed_date_fixing_rolls_pending_barrier_to_reopen():
         expiry_time=tuesday,
         barrier_type="up_and_out",
         barrier_level=100.02,
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
         observation_times=[sunday, tuesday],
     )
     engine = pricing.FiniteDifferenceBarrierEngine(asset_upper_boundary=400)
@@ -476,7 +485,7 @@ def test_implied_volatility_rejects_closed_horizon(lower):
             risk_free_rate=0,
             dividend_yield=0,
             variance_time_convention="business",
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
         ),
         start,
     )
@@ -501,7 +510,7 @@ def test_closed_horizon_coupon_jump_has_no_spot_greeks():
     note = contract(
         effective_time=start,
         expiry_time=end,
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
         knock_out_observations=[ins.KnockOutObservation(end, 200)],
         coupon_observations=[ins.CouponObservation(end, 100)],
     )
@@ -510,7 +519,7 @@ def test_closed_horizon_coupon_jump_has_no_spot_greeks():
             risk_free_rate=0,
             dividend_yield=0,
             variance_time_convention="business",
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
         ),
         start,
     )
@@ -536,7 +545,7 @@ def test_closed_prefix_pays_coupon_and_knock_out_exactly(kind):
     note = contract(
         effective_time=start,
         expiry_time=end,
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
         rebate_rate=0.02,
         knock_out_observations=[ins.KnockOutObservation(sunday, 110)],
         coupon_observations=[ins.CouponObservation(sunday, 100)],
@@ -546,7 +555,7 @@ def test_closed_prefix_pays_coupon_and_knock_out_exactly(kind):
         "risk_free_rate": 0.04,
         "dividend_yield": 0.04,
         "variance_time_convention": "business",
-        "calendar": weekdays_calendar(),
+        "calendar": TradingCalendar.weekdays(),
     }
     market = context(
         bsm(**inputs) if kind == "bsm" else local(start, end, **inputs), start
@@ -577,7 +586,7 @@ def test_closed_weekend_needs_no_surface_coverage_at_expiry():
         risk_free_rate=0,
         dividend_yield=0,
         variance_time_convention="business",
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
     )
     option = european(start, start + timedelta(days=1))
     market = context(model, start, 110)
@@ -595,7 +604,7 @@ def test_closed_prefix_prices_fixed_cashflows_without_surface_at_reopen():
     note = contract(
         effective_time=start,
         expiry_time=end,
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
         lower_strike=100,
         coupon_per_period=0,
         knock_out_observations=[ins.KnockOutObservation(end, 110)],
@@ -605,7 +614,7 @@ def test_closed_prefix_prices_fixed_cashflows_without_surface_at_reopen():
         start,
         start + timedelta(days=1),
         variance_time_convention="business",
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
     )
     market = context(model, start)
     engine = pricing.FiniteDifferenceAutocallableEngine()
@@ -625,14 +634,15 @@ def test_implied_volatility_rejects_fixed_cashflows_after_closed_prefix():
     note = contract(
         effective_time=start,
         expiry_time=end,
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
         lower_strike=100,
         coupon_per_period=0,
         knock_out_observations=[ins.KnockOutObservation(fixing, 110)],
         coupon_observations=[ins.CouponObservation(fixing, 100)],
     )
     market = context(
-        bsm(variance_time_convention="business", calendar=weekdays_calendar()), start
+        bsm(variance_time_convention="business", calendar=TradingCalendar.weekdays()),
+        start,
     )
     engine = pricing.FiniteDifferenceAutocallableEngine()
     observed = math.exp(-0.07 * 2.5 / 365)
@@ -653,7 +663,7 @@ def test_closed_prefix_carries_knock_in_state_and_spot_into_the_grid():
     note = contract(
         effective_time=start,
         expiry_time=end,
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
         knock_in_level=95,
         knock_in_observation=ins.KnockInObservation.every_trading_day(time(12)),
         knock_out_observations=[ins.KnockOutObservation(end, 110)],
@@ -663,7 +673,7 @@ def test_closed_prefix_carries_knock_in_state_and_spot_into_the_grid():
         risk_free_rate=0.04,
         dividend_yield=0,
         variance_time_convention="business",
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
     )
     market = context(model, start, 94)
     engine = pricing.FiniteDifferenceAutocallableEngine(asset_upper_boundary=400)
@@ -683,7 +693,7 @@ def test_saved_snowball_keeps_a_single_surviving_unknocked_spot():
     end = start + timedelta(days=2, hours=12)
     knock_out = math.nextafter(100, math.inf)
     note = ins.SnowballOption(
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
         effective_time=start,
         expiry_time=end,
         maturity_coupon_rate=0.08,
@@ -700,7 +710,7 @@ def test_saved_snowball_keeps_a_single_surviving_unknocked_spot():
         risk_free_rate=0,
         dividend_yield=0,
         variance_time_convention="business",
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
     )
     market = context(model, start)
     engine = pricing.FiniteDifferenceAutocallableEngine(asset_upper_boundary=400)
@@ -727,14 +737,14 @@ def test_weekend_events_keep_real_timestamp_order():
         accumulated_quantity=0,
         knock_out_settled=False,
         knock_out_observation_times=[start + timedelta(hours=15)],
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
     )
     market = context(
         bsm(
             risk_free_rate=0,
             dividend_yield=0,
             variance_time_convention="business",
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
         ),
         start,
         110,
@@ -765,10 +775,11 @@ def test_snowball_coupon_keeps_natural_day_accrual_on_closed_dates(kind):
         autocall_observations=ins.autocallable_observations(
             [end], [120], knock_out_coupon_rates=[0.08]
         ),
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
     )
     market = context(
-        bsm(variance_time_convention="business", calendar=weekdays_calendar()), start
+        bsm(variance_time_convention="business", calendar=TradingCalendar.weekdays()),
+        start,
     )
     if kind == "local":
         market = context(
@@ -776,7 +787,7 @@ def test_snowball_coupon_keeps_natural_day_accrual_on_closed_dates(kind):
                 start,
                 end,
                 variance_time_convention="business",
-                calendar=weekdays_calendar(),
+                calendar=TradingCalendar.weekdays(),
             ),
             start,
         )
@@ -794,7 +805,7 @@ def test_closed_horizon_payoff_kinks_keep_undefined_spot_greeks(kind):
         "risk_free_rate": 0,
         "dividend_yield": 0,
         "variance_time_convention": "business",
-        "calendar": weekdays_calendar(),
+        "calendar": TradingCalendar.weekdays(),
     }
     model = bsm(**inputs) if kind == "bsm" else local(start, end, **inputs)
     result = fd().price_with_greeks(
@@ -824,7 +835,8 @@ def test_time_greeks_use_one_sided_natural_time_at_calendar_transition(
 ):
     contract = european(datetime(2026, 11, 12), datetime(2026, 11, 20))
     market = context(
-        bsm(variance_time_convention="business", calendar=weekdays_calendar()), start
+        bsm(variance_time_convention="business", calendar=TradingCalendar.weekdays()),
+        start,
     )
     engine = fd(asset_step_count=300, time_step_count=400)
     result = engine.price_with_greeks(

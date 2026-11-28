@@ -16,8 +16,7 @@ from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
     RateTermStructure,
-    all_days_calendar,
-    weekdays_calendar,
+    TradingCalendar,
 )
 from kiyosi.pricing import (
     AnalyticBinaryBarrierEngine,
@@ -363,7 +362,7 @@ def test_deterministic_scheduled_touch_discounts_before_scaling():
     terms = {
         "effective_time": start,
         "expiry_time": start + timedelta(days=3),
-        "calendar": all_days_calendar(),
+        "calendar": TradingCalendar.all_days(),
         "observation_times": [start + timedelta(days=1)],
         "settlement_timing": "at_hit",
     }
@@ -372,7 +371,7 @@ def test_deterministic_scheduled_touch_discounts_before_scaling():
         model_parameters=deterministic.model_parameters.replace(
             volatility=0.2,
             variance_time_convention="business",
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
         )
     )
     for option, expected in [
@@ -545,7 +544,7 @@ def test_sensitivities_solve_expiry_curves_and_concurrent_reads():
             datetime(2025, 1, 1) + timedelta(days=i) for i in range(1, 366)
         ],
         touch_state="untouched",
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
     )
     result = engine.price_with_greeks(
         dense,

@@ -18,9 +18,7 @@ from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
     RateTermStructure,
-    all_days_calendar,
-    custom_calendar,
-    weekdays_calendar,
+    TradingCalendar,
 )
 from kiyosi.pricing import numerical_greeks
 from support.assertions import assert_rejection
@@ -39,14 +37,14 @@ def test_weekend_accumulator_knock_out_precedes_stochastic_pricing():
         expiry_time=start + timedelta(days=2, hours=12),
         observation_clock_time=time(10),
         knock_out_observation_times=[start + timedelta(hours=15)],
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
     )
     model = BlackScholesMertonParameters(
         risk_free_rate=0,
         dividend_yield=0,
         volatility=0.2,
         variance_time_convention="business",
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
     )
     context = PricingContext(
         model_parameters=model, spot_price=105, valuation_time=start
@@ -250,8 +248,8 @@ def test_midnight_intraday_and_calendar_events_are_applied_once():
         assert engine.price(option, context) == pytest.approx(
             terminal_reference(option, context), rel=0, abs=0.001
         )
-    holiday = custom_calendar(
-        base=weekdays_calendar(), closed_dates=[(datetime(2025, 1, 3)).date()]
+    holiday = TradingCalendar.custom(
+        base=TradingCalendar.weekdays(), closed_dates=[(datetime(2025, 1, 3)).date()]
     )
     context = market(90, datetime(2025, 1, 3))
     option = option.replace(
@@ -262,7 +260,9 @@ def test_midnight_intraday_and_calendar_events_are_applied_once():
     assert engine.price(option, context) == pytest.approx(
         terminal_reference(option, context), rel=0, abs=0.001
     )
-    weekend = contract(datetime(2025, 1, 5)).replace(calendar=all_days_calendar())
+    weekend = contract(datetime(2025, 1, 5)).replace(
+        calendar=TradingCalendar.all_days()
+    )
     friday_after_purchase = market(
         105, datetime(2025, 1, 3, 12), volatility=0, rate=0, dividend=0
     )

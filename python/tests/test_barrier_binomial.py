@@ -21,8 +21,7 @@ from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
     RateTermStructure,
-    all_days_calendar,
-    weekdays_calendar,
+    TradingCalendar,
 )
 from kiyosi.pricing import numerical_greeks
 from support.assertions import assert_rejection
@@ -65,7 +64,7 @@ def option(kind="down_and_out", direction="call", **changes):
         "expiry_time": END,
         "barrier_level": 120 if kind.startswith("up") else 80,
         "barrier_type": kind,
-        "calendar": all_days_calendar(),
+        "calendar": TradingCalendar.all_days(),
     }
     terms.update(changes)
     return BarrierOption(**terms)
@@ -316,7 +315,7 @@ def test_flat_curve_applicability_calendar_and_validation_order():
     with pytest.raises(InvalidInputError):
         option(
             observation_times=[datetime(2025, 1, 4)],
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
         )
     for sigma, rate in ((1e-200, 0.03), (50, 0.03), (0.2, -1000)):
         assert_rejection(

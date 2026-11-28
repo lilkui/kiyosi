@@ -2,25 +2,25 @@
 
 from datetime import datetime, time
 
-from kiyosi.instruments import standard_snowball
+from kiyosi.instruments import SnowballOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
+    ObservationSchedule,
     PricingContext,
-    monthly_schedule,
-    sse_calendar,
+    TradingCalendar,
 )
 from kiyosi.pricing import FiniteDifferenceAutocallableEngine, implied_snowball_coupon
 
 start, end = datetime(2025, 1, 2, 15), datetime(2026, 1, 5, 15)
-calendar = sse_calendar()
-observations = monthly_schedule(
+calendar = TradingCalendar.sse()
+observations = ObservationSchedule.monthly(
     start_time=start,
     end_time=end,
     first_observation_month=1,
     observation_clock_time=time(15),
     calendar=calendar,
 )
-note = standard_snowball(
+note = SnowballOption.standard(
     coupon_rate=0.12,
     initial_spot=100,
     knock_in_level=80,

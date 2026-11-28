@@ -13,8 +13,7 @@ from kiyosi.market import (
     LocalVolatilityParameters,
     LocalVolatilitySurface,
     PricingContext,
-    all_days_calendar,
-    weekdays_calendar,
+    TradingCalendar,
 )
 from support.assertions import assert_decimal_equal
 
@@ -147,7 +146,7 @@ def terminal_cases():
             ins.RangeAccrualOption(
                 observation_clock_time=clock_time(),
                 **dates,
-                calendar=all_days_calendar(),
+                calendar=TradingCalendar.all_days(),
                 notional=1000,
                 annual_coupon_rate=0.12,
                 lower_bound=95,
@@ -211,7 +210,7 @@ def terminal_cases():
         [
             (
                 ins.SnowballOption(
-                    calendar=weekdays_calendar(),
+                    calendar=TradingCalendar.weekdays(),
                     **common,
                     **loss,
                     maturity_coupon_rate=0.06,
@@ -221,7 +220,7 @@ def terminal_cases():
             ),
             (
                 ins.BinarySnowballOption(
-                    calendar=weekdays_calendar(),
+                    calendar=TradingCalendar.weekdays(),
                     **common,
                     maturity_coupon_rate=0.06,
                 ),
@@ -230,7 +229,7 @@ def terminal_cases():
             ),
             (
                 ins.TernarySnowballOption(
-                    calendar=weekdays_calendar(),
+                    calendar=TradingCalendar.weekdays(),
                     **common,
                     maturity_coupon_rate=0.06,
                     minimum_coupon_rate=-0.02,
@@ -243,7 +242,7 @@ def terminal_cases():
             ),
             (
                 ins.PhoenixOption(
-                    calendar=weekdays_calendar(),
+                    calendar=TradingCalendar.weekdays(),
                     **dates,
                     **loss,
                     coupon_per_period=0.08,

@@ -16,7 +16,7 @@ from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
     RateTermStructure,
-    all_days_calendar,
+    TradingCalendar,
 )
 from kiyosi.pricing import (
     AnalyticBarrierEngine,
@@ -72,7 +72,7 @@ def test_later_guaranteed_touch_preserves_expiry_rebate_greeks():
         **make_terms(
             expiry_time=end,
             observation_times=[first, second],
-            calendar=all_days_calendar(),
+            calendar=TradingCalendar.all_days(),
             rebate=8,
         )
     )
@@ -367,7 +367,7 @@ def test_scheduled_bgk_domain_and_event_sensitive_greeks():
                     datetime(2025, 1, 1) + timedelta(days=i) for i in range(1, 366)
                 ],
                 touch_state="untouched",
-                calendar=all_days_calendar(),
+                calendar=TradingCalendar.all_days(),
             )
         )
         result = engine.price_with_greeks(

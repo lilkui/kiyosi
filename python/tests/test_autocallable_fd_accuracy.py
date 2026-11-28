@@ -19,10 +19,9 @@ from kiyosi.instruments import (
 )
 from kiyosi.market import (
     BlackScholesMertonParameters,
+    ObservationSchedule,
     PricingContext,
-    monthly_schedule,
-    sse_calendar,
-    weekdays_calendar,
+    TradingCalendar,
 )
 
 
@@ -43,7 +42,7 @@ def test_nearby_barriers_preserve_prices_and_greeks(subtests):
 
     def price(barrier):
         option = BinarySnowballOption(
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
             maturity_coupon_rate=0.02,
             effective_time=start,
             expiry_time=end,
@@ -71,7 +70,7 @@ def test_nearby_barriers_preserve_prices_and_greeks(subtests):
 def test_near_expiry_greeks_match_an_analytic_digital(subtests, volatility, seconds):
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     option = BinarySnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         maturity_coupon_rate=0,
         effective_time=start,
         expiry_time=end,
@@ -117,9 +116,9 @@ def test_near_expiry_greeks_match_an_analytic_digital(subtests, volatility, seco
 
 def test_snowball_greeks_preserve_smooth_price_maximum_between_grid_nodes(subtests):
     start, end = datetime(2025, 10, 23), datetime(2026, 10, 23)
-    calendar = sse_calendar()
+    calendar = TradingCalendar.sse()
     dates = list(
-        monthly_schedule(
+        ObservationSchedule.monthly(
             observation_clock_time=clock_time(),
             start_time=start,
             end_time=end,
@@ -190,7 +189,7 @@ def test_snowball_greeks_preserve_smooth_price_maximum_between_grid_nodes(subtes
 def test_coarse_grids_preserve_positive_payoff_bounds_and_flat_greeks(seconds, count):
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     option = BinarySnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         maturity_coupon_rate=0,
         effective_time=start,
         expiry_time=end,
@@ -231,7 +230,7 @@ def test_terminal_digital_separates_space_time_domain_and_barrier_placement_erro
 
     def error(assets, times, upper, barrier=100):
         option = BinarySnowballOption(
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
             maturity_coupon_rate=0,
             effective_time=start,
             expiry_time=end,
@@ -277,7 +276,7 @@ def test_terminal_digital_separates_space_time_domain_and_barrier_placement_erro
 def test_projection_preserves_exact_current_event_barrier_comparisons(subtests):
     start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
     option = PhoenixOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         coupon_per_period=0.08,
         initial_spot=100,
         knock_in_level=80,
@@ -326,7 +325,7 @@ def test_cash_carry_portfolio_is_preserved_across_event_restarts(subtests):
         return math.expm1(0.04 * time) / time
 
     option = TernarySnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         maturity_coupon_rate=carry_rate(end),
         minimum_coupon_rate=carry_rate(end),
         knock_in_level=75,

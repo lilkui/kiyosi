@@ -16,7 +16,7 @@ from kiyosi.instruments import AmericanOption, CashOrNothingOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
     RateTermStructure,
-    weekdays_calendar,
+    TradingCalendar,
 )
 from kiyosi.pricing import (
     AnalyticHestonEuropeanEngine,
@@ -695,7 +695,7 @@ def test_dense_fixed_heston_batch_resolves_the_full_strike_range():
 def test_heston_finite_difference_with_recurring_calendar_rates():
     end = START + timedelta(days=364)
     curve = RateTermStructure.bounded_flat(
-        0.05, reference_time=START, max_time=end, calendar=weekdays_calendar()
+        0.05, reference_time=START, max_time=end, calendar=TradingCalendar.weekdays()
     )
     market = context(model(risk_free_rate=curve))
     contract = option(expiry_time=end)

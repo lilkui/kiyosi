@@ -17,7 +17,7 @@ from kiyosi.market import (
     LocalVolatilitySurface,
     PricingContext,
     RateTermStructure,
-    all_days_calendar,
+    TradingCalendar,
 )
 from support.assertions import assert_rejection
 from test_heston import context as heston_context
@@ -70,7 +70,7 @@ def test_saved_accumulator_matches_scalar_deterministic_fixings(
         effective_time=START,
         expiry_time=END,
         observation_clock_time=time(),
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
         knock_out_observation_times=[
             START + timedelta(days=120),
             START + timedelta(days=240),

@@ -16,7 +16,10 @@ from kiyosi import (
     UnsupportedOperationError,
 )
 from kiyosi.instruments import AmericanOption, CashOrNothingOption, EuropeanOption
-from kiyosi.market import RateTermStructure, weekdays_calendar
+from kiyosi.market import (
+    RateTermStructure,
+    TradingCalendar,
+)
 from kiyosi.pricing import (
     CoxRossRubinsteinVanillaEngine,
     MonteCarloVanillaEngine,
@@ -266,7 +269,7 @@ def test_weekend_rate_greeks_keep_calendar_accrual():
     end = start + timedelta(days=2)
     option = contract("call").replace(effective_time=start, expiry_time=end)
     curve = RateTermStructure.bounded_flat(
-        0.05, reference_time=start, max_time=end, calendar=weekdays_calendar()
+        0.05, reference_time=start, max_time=end, calendar=TradingCalendar.weekdays()
     )
     context = market(rate=curve, dividend=curve, sigma=0.25, valuation=start)
     engine = MonteCarloVanillaEngine(path_count=2048, step_count=25, seed=42)

@@ -10,7 +10,7 @@ from kiyosi.instruments import KnockInObservation
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
-    weekdays_calendar,
+    TradingCalendar,
 )
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -69,7 +69,7 @@ def test_snowball_thresholds_preserve_price_and_sampling_uncertainty(
     volatility, antithetic
 ):
     note = ins.BinarySnowballOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         maturity_coupon_rate=0.02,
         effective_time=START,
         expiry_time=END,
@@ -101,7 +101,7 @@ def test_autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements(
     context = market(volatility, intraday=True)
     for mode in ("every_trading_day", "at_expiry"):
         note = ins.TernarySnowballOption(
-            calendar=weekdays_calendar(),
+            calendar=TradingCalendar.weekdays(),
             **common,
             maturity_coupon_rate=0.12,
             minimum_coupon_rate=0.02,
@@ -121,7 +121,7 @@ def test_autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements(
                 1 + 0.07 / 365, rel=0, abs=1e-12
             )
     note = ins.PhoenixOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         **common,
         coupon_per_period=0.12,
         initial_spot=100,

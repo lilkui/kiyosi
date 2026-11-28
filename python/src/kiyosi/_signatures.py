@@ -41,8 +41,12 @@ def install(native: ModuleType) -> None:
                 field: getattr(instance, field) for field in value._STATE_FIELDS
             }
     for name, defaults in defaults_by_name.items():
-        value = getattr(native, name)
+        class_name, _, attribute = name.rpartition(".")
+        owner = getattr(native, class_name) if class_name else native
+        value = getattr(owner, attribute)
         if isclass(value):
             value.__signature__ = _signature(value, defaults)
+        elif class_name:
+            setattr(owner, attribute, staticmethod(_wrap(value, defaults)))
         else:
-            setattr(native, name, _wrap(value, defaults))
+            setattr(owner, attribute, _wrap(value, defaults))

@@ -15,14 +15,9 @@ from kiyosi.instruments import (
     KnockInObservation,
     KnockOutObservation,
     PhoenixOption,
-    butterfly_snowball,
-    digital_coupon_note,
-    early_profit_snowball,
-    fixed_coupon_note,
-    standard_phoenix,
-    step_down_phoenix,
+    SnowballOption,
 )
-from kiyosi.market import weekdays_calendar
+from kiyosi.market import TradingCalendar
 from kiyosi.pricing import (
     FiniteDifferenceAutocallableEngine,
     MonteCarloAutocallableEngine,
@@ -94,11 +89,11 @@ def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_obser
         "expiry_time": END,
         "lockout_periods": 2,
     }
-    note = step_down_phoenix(
+    note = PhoenixOption.step_down(
         initial_knock_out_level=110, knock_out_level_decrement=2, **common
     )
     expected = PhoenixOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         coupon_per_period=0.01,
         initial_spot=100,
         knock_in_level=80,
@@ -132,7 +127,9 @@ def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_obser
         ).knock_out_levels[-1]
         == 108
     )
-    assert standard_phoenix(knock_out_level=110, **common) == step_down_phoenix(
+    assert PhoenixOption.standard(
+        knock_out_level=110, **common
+    ) == PhoenixOption.step_down(
         initial_knock_out_level=110, knock_out_level_decrement=0, **common
     )
     for restored in (
@@ -151,13 +148,13 @@ def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_obser
             "AutocallableObservation": AutocallableObservation,
             "KnockOutObservation": KnockOutObservation,
             "CouponObservation": CouponObservation,
-            "weekdays_calendar": weekdays_calendar,
+            "TradingCalendar": TradingCalendar,
         },
     )
     assert restored == note
     for factory, extra in (
-        (fixed_coupon_note, {}),
-        (digital_coupon_note, {"coupon_barrier_level": 90}),
+        (PhoenixOption.fixed_coupon, {}),
+        (PhoenixOption.digital_coupon, {"coupon_barrier_level": 90}),
     ):
         locked = factory(coupon_per_period=0.01, lockout_periods=1, **terms(), **extra)
         assert locked.knock_out_times == (END,)
@@ -165,10 +162,10 @@ def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_obser
         assert locked.upper_strike == 80
         assert locked.knock_in_observation.kind == "at_expiry"
     for factory in (
-        fixed_coupon_note,
-        digital_coupon_note,
-        standard_phoenix,
-        step_down_phoenix,
+        PhoenixOption.fixed_coupon,
+        PhoenixOption.digital_coupon,
+        PhoenixOption.standard,
+        PhoenixOption.step_down,
     ):
         assert inspect.signature(factory).parameters["lockout_periods"].default == 0
     for decrement in (-1, math.nan, math.inf, -math.inf, 110):
@@ -176,7 +173,7 @@ def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_obser
             subtests.test(decrement=decrement),
             pytest.raises(InvalidInputError),
         ):
-            step_down_phoenix(
+            PhoenixOption.step_down(
                 initial_knock_out_level=110,
                 knock_out_level_decrement=decrement,
                 **common,
@@ -188,7 +185,7 @@ def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_obser
         (-1, OverflowError),
     ):
         with pytest.raises(error):
-            step_down_phoenix(
+            PhoenixOption.step_down(
                 initial_knock_out_level=110,
                 knock_out_level_decrement=2,
                 **(common | {"lockout_periods": count}),
@@ -198,15 +195,15 @@ def test_phoenix_presets_expand_lockout_and_start_ladder_at_first_eligible_obser
 @pytest.mark.parametrize(
     "factory,extra,barrier",
     (
-        (fixed_coupon_note, {}, 0),
-        (digital_coupon_note, {"coupon_barrier_level": 90}, 90),
+        (PhoenixOption.fixed_coupon, {}, 0),
+        (PhoenixOption.digital_coupon, {"coupon_barrier_level": 90}, 90),
     ),
 )
 def test_fcn_dcn_expand_to_plain_phoenix_and_own_their_terms(factory, extra, barrier):
     dates = [MIDDLE, END]
     note = factory(coupon_per_period=0.01, **terms(autocall_times=dates), **extra)
     expected = PhoenixOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         coupon_per_period=0.01,
         **phoenix_fields(
             barrier_state=None,
@@ -249,7 +246,7 @@ def test_phoenix_periodic_coupon_signature_getter_and_repr_roundtrip(subtests):
     assert "coupon_rate" not in signature.parameters
     assert signature.parameters["coupon_per_period"].default is inspect.Parameter.empty
     note = PhoenixOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         coupon_per_period=-0.01,
         **phoenix_fields(),
     )
@@ -265,7 +262,7 @@ def test_phoenix_periodic_coupon_signature_getter_and_repr_roundtrip(subtests):
                 "AutocallableObservation": AutocallableObservation,
                 "KnockOutObservation": KnockOutObservation,
                 "CouponObservation": CouponObservation,
-                "weekdays_calendar": weekdays_calendar,
+                "TradingCalendar": TradingCalendar,
             },
         )
         == note
@@ -281,7 +278,7 @@ def test_phoenix_periodic_coupon_signature_getter_and_repr_roundtrip(subtests):
     ):
         with subtests.test(fields=fields), pytest.raises(TypeError):
             PhoenixOption(
-                calendar=weekdays_calendar(),
+                calendar=TradingCalendar.weekdays(),
                 **fields,
                 **phoenix_fields(),
             )
@@ -291,14 +288,14 @@ def test_phoenix_periodic_coupon_signature_getter_and_repr_roundtrip(subtests):
     for value in (True, "0.01", None, Ellipsis):
         with subtests.test(value=value), pytest.raises(TypeError):
             PhoenixOption(
-                calendar=weekdays_calendar(),
+                calendar=TradingCalendar.weekdays(),
                 coupon_per_period=value,
                 **phoenix_fields(),
             )
     for value in (math.nan, math.inf, -math.inf):
         with subtests.test(value=value), pytest.raises(InvalidInputError):
             PhoenixOption(
-                calendar=weekdays_calendar(),
+                calendar=TradingCalendar.weekdays(),
                 coupon_per_period=value,
                 **phoenix_fields(),
             )
@@ -306,8 +303,8 @@ def test_phoenix_periodic_coupon_signature_getter_and_repr_roundtrip(subtests):
 
 def test_shared_fixed_coupon_and_downside_boundary_scenarios_in_all_engines(subtests):
     for factory, extra, barrier in (
-        (fixed_coupon_note, {}, 0),
-        (digital_coupon_note, {"coupon_barrier_level": 90}, 90),
+        (PhoenixOption.fixed_coupon, {}, 0),
+        (PhoenixOption.digital_coupon, {"coupon_barrier_level": 90}, 90),
     ):
         for coupon in (0.01, -0.01):
             note = factory(
@@ -343,7 +340,7 @@ def test_shared_fixed_coupon_and_downside_boundary_scenarios_in_all_engines(subt
                     0.25 + coupon,
                     places=14,
                 )
-    note = digital_coupon_note(
+    note = PhoenixOption.digital_coupon(
         coupon_per_period=0.01,
         coupon_barrier_level=90,
         **terms(knock_out_level=85, barrier_state="no_event"),
@@ -354,10 +351,10 @@ def test_shared_fixed_coupon_and_downside_boundary_scenarios_in_all_engines(subt
 
 def test_multiple_fixed_payments_do_not_accrue_days_or_repay_past_coupons(subtests):
     for factory, extra, spot, expected in (
-        (fixed_coupon_note, {}, 100, 1.02),
-        (fixed_coupon_note, {}, 70, 0.92),
-        (digital_coupon_note, {"coupon_barrier_level": 90}, 100, 1.02),
-        (digital_coupon_note, {"coupon_barrier_level": 90}, 85, 1.0),
+        (PhoenixOption.fixed_coupon, {}, 100, 1.02),
+        (PhoenixOption.fixed_coupon, {}, 70, 0.92),
+        (PhoenixOption.digital_coupon, {"coupon_barrier_level": 90}, 100, 1.02),
+        (PhoenixOption.digital_coupon, {"coupon_barrier_level": 90}, 85, 1.0),
     ):
         note = factory(
             coupon_per_period=0.01, **terms(barrier_state="no_event"), **extra
@@ -374,7 +371,7 @@ def test_multiple_fixed_payments_do_not_accrue_days_or_repay_past_coupons(subtes
                     spot, datetime(2025, 2, 4), rate=0, dividend=0, volatility=1e-8
                 )
                 remaining = expected - (
-                    0.01 if factory is fixed_coupon_note or spot >= 90 else 0
+                    0.01 if factory is PhoenixOption.fixed_coupon or spot >= 90 else 0
                 )
                 assert_decimal_equal(engine.price(note, after), remaining, places=9)
                 assert (
@@ -387,7 +384,7 @@ def test_multiple_fixed_payments_do_not_accrue_days_or_repay_past_coupons(subtes
                     == 0
                 )
     fixed = PhoenixOption(
-        calendar=weekdays_calendar(),
+        calendar=TradingCalendar.weekdays(),
         coupon_per_period=0.01,
         **phoenix_fields(),
     )
@@ -398,7 +395,10 @@ def test_multiple_fixed_payments_do_not_accrue_days_or_repay_past_coupons(subtes
 
 @pytest.mark.parametrize(
     "factory,extra",
-    ((fixed_coupon_note, {}), (digital_coupon_note, {"coupon_barrier_level": 90})),
+    (
+        (PhoenixOption.fixed_coupon, {}),
+        (PhoenixOption.digital_coupon, {"coupon_barrier_level": 90}),
+    ),
 )
 def test_implied_coupon_bounds_tolerance_and_result_use_contract_units(factory, extra):
     note = factory(coupon_per_period=0.01, **terms(), **extra)
@@ -428,9 +428,9 @@ def test_staged_snowballs_use_inclusive_cutoffs_and_whole_holding_coupons():
         END,
     ]
     cases = (
-        (early_profit_snowball, {}, [0.2, 0.05, 0.05, 0.05, 0.05]),
+        (SnowballOption.early_profit, {}, [0.2, 0.05, 0.05, 0.05, 0.05]),
         (
-            butterfly_snowball,
+            SnowballOption.butterfly,
             {
                 "third_coupon_rate": -0.02,
                 "second_stage_end_time": datetime(2025, 3, 3),
@@ -469,13 +469,13 @@ def test_stage_validation_checks_unused_rates_and_accepts_empty_stages(subtests)
         "second_coupon_rate": -0.02,
         "first_stage_end_time": datetime(2025, 2, 1),
     }
-    note = early_profit_snowball(
+    note = SnowballOption.early_profit(
         knock_in_observation_clock_time=clock_time(),
         **fields,
         **terms(autocall_times=[END]),
     )
     assert note.knock_out_coupon_rates == ((-0.02,))
-    increasing = butterfly_snowball(
+    increasing = SnowballOption.butterfly(
         knock_in_observation_clock_time=clock_time(),
         first_coupon_rate=-0.02,
         second_coupon_rate=0,
@@ -488,14 +488,14 @@ def test_stage_validation_checks_unused_rates_and_accepts_empty_stages(subtests)
     assert increasing.maturity_coupon_rate == 0.2
     for cutoff in (datetime(2024, 12, 31), END, datetime(2025, 4, 2)):
         with pytest.raises(InvalidInputError):
-            early_profit_snowball(
+            SnowballOption.early_profit(
                 knock_in_observation_clock_time=clock_time(),
                 **(fields | {"first_stage_end_time": cutoff}),
                 **terms(),
             )
     for cutoff in (datetime(2025, 1, 31), datetime(2025, 2, 1), END):
         with pytest.raises(InvalidInputError):
-            butterfly_snowball(
+            SnowballOption.butterfly(
                 knock_in_observation_clock_time=clock_time(),
                 **fields,
                 third_coupon_rate=0.01,
@@ -508,14 +508,14 @@ def test_stage_validation_checks_unused_rates_and_accepts_empty_stages(subtests)
                 subtests.test(key=key, value=value),
                 pytest.raises(InvalidInputError),
             ):
-                early_profit_snowball(
+                SnowballOption.early_profit(
                     knock_in_observation_clock_time=clock_time(),
                     **(fields | {key: value}),
                     **terms(autocall_times=[END]),
                 )
     for value in (math.nan, math.inf, -math.inf):
         with pytest.raises(InvalidInputError):
-            butterfly_snowball(
+            SnowballOption.butterfly(
                 knock_in_observation_clock_time=clock_time(),
                 **fields,
                 third_coupon_rate=value,
@@ -524,7 +524,7 @@ def test_stage_validation_checks_unused_rates_and_accepts_empty_stages(subtests)
             )
     for value in (True, "2025-02-01", datetime(2025, 2, 1, tzinfo=UTC)):
         with pytest.raises(TypeError):
-            early_profit_snowball(
+            SnowballOption.early_profit(
                 knock_in_observation_clock_time=clock_time(),
                 **(fields | {"first_stage_end_time": value}),
                 **terms(),
@@ -534,25 +534,27 @@ def test_stage_validation_checks_unused_rates_and_accepts_empty_stages(subtests)
 def test_preset_representation_and_domain_errors_use_native_categories():
     for value in (True, "0.01", None):
         with pytest.raises(TypeError):
-            fixed_coupon_note(coupon_per_period=value, **terms())
+            PhoenixOption.fixed_coupon(coupon_per_period=value, **terms())
     for value in (math.nan, math.inf, -math.inf):
         with pytest.raises(InvalidInputError):
-            fixed_coupon_note(coupon_per_period=value, **terms())
+            PhoenixOption.fixed_coupon(coupon_per_period=value, **terms())
     for barrier in (-1, math.nan, math.inf):
         with pytest.raises(InvalidInputError):
-            digital_coupon_note(
+            PhoenixOption.digital_coupon(
                 coupon_per_period=0.01, coupon_barrier_level=barrier, **terms()
             )
     for schedule in ([], [END, MIDDLE], [MIDDLE, MIDDLE], [datetime(2025, 4, 2)]):
         with pytest.raises(InvalidInputError):
-            fixed_coupon_note(coupon_per_period=0.01, **terms(autocall_times=schedule))
+            PhoenixOption.fixed_coupon(
+                coupon_per_period=0.01, **terms(autocall_times=schedule)
+            )
     with pytest.raises(TypeError):
-        digital_coupon_note(coupon_per_period=0.01, **terms())
+        PhoenixOption.digital_coupon(coupon_per_period=0.01, **terms())
     for factory, parameter in (
-        (fixed_coupon_note, "coupon_per_period"),
-        (digital_coupon_note, "coupon_barrier_level"),
-        (early_profit_snowball, "first_stage_end_time"),
-        (butterfly_snowball, "second_stage_end_time"),
+        (PhoenixOption.fixed_coupon, "coupon_per_period"),
+        (PhoenixOption.digital_coupon, "coupon_barrier_level"),
+        (SnowballOption.early_profit, "first_stage_end_time"),
+        (SnowballOption.butterfly, "second_stage_end_time"),
     ):
         assert (
             inspect.signature(factory).parameters[parameter].kind

@@ -26,9 +26,7 @@ from kiyosi.market import (
     LocalVolatilityParameters,
     LocalVolatilitySurface,
     RateTermStructure,
-    all_days_calendar,
-    custom_calendar,
-    weekdays_calendar,
+    TradingCalendar,
 )
 from kiyosi.pricing import (
     FiniteDifferenceAutocallableEngine,
@@ -59,7 +57,7 @@ START, MIDDLE, END = datetime(2025, 1, 1), datetime(2025, 2, 3), datetime(2025, 
 
 def contract(**changes):
     fields = {
-        "calendar": weekdays_calendar(),
+        "calendar": TradingCalendar.weekdays(),
         "coupon_per_period": 0.01,
         "initial_spot": 100,
         "knock_in_level": 80,
@@ -246,14 +244,14 @@ def test_lockout_history_depends_only_on_eligible_knock_out_observations():
 
 
 def test_factory_lockout_counts_use_integer_protocol_and_core_validation(subtests):
-    from kiyosi.instruments import fixed_coupon_note
+    from kiyosi.instruments import PhoenixOption
 
     class Count:
         def __index__(self):
             return 1
 
     factory = partial(
-        fixed_coupon_note,
+        PhoenixOption.fixed_coupon,
         coupon_per_period=0.01,
         initial_spot=100,
         knock_in_level=80,
@@ -267,7 +265,10 @@ def test_factory_lockout_counts_use_integer_protocol_and_core_validation(subtest
     assert note.coupon_times == (MIDDLE, END)
     assert factory().knock_out_times == (MIDDLE, END)
     assert (
-        inspect.signature(fixed_coupon_note).parameters["lockout_periods"].default == 0
+        inspect.signature(PhoenixOption.fixed_coupon)
+        .parameters["lockout_periods"]
+        .default
+        == 0
     )
     assert "lockout_periods" not in inspect.signature(PhoenixOption).parameters
     with pytest.raises(TypeError):
@@ -713,8 +714,8 @@ def test_event_greeks_settled_history_and_solver_failures():
 
 
 def test_two_event_prices_match_independent_conditional_payoff_integral():
-    calendar = custom_calendar(
-        base=all_days_calendar(),
+    calendar = TradingCalendar.custom(
+        base=TradingCalendar.all_days(),
         closed_dates=[
             (START + timedelta(days=i)).date()
             for i in range(91)
@@ -1043,7 +1044,7 @@ def test_coupon_above_knock_out_zero_coupon_and_expiry_without_observation():
 def test_dense_deterministic_ladder_and_short_terminal_transition():
     dates = [START + timedelta(days=i) for i in range(1, 33)]
     note = contract(
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
         expiry_time=dates[-1],
         principal_redemption_ratio=0.5,
         knock_out_observations=[
@@ -1161,7 +1162,7 @@ def test_dense_coupon_ladder_uses_only_current_barriers_in_quadrature():
         coupon_per_period=0.002,
         knock_in_level=75,
         lower_strike=50,
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
         knock_in_observation=KnockInObservation.every_trading_day(clock_time()),
         knock_out_observations=[
             KnockOutObservation(START + timedelta(days=day), 110)

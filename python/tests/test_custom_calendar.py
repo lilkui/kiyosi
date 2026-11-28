@@ -4,18 +4,16 @@ from datetime import time as clock_time
 import pytest
 from kiyosi import InvalidInputError
 from kiyosi.market import (
-    custom_calendar,
-    fixed_interval_schedule,
-    sse_calendar,
-    weekdays_calendar,
+    ObservationSchedule,
+    TradingCalendar,
 )
 from support.assertions import assert_decimal_equal
 
 
 def test_overrides_ownership_and_calendar_operations():
-    base = weekdays_calendar()
+    base = TradingCalendar.weekdays()
     closed = [date(2026, 10, 2), date(2026, 10, 1), date(2026, 10, 1)]
-    calendar = custom_calendar(
+    calendar = TradingCalendar.custom(
         base=base,
         closed_dates=closed,
         open_dates=(date(2026, 10, 10) for _ in range(2)),
@@ -37,7 +35,7 @@ def test_overrides_ownership_and_calendar_operations():
     assert_decimal_equal(calendar.trading_year_fraction(start, end), 6 / 261)
     assert calendar.adjust(start, "following") == date(2026, 10, 5)
     assert list(
-        fixed_interval_schedule(
+        ObservationSchedule.fixed_interval(
             observation_clock_time=clock_time(),
             start_time=datetime(2026, 10, 9),
             end_time=datetime(2026, 10, 11),
@@ -45,7 +43,7 @@ def test_overrides_ownership_and_calendar_operations():
             calendar=calendar,
         )
     ) == [datetime(2026, 10, 10)]
-    layered = custom_calendar(
+    layered = TradingCalendar.custom(
         base=calendar,
         closed_dates=[date(2026, 10, 10)],
         open_dates=[start],
@@ -58,8 +56,8 @@ def test_overrides_ownership_and_calendar_operations():
 
 
 def test_empty_overrides_inherit_base():
-    base = sse_calendar()
-    calendar = custom_calendar(base=base, trading_days_per_year=None)
+    base = TradingCalendar.sse()
+    calendar = TradingCalendar.custom(base=base, trading_days_per_year=None)
     assert calendar.trading_days_per_year == base.trading_days_per_year
     assert calendar.is_trading_day(date(2026, 10, 1)) == base.is_trading_day(
         date(2026, 10, 1)
@@ -76,7 +74,7 @@ def test_domain_errors(subtests):
             subtests.test(kwargs=kwargs),
             pytest.raises(InvalidInputError) as error,
         ):
-            custom_calendar(base=weekdays_calendar(), **kwargs)
+            TradingCalendar.custom(base=TradingCalendar.weekdays(), **kwargs)
         assert type(error.value) is InvalidInputError
 
 
@@ -87,11 +85,17 @@ def test_representation_errors(subtests):
                 subtests.test(field=field, value=value),
                 pytest.raises(TypeError),
             ):
-                custom_calendar(base=weekdays_calendar(), **{field: value})
+                TradingCalendar.custom(
+                    base=TradingCalendar.weekdays(), **{field: value}
+                )
     for value in (True, 252.0, 252.5, "252"):
         with subtests.test(value=value), pytest.raises(TypeError):
-            custom_calendar(base=weekdays_calendar(), trading_days_per_year=value)
+            TradingCalendar.custom(
+                base=TradingCalendar.weekdays(), trading_days_per_year=value
+            )
     with pytest.raises(OverflowError):
-        custom_calendar(base=weekdays_calendar(), trading_days_per_year=2**40)
+        TradingCalendar.custom(
+            base=TradingCalendar.weekdays(), trading_days_per_year=2**40
+        )
     with pytest.raises(TypeError):
-        custom_calendar()
+        TradingCalendar.custom()

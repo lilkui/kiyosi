@@ -61,15 +61,18 @@ def test_surface_value_export_polls_signals_before_returning_the_tuple():
 def test_timestamp_export_polls_signals_before_returning_the_tuple():
     from datetime import datetime, time, timedelta
 
-    from kiyosi.market import all_days_calendar, fixed_interval_schedule
+    from kiyosi.market import (
+        ObservationSchedule,
+        TradingCalendar,
+    )
 
     start = datetime(1, 1, 1)
-    schedule = fixed_interval_schedule(
+    schedule = ObservationSchedule.fixed_interval(
         start_time=start,
         end_time=start + timedelta(days=1_000_000),
         interval_days=1,
         observation_clock_time=time(),
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
     )
 
     with cpu_interrupt() as arm, pytest.raises(RequestInterrupted):
@@ -129,7 +132,7 @@ def test_autocallable_observation_iterable_polls_signals_before_consuming_record
         KnockInObservation,
         SnowballOption,
     )
-    from kiyosi.market import all_days_calendar
+    from kiyosi.market import TradingCalendar
 
     start = datetime(2025, 1, 1)
     end = datetime(2026, 1, 1)
@@ -153,7 +156,7 @@ def test_autocallable_observation_iterable_polls_signals_before_consuming_record
         expiry_time=end,
         knock_in_observation=KnockInObservation.at_expiry(),
         autocall_observations=[record],
-        calendar=all_days_calendar(),
+        calendar=TradingCalendar.all_days(),
     )
     with cpu_interrupt() as arm, pytest.raises(RequestInterrupted):
         note.replace(autocall_observations=Observations())
@@ -362,8 +365,7 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 )
                 from kiyosi.market import (
                     BlackScholesMertonParameters, HestonParameters, LocalVolatilitySurface, PricingContext,
-                    RateTermStructure, all_days_calendar, custom_calendar,
-                    fixed_interval_schedule, weekdays_calendar,
+                    ObservationSchedule, RateTermStructure, TradingCalendar,
                 )
                 from kiyosi.pricing import (
                     FiniteDifferenceAccumulatorEngine, FiniteDifferenceHestonVanillaEngine,
@@ -372,7 +374,7 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 start_time = datetime(1, 1, 1)
                 short_end = datetime(1, 1, 3)
                 long_end = datetime(9999, 12, 31)
-                calendar = all_days_calendar()
+                calendar = TradingCalendar.all_days()
                 terms = dict(
                     notional=100, annual_coupon_rate=0.1, lower_bound=90,
                     upper_bound=110, effective_time=start_time,
@@ -380,7 +382,7 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 )
                 original = RangeAccrualOption(expiry_time=short_end, **terms)
                 operations = {
-                    "schedule": lambda: fixed_interval_schedule(
+                    "schedule": lambda: ObservationSchedule.fixed_interval(
                         start_time=start_time, end_time=long_end, interval_days=1,
                         observation_clock_time=time(), calendar=calendar,
                     ),
@@ -418,7 +420,7 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 elif case in ("barrier_new", "barrier_replace"):
                     count = 750_000
                     end = start_time + timedelta(days=count)
-                    times = fixed_interval_schedule(
+                    times = ObservationSchedule.fixed_interval(
                         start_time=start_time, end_time=end, interval_days=1,
                         observation_clock_time=time(), calendar=calendar,
                     )
@@ -434,7 +436,7 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                         operation = lambda: barrier.replace(rebate=2)
                 elif case == "curve_new":
                     count = 250_000
-                    times = fixed_interval_schedule(
+                    times = ObservationSchedule.fixed_interval(
                         start_time=start_time, end_time=start_time + timedelta(days=count),
                         interval_days=1, observation_clock_time=time(), calendar=calendar,
                     )
@@ -445,7 +447,7 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 elif case == "curve_factors":
                     curve = RateTermStructure.bounded_flat(
                         0.01, reference_time=start_time, max_time=long_end,
-                        calendar=weekdays_calendar(),
+                        calendar=TradingCalendar.weekdays(),
                     )
                     operation = lambda: curve.factors
                 elif case == "curve_shift":
@@ -503,10 +505,10 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                 elif case in ("calendar_new", "calendar_layer"):
                     closed = [start_time.date() + timedelta(days=i) for i in range(600_000)]
                     if case == "calendar_layer":
-                        base = custom_calendar(base=calendar, closed_dates=closed)
-                        operation = lambda: custom_calendar(base=base, open_dates=[closed[0]])
+                        base = TradingCalendar.custom(base=calendar, closed_dates=closed)
+                        operation = lambda: TradingCalendar.custom(base=base, open_dates=[closed[0]])
                     else:
-                        operation = lambda: custom_calendar(base=calendar, closed_dates=closed)
+                        operation = lambda: TradingCalendar.custom(base=calendar, closed_dates=closed)
                 elif case == "surface":
                     times = tuple(start_time + timedelta(days=i) for i in range(1024))
                     spots = tuple(map(float, range(1, 1025)))
@@ -552,9 +554,9 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                     sys.setswitchinterval(interval)
                     timer.join()
 
-                schedule = fixed_interval_schedule(
+                schedule = ObservationSchedule.fixed_interval(
                     start_time=datetime(2025, 1, 1), end_time=datetime(2025, 1, 3),
-                    interval_days=1, observation_clock_time=time(), calendar=all_days_calendar(),
+                    interval_days=1, observation_clock_time=time(), calendar=TradingCalendar.all_days(),
                 )
                 assert schedule.times == (datetime(2025, 1, 2), datetime(2025, 1, 3))
                 assert original.expiry_time == short_end

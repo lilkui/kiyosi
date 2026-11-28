@@ -24,8 +24,7 @@ use pyo3::types::{PyBool, PySlice, PyTuple};
 ///
 /// Notes
 /// -----
-/// Construct from explicit times, or use fixed_interval_schedule or
-/// monthly_schedule. Bounds and calendar validate the input; the schedule owns
+/// Construct from explicit times, or use fixed_interval or monthly. Bounds and calendar validate the input; the schedule owns
 /// its times and calendar. The times property returns a
 /// copy; forward and reverse iteration retrieve timestamps lazily and retain
 /// the schedule owner. Integer indexing accepts
@@ -144,133 +143,133 @@ impl ObservationSchedule {
         let indices = builtins.call_method1("range", (slf.borrow().0.len(),))?;
         builtins.call_method1("map", (slf.getattr("__getitem__")?, indices))
     }
-}
 
-/// Create adjusted observations at positive fixed calendar-day intervals.
-///
-/// Parameters
-/// ----------
-/// start_time : datetime.datetime
-///     First timestamp of the interval.
-/// end_time : datetime.datetime
-///     Last timestamp of the interval.
-/// interval_days : int
-///     Positive calendar-day spacing of unadjusted observations, up to 2**63 - 1.
-/// observation_clock_time : datetime.time
-///     Required observation time of day, without timezone information.
-/// calendar : TradingCalendar, optional
-///     Trading calendar. Defaults to weekdays with a 261-day basis.
-///
-/// Returns
-/// -------
-/// ObservationSchedule
-///     Ordered observation times and their validation calendar.
-///
-/// Raises
-/// ------
-/// InvalidInputError
-///     If end_time precedes start_time or interval_days is nonpositive.
-/// TypeError
-///     If interval_days is not an integer or is bool.
-/// OverflowError
-///     If interval_days is outside the signed 64-bit range.
-///
-/// Notes
-/// -----
-/// Exclude start_time and include candidates through end_time. Following
-/// adjustment merges collisions and stops before crossing ``end_time``;
-/// ``end_time`` need not appear.
-/// Long scans release the GIL and poll Python signals.
-///
-#[pyfunction]
-#[pyo3(signature = (*, start_time, end_time, interval_days, observation_clock_time, calendar=TradingCalendar::default()))]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "PyO3 extracts an owned calendar and supplies its default"
-)]
-pub(crate) fn fixed_interval_schedule(
-    py: Python<'_>,
-    start_time: &Bound<'_, PyAny>,
-    end_time: &Bound<'_, PyAny>,
-    interval_days: &Bound<'_, PyAny>,
-    observation_clock_time: &Bound<'_, PyAny>,
-    calendar: TradingCalendar,
-) -> PyResult<ObservationSchedule> {
-    let start_time = timestamp(start_time)?;
-    let end_time = timestamp(end_time)?;
-    let interval_days = integer_index(interval_days)?.extract::<i64>()?;
-    let clock = crate::conversions::clock_time(observation_clock_time)?;
-    run_date_scan(
-        py,
-        start_time.date().days_until(end_time.date()).unsigned_abs(),
-        || {
-            kiyosi::ObservationSchedule::fixed_interval(
-                start_time,
-                end_time,
-                interval_days,
-                &calendar.0,
-                clock,
-            )
-        },
-    )
-    .map(ObservationSchedule)
-}
+    /// Create adjusted observations at positive fixed calendar-day intervals.
+    ///
+    /// Parameters
+    /// ----------
+    /// start_time : datetime.datetime
+    ///     First timestamp of the interval.
+    /// end_time : datetime.datetime
+    ///     Last timestamp of the interval.
+    /// interval_days : int
+    ///     Positive calendar-day spacing of unadjusted observations, up to 2**63 - 1.
+    /// observation_clock_time : datetime.time
+    ///     Required observation time of day, without timezone information.
+    /// calendar : TradingCalendar, optional
+    ///     Trading calendar. Defaults to weekdays with a 261-day basis.
+    ///
+    /// Returns
+    /// -------
+    /// ObservationSchedule
+    ///     Ordered observation times and their validation calendar.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInputError
+    ///     If end_time precedes start_time or interval_days is nonpositive.
+    /// TypeError
+    ///     If interval_days is not an integer or is bool.
+    /// OverflowError
+    ///     If interval_days is outside the signed 64-bit range.
+    ///
+    /// Notes
+    /// -----
+    /// Exclude start_time and include candidates through end_time. Following
+    /// adjustment merges collisions and stops before crossing ``end_time``;
+    /// ``end_time`` need not appear.
+    /// Long scans release the GIL and poll Python signals.
+    ///
+    #[staticmethod]
+    #[pyo3(signature = (*, start_time, end_time, interval_days, observation_clock_time, calendar=TradingCalendar::default()))]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "PyO3 extracts an owned calendar and supplies its default"
+    )]
+    fn fixed_interval(
+        py: Python<'_>,
+        start_time: &Bound<'_, PyAny>,
+        end_time: &Bound<'_, PyAny>,
+        interval_days: &Bound<'_, PyAny>,
+        observation_clock_time: &Bound<'_, PyAny>,
+        calendar: TradingCalendar,
+    ) -> PyResult<ObservationSchedule> {
+        let start_time = timestamp(start_time)?;
+        let end_time = timestamp(end_time)?;
+        let interval_days = integer_index(interval_days)?.extract::<i64>()?;
+        let clock = crate::conversions::clock_time(observation_clock_time)?;
+        run_date_scan(
+            py,
+            start_time.date().days_until(end_time.date()).unsigned_abs(),
+            || {
+                kiyosi::ObservationSchedule::fixed_interval(
+                    start_time,
+                    end_time,
+                    interval_days,
+                    &calendar.0,
+                    clock,
+                )
+            },
+        )
+        .map(ObservationSchedule)
+    }
 
-/// Create monthly observations anchored to the start_time day.
-///
-/// Parameters
-/// ----------
-/// start_time : datetime.datetime
-///     First timestamp of the interval.
-/// end_time : datetime.datetime
-///     Last timestamp of the interval.
-/// first_observation_month : int
-///     Positive month offset from start_time to the first observation.
-/// observation_clock_time : datetime.time
-///     Required observation time of day, without timezone information.
-/// calendar : TradingCalendar, optional
-///     Trading calendar. Defaults to weekdays with a 261-day basis.
-///
-/// Returns
-/// -------
-/// ObservationSchedule
-///     Ordered observation times and their validation calendar.
-///
-/// Raises
-/// ------
-/// InvalidInputError
-///     If end_time precedes start_time or first_observation_month is
-///     nonpositive.
-///
-/// Notes
-/// -----
-/// Clamp each candidate to its month end while retaining the original
-/// starting-day anchor for later months. Exclude start_time and include
-/// candidates through end_time. Following adjustment merges collisions and
-/// stops before crossing ``end_time``; ``end_time`` need not appear.
-/// Long scans release the GIL and poll Python signals.
-///
-#[pyfunction]
-#[pyo3(signature = (*, start_time, end_time, first_observation_month, observation_clock_time, calendar=TradingCalendar::default()))]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "PyO3 extracts an owned calendar and supplies its default"
-)]
-pub(crate) fn monthly_schedule(
-    py: Python<'_>,
-    start_time: &Bound<'_, PyAny>,
-    end_time: &Bound<'_, PyAny>,
-    first_observation_month: &Bound<'_, PyAny>,
-    observation_clock_time: &Bound<'_, PyAny>,
-    calendar: TradingCalendar,
-) -> PyResult<ObservationSchedule> {
-    let (start, end) = (timestamp(start_time)?, timestamp(end_time)?);
-    let first_month = integer(first_observation_month)?;
-    let clock = crate::conversions::clock_time(observation_clock_time)?;
-    run_date_scan(
-        py,
-        start.date().days_until(end.date()).unsigned_abs(),
-        || kiyosi::ObservationSchedule::monthly(start, end, first_month, &calendar.0, clock),
-    )
-    .map(ObservationSchedule)
+    /// Create monthly observations anchored to the start_time day.
+    ///
+    /// Parameters
+    /// ----------
+    /// start_time : datetime.datetime
+    ///     First timestamp of the interval.
+    /// end_time : datetime.datetime
+    ///     Last timestamp of the interval.
+    /// first_observation_month : int
+    ///     Positive month offset from start_time to the first observation.
+    /// observation_clock_time : datetime.time
+    ///     Required observation time of day, without timezone information.
+    /// calendar : TradingCalendar, optional
+    ///     Trading calendar. Defaults to weekdays with a 261-day basis.
+    ///
+    /// Returns
+    /// -------
+    /// ObservationSchedule
+    ///     Ordered observation times and their validation calendar.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInputError
+    ///     If end_time precedes start_time or first_observation_month is
+    ///     nonpositive.
+    ///
+    /// Notes
+    /// -----
+    /// Clamp each candidate to its month end while retaining the original
+    /// starting-day anchor for later months. Exclude start_time and include
+    /// candidates through end_time. Following adjustment merges collisions and
+    /// stops before crossing ``end_time``; ``end_time`` need not appear.
+    /// Long scans release the GIL and poll Python signals.
+    ///
+    #[staticmethod]
+    #[pyo3(signature = (*, start_time, end_time, first_observation_month, observation_clock_time, calendar=TradingCalendar::default()))]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "PyO3 extracts an owned calendar and supplies its default"
+    )]
+    fn monthly(
+        py: Python<'_>,
+        start_time: &Bound<'_, PyAny>,
+        end_time: &Bound<'_, PyAny>,
+        first_observation_month: &Bound<'_, PyAny>,
+        observation_clock_time: &Bound<'_, PyAny>,
+        calendar: TradingCalendar,
+    ) -> PyResult<ObservationSchedule> {
+        let (start, end) = (timestamp(start_time)?, timestamp(end_time)?);
+        let first_month = integer(first_observation_month)?;
+        let clock = crate::conversions::clock_time(observation_clock_time)?;
+        run_date_scan(
+            py,
+            start.date().days_until(end.date()).unsigned_abs(),
+            || kiyosi::ObservationSchedule::monthly(start, end, first_month, &calendar.0, clock),
+        )
+        .map(ObservationSchedule)
+    }
 }

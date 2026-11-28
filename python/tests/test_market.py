@@ -19,9 +19,7 @@ from kiyosi.market import (
     LocalVolatilitySurface,
     PricingContext,
     RateTermStructure,
-    all_days_calendar,
-    custom_calendar,
-    weekdays_calendar,
+    TradingCalendar,
 )
 from support.assertions import assert_rejection
 
@@ -172,10 +170,12 @@ def test_calendar_bounded_quotes_pause_on_closed_dates():
     saturday, monday = datetime(2025, 1, 4), datetime(2025, 1, 6)
     end = start + timedelta(days=3)
     bounds = {"reference_time": start, "max_time": end}
-    calendar = weekdays_calendar()
+    calendar = TradingCalendar.weekdays()
     default = RateTermStructure.bounded_flat(0.05, **bounds)
     assert (
-        RateTermStructure.bounded_flat(0.05, calendar=all_days_calendar(), **bounds)
+        RateTermStructure.bounded_flat(
+            0.05, calendar=TradingCalendar.all_days(), **bounds
+        )
         == default
     )
     assert RateTermStructure.bounded_flat(0.05, calendar=None, **bounds) == default
@@ -202,11 +202,11 @@ def test_calendar_rate_greeks_use_each_quotes_accrual_time():
     start = datetime(2025, 1, 3, 12)
     end = start + timedelta(days=3)
     bounds = {"reference_time": start, "max_time": end}
-    calendar = weekdays_calendar()
+    calendar = TradingCalendar.weekdays()
     risk = RateTermStructure.bounded_flat(0.05, calendar=calendar, **bounds)
     dividend = RateTermStructure.bounded_flat(
         -0.02,
-        calendar=custom_calendar(
+        calendar=TradingCalendar.custom(
             base=calendar,
             closed_dates=[end.date()],
             open_dates=[(start + timedelta(days=1)).date()],

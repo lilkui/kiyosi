@@ -40,7 +40,7 @@ def test_undated_touch_history_reuses_caller_state_and_validates_at_pricing(
     first = fields["effective_time"] + timedelta(days=int(scheduled))
     terms = dict(
         fields,
-        calendar=m.all_days_calendar(),
+        calendar=m.TradingCalendar.all_days(),
         touch_state="touched",
         observation_times=[first, fields["expiry_time"]] if scheduled else None,
     )
@@ -92,7 +92,7 @@ def test_scheduled_touch_at_valuation_is_processed_once_with_current_spot():
         rebate=7,
         rebate_timing="at_hit",
         observation_times=[first],
-        calendar=m.all_days_calendar(),
+        calendar=m.TradingCalendar.all_days(),
     )
     context = m.PricingContext(
         model_parameters=m.BlackScholesMertonParameters(
