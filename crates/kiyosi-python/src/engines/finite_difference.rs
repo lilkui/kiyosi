@@ -248,7 +248,8 @@ fd_engine!(
         /// boundaries. European calendar-time BSM strikes with fixed boundaries
         /// and compatible local-volatility strikes share an absolute-spot grid. Outliers can
         /// use individual solves. Check grid convergence across the strike range.
-        /// The request caps combined rollback work at one billion grid updates.
+        /// The request caps combined work at one billion grid updates or
+        /// deterministic American exercise interval visits.
         /// Strike inputs are bounded by the batch workspace limit.
         /// Cancellation returns no partial result.
         #[pyo3(signature = (instrument, context, *, strikes))]
@@ -298,7 +299,8 @@ fd_engine!(
         /// expiries. Compatible American surfaces share rollback on a normalized
         /// grid for flat-rate BSM or step factors on an absolute grid for local
         /// volatility. Other strips use price_strikes. Check mesh and domain
-        /// convergence across the surface. The combined rollback work limit
+        /// convergence across the surface. The combined work limit, including
+        /// deterministic American exercise interval visits,
         /// applies across the request. Cancellation returns no partial result.
         #[pyo3(signature = (instrument, context, *, expiries, strikes))]
         fn price_surface<'py>(

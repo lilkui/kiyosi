@@ -122,6 +122,14 @@ pub(super) struct AmericanExerciseMarket {
 }
 
 impl AmericanExerciseMarket {
+    pub(super) fn estimate_intervals(context: &PricingContext, expiry: Timestamp) -> u64 {
+        let model = context.model_parameters();
+        let start = context.valuation_time();
+        Curve::interval_count(model.risk_free_curve(), start, expiry)
+            + Curve::interval_count(model.dividend_curve(), start, expiry)
+            - 1
+    }
+
     pub(super) fn new(context: &PricingContext, expiry: Timestamp) -> Result<Self> {
         let model = context.model_parameters();
         let start = context.valuation_time();

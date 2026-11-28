@@ -66,6 +66,7 @@ impl FiniteDifferenceVanillaEngine {
                 dates,
                 strikes,
                 local.map(|_| american::LOCAL_LANES as u64),
+                true,
             )?)?;
             dates
                 .iter()

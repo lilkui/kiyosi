@@ -960,6 +960,32 @@ def test_american_fd_strike_batch_caps_combined_rollbacks():
         engine.price_strikes(contract(AmericanOption), market(), strikes=range(50, 180))
 
 
+def test_deterministic_american_batches_reuse_exercise_curves_within_work_limits():
+    times = [START + timedelta(minutes=i) for i in range(1, 20_001)]
+    factors = [1.0] * len(times)
+    factors[18_998] = 1.05
+    curve = RateTermStructure(reference_time=START, times=times, factors=factors)
+    context = market(spot=100, rate=curve, dividend=0, sigma=0)
+    option = contract(AmericanOption).replace(option_type="put", expiry_time=times[-1])
+    engine = FiniteDifferenceVanillaEngine()
+    reference = engine.price(option.replace(strike=105), context)
+    assert reference > 5
+    assert (
+        engine.price_strikes(option, context, strikes=(105,) * 50_001)
+        == (reference,) * 50_001
+    )
+    strikes = [95 + i / 5_000 for i in range(50_001)]
+    with pytest.raises(InvalidInputError, match="one billion grid updates"):
+        engine.price_strikes(option, context, strikes=strikes)
+    with pytest.raises(InvalidInputError, match="one billion grid updates"):
+        engine.price_surface(
+            option,
+            context,
+            expiries=(times[-1], times[18_999]),
+            strikes=strikes[:26_000],
+        )
+
+
 def test_american_surface_caps_combined_expiry_rollbacks():
     engine = FiniteDifferenceVanillaEngine(
         asset_step_count=2048, time_step_count=4096, asset_upper_boundary=400

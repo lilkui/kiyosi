@@ -1433,6 +1433,48 @@ fn american_fd_strike_batch_caps_combined_rollbacks() -> Result<()> {
 }
 
 #[test]
+fn deterministic_american_batches_reuse_exercise_curves_within_work_limits() -> Result<()> {
+    let (start, _) = dates();
+    let nodes = (1..=20_000)
+        .map(|minute| start.add_micros(minute * 60_000_000))
+        .collect::<Result<Vec<_>>>()?;
+    let end = nodes[19_999];
+    let earlier = nodes[18_999];
+    let mut factors = vec![1.0; nodes.len()];
+    factors[18_998] = 1.05;
+    let risk = RateTermStructure::new(start, nodes, factors)?;
+    let models = BlackScholesMertonParameters::new(risk, 0.0, 0.0)?;
+    let context = PricingContext::new(models, 100.0, start)?;
+    let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let engine = FiniteDifferenceVanillaEngine::default();
+    let strikes = std::iter::repeat_n(105.0, 50_001).collect::<Vec<_>>();
+    let high = AmericanOption::new(OptionType::Put, 105.0, start, end)?;
+    let reference = engine.price(&high, &context)?;
+    assert!(
+        reference > 5.0,
+        "the curve creates an intermediate exercise gain"
+    );
+    assert!(
+        engine
+            .price_strikes(&option, &context, &strikes)?
+            .iter()
+            .all(|price| price.to_bits() == reference.to_bits())
+    );
+    let distinct = (0..50_001)
+        .map(|i| 95.0 + f64::from(i) / 5_000.0)
+        .collect::<Vec<_>>();
+    assert!(matches!(
+        engine.price_strikes(&option, &context, &distinct),
+        Err(Error::InvalidInput(message)) if message.contains("one billion grid updates")
+    ));
+    assert!(matches!(
+        engine.price_surface(&option, &context, &[end, earlier], &distinct[..26_000]),
+        Err(Error::InvalidInput(message)) if message.contains("one billion grid updates")
+    ));
+    Ok(())
+}
+
+#[test]
 fn american_surface_caps_combined_expiry_rollbacks() -> Result<()> {
     let (start, end) = dates();
     let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;

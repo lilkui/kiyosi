@@ -7,6 +7,7 @@ pub(super) use american_surface::AmericanSurface;
 use std::collections::{HashMap, HashSet};
 use std::ops::RangeInclusive;
 
+use crate::engines::deterministic::{self, AmericanExerciseMarket};
 use crate::{
     AmericanOption, FiniteDifferenceHestonVanillaEngine, Timestamp, VanillaOptionChanges,
     engines::FiniteDifferenceSolution,
@@ -263,8 +264,20 @@ impl FiniteDifferenceVanillaEngine {
         if strikes.is_empty() {
             return Ok(Vec::new());
         }
+        let expiry = option.expiry_time();
+        if context.valuation_time() < expiry && deterministic::enabled_until(context, expiry)? {
+            let work = AmericanExerciseMarket::estimate_intervals(context, expiry);
+            let mut prepared = None;
+            return scalar_strikes(strikes, work, |strike| {
+                let market = match &prepared {
+                    Some(market) => market,
+                    None => prepared.insert(AmericanExerciseMarket::new(context, expiry)?),
+                };
+                market.price(Payoff::vanilla(option.option_type(), strike, true), context)
+            });
+        }
         let budget = RollbackWork::default();
-        let work = surface::strike_rollback_work(context, self.settings, option.expiry_time())?;
+        let work = surface::strike_rollback_work(context, self.settings, expiry)?;
         let at_strike = |strike| {
             option.replace(VanillaOptionChanges {
                 strike: Some(strike),
@@ -313,7 +326,7 @@ impl FiniteDifferenceVanillaEngine {
 fn scalar_strikes(
     strikes: &[f64],
     work: u64,
-    scalar: impl Fn(f64) -> Result<f64>,
+    mut scalar: impl FnMut(f64) -> Result<f64>,
 ) -> Result<Vec<f64>> {
     if validate_work(work, strikes.len() as u64).is_err() {
         let mut distinct = HashSet::new();

@@ -6,6 +6,7 @@ use super::{
     indexed_value, invalid_grid, local_volatility, payoff, strike_group_len, strip_grid,
     terminal_moments, validate_work, validate_workspace,
 };
+use crate::engines::deterministic::{self, AmericanExerciseMarket};
 use crate::engines::finite_difference::{
     Curve,
     edge_weights::{BYTES_PER_STEP, EdgeWeights},
@@ -70,7 +71,7 @@ impl FiniteDifferenceVanillaEngine {
         let settings = self.settings;
         let shared_work = Cell::new(0_u64);
         let fallback = |dates: &[Timestamp]| {
-            let work = fallback_work(context, settings, dates, strikes, None)?;
+            let work = fallback_work(context, settings, dates, strikes, None, false)?;
             validate_work(1, shared_work.get().saturating_add(work))?;
             scalar(dates)
         };
@@ -122,7 +123,7 @@ impl FiniteDifferenceVanillaEngine {
                 if compatible.len() < 2 {
                     return Ok(None);
                 }
-                let short_work = fallback_work(context, settings, short, strikes, None)?;
+                let short_work = fallback_work(context, settings, short, strikes, None, false)?;
                 let rows = strip_rows(
                     self,
                     context,
@@ -182,8 +183,9 @@ pub(super) fn fallback_work(
     expiries: &[Timestamp],
     strikes: &[f64],
     local_lanes: Option<u64>,
+    american: bool,
 ) -> Result<u64> {
-    if expiries.is_empty() || crate::engines::deterministic::enabled(context) {
+    if expiries.is_empty() || !american && deterministic::enabled(context) {
         return Ok(0);
     }
     let mut ordered = strikes.to_vec();
@@ -192,6 +194,7 @@ pub(super) fn fallback_work(
     let can_share =
         settings.scheme == FiniteDifferenceScheme::Rannacher && settings.asset_step_count >= 128;
     let mut rollbacks = 0_u64;
+    let mut distinct = 0_u64;
     let mut remaining = ordered.as_slice();
     while let Some(&first) = remaining.first() {
         crate::cancellation::check()?;
@@ -208,6 +211,7 @@ pub(super) fn fallback_work(
             unique += u64::from(pair[0].to_bits() != pair[1].to_bits());
         }
         rollbacks += unique;
+        distinct += unique;
         // A failed shared strike grid can be followed by a solve for each strike.
         if can_share && group.len() >= 4 && first < group[group.len() - 1] {
             rollbacks += local_lanes.map_or(1, |lanes| unique.next_multiple_of(lanes));
@@ -216,11 +220,16 @@ pub(super) fn fallback_work(
     }
 
     let mut work = 0_u64;
+    let valuation = context.valuation_time();
     for &expiry in expiries {
         crate::cancellation::check()?;
-        work = work.saturating_add(
-            strike_rollback_work(context, settings, expiry)?.saturating_mul(rollbacks),
-        );
+        let expiry_work =
+            if american && valuation < expiry && deterministic::enabled_until(context, expiry)? {
+                AmericanExerciseMarket::estimate_intervals(context, expiry).saturating_mul(distinct)
+            } else {
+                strike_rollback_work(context, settings, expiry)?.saturating_mul(rollbacks)
+            };
+        work = work.saturating_add(expiry_work);
         validate_work(1, work)?;
     }
     Ok(work)
