@@ -93,6 +93,19 @@ def test_analytic_strike_batch_preserves_independent_prices_and_errors():
         )
 
 
+def test_dense_heston_batch_preserves_transform_quotes_above_chunk_limit():
+    engine = AnalyticHestonEuropeanEngine()
+    snapshot, template = context(), option()
+    strikes = [80 + index / 4096 for index in range(16_384)]
+    first_chunk = engine.price_strikes(template, snapshot, strikes=strikes)
+    batch = engine.price_strikes(template, snapshot, strikes=[*strikes, 84, 80])
+    assert batch[:16_384] == first_chunk
+    assert batch[-1] == first_chunk[0]
+    assert batch[-2] == pytest.approx(
+        engine.price(template.replace(strike=84), snapshot), abs=1e-8, rel=0
+    )
+
+
 def test_heston_tail_bound_prices_within_a_tight_evaluation_budget():
     engine = AnalyticHestonEuropeanEngine(
         absolute_tolerance=1e-9, relative_tolerance=1e-9, max_evaluations=480

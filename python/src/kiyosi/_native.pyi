@@ -1832,8 +1832,8 @@ class AnalyticHestonEuropeanEngine(_PricingMethods[EuropeanOption]):
 
         Notes
         -----
-        Dense strike batches can share one fast Fourier transform with
-        interpolation. Other quotes share transform samples and retain
+        Groups of up to 16,384 distinct strikes can share a fast Fourier
+        transform with interpolation. Other quotes share transform samples and retain
         adaptive convergence budgets. Pricing releases the GIL and
         cancellation returns no partial result.
         """

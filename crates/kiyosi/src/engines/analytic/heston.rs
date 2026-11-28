@@ -151,9 +151,9 @@ impl AnalyticHestonEuropeanEngine {
     ///
     /// Uses the template's direction and dates. The result preserves input order
     /// and duplicates, with each distinct strike priced once. The empty batch
-    /// validates the market and returns an empty vector. Dense strike batches
-    /// can share one fast Fourier transform with
-    /// interpolation when the estimated error fits the price tolerances. Other
+    /// validates the market and returns an empty vector. Groups of up to 16,384
+    /// distinct strikes can share a fast Fourier transform with interpolation
+    /// when the estimated error fits the price tolerances. Other
     /// quotes share Fourier samples across adaptive integration panels. The
     /// evaluation budget applies per strike.
     ///
@@ -206,21 +206,23 @@ impl AnalyticHestonEuropeanEngine {
         model: &HestonParameters,
         strikes: &[f64],
     ) -> Result<Vec<f64>> {
-        let transformed = fft::price_strikes(option, context, model, strikes, self.settings)?;
         let mut prices = Vec::new();
         prices.try_reserve_exact(strikes.len()).map_err(|_| {
             Error::ComputationFailure("cannot reserve Heston strike batch output".into())
         })?;
         let mut geometry = PanelCache::new();
         let mut panels = BinaryHeap::new();
-        for (index, &strike) in strikes.iter().enumerate() {
-            crate::cancellation::check()?;
-            if let Some(price) = transformed.as_ref().and_then(|prices| prices[index]) {
-                prices.push(price);
-                continue;
+        for chunk in strikes.chunks(fft::MAX_STRIKES) {
+            let transformed = fft::price_strikes(option, context, model, chunk, self.settings)?;
+            for (index, &strike) in chunk.iter().enumerate() {
+                crate::cancellation::check()?;
+                if let Some(price) = transformed.as_ref().and_then(|prices| prices[index]) {
+                    prices.push(price);
+                    continue;
+                }
+                let cache = (strikes.len() > 1).then_some(&mut geometry);
+                prices.push(self.price_one(option, context, model, strike, cache, &mut panels)?);
             }
-            let cache = (strikes.len() > 1).then_some(&mut geometry);
-            prices.push(self.price_one(option, context, model, strike, cache, &mut panels)?);
         }
         Ok(prices)
     }

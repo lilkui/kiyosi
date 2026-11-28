@@ -72,6 +72,27 @@ fn analytic_strike_batch_preserves_independent_prices_and_errors() -> Result<()>
 }
 
 #[test]
+fn dense_heston_batch_preserves_transform_quotes_above_chunk_limit() -> Result<()> {
+    let engine = AnalyticHestonEuropeanEngine::default();
+    let market = context(model());
+    let call = option(OptionType::Call);
+    let mut strikes: Vec<_> = (0..16_384)
+        .map(|index| 80.0 + f64::from(index) / 4096.0)
+        .collect();
+    let first_chunk = engine.price_strikes(&call, &market, &strikes)?;
+    strikes.extend([84.0, 80.0]);
+    let batch = engine.price_strikes(&call, &market, &strikes)?;
+    assert_eq!(&batch[..first_chunk.len()], first_chunk);
+    assert_eq!(batch[16_385].to_bits(), batch[0].to_bits());
+    let tail = call.replace(VanillaOptionChanges {
+        strike: Some(84.0),
+        ..Default::default()
+    })?;
+    assert!((batch[16_384] - engine.price(&tail, &market)?).abs() < 1e-8);
+    Ok(())
+}
+
+#[test]
 fn heston_matches_quantlib_and_put_call_parity() {
     // QuantLib 1.43, adaptive Gatheral integration at relative tolerance 1e-12.
     for (model, reference) in [

@@ -8,6 +8,8 @@ use super::{
     lognormal_price, scaled_cash,
 };
 
+pub(super) const MAX_STRIKES: usize = 16_384;
+
 struct Quote {
     moneyness: f64,
     weight: f64,
@@ -26,7 +28,7 @@ pub(super) fn price_strikes(
     strikes: &[f64],
     settings: HestonIntegrationSettings,
 ) -> Result<Option<Vec<Option<f64>>>> {
-    if !(16..=16_384).contains(&strikes.len())
+    if !(16..=MAX_STRIKES).contains(&strikes.len())
         || model.vol_of_vol() == 0.0
         || model.initial_variance() == 0.0
         || settings.absolute_tolerance == 0.0
