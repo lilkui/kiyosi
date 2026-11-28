@@ -1,11 +1,14 @@
 use rayon::prelude::*;
+use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use super::super::deterministic::{self, AmericanExerciseMarket};
 use super::super::validate_rollback_work;
 use super::{
     AmericanOption, CoxRossRubinsteinVanillaEngine, EuropeanOption, Payoff, PricingContext, Result,
     RollbackWork, flat_rates, parameters, rollback_nodes, time_step, unstable,
 };
+use crate::instruments::monitoring::validate_life;
 
 /// Borrows a contract for [`CoxRossRubinsteinVanillaEngine::price_many`].
 #[derive(Clone, Copy, Debug)]
@@ -43,7 +46,8 @@ impl CoxRossRubinsteinVanillaEngine {
     /// # Errors
     ///
     /// Returns [`crate::Error::InvalidInput`] above 1,048,576 contracts or for
-    /// excessive combined terminal-node and rollback work.
+    /// excessive combined terminal-node, rollback or deterministic exercise work.
+    /// Checks the deterministic batch work limit before exercise pricing.
     /// Propagates the first contract pricing error in input order or a cancellation error.
     /// A failed request returns no partial prices.
     pub fn price_many(
@@ -54,6 +58,9 @@ impl CoxRossRubinsteinVanillaEngine {
         const LANES: usize = 4;
         crate::binding_support::validate_contract_batch_size(options.len())?;
         let budget = RollbackWork::default();
+        if !options.is_empty() && deterministic::enabled(context) {
+            return self.price_deterministic_many(options, context, &budget);
+        }
         let scalar = |option| match option {
             BinomialVanilla::European(option) => self.price_vanilla(
                 option,
@@ -205,6 +212,77 @@ impl CoxRossRubinsteinVanillaEngine {
         Ok(prices)
     }
 
+    fn price_deterministic_many(
+        &self,
+        options: &[BinomialVanilla<'_>],
+        context: &PricingContext,
+        budget: &RollbackWork,
+    ) -> Result<Vec<f64>> {
+        // Retain a single large market or several small markets across interleaved expiries.
+        const CACHED_INTERVALS: u64 = 1 << 18;
+        flat_rates(context)?;
+        let valuation = context.valuation_time();
+        for instrument in options {
+            crate::cancellation::check()?;
+            let (expiry, life) = match instrument {
+                BinomialVanilla::American(option) => {
+                    (option.expiry_time(), validate_life(*option, context))
+                }
+                BinomialVanilla::European(option) => {
+                    (option.expiry_time(), validate_life(*option, context))
+                }
+            };
+            if life.is_err() || context.validate_curve_coverage(expiry).is_err() {
+                // The pricing pass reports the first error, including any in this prefix.
+                break;
+            }
+            if matches!(instrument, BinomialVanilla::American(_)) && expiry > valuation {
+                budget.charge(AmericanExerciseMarket::estimate_intervals(context, expiry))?;
+            }
+        }
+
+        let mut prepared: BTreeMap<_, AmericanExerciseMarket> = BTreeMap::new();
+        let mut retained = 0;
+        options
+            .iter()
+            .map(|&instrument| {
+                crate::cancellation::check()?;
+                let option = match instrument {
+                    BinomialVanilla::American(option) => option,
+                    BinomialVanilla::European(option) => {
+                        return self.price_vanilla(
+                            option,
+                            Payoff::vanilla(option.option_type(), option.strike(), false),
+                            context,
+                            Some(budget),
+                        );
+                    }
+                };
+                let expiry = option.expiry_time();
+                let payoff = Payoff::vanilla(option.option_type(), option.strike(), true);
+                if let Some(market) = prepared.get(&expiry) {
+                    validate_life(option, context)?;
+                    return market.price(payoff, context);
+                }
+                context.validate_curve_horizon(expiry)?;
+                validate_life(option, context)?;
+                if expiry == valuation {
+                    return Ok(payoff.value(context.spot_price()));
+                }
+                let intervals = AmericanExerciseMarket::estimate_intervals(context, expiry);
+                if retained + intervals > CACHED_INTERVALS {
+                    prepared.clear();
+                    retained = 0;
+                }
+                let market = AmericanExerciseMarket::new(context, expiry)?;
+                let price = market.price(payoff, context)?;
+                prepared.insert(expiry, market);
+                retained += intervals;
+                Ok(price)
+            })
+            .collect()
+    }
+
     fn price_american_lanes<const N: usize>(
         &self,
         options: [&AmericanOption; N],
@@ -213,14 +291,12 @@ impl CoxRossRubinsteinVanillaEngine {
     ) -> Result<Option<[f64; N]>> {
         let (rate, dividend) = flat_rates(context)?;
         let expiry = options[0].expiry_time();
-        if super::super::deterministic::enabled(context)
-            || options.iter().any(|option| {
-                option.expiry_time() != expiry
-                    || (option.option_type() == crate::OptionType::Call
-                        && dividend <= 0.0
-                        && rate >= 0.0)
-            })
-        {
+        if options.iter().any(|option| {
+            option.expiry_time() != expiry
+                || (option.option_type() == crate::OptionType::Call
+                    && dividend <= 0.0
+                    && rate >= 0.0)
+        }) {
             return Ok(None);
         }
         let dt = time_step(options[0], context, self.settings)?;
@@ -294,4 +370,38 @@ impl CoxRossRubinsteinVanillaEngine {
         }
         Ok(Some(prices))
     }
+}
+
+#[test]
+fn deterministic_binomial_batch_charges_reused_exercise_intervals() -> Result<()> {
+    use crate::{BlackScholesMertonParameters, Date, Error, OptionType, RateTermStructure};
+
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let middle = start.add_days(1)?;
+    let end = start.add_days(2)?;
+    let rates = RateTermStructure::new(start, vec![middle, end], vec![1.0, 1.0])?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(rates, 0.0, 0.0)?,
+        100.0,
+        start,
+    )?;
+    let live = AmericanOption::new(OptionType::Put, 108.0, start, end)?;
+    let terminal = AmericanOption::new(OptionType::Put, 102.0, start, start)?;
+    let engine = CoxRossRubinsteinVanillaEngine::default();
+    let budget = RollbackWork::default();
+    budget.charge(999_999_996)?;
+    let live = BinomialVanilla::American(&live);
+    assert_eq!(
+        engine.price_deterministic_many(
+            &[live, BinomialVanilla::American(&terminal), live],
+            &context,
+            &budget,
+        )?,
+        [8.0, 2.0, 8.0]
+    );
+    assert!(matches!(
+        engine.price_deterministic_many(&[live], &context, &budget),
+        Err(Error::InvalidInput(message)) if message.contains("one billion grid updates")
+    ));
+    Ok(())
 }

@@ -10,6 +10,7 @@ use super::{
     Pcg32, PricingContext, PricingEngine, PricingResult, Result, TERMINAL_PEAK_SCALING_WIDTH,
     check_path_step, scaled_value, sobol, unstable,
 };
+use crate::engines::{Payoff, deterministic::AmericanExerciseMarket};
 use crate::risk::numerical::symmetric_shift;
 use crate::{
     AmericanOption, BlackScholesMertonParameterChanges, Greek, PricingContextChanges,
@@ -667,7 +668,7 @@ impl MonteCarloVanillaEngine {
     ///
     /// Propagates input, market, sampling and cancellation errors. Returns
     /// [`Error::InvalidInput`] for excessive batch workspace or combined
-    /// sampling and exercise work.
+    /// sampling and exercise work, including deterministic exercise interval visits.
     /// A failed request returns no partial prices.
     ///
     /// # Panics
@@ -714,23 +715,48 @@ impl MonteCarloVanillaEngine {
         strikes: &[f64],
     ) -> Result<Vec<f64>> {
         let time = context.valuation_time().years_until(option.expiry_time());
-        let stochastic = time > 0.0 && !crate::engines::deterministic::enabled(context);
-        if stochastic {
-            let (rate, dividend) = crate::engines::flat_rates(context)?;
-            let work_per_path =
-                if option.option_type() == OptionType::Call && dividend <= 0.0 && rate >= 0.0 {
-                    let sigma = context.natural_bsm_parameters()?.volatility();
-                    1 + usize::from(sigma * time.sqrt() > TERMINAL_PEAK_SCALING_WIDTH)
-                } else {
-                    (self.settings.step_count.unsigned_abs() as usize).saturating_sub(1)
-                };
-            validate_work(
-                strikes
-                    .len()
-                    .saturating_mul(work_per_path)
-                    .saturating_mul(self.settings.sampling.path_count.unsigned_abs() as usize),
-            )?;
+        let payoff = |strike| Payoff::vanilla(option.option_type(), strike, true);
+        if time == 0.0 {
+            let spot = context.spot_price();
+            return strikes
+                .iter()
+                .map(|&strike| {
+                    crate::cancellation::check()?;
+                    Ok(payoff(strike).value(spot))
+                })
+                .collect();
         }
+        if crate::engines::deterministic::enabled(context) {
+            let expiry = option.expiry_time();
+            let intervals = AmericanExerciseMarket::estimate_intervals(context, expiry);
+            if intervals.saturating_mul(strikes.len() as u64) > WORK_BUDGET as u64 {
+                return Err(Error::InvalidInput(
+                    "American Monte Carlo exceeds one billion deterministic exercise interval visits; reduce strikes or curve knots".into(),
+                ));
+            }
+            let market = AmericanExerciseMarket::new(context, expiry)?;
+            return strikes
+                .iter()
+                .map(|&strike| {
+                    crate::cancellation::check()?;
+                    market.price(payoff(strike), context)
+                })
+                .collect();
+        }
+        let (rate, dividend) = crate::engines::flat_rates(context)?;
+        let work_per_path =
+            if option.option_type() == OptionType::Call && dividend <= 0.0 && rate >= 0.0 {
+                let sigma = context.natural_bsm_parameters()?.volatility();
+                1 + usize::from(sigma * time.sqrt() > TERMINAL_PEAK_SCALING_WIDTH)
+            } else {
+                (self.settings.step_count.unsigned_abs() as usize).saturating_sub(1)
+            };
+        validate_work(
+            strikes
+                .len()
+                .saturating_mul(work_per_path)
+                .saturating_mul(self.settings.sampling.path_count.unsigned_abs() as usize),
+        )?;
         let work = Cell::new(0);
         let mut prices = american_workspace(strikes.len())?;
         let _paths = AmericanPathCache::for_path_sharing(strikes.len() > 4);

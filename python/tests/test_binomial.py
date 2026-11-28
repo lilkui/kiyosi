@@ -82,7 +82,19 @@ def test_american_binomial_batch_caps_combined_rollback_work():
     )
 
 
-def test_binomial_batch_reports_earlier_expired_contract_before_rollback_limit():
+def test_deterministic_binomial_batch_rejects_excessive_exercise_work_before_replay():
+    times = [START + timedelta(seconds=i) for i in range(1, 16_384)] + [END]
+    curve = RateTermStructure(
+        reference_time=START, times=times, factors=[1] * len(times)
+    )
+    snapshot = market(rate=curve, dividend=0, sigma=0)
+    put = contract(AmericanOption, "put").replace(strike=110)
+    with pytest.raises(InvalidInputError, match="one billion grid updates"):
+        CoxRossRubinsteinVanillaEngine().price_many((put,) * 64_000, snapshot)
+
+
+@pytest.mark.parametrize("sigma", (0, 0.2))
+def test_binomial_batch_reports_earlier_expired_contract_before_rollback_limit(sigma):
     previous = START - timedelta(days=1)
     expired = EuropeanOption(
         option_type="call", strike=100, effective_time=previous, expiry_time=previous
@@ -90,7 +102,7 @@ def test_binomial_batch_reports_earlier_expired_contract_before_rollback_limit()
     put = contract(AmericanOption, "put")
     engine = CoxRossRubinsteinVanillaEngine(step_count=16_000)
     with pytest.raises(InvalidInputError, match="outside contract life"):
-        engine.price_many((expired, *((put,) * 8)), market())
+        engine.price_many((expired, *((put,) * 8)), market(sigma=sigma))
 
 
 def test_binomial_batch_reports_unstable_tree_before_rollback_limit():
@@ -132,6 +144,21 @@ def test_american_batch_matches_scalar_for_full_and_banded_trees(tolerance):
         option for pair in zip(puts, short, strict=True) for option in pair
     )
     options = (*interleaved, contract(AmericanOption), contract(EuropeanOption), put)
+    assert engine.price_many(options, snapshot) == tuple(
+        engine.price(option, snapshot) for option in options
+    )
+
+
+def test_deterministic_binomial_batch_matches_scalars_across_interleaved_expiries():
+    middle = START + timedelta(days=180)
+    curve = RateTermStructure(reference_time=START, times=[middle, END], factors=[1, 1])
+    snapshot = market(rate=curve, dividend=0, sigma=0)
+    engine = CoxRossRubinsteinVanillaEngine()
+    put = contract(AmericanOption, "put").replace(strike=110)
+    early = put.replace(expiry_time=middle, strike=105)
+    terminal = put.replace(expiry_time=START, strike=102)
+    call = contract(EuropeanOption).replace(strike=90)
+    options = (put, early, terminal, call, put, early)
     assert engine.price_many(options, snapshot) == tuple(
         engine.price(option, snapshot) for option in options
     )

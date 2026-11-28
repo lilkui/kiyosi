@@ -394,7 +394,8 @@ sampling_settings!(
         /// -----
         /// The request uses one seed and fits a separate exercise rule for each
         /// distinct strike. Call with_resolved_seed() first to replay an unseeded engine.
-        /// Combined sampling and exercise work is capped at one billion updates.
+        /// Combined sampling and exercise work is capped at one billion updates,
+        /// including deterministic exercise interval visits.
         /// The strike batch has a separate 1 GiB workspace limit.
         ///
         /// Raises

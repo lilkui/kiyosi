@@ -48,6 +48,33 @@ fn american_strike_batch_caps_combined_exercise_work() -> Result<()> {
 }
 
 #[test]
+fn zero_volatility_strike_batch_caps_deterministic_exercise_work() -> Result<()> {
+    let put = option(OptionType::Put, 100.0);
+    let start = put.effective_time();
+    let times = (1..16_384)
+        .map(|seconds| start.add_micros(seconds * 1_000_000))
+        .chain([Ok(put.expiry_time())])
+        .collect::<Result<Vec<_>>>()?;
+    let rates = RateTermStructure::new(start, times, vec![1.0; 16_384])?;
+    let model = BlackScholesMertonParameters::new(rates, 0.0, 0.0)?;
+    let context = PricingContext::new(model, 100.0, start)?;
+    let engine = MonteCarloVanillaEngine::default();
+    let strikes: Vec<_> = (100..64_100).map(f64::from).collect();
+    assert!(matches!(
+        engine.price_strikes(&put, &context, &strikes),
+        Err(Error::InvalidInput(message)) if message.contains("deterministic exercise interval visits")
+    ));
+    let strikes = [110.0, 90.0, 110.0, 104.0];
+    let prices = engine.price_strikes(&put, &context, &strikes)?;
+    let expected = strikes.map(|strike| (strike - 100.0).max(0.0));
+    for (&actual, expected) in prices.iter().zip(expected) {
+        assert!((actual - expected).abs() < 1e-12, "{actual} vs {expected}");
+    }
+    assert_eq!(prices.len(), strikes.len());
+    Ok(())
+}
+
+#[test]
 fn mixed_american_greeks_replay_individual_stencils() -> Result<()> {
     let put = option(OptionType::Put, 100.0);
     let snapshot = market(0.05, 0.02, 0.2, 100.0).replace(PricingContextChanges {

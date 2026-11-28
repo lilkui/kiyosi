@@ -48,6 +48,23 @@ def test_american_strike_batch_caps_combined_exercise_work():
     )
 
 
+def test_zero_volatility_strike_batch_caps_deterministic_exercise_work():
+    times = [START + timedelta(seconds=i) for i in range(1, 16_384)] + [END]
+    rates = RateTermStructure(
+        reference_time=START, times=times, factors=[1] * len(times)
+    )
+    snapshot = market(rate=rates, dividend=0, sigma=0)
+    put = contract()
+    engine = MonteCarloVanillaEngine()
+    with pytest.raises(
+        InvalidInputError, match="deterministic exercise interval visits"
+    ):
+        engine.price_strikes(put, snapshot, strikes=range(100, 64_100))
+    assert engine.price_strikes(
+        put, snapshot, strikes=(110, 90, 110, 104)
+    ) == pytest.approx((10, 0, 10, 4), rel=0, abs=1e-12)
+
+
 def test_american_strike_batch_stops_reading_at_workspace_limit():
     limit = (1 << 30) // (calcsize("P") + 2 * calcsize("d"))
 

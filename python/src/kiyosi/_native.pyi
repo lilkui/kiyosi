@@ -2530,7 +2530,7 @@ class CoxRossRubinsteinVanillaEngine(_PricingMethods[EuropeanOption | AmericanOp
         Compatible contracts can share lattice geometry and run in parallel.
         The engine's rollback tolerance applies to American contracts.
         The request accepts up to 1,048,576 contracts and caps combined
-        terminal-node and rollback work at one billion grid updates.
+        terminal-node, rollback and deterministic exercise work at one billion updates.
         A failed request returns no partial results.
         """
 
@@ -4148,7 +4148,8 @@ class MonteCarloVanillaEngine(
         -----
         The request uses one seed and fits a separate exercise rule for each
         distinct strike. Call with_resolved_seed() first to replay an unseeded engine.
-        Combined sampling and exercise work is capped at one billion updates.
+        Combined sampling and exercise work is capped at one billion updates,
+        including deterministic exercise interval visits.
         The strike batch has a separate 1 GiB workspace limit.
 
         Raises

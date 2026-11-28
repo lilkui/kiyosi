@@ -41,6 +41,26 @@ fn american_binomial_batch_caps_combined_rollback_work() -> Result<()> {
 }
 
 #[test]
+fn deterministic_binomial_batch_rejects_excessive_exercise_work_before_replay() -> Result<()> {
+    let (start, end) = dates();
+    let put = AmericanOption::new(OptionType::Put, 110.0, start, end)?;
+    let times = (1..16_384)
+        .map(|seconds| start.add_micros(seconds * 1_000_000))
+        .chain([Ok(end)])
+        .collect::<Result<Vec<_>>>()?;
+    let curve = RateTermStructure::new(start, times, vec![1.0; 16_384])?;
+    let model = BlackScholesMertonParameters::new(curve, 0.0, 0.0)?;
+    let snapshot = PricingContext::new(model, 100.0, start)?;
+    let options = vec![BinomialVanilla::American(&put); 64_000];
+    let engine = CoxRossRubinsteinVanillaEngine::default();
+    assert!(matches!(
+        engine.price_many(&options, &snapshot),
+        Err(Error::InvalidInput(message)) if message.contains("one billion grid updates")
+    ));
+    Ok(())
+}
+
+#[test]
 fn binomial_batch_reports_earlier_expired_contract_before_rollback_limit() -> Result<()> {
     let (start, end) = dates();
     let expired = EuropeanOption::new(
@@ -56,10 +76,12 @@ fn binomial_batch_reports_earlier_expired_contract_before_rollback_limit() -> Re
     })?;
     let mut instruments = [BinomialVanilla::American(&put); 9];
     instruments[0] = BinomialVanilla::European(&expired);
-    assert!(matches!(
-        engine.price_many(&instruments, &market(100.0, 0.05, 0.02, 0.2)),
-        Err(Error::InvalidInput(message)) if message.contains("outside contract life")
-    ));
+    for volatility in [0.0, 0.2] {
+        assert!(matches!(
+            engine.price_many(&instruments, &market(100.0, 0.05, 0.02, volatility)),
+            Err(Error::InvalidInput(message)) if message.contains("outside contract life")
+        ));
+    }
     Ok(())
 }
 
