@@ -39,6 +39,29 @@ class RootNotBracketedError(KiyosiError):
 class NonConvergenceError(KiyosiError):
     """Iteration or integration limit reached without convergence."""
 
+def active_greek_controls(
+    method: _pricing.GreekMethod,
+) -> tuple[_pricing.GreekControl, ...]:
+    """Return the shift controls a Greek estimation method can use.
+
+    Parameters
+    ----------
+    method : str
+        Estimation method, as returned by an engine's greek_method.
+
+    Returns
+    -------
+    tuple of str
+        Potentially active shift controls. Individual requests may use fewer.
+
+    Raises
+    ------
+    TypeError
+        If method is not a string.
+    ValueError
+        If the estimation method is unknown.
+    """
+
 def configure_monte_carlo_pool(*, max_workers: SupportsIndex) -> None:
     """Cap the process-wide Monte Carlo pool before its first parallel request.
 
@@ -1658,30 +1681,6 @@ class _PricingMethods[Instrument]:
         str
             "native", "numerical", "mixed", "native_with_spot_control", "terminal",
             or "unsupported".
-
-        Raises
-        ------
-        KiyosiError
-            If the model is unsupported by this engine.
-        """
-
-    def active_greek_controls(
-        self, instrument: Instrument, context: PricingContext
-    ) -> list[_pricing.GreekControl]:
-        """Return shift controls used by the Greek estimation method.
-
-        Parameters
-        ----------
-        instrument : object
-            Contract supported by this engine.
-        context : PricingContext
-            Market snapshot.
-
-        Returns
-        -------
-        list of str
-            Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            and time_shift. Individual requests may use fewer controls.
 
         Raises
         ------

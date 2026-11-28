@@ -188,6 +188,7 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     module.add_class::<PricingContext>()?;
     module.add_class::<risk::PricingResult>()?;
     register_functions!(
+        risk::active_greek_controls,
         risk::implied_volatility,
         risk::numerical_greeks,
         risk::implied_snowball_coupon,

@@ -20,9 +20,12 @@ from kiyosi.pricing import (
     CoxRossRubinsteinVanillaEngine,
     FiniteDifferenceHestonVanillaEngine,
     FiniteDifferenceVanillaEngine,
+    GreekControl,
+    GreekMethod,
     MonteCarloBarrierEngine,
     MonteCarloVanillaEngine,
     QuadratureVanillaEngine,
+    active_greek_controls,
     numerical_greeks,
 )
 
@@ -220,7 +223,10 @@ def inherited_engine_instrument_types(
         engine.price(digital, context)  # ty: ignore[invalid-argument-type]
         engine.price_with_greeks(digital, context, "delta")  # ty: ignore[invalid-argument-type]
         engine.greek_method(digital, context)  # ty: ignore[invalid-argument-type]
-        engine.active_greek_controls(digital, context)  # ty: ignore[invalid-argument-type]
+        method = engine.greek_method(vanilla, context)
+        assert_type(method, GreekMethod)
+        assert_type(active_greek_controls(method), tuple[GreekControl, ...])
+        active_greek_controls("invalid")  # ty: ignore[invalid-argument-type]
     BjerksundStenslandVanillaEngine().price(vanilla, context)  # ty: ignore[invalid-argument-type]
 
 

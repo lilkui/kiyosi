@@ -570,10 +570,11 @@ def test_native_greek_signatures_share_keyword_controls(subtests):
             continue
         engine = getattr(pricing, name)()
         with subtests.test(engine=name):
-            for method in ("greek_method", "active_greek_controls"):
-                assert tuple(inspect.signature(getattr(engine, method)).parameters) == (
-                    ("instrument", "context")
-                )
+            assert tuple(inspect.signature(engine.greek_method).parameters) == (
+                "instrument",
+                "context",
+            )
+            assert not hasattr(engine, "active_greek_controls")
             signature = inspect.signature(engine.price_with_greeks)
             assert tuple(signature.parameters) == (
                 (

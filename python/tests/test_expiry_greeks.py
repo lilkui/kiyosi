@@ -61,7 +61,12 @@ def test_finite_difference_terminal_greeks_are_exact_for_bsm_and_local_volatilit
                         result = engine.price_with_greeks(option, context, "all")
                         assert_terminal_greeks(result, delta, supported=supported)
                         assert engine.greek_method(option, context) == "native"
-                        assert engine.active_greek_controls(option, context) == []
+                        assert (
+                            pricing.active_greek_controls(
+                                engine.greek_method(option, context)
+                            )
+                            == ()
+                        )
                         if local_volatility:
                             assert result.status("vega") == "unsupported"
                         only_delta = engine.price_with_greeks(option, context, "delta")
@@ -166,7 +171,10 @@ def test_analytic_terminal_greeks_are_exact_next_to_the_strike(
                 )
                 assert result.status(greek) == expected
             assert engine.greek_method(option, context) == "native"
-            assert engine.active_greek_controls(option, context) == []
+            assert (
+                pricing.active_greek_controls(engine.greek_method(option, context))
+                == ()
+            )
 
 
 @pytest.mark.parametrize("spot", (0.005, 0.5, 50))

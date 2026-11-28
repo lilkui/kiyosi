@@ -2040,8 +2040,6 @@ def test_greek_methods_check_curve_support_without_rejecting_asian_settlement(su
                         engine.price(option, unsupported)
                     with pytest.raises(UnsupportedOperationError):
                         engine.greek_method(option, unsupported)
-                    with pytest.raises(UnsupportedOperationError):
-                        engine.active_greek_controls(option, unsupported)
     curved = context.replace(
         model_parameters=context.model_parameters.replace(risk_free_rate=curve)
     )
@@ -2081,36 +2079,37 @@ def test_greek_methods_report_estimators_and_active_controls(subtests):
         spot_price=100,
         valuation_time=start,
     )
-    all_controls = [
+    all_controls = (
         "spot_shift",
         "volatility_shift",
         "rate_shift",
         "time_shift",
-    ]
+    )
     for engine, contract, method, controls in [
-        (pricing.AnalyticEuropeanEngine(), option, "native", []),
+        (pricing.AnalyticEuropeanEngine(), option, "native", ()),
         (pricing.QuadratureVanillaEngine(), option, "numerical", all_controls),
         (pricing.CoxRossRubinsteinVanillaEngine(), option, "mixed", all_controls),
         (pricing.MonteCarloVanillaEngine(), option, "numerical", all_controls),
-        (pricing.MonteCarloDigitalEngine(), digital, "native", []),
+        (pricing.MonteCarloDigitalEngine(), digital, "native", ()),
         (
             pricing.MonteCarloBarrierEngine(),
             barrier,
             "native_with_spot_control",
-            ["spot_shift"],
+            ("spot_shift",),
         ),
     ]:
         with subtests.test(engine=type(engine).__name__):
-            assert engine.greek_method(contract, context) == method
-            assert engine.active_greek_controls(contract, context) == controls
+            actual_method = engine.greek_method(contract, context)
+            assert actual_method == method
+            assert pricing.active_greek_controls(actual_method) == controls
             terminal = context.replace(valuation_time=end)
             exact = isinstance(engine, pricing.AnalyticEuropeanEngine)
             assert engine.greek_method(contract, terminal) == (
                 "native" if exact else "terminal"
             )
-            assert engine.active_greek_controls(contract, terminal) == (
-                [] if exact else ["spot_shift"]
-            )
+            assert pricing.active_greek_controls(
+                engine.greek_method(contract, terminal)
+            ) == (() if exact else ("spot_shift",))
     zero = context.replace(
         model_parameters=context.model_parameters.replace(volatility=0)
     )
@@ -2124,9 +2123,8 @@ def test_greek_methods_report_estimators_and_active_controls(subtests):
             ),
         )
     )
-    assert pricing.FiniteDifferenceVanillaEngine().active_greek_controls(
-        option, local
-    ) == ["spot_shift"]
+    method = pricing.FiniteDifferenceVanillaEngine().greek_method(option, local)
+    assert pricing.active_greek_controls(method) == ("spot_shift",)
     with pytest.raises(UnsupportedOperationError):
         pricing.AnalyticEuropeanEngine().greek_method(option, local)
     heston = context.replace(
@@ -2140,16 +2138,18 @@ def test_greek_methods_report_estimators_and_active_controls(subtests):
             correlation=-0.7,
         )
     )
-    assert (
-        pricing.AnalyticHestonEuropeanEngine().greek_method(option, heston)
-        == "unsupported"
-    )
-    assert (
-        pricing.AnalyticHestonEuropeanEngine().active_greek_controls(option, heston)
-        == []
-    )
+    method = pricing.AnalyticHestonEuropeanEngine().greek_method(option, heston)
+    assert method == "unsupported"
+    assert pricing.active_greek_controls(method) == ()
     with pytest.raises(UnsupportedOperationError):
         pricing.AnalyticEuropeanEngine().greek_method(digital, context)
+
+
+def test_active_greek_controls_rejects_invalid_method():
+    with pytest.raises(ValueError, match="unknown Greek estimation method"):
+        pricing.active_greek_controls("unknown")
+    with pytest.raises(TypeError):
+        pricing.active_greek_controls(None)
 
 
 @pytest.mark.parametrize("value", (0, 0.08))

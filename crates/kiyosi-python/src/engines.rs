@@ -92,34 +92,6 @@ macro_rules! engine_methods {
             ) -> pyo3::PyResult<&'static str> {
                 Ok(self.evaluate(py, instrument, context, $crate::engines::GreekMethodRequest)?.name())
             }
-            /// Return shift controls used by the Greek estimation method.
-            ///
-            /// Parameters
-            /// ----------
-            /// instrument : object
-            ///     Contract supported by this engine.
-            /// context : PricingContext
-            ///     Market snapshot.
-            ///
-            /// Returns
-            /// -------
-            /// list of str
-            ///     Potentially active controls: spot_shift, volatility_shift, rate_shift,
-            ///     and time_shift. Individual requests may use fewer controls.
-            ///
-            /// Raises
-            /// ------
-            /// KiyosiError
-            ///     If the model is unsupported by this engine.
-            ///
-            fn active_greek_controls(
-                &self,
-                py: pyo3::Python<'_>,
-                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
-                context: &$crate::market::PricingContext,
-            ) -> pyo3::PyResult<Vec<&'static str>> {
-                Ok(self.evaluate(py, instrument, context, $crate::engines::GreekMethodRequest)?.active_controls().to_vec())
-            }
             /// Return the price and selected sensitivities using engine estimators.
             ///
             /// Omitted controls or Ellipsis use shared defaults. Shifts affect numerical

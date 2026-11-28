@@ -695,20 +695,22 @@ def test_finite_difference_greek_methods_follow_deterministic_and_expiry_paths(
             engine = getattr(pricing, name)()
             with subtests.test(contract=type(option).__name__, engine=name):
                 assert engine.greek_method(option, context) == "numerical"
-                assert engine.active_greek_controls(option, context) == [
+                assert pricing.active_greek_controls(
+                    engine.greek_method(option, context)
+                ) == (
                     "spot_shift",
                     "volatility_shift",
                     "rate_shift",
                     "time_shift",
-                ]
+                )
                 terminal = context.replace(valuation_time=option.expiry_time)
                 exact = isinstance(option, (ins.EuropeanOption, ins.AmericanOption))
                 assert engine.greek_method(option, terminal) == (
                     "native" if exact else "terminal"
                 )
-                assert engine.active_greek_controls(option, terminal) == (
-                    [] if exact else ["spot_shift"]
-                )
+                assert pricing.active_greek_controls(
+                    engine.greek_method(option, terminal)
+                ) == (() if exact else ("spot_shift",))
 
 
 @pytest.mark.parametrize(

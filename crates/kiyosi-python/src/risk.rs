@@ -3,6 +3,45 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
+/// Return the shift controls a Greek estimation method can use.
+///
+/// Parameters
+/// ----------
+/// method : str
+///     Estimation method, as returned by an engine's greek_method.
+///
+/// Returns
+/// -------
+/// tuple of str
+///     Potentially active shift controls. Individual requests may use fewer.
+///
+/// Raises
+/// ------
+/// TypeError
+///     If method is not a string.
+/// ValueError
+///     If the estimation method is unknown.
+#[pyfunction]
+pub(crate) fn active_greek_controls<'py>(
+    py: Python<'py>,
+    method: &str,
+) -> PyResult<Bound<'py, PyTuple>> {
+    use kiyosi::GreekMethod;
+
+    let method = [
+        GreekMethod::Native,
+        GreekMethod::Numerical,
+        GreekMethod::Mixed,
+        GreekMethod::NativeWithSpotControl,
+        GreekMethod::Terminal,
+        GreekMethod::Unsupported,
+    ]
+    .into_iter()
+    .find(|candidate| candidate.name() == method)
+    .ok_or_else(|| PyValueError::new_err("unknown Greek estimation method"))?;
+    PyTuple::new(py, method.active_controls().iter().copied())
+}
+
 pub(crate) fn greek(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Greek> {
     let name = value.extract::<&str>()?;
     kiyosi::Greek::ALL

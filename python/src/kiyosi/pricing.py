@@ -14,8 +14,9 @@ An empty iterable requests price only. Unsupported measures are absent with
 status ``"unsupported"``, including requests with no supported measures.
 ``PricingResult`` documents units;
 ``result.status`` explains missing measures, and ``result.require`` rejects them.
-Use ``engine.greek_method`` and ``engine.active_greek_controls`` to inspect
-estimation before pricing. ``numerical_greeks`` selects scalar BSM differences.
+Use ``engine.greek_method(instrument, context)`` to inspect estimation before
+pricing and pass its result to ``active_greek_controls(method)`` for the
+potentially active shifts. ``numerical_greeks`` selects scalar BSM differences.
 
 Request-level shifts tune numerical fallbacks and availability checks without
 changing engine settings. Both Greek entry points use shared defaults
@@ -110,6 +111,7 @@ from ._native import (
     QuadratureDigitalEngine,
     QuadratureVanillaEngine,
     TurnbullWakemanArithmeticAveragePriceEngine,
+    active_greek_controls,
     configure_monte_carlo_pool,
     implied_phoenix_coupon,
     implied_snowball_coupon,
@@ -213,6 +215,7 @@ __all__ = [
     "QuadratureVanillaEngine",
     "SnowballCouponQuote",
     "TurnbullWakemanArithmeticAveragePriceEngine",
+    "active_greek_controls",
     "configure_monte_carlo_pool",
     "implied_phoenix_coupon",
     "implied_snowball_coupon",
