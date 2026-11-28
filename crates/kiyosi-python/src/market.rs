@@ -128,9 +128,7 @@ pub(crate) fn updated_variance_time_convention(
                 .clone(),
         ),
     };
-    domain(kiyosi::VarianceTimeConvention::from_inputs(
-        business, calendar,
-    ))
+    domain(kiyosi::binding_support::variance_time_convention_from_inputs(business, calendar))
 }
 
 /// Rate term structure with log-linear discount factors.

@@ -148,6 +148,7 @@ pub mod binding_support {
     };
     pub use crate::engines::monte_carlo::validate_monte_carlo_strike_batch_size;
     pub use crate::engines::validate_contract_batch_size;
+    pub use crate::time::variance_time_convention_from_inputs;
 }
 
 pub use cancellation::CancellationToken;

@@ -274,11 +274,14 @@ fn model_defaults_replacement_and_calendar_validation_preserve_units() {
         &VarianceTimeConvention::Actual365Fixed
     );
     assert!(matches!(
-        VarianceTimeConvention::from_inputs(true, None),
+        kiyosi::binding_support::variance_time_convention_from_inputs(true, None),
         Err(Error::InvalidInput(_))
     ));
     assert!(matches!(
-        VarianceTimeConvention::from_inputs(false, Some(TradingCalendar::weekdays())),
+        kiyosi::binding_support::variance_time_convention_from_inputs(
+            false,
+            Some(TradingCalendar::weekdays())
+        ),
         Err(Error::InvalidInput(_))
     ));
     let inputs = HestonParameterInputs {

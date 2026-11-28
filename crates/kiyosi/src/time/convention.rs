@@ -25,36 +25,26 @@ pub enum VarianceTimeConvention {
     Business(TradingCalendar),
 }
 
-impl VarianceTimeConvention {
-    /// Validates a convention selection and its optional calendar.
-    ///
-    /// Business time requires a calendar; A/365F has none. Use the enum variants
-    /// directly when the selection is already validated.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::InvalidInput`] for a missing business calendar or an
-    /// unused A/365F calendar.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use kiyosi::{Error, TradingCalendar, VarianceTimeConvention};
-    /// # fn main() -> kiyosi::Result<()> {
-    /// let clock = VarianceTimeConvention::from_inputs(true, Some(TradingCalendar::weekdays()))?;
-    /// assert_eq!(clock.calendar().map(TradingCalendar::trading_days_per_year), Some(261));
-    /// assert!(matches!(VarianceTimeConvention::from_inputs(true, None), Err(Error::InvalidInput(_))));
-    /// # Ok(()) }
-    /// ```
-    pub fn from_inputs(business_time: bool, calendar: Option<TradingCalendar>) -> Result<Self> {
-        match (business_time, calendar) {
-            (false, None) => Ok(Self::Actual365Fixed),
-            (true, Some(calendar)) => Ok(Self::Business(calendar)),
-            _ => Err(Error::InvalidInput(
-                "business time requires a calendar; actual_365_fixed requires calendar=None".into(),
-            )),
-        }
+/// Validates a binding's variance clock and calendar inputs.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidInput`] for a missing business calendar or an unused
+/// Actual/365 Fixed calendar.
+pub fn variance_time_convention_from_inputs(
+    business_time: bool,
+    calendar: Option<TradingCalendar>,
+) -> Result<VarianceTimeConvention> {
+    match (business_time, calendar) {
+        (false, None) => Ok(VarianceTimeConvention::Actual365Fixed),
+        (true, Some(calendar)) => Ok(VarianceTimeConvention::Business(calendar)),
+        _ => Err(Error::InvalidInput(
+            "business time requires a calendar; actual_365_fixed requires calendar=None".into(),
+        )),
     }
+}
+
+impl VarianceTimeConvention {
     /// Returns the signed variance year fraction between two instants.
     ///
     /// Reversing the endpoints reverses the sign. See the type example for a
