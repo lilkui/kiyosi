@@ -21,7 +21,6 @@ use crate::{
     instruments::{AutocallableNote, AutocallableTerms},
 };
 
-impl FiniteDifferenceAutocallableEngine {}
 impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
     for FiniteDifferenceAutocallableEngine
 {

@@ -16,7 +16,7 @@ use crate::{BarrierOption, RebateTiming};
 /// [bgk]: https://business.columbia.edu/sites/default/files-efs/pubfiles/1845/bgk_mf.pdf
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AnalyticBarrierEngine;
-impl AnalyticBarrierEngine {}
+
 pub(crate) fn resolved_price(
     option: &BarrierOption,
     context: &PricingContext,

@@ -164,7 +164,6 @@ fn analysis(
     )
 }
 
-impl FiniteDifferenceDoubleBarrierEngine {}
 impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine {
     fn greek_method(
         &self,

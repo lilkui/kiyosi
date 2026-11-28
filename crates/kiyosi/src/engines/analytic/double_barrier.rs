@@ -17,7 +17,6 @@ use std::f64::consts::PI;
 /// See [`Self::price`] for usage and applicability limits.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AnalyticDoubleBarrierEngine;
-impl AnalyticDoubleBarrierEngine {}
 impl PricingEngine<DoubleBarrierOption> for AnalyticDoubleBarrierEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         crate::engines::flat_rates(context).map(|_| ())
