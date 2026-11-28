@@ -159,7 +159,7 @@ pub(crate) fn nearby_product_log_ratio(left: [f64; 3], right: [f64; 3]) -> Optio
 
 pub(crate) fn standardize(value: f64, volatility: f64, root: f64) -> f64 {
     let width = volatility * root;
-    if width == 0.0 {
+    if width < f64::MIN_POSITIVE {
         (value / volatility) / root
     } else {
         value / width

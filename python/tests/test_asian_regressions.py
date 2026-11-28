@@ -330,6 +330,32 @@ def test_arithmetic_asians_retain_time_value_when_squared_volatility_underflows(
     assert actual == pytest.approx(expected, rel=0, abs=expected * 1e-12)
 
 
+@pytest.mark.parametrize("sigma", (math.ulp(0.0), 3 * math.ulp(0.0)))
+def test_seasoned_geometric_asian_retains_subnormal_volatility_time_value(sigma):
+    start = datetime(2025, 1, 1)
+    at, end = start + timedelta(days=300), start + timedelta(days=365)
+    spot = 1e308
+    remaining = 65 / 365
+    expected = (spot * sigma) * remaining * math.sqrt(remaining / (6 * math.pi))
+    option = GeometricAveragePriceOption(
+        option_type="call",
+        strike=spot,
+        effective_time=start,
+        averaging_start_time=start,
+        expiry_time=end,
+        realized_average=spot,
+    )
+    context = PricingContext(
+        model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=sigma
+        ),
+        spot_price=spot,
+        valuation_time=at,
+    )
+    price = pricing.AnalyticGeometricAveragePriceEngine().price(option, context)
+    assert price == pytest.approx(expected, rel=1e-12, abs=0)
+
+
 @pytest.mark.parametrize(
     "direction,spot,strike,geometric,arithmetic",
     (

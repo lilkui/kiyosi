@@ -158,8 +158,9 @@ impl PricingEngine<GeometricAveragePriceOption> for AnalyticGeometricAveragePric
             };
             carry += interval * (remaining / period);
         }
-        let variance_time = lead + future / 3.0;
-        let deviation = sigma * weight * variance_time.sqrt();
+        // Keep the averaging weight with the time scale so volatility retains its precision.
+        let root_time = weight * (lead + future / 3.0).sqrt();
+        let deviation = sigma * root_time;
         let mut log_forward = carry - weight * 0.5 * sigma * sigma * (lead + future / 2.0)
             + 0.5 * deviation * deviation;
         if valuation > start {
@@ -172,8 +173,8 @@ impl PricingEngine<GeometricAveragePriceOption> for AnalyticGeometricAveragePric
             o.terms.strike(),
             log_ratio(context.spot_price(), o.terms.strike()) + log_forward,
             (log_forward + log_discount, log_discount),
-            sigma * weight,
-            variance_time.sqrt(),
+            sigma,
+            root_time,
             o.sign(),
         )?)
     }

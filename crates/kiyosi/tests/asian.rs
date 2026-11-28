@@ -638,6 +638,32 @@ fn arithmetic_solver_prices_only_the_requested_volatility_bracket() {
 }
 
 #[test]
+fn seasoned_geometric_asian_retains_subnormal_volatility_time_value() -> Result<()> {
+    let (start, end) = dates();
+    let at = start.add_days(300)?;
+    let remaining = at.years_until(end);
+    let spot = 1e308;
+    let option =
+        GeometricAveragePriceOption::new(OptionType::Call, spot, start, start, end, Some(spot))?;
+    for sigma in [f64::from_bits(1), f64::from_bits(3)] {
+        let context = PricingContext::new(
+            BlackScholesMertonParameters::new(0.0, 0.0, sigma)?,
+            spot,
+            at,
+        )?;
+        // The linear at-the-money term is sufficient as sigma squared is negligible.
+        let expected =
+            (spot * sigma) * remaining * (remaining / (6.0 * std::f64::consts::PI)).sqrt();
+        let actual = AnalyticGeometricAveragePriceEngine.price(&option, &context)?;
+        assert!(
+            (actual / expected - 1.0).abs() < 1e-12,
+            "{actual} vs {expected}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn tiny_variances_and_scaled_normal_tails_retain_representable_prices() {
     let (start, end) = dates();
     for direction in [OptionType::Call, OptionType::Put] {
