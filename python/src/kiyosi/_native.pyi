@@ -3397,67 +3397,25 @@ class FiniteDifferenceHestonVanillaEngine(
         by the batch workspace limit.
         """
 
-    def price_american_surface(
+    def price_surface(
         self,
-        instrument: AmericanOption,
+        instrument: EuropeanOption | AmericanOption,
         context: PricingContext,
         *,
         expiries: Iterable[datetime],
         strikes: Iterable[_Real],
     ) -> tuple[tuple[float, ...], ...]:
-        """Price an American strike and expiry surface.
+        """Price a vanilla strike and expiry surface.
 
         Parameters
         ----------
-        instrument : AmericanOption
-            Template supplying payoff direction and effective time.
-        context : PricingContext
-            Fixed Heston market and valuation within contract life.
-        expiries : iterable of datetime
-            Expiries at or after valuation and the effective time.
-        strikes : iterable of float
-            Finite positive strikes.
-
-        Returns
-        -------
-        tuple of tuple of float
-            Rows in expiry order, with prices in strike order and duplicates preserved.
-
-        Raises
-        ------
-        KiyosiError
-            If applicability, input, workspace or numerical checks fail.
-        TypeError, ValueError, OverflowError
-            If an input representation is invalid.
-
-        Notes
-        -----
-        Compatible flat-rate markets share a rollback through the requested
-        tenors, with individual expiry meshes for short tenors. Fixed bounds
-        use strike tiles. Compatible dated curves with automatic bounds share
-        factored operators in expiry tiles. Check convergence across the surface.
-        The request caps combined rollback work at one billion grid updates.
-        Cancellation returns no partial result.
-        """
-
-    def price_european_surface(
-        self,
-        instrument: EuropeanOption,
-        context: PricingContext,
-        *,
-        expiries: Iterable[datetime],
-        strikes: Iterable[_Real],
-    ) -> tuple[tuple[float, ...], ...]:
-        """Price a European strike and expiry surface on a shared forward grid.
-
-        Parameters
-        ----------
-        instrument : EuropeanOption
+        instrument : EuropeanOption or AmericanOption
             Template supplying the payoff direction and effective time.
         context : PricingContext
             Fixed Heston market and valuation time.
         expiries : iterable of datetime
-            Expiries at or after valuation and the effective time.
+            Expiries at or after valuation and the effective time. American
+            valuation must be at or after the effective time.
         strikes : iterable of float
             Finite positive strikes.
 
@@ -3475,9 +3433,11 @@ class FiniteDifferenceHestonVanillaEngine(
 
         Notes
         -----
-        Time steps span the longest maturity and include every requested expiry.
-        Check mesh and domain convergence, especially for short maturities and
-        wide strike ranges. Cancellation returns no partial result.
+        European surfaces share a forward grid spanning the longest maturity.
+        Compatible American surfaces share rollback across tenors or factored
+        operators in expiry tiles. Check mesh and domain convergence across
+        the surface. The combined rollback work limit applies across the
+        request. Cancellation returns no partial result.
         """
 
     def solve(
@@ -3764,24 +3724,25 @@ class FiniteDifferenceVanillaEngine(
         Cancellation returns no partial result.
         """
 
-    def price_american_surface(
+    def price_surface(
         self,
-        instrument: AmericanOption,
+        instrument: EuropeanOption | AmericanOption,
         context: PricingContext,
         *,
         expiries: Iterable[datetime],
         strikes: Iterable[_Real],
     ) -> tuple[tuple[float, ...], ...]:
-        """Price an American strike and expiry surface.
+        """Price a vanilla strike and expiry surface.
 
         Parameters
         ----------
-        instrument : AmericanOption
+        instrument : EuropeanOption or AmericanOption
             Template supplying direction and effective time.
         context : PricingContext
             Fixed model inputs and valuation time.
         expiries : iterable of datetime
-            Expiries at or after valuation and the effective time.
+            Expiries at or after valuation and the effective time. American
+            valuation must be at or after the effective time.
         strikes : iterable of float
             Finite positive strikes.
 
@@ -3799,54 +3760,12 @@ class FiniteDifferenceVanillaEngine(
 
         Notes
         -----
-        Compatible flat-rate calendar-time BSM strikes and tenors share a
-        rollback per strike group on a normalized log-spot grid. Compatible
-        local-volatility tenors share step factors on an absolute spot grid.
-        Other strips use price_strikes. Check convergence across the surface.
-        The request caps combined rollback work at one billion grid updates.
-        Cancellation returns no partial result.
-        """
-
-    def price_european_surface(
-        self,
-        instrument: EuropeanOption,
-        context: PricingContext,
-        *,
-        expiries: Iterable[datetime],
-        strikes: Iterable[_Real],
-    ) -> tuple[tuple[float, ...], ...]:
-        """Price a European strike and expiry surface.
-
-        Parameters
-        ----------
-        instrument : EuropeanOption
-            Template supplying direction and effective time.
-        context : PricingContext
-            Fixed model inputs and valuation time.
-        expiries : iterable of datetime
-            Expiries at or after valuation and the effective time.
-        strikes : iterable of float
-            Finite positive strikes.
-
-        Returns
-        -------
-        tuple of tuple of float
-            Prices in expiry and strike order, preserving duplicates.
-
-        Raises
-        ------
-        KiyosiError
-            If applicability, input, workspace or numerical checks fail.
-        TypeError, ValueError, OverflowError
-            If a Python input representation is invalid.
-
-        Notes
-        -----
-        Compatible BSM and local-volatility strips share one log-spot grid
-        and propagation. Each expiry uses its own damping steps. Short tenors
-        and other strips use price_strikes. Check convergence across the surface.
-        The rollback work limit applies across the request.
-        Cancellation returns no partial result.
+        European surfaces can share one log-spot grid and propagation across
+        expiries. Compatible American surfaces share rollback on a normalized
+        grid for flat-rate BSM or step factors on an absolute grid for local
+        volatility. Other strips use price_strikes. Check mesh and domain
+        convergence across the surface. The combined rollback work limit
+        applies across the request. Cancellation returns no partial result.
         """
 
 class FiniteDifferenceDigitalEngine(

@@ -12,7 +12,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from kiyosi import ComputationFailureError, InvalidInputError, UnsupportedOperationError
-from kiyosi.instruments import AmericanOption
+from kiyosi.instruments import AmericanOption, CashOrNothingOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
     RateTermStructure,
@@ -38,9 +38,7 @@ def test_american_heston_surface_caps_combined_expiry_rollbacks():
     )
     expiries = [END - timedelta(days=i) for i in range(120)]
     with pytest.raises(InvalidInputError, match="one billion grid updates"):
-        engine.price_american_surface(
-            put, context(model()), expiries=expiries, strikes=[100]
-        )
+        engine.price_surface(put, context(model()), expiries=expiries, strikes=[100])
 
 
 @pytest.mark.parametrize("asset_upper_boundary", [None, 400])
@@ -65,7 +63,7 @@ def test_american_surface_matches_scalar_expiries_and_preserves_order(
     )
     expiries = (END, START, START + timedelta(days=30), START + timedelta(days=90), END)
     strikes = (110, 90, 100, 90)
-    rows = engine.price_american_surface(
+    rows = engine.price_surface(
         put, market, expiries=iter(expiries), strikes=iter(strikes)
     )
     assert rows[0] == rows[4]
@@ -89,7 +87,7 @@ def test_fixed_american_surface_uses_an_independent_mesh_for_short_tenors():
     )
     short = START + timedelta(days=1)
     strikes = (90, 95, 100, 105, 110)
-    rows = engine.price_american_surface(
+    rows = engine.price_surface(
         put, market, expiries=(short, START + timedelta(days=60), END), strikes=strikes
     )
     expected = engine.price_strikes(
@@ -108,9 +106,7 @@ def test_automatic_american_surface_uses_an_independent_mesh_for_short_tenors():
     mid = START + timedelta(days=90)
     expected = AnalyticHestonEuropeanEngine().price(option(expiry_time=short), market)
     for expiries in ((short, END), (short, mid, END)):
-        rows = engine.price_american_surface(
-            call, market, expiries=expiries, strikes=(100,)
-        )
+        rows = engine.price_surface(call, market, expiries=expiries, strikes=(100,))
         assert rows[0] == pytest.approx((expected,), rel=0, abs=1e-6)
 
 
@@ -121,7 +117,7 @@ def test_european_surface_matches_analytic_prices_and_preserves_both_input_order
     template = option()
     expiries = (END, START, START + timedelta(days=90), END)
     strikes = (110, 90, 100, 90)
-    rows = engine.price_european_surface(
+    rows = engine.price_surface(
         template, market, expiries=iter(expiries), strikes=iter(strikes)
     )
     assert rows[0] == rows[3]
@@ -132,20 +128,16 @@ def test_european_surface_matches_analytic_prices_and_preserves_both_input_order
         )
         assert row == pytest.approx(expected, rel=0, abs=0.002)
         assert row[1] == row[3]
-    assert engine.price_european_surface(
-        template, market, expiries=(END,), strikes=()
-    ) == ((),)
+    assert engine.price_surface(template, market, expiries=(END,), strikes=()) == ((),)
     with pytest.raises(InvalidInputError):
-        engine.price_european_surface(
+        engine.price_surface(
             template, market, expiries=(START - timedelta(days=1),), strikes=strikes
         )
-    american = AmericanOption(
-        option_type="put", strike=100, effective_time=START, expiry_time=END
+    unsupported = CashOrNothingOption(
+        option_type="put", strike=100, payout=1, effective_time=START, expiry_time=END
     )
     with pytest.raises(UnsupportedOperationError):
-        engine.price_european_surface(
-            american, market, expiries=(END,), strikes=strikes
-        )
+        engine.price_surface(unsupported, market, expiries=(END,), strikes=strikes)
 
 
 def test_heston_strike_batches_match_independent_prices_in_input_order():
@@ -725,11 +717,9 @@ def test_dense_european_surface_fits_the_indexed_payoff_work_budget():
         time_step_count=1600,
         asset_upper_boundary=400,
     )
-    surface = engine.price_european_surface(
-        template, market, expiries=expiries, strikes=strikes
-    )
+    surface = engine.price_surface(template, market, expiries=expiries, strikes=strikes)
     assert len(surface) == len(expiries)
-    selected = engine.price_european_surface(
+    selected = engine.price_surface(
         template, market, expiries=(expiries[0], expiries[-1]), strikes=strikes
     )
     assert surface[0] == pytest.approx(selected[0], abs=1e-9, rel=0)
@@ -769,9 +759,7 @@ def test_dated_american_expiry_tiles_match_independent_strips():
         *(START + timedelta(days=days) for days in range(280, 341, 10)),
         END,
     )
-    rows = engine.price_american_surface(
-        put, market, expiries=expiries, strikes=strikes
-    )
+    rows = engine.price_surface(put, market, expiries=expiries, strikes=strikes)
     assert rows[0] == rows[-1]
     for expiry, row in zip(expiries, rows, strict=True):
         assert row[1] == row[3]

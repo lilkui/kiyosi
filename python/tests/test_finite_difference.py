@@ -83,16 +83,7 @@ def test_surface_stops_reading_strikes_at_workspace_limit(american, heston):
         else FiniteDifferenceVanillaEngine()
     )
     context = heston_context() if heston else market()
-    if american:
-        price_surface, instrument = (
-            engine.price_american_surface,
-            contract(AmericanOption),
-        )
-    else:
-        price_surface, instrument = (
-            engine.price_european_surface,
-            contract(EuropeanOption),
-        )
+    instrument = contract(AmericanOption) if american else contract(EuropeanOption)
 
     def strikes():
         for _ in range(16_774):
@@ -104,7 +95,9 @@ def test_surface_stops_reading_strikes_at_workspace_limit(american, heston):
     with pytest.raises(
         InvalidInputError, match="surface output exceeds workspace budget"
     ):
-        price_surface(instrument, context, expiries=[END] * 1000, strikes=strikes())
+        engine.price_surface(
+            instrument, context, expiries=[END] * 1000, strikes=strikes()
+        )
 
 
 @pytest.mark.parametrize("micros", [1, 1_000_000])
@@ -916,7 +909,7 @@ def test_bsm_european_surface_matches_analytic_across_dated_rates():
         END,
     )
     strikes = (110, 90, 100, 95, 90)
-    rows = FiniteDifferenceVanillaEngine().price_european_surface(
+    rows = FiniteDifferenceVanillaEngine().price_surface(
         template, context, expiries=expiries, strikes=strikes
     )
     assert rows[0] == rows[4]
@@ -935,10 +928,8 @@ def test_european_surface_caps_combined_expiry_rollbacks():
     option = contract(EuropeanOption)
     expiries = [END - timedelta(days=i) for i in range(180)]
     with pytest.raises(InvalidInputError, match="one billion grid updates"):
-        engine.price_european_surface(
-            option, market(), expiries=expiries, strikes=[100]
-        )
-    rows = engine.price_european_surface(
+        engine.price_surface(option, market(), expiries=expiries, strikes=[100])
+    rows = engine.price_surface(
         option, market(sigma=0), expiries=expiries, strikes=[100]
     )
     assert len(rows) == len(expiries)
@@ -959,10 +950,8 @@ def test_american_surface_caps_combined_expiry_rollbacks():
     option = contract(AmericanOption)
     expiries = [END - timedelta(days=i) for i in range(180)]
     with pytest.raises(InvalidInputError, match="one billion grid updates"):
-        engine.price_american_surface(
-            option, market(), expiries=expiries, strikes=[100]
-        )
-    rows = engine.price_american_surface(
+        engine.price_surface(option, market(), expiries=expiries, strikes=[100])
+    rows = engine.price_surface(
         option, market(sigma=0), expiries=expiries, strikes=[100]
     )
     assert len(rows) == len(expiries)
@@ -977,7 +966,7 @@ def test_american_bsm_surface_matches_independent_strips_and_preserves_order():
     expiries = (END, START, START + timedelta(days=145), short, END)
     strikes = (110, 90, 100, 95, 90)
     engine = FiniteDifferenceVanillaEngine()
-    rows = engine.price_american_surface(
+    rows = engine.price_surface(
         template, snapshot, expiries=iter(expiries), strikes=iter(strikes)
     )
     assert rows[0] == rows[-1]
@@ -999,10 +988,10 @@ def test_american_surface_keeps_the_shared_grid_with_outliers_and_duplicates():
     snapshot = market(spot=100, rate=0.05, dividend=0.02, sigma=0.25)
     engine = FiniteDifferenceVanillaEngine()
     expiries = (END, START + timedelta(days=145), START + timedelta(days=260))
-    shared = engine.price_american_surface(
+    shared = engine.price_surface(
         template, snapshot, expiries=expiries, strikes=(90, 100, 110)
     )
-    mixed = engine.price_american_surface(
+    mixed = engine.price_surface(
         template, snapshot, expiries=expiries, strikes=(110, 220, 90, 100, 90)
     )
     for expiry, (low, mid, high), row in zip(expiries, shared, mixed, strict=True):

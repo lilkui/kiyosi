@@ -37,7 +37,7 @@ def test_european_surface_matches_independent_strips_and_preserves_order():
         END,
     )
     strikes = (110, 90, 100, 90, 95)
-    rows = pricer.price_european_surface(
+    rows = pricer.price_surface(
         template, market, expiries=iter(expiries), strikes=iter(strikes)
     )
     assert rows[0] == rows[5]
@@ -51,11 +51,9 @@ def test_european_surface_matches_independent_strips_and_preserves_order():
             assert row == expected
         else:
             assert row == pytest.approx(expected, abs=0.001, rel=0)
-    assert pricer.price_european_surface(
-        template, market, expiries=(END,), strikes=()
-    ) == ((),)
+    assert pricer.price_surface(template, market, expiries=(END,), strikes=()) == ((),)
     with pytest.raises(InvalidInputError):
-        pricer.price_european_surface(
+        pricer.price_surface(
             template, market, expiries=(END + timedelta(days=1),), strikes=strikes
         )
 
@@ -660,9 +658,7 @@ def test_american_local_surface_matches_separate_expiry_strips():
         END,
     )
     strikes = (105, 90, 100, 95, 110, 95)
-    rows = pricer.price_american_surface(
-        put, snapshot, expiries=expiries, strikes=strikes
-    )
+    rows = pricer.price_surface(put, snapshot, expiries=expiries, strikes=strikes)
     assert rows[0] == rows[-1]
     assert rows[2] == (5, 0, 0, 0, 10, 0)
     for expiry, row in zip(expiries, rows, strict=True):

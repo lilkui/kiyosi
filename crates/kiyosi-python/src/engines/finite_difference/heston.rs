@@ -187,16 +187,17 @@ engine_methods!(
             crate::conversions::python_tuple(py, domain(values)?, Ok)
         }
 
-        /// Price a European strike and expiry surface on a shared forward grid.
+        /// Price a vanilla strike and expiry surface.
         ///
         /// Parameters
         /// ----------
-        /// instrument : EuropeanOption
+        /// instrument : EuropeanOption or AmericanOption
         ///     Template supplying the payoff direction and effective time.
         /// context : PricingContext
         ///     Fixed Heston market and valuation time.
         /// expiries : iterable of datetime
-        ///     Expiries at or after valuation and the effective time.
+        ///     Expiries at or after valuation and the effective time. American
+        ///     valuation must be at or after the effective time.
         /// strikes : iterable of float
         ///     Finite positive strikes.
         ///
@@ -214,78 +215,37 @@ engine_methods!(
         ///
         /// Notes
         /// -----
-        /// Time steps span the longest maturity and include every requested expiry.
-        /// Check mesh and domain convergence, especially for short maturities and
-        /// wide strike ranges. Cancellation returns no partial result.
+        /// European surfaces share a forward grid spanning the longest maturity.
+        /// Compatible American surfaces share rollback across tenors or factored
+        /// operators in expiry tiles. Check mesh and domain convergence across
+        /// the surface. The combined rollback work limit applies across the
+        /// request. Cancellation returns no partial result.
         #[pyo3(signature = (instrument, context, *, expiries, strikes))]
-        #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns the extracted inputs before core pricing.")]
-        fn price_european_surface<'py>(
+        fn price_surface<'py>(
             &self,
             py: Python<'py>,
-            #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, crate::instruments::vanilla::EuropeanOption>,
+            #[pyo3(from_py_with = crate::conversions::instrument)] instrument: binomial::VanillaInstrument<'_>,
             context: &crate::market::PricingContext,
             expiries: &Bound<'_, PyAny>,
             strikes: &Bound<'_, PyAny>,
         ) -> PyResult<Bound<'py, PyTuple>> {
             let (expiries, strikes) = crate::conversions::surface_inputs(expiries, strikes)?;
-            let instrument = &instrument.0;
-            let values = crate::cancellation::run(py, || {
-                self.0.price_european_surface(instrument, &context.0, &expiries, &strikes)
-            })?;
-            crate::conversions::python_tuple(py, domain(values)?, |row| {
-                crate::conversions::python_tuple(py, row, Ok)
-            })
-        }
-
-        /// Price an American strike and expiry surface.
-        ///
-        /// Parameters
-        /// ----------
-        /// instrument : AmericanOption
-        ///     Template supplying payoff direction and effective time.
-        /// context : PricingContext
-        ///     Fixed Heston market and valuation within contract life.
-        /// expiries : iterable of datetime
-        ///     Expiries at or after valuation and the effective time.
-        /// strikes : iterable of float
-        ///     Finite positive strikes.
-        ///
-        /// Returns
-        /// -------
-        /// tuple of tuple of float
-        ///     Rows in expiry order, with prices in strike order and duplicates preserved.
-        ///
-        /// Raises
-        /// ------
-        /// KiyosiError
-        ///     If applicability, input, workspace or numerical checks fail.
-        /// TypeError, ValueError, OverflowError
-        ///     If an input representation is invalid.
-        ///
-        /// Notes
-        /// -----
-        /// Compatible flat-rate markets share a rollback through the requested
-        /// tenors, with individual expiry meshes for short tenors. Fixed bounds
-        /// use strike tiles. Compatible dated curves with automatic bounds share
-        /// factored operators in expiry tiles. Check convergence across the surface.
-        /// The request caps combined rollback work at one billion grid updates.
-        /// Cancellation returns no partial result.
-        #[pyo3(signature = (instrument, context, *, expiries, strikes))]
-        #[expect(clippy::needless_pass_by_value, reason = "PyO3 owns the extracted inputs before core pricing.")]
-        fn price_american_surface<'py>(
-            &self,
-            py: Python<'py>,
-            #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, crate::instruments::american::AmericanOption>,
-            context: &crate::market::PricingContext,
-            expiries: &Bound<'_, PyAny>,
-            strikes: &Bound<'_, PyAny>,
-        ) -> PyResult<Bound<'py, PyTuple>> {
-            let (expiries, strikes) = crate::conversions::surface_inputs(expiries, strikes)?;
-            let instrument = &instrument.0;
-            let values = crate::cancellation::run(py, || {
-                self.0.price_american_surface(instrument, &context.0, &expiries, &strikes)
-            })?;
-            crate::conversions::python_tuple(py, domain(values)?, |row| {
+            let context = &context.0;
+            let rows = match instrument {
+                binomial::VanillaInstrument::European(option) => {
+                    let option = &option.0;
+                    crate::cancellation::run(py, || {
+                        self.0.price_european_surface(option, context, &expiries, &strikes)
+                    })
+                }
+                binomial::VanillaInstrument::American(option) => {
+                    let option = &option.0;
+                    crate::cancellation::run(py, || {
+                        self.0.price_american_surface(option, context, &expiries, &strikes)
+                    })
+                }
+            }?;
+            crate::conversions::python_tuple(py, domain(rows)?, |row| {
                 crate::conversions::python_tuple(py, row, Ok)
             })
         }
