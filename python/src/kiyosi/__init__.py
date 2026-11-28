@@ -68,7 +68,6 @@ Cancellation is cooperative; allocation and individual work units may delay it.
 from . import _native
 from ._native import (
     ComputationFailureError,
-    Greek,
     GreekUnavailableError,
     InvalidInputError,
     KiyosiError,
@@ -86,7 +85,6 @@ _install_value_methods(_native)
 
 __all__ = [
     "ComputationFailureError",
-    "Greek",
     "GreekUnavailableError",
     "InvalidInputError",
     "KiyosiError",

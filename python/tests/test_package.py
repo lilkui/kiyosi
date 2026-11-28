@@ -898,6 +898,9 @@ def test_installed_version_and_typed_exports():
     assert (package / "py.typed").is_file()
     assert pricing.PricingResult is _native.PricingResult
     assert not hasattr(kiyosi, "PricingResult")
+    assert pricing.Greek is _native.Greek
+    assert "Greek" in pricing.__all__
+    assert not hasattr(kiyosi, "Greek")
     assert instruments.SnowballObservation is _native.SnowballObservation
     assert not hasattr(_native, "AutocallableObservation")
     assert not hasattr(_native, "autocallable_observations")

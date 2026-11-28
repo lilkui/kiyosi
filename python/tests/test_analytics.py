@@ -10,7 +10,6 @@ from typing import get_args
 import pytest
 import QuantLib as ql
 from kiyosi import (
-    Greek,
     InvalidInputError,
     NonConvergenceError,
     RootNotBracketedError,
@@ -22,7 +21,12 @@ from kiyosi.market import (
     PricingContext,
     RateTermStructure,
 )
-from kiyosi.pricing import AnalyticEuropeanEngine, implied_volatility, numerical_greeks
+from kiyosi.pricing import (
+    AnalyticEuropeanEngine,
+    Greek,
+    implied_volatility,
+    numerical_greeks,
+)
 from support.assertions import assert_rejection
 
 

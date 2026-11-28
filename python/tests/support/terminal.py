@@ -3,7 +3,7 @@
 from typing import get_args
 
 import pytest
-from kiyosi import Greek
+from kiyosi.pricing import Greek
 
 ALL_GREEKS = get_args(Greek)
 
