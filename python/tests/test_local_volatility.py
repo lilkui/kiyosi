@@ -234,6 +234,30 @@ def test_shape_node_value_and_native_conversion_errors(subtests):
         PricingContext(model_parameters=object(), spot_price=100, valuation_time=START)
 
 
+@pytest.mark.parametrize(
+    "times, spots, message",
+    [
+        ([START], [90, 110], "times must contain at least two"),
+        ([START, END], [90], "spots must contain at least two"),
+        ([START, END], [110, 90], "spots must contain at least two"),
+        ([START, END], [0, 110], "spots must be finite and positive"),
+    ],
+    ids=["single-time", "single-spot", "descending-spots", "nonpositive-spot"],
+)
+def test_surface_rejects_invalid_axes_before_reading_values(times, spots, message):
+    def spots_input():
+        yield from spots
+        if len(spots) == 2 and spots[0] >= spots[1]:
+            pytest.fail("read another spot after an out-of-order node")
+
+    def rows():
+        pytest.fail("read values after an invalid axis")
+        yield [0.2, 0.2]
+
+    with pytest.raises(InvalidInputError, match=message):
+        LocalVolatilitySurface(times=times, spots=spots_input(), values=rows())
+
+
 def test_surface_rejects_short_row_before_consuming_more_rows():
     def rows():
         yield [0.2]

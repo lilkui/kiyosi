@@ -142,10 +142,6 @@ pub(crate) fn optional_real(value: &Bound<'_, PyAny>) -> PyResult<Option<f64>> {
     }
 }
 
-pub(crate) fn reals(value: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
-    collect_values(value, real)
-}
-
 pub(crate) fn collect_values<T>(
     value: &Bound<'_, PyAny>,
     convert: impl Fn(&Bound<'_, PyAny>) -> PyResult<T>,

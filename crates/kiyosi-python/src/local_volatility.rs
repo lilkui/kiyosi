@@ -1,6 +1,6 @@
 use crate::conversions::{
-    collect_matching_values, ordered_timestamps, python_timestamps, python_tuple, real, reals,
-    timestamp,
+    collect_matching_values, collect_values_checked, ordered_timestamps, python_timestamps,
+    python_tuple, real, timestamp,
 };
 use crate::error::domain;
 use crate::market::{rate, rate_properties};
@@ -60,7 +60,27 @@ impl LocalVolatilitySurface {
                 kiyosi::binding_support::validate_local_volatility_time_node(previous, time)
             })
         })?;
-        let spots = reals(spots)?;
+        domain(kiyosi::LocalVolatilitySurface::validate_axis_count(
+            times.len(),
+            "times",
+        ))?;
+        let mut previous = None;
+        let spots = collect_values_checked(
+            spots,
+            |value| {
+                let spot = real(value)?;
+                domain(kiyosi::LocalVolatilitySurface::validate_spot_node(
+                    previous, spot,
+                ))?;
+                previous = Some(spot);
+                Ok(spot)
+            },
+            |_| Ok(()),
+        )?;
+        domain(kiyosi::LocalVolatilitySurface::validate_axis_count(
+            spots.len(),
+            "spots",
+        ))?;
         let validate = kiyosi::binding_support::validate_local_volatility_surface_dimension;
         let values = collect_matching_values(
             values,

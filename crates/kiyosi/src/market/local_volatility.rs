@@ -32,8 +32,10 @@ pub fn validate_local_volatility_surface_dimension(count: usize, axis: usize) ->
     Ok(())
 }
 
-fn invalid_times() -> Error {
-    Error::InvalidInput("times must contain at least two strictly increasing nodes".into())
+fn invalid_axis(axis: &str) -> Error {
+    Error::InvalidInput(
+        format!("{axis} must contain at least two strictly increasing nodes").into(),
+    )
 }
 
 /// Checks that a local-volatility time node follows its predecessor.
@@ -43,7 +45,7 @@ fn invalid_times() -> Error {
 /// Returns [`Error::InvalidInput`] for a duplicate or decreasing timestamp.
 pub fn validate_local_volatility_time_node(previous: Timestamp, node: Timestamp) -> Result<()> {
     if node <= previous {
-        return Err(invalid_times());
+        return Err(invalid_axis("times"));
     }
     Ok(())
 }
@@ -89,24 +91,20 @@ impl LocalVolatilitySurface {
     /// # Ok(()) }
     /// ```
     pub fn new(times: Vec<Timestamp>, spots: Vec<f64>, values: Vec<Vec<f64>>) -> Result<Self> {
-        if times.len() < 2 {
-            return Err(invalid_times());
-        }
+        Self::validate_axis_count(times.len(), "times")?;
         for (index, pair) in times.windows(2).enumerate() {
             if index % 1024 == 0 {
                 cancellation::check()?;
             }
             validate_local_volatility_time_node(pair[0], pair[1])?;
         }
-        if spots.len() < 2 || has_unordered_pair(&spots)? {
-            return Err(Error::InvalidInput(
-                "spots must contain at least two strictly increasing nodes".into(),
-            ));
-        }
+        Self::validate_axis_count(spots.len(), "spots")?;
+        let mut previous = None;
         for chunk in spots.chunks(1024) {
             cancellation::check()?;
             for &spot in chunk {
-                finite(spot, true, "spots")?;
+                Self::validate_spot_node(previous, spot)?;
+                previous = Some(spot);
             }
         }
         validate_local_volatility_surface_dimension(values.len(), times.len())?;
@@ -171,6 +169,34 @@ impl LocalVolatilitySurface {
             row_groups: row_groups.into(),
             extrema: extrema.into(),
         })
+    }
+
+    /// Checks the minimum size of an axis for [`Self::new`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] if the named axis has fewer than two nodes.
+    #[doc(hidden)]
+    pub fn validate_axis_count(count: usize, axis: &str) -> Result<()> {
+        if count < 2 {
+            return Err(invalid_axis(axis));
+        }
+        Ok(())
+    }
+
+    /// Checks one spot node for [`Self::new`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for a nonpositive or non-finite spot,
+    /// or for a node that does not strictly follow its predecessor.
+    #[doc(hidden)]
+    pub fn validate_spot_node(previous: Option<f64>, spot: f64) -> Result<()> {
+        finite(spot, true, "spots")?;
+        if previous.is_some_and(|previous| spot <= previous) {
+            return Err(invalid_axis("spots"));
+        }
+        Ok(())
     }
 
     /// Borrows the absolute time nodes; see [`Self::new`] for an example.
