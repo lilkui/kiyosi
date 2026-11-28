@@ -175,7 +175,12 @@ impl RateTermStructure {
     ) -> PyResult<Self> {
         let reference = timestamp(reference_time)?;
         let nodes = crate::conversions::timestamps(times)?;
-        let factors = crate::conversions::reals(factors)?;
+        let validate = kiyosi::binding_support::validate_rate_curve_shape;
+        if nodes.is_empty() {
+            domain(validate(0, 0))?;
+        }
+        let factors =
+            crate::conversions::collect_matching_values(factors, real, nodes.len(), validate)?;
         crate::calendar::run_date_scan(py, nodes.len() as u64, || {
             kiyosi::RateTermStructure::new(reference, nodes, factors)
         })

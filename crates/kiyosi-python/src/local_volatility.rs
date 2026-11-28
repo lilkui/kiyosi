@@ -1,5 +1,5 @@
 use crate::conversions::{
-    collect_values_checked, python_timestamps, python_tuple, real, reals, timestamp, timestamps,
+    collect_matching_values, python_timestamps, python_tuple, real, reals, timestamp, timestamps,
 };
 use crate::error::domain;
 use crate::market::{rate, rate_properties};
@@ -56,20 +56,12 @@ impl LocalVolatilitySurface {
     ) -> PyResult<Self> {
         let times = timestamps(times)?;
         let spots = reals(spots)?;
-        let check_count = |count, axis| {
-            if count > axis {
-                domain(
-                    kiyosi::binding_support::validate_local_volatility_surface_dimension(
-                        count, axis,
-                    ),
-                )?;
-            }
-            Ok(())
-        };
-        let values = collect_values_checked(
+        let validate = kiyosi::binding_support::validate_local_volatility_surface_dimension;
+        let values = collect_matching_values(
             values,
-            |row| collect_values_checked(row, real, |count| check_count(count, spots.len())),
-            |count| check_count(count, times.len()),
+            |row| collect_matching_values(row, real, spots.len(), validate),
+            times.len(),
+            validate,
         )?;
         let large = times.len().max(spots.len()).max(values.len()) > 1024
             || values.iter().map(Vec::len).sum::<usize>() > 1024;

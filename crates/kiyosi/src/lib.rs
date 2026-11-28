@@ -168,7 +168,9 @@ pub mod binding_support {
     };
     pub use crate::instruments::monitoring::binding as barrier_monitoring;
     pub use crate::instruments::monitoring::binding::{new_accumulator, replace_accumulator};
-    pub use crate::market::validate_local_volatility_surface_dimension;
+    pub use crate::market::{
+        validate_local_volatility_surface_dimension, validate_rate_curve_shape,
+    };
     pub use crate::time::variance_time_convention_from_inputs;
 
     /// Checks the input count for CRR and autocallable Monte Carlo contract batches.

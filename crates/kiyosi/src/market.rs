@@ -13,4 +13,4 @@ pub use parameters::{
     BlackScholesMertonParameterChanges, BlackScholesMertonParameters, ModelParameters,
     PricingContext, PricingContextChanges, Rate,
 };
-pub use term_structure::RateTermStructure;
+pub use term_structure::{RateTermStructure, validate_rate_curve_shape};

@@ -234,6 +234,17 @@ def test_shape_node_value_and_native_conversion_errors(subtests):
         PricingContext(model_parameters=object(), spot_price=100, valuation_time=START)
 
 
+def test_surface_rejects_short_row_before_consuming_more_rows():
+    def rows():
+        yield [0.2]
+        pytest.fail("read another row after an incomplete row")
+
+    with pytest.raises(
+        InvalidInputError, match="values shape must match times and spots"
+    ):
+        LocalVolatilitySurface(times=[START, END], spots=[90, 110], values=rows())
+
+
 def test_surface_rejects_extra_rows_and_columns_before_reading_past_shape():
     def oversized(items):
         yield from items

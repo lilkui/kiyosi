@@ -64,6 +64,22 @@ impl CalendarAccrual {
     }
 }
 
+/// Checks that a factor-node curve has one factor per node and at least one node.
+///
+/// See [`RateTermStructure::new`] for construction.
+///
+/// # Errors
+/// Returns [`Error::InvalidInput`] for empty or mismatched inputs.
+#[doc(hidden)]
+pub fn validate_rate_curve_shape(factors: usize, nodes: usize) -> Result<()> {
+    if nodes == 0 || nodes != factors {
+        return Err(Error::InvalidInput(
+            "curve nodes and factors must have the same nonzero size".into(),
+        ));
+    }
+    Ok(())
+}
+
 impl RateTermStructure {
     /// Creates a finite flat rate, optionally restricted to times at or after a reference.
     ///
@@ -230,11 +246,7 @@ impl RateTermStructure {
         reason = "Flat-rate algorithms require exactly constant forwards."
     )]
     pub fn new(reference: Timestamp, nodes: Vec<Timestamp>, factors: Vec<f64>) -> Result<Self> {
-        if nodes.is_empty() || nodes.len() != factors.len() {
-            return Err(Error::InvalidInput(
-                "curve nodes and factors must have the same nonzero size".into(),
-            ));
-        }
+        validate_rate_curve_shape(factors.len(), nodes.len())?;
         let mut previous = reference;
         let mut previous_factor = 1.0;
         let mut forwards = Vec::with_capacity(nodes.len());

@@ -172,6 +172,22 @@ pub(crate) fn collect_values_checked<'py, T>(
         .collect()
 }
 
+pub(crate) fn collect_matching_values<'py, T>(
+    value: &Bound<'py, PyAny>,
+    convert: impl Fn(&Bound<'py, PyAny>) -> PyResult<T>,
+    expected: usize,
+    validate: impl Fn(usize, usize) -> kiyosi::Result<()>,
+) -> PyResult<Vec<T>> {
+    let values = collect_values_checked(value, convert, |count| {
+        if count > expected {
+            domain(validate(count, expected))?;
+        }
+        Ok(())
+    })?;
+    domain(validate(values.len(), expected))?;
+    Ok(values)
+}
+
 pub(crate) fn direction_name(value: kiyosi::OptionType) -> &'static str {
     match value {
         kiyosi::OptionType::Call => "call",

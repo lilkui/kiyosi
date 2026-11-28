@@ -114,6 +114,16 @@ def test_rounded_flat_nodes_explain_exact_constant_curve_requirement():
         )
 
 
+def test_node_curve_rejects_extra_factors_before_consuming_more():
+    def factors():
+        yield 0.99
+        yield 0.98
+        pytest.fail("read beyond the first excess factor")
+
+    with pytest.raises(InvalidInputError, match="same nonzero size"):
+        RateTermStructure(reference_time=REFERENCE, times=[MATURITY], factors=factors())
+
+
 def test_flat_curve_factory_requires_coverage_bounds_for_calendar():
     quote = 0.05
     undated = RateTermStructure.flat(quote, reference_time=None, max_time=None)
