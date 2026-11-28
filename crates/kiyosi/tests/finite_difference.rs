@@ -1363,6 +1363,26 @@ fn bsm_european_surface_matches_analytic_across_dated_rates() -> Result<()> {
 }
 
 #[test]
+fn european_surface_preserves_bsm_continuation_at_explicit_boundary() -> Result<()> {
+    let (start, end) = dates();
+    let template = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let context = market(100.0, 0.02, 0.01, 0.2);
+    let engine = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+        asset_upper_boundary: Some(101.0),
+        ..Default::default()
+    })?;
+    let strikes = [82.0, 90.0, 95.0, 100.0];
+    let rows = engine.price_surface(&template, &context, &[end, end.add_days(365)?], &strikes)?;
+    assert_eq!(
+        rows[0],
+        engine.price_strikes(&template, &context, &strikes)?
+    );
+    let reference = AnalyticEuropeanEngine.price(&template, &context)?;
+    assert!((rows[0][3] - reference).abs() < 1e-4);
+    Ok(())
+}
+
+#[test]
 fn european_surface_resolves_short_expiries_on_a_long_grid() -> Result<()> {
     let (start, end) = dates();
     let short = start.add_days(1)?;

@@ -923,6 +923,19 @@ def test_bsm_european_surface_matches_analytic_across_dated_rates():
         assert row == pytest.approx(reference, abs=0.001, rel=0)
 
 
+def test_european_surface_preserves_bsm_continuation_at_explicit_boundary():
+    template = contract(EuropeanOption)
+    context = market(spot=100, rate=0.02, dividend=0.01, sigma=0.2)
+    engine = FiniteDifferenceVanillaEngine(asset_upper_boundary=101)
+    strikes = (82, 90, 95, 100)
+    rows = engine.price_surface(
+        template, context, expiries=(END, END + timedelta(days=365)), strikes=strikes
+    )
+    assert rows[0] == engine.price_strikes(template, context, strikes=strikes)
+    reference = AnalyticEuropeanEngine().price(template.replace(strike=100), context)
+    assert rows[0][-1] == pytest.approx(reference, abs=1e-4, rel=0)
+
+
 def test_european_surface_resolves_short_expiries_on_a_long_grid():
     short = START + timedelta(days=1)
     template = contract(EuropeanOption)

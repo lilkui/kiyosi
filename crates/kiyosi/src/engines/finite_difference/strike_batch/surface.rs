@@ -86,6 +86,10 @@ impl FiniteDifferenceVanillaEngine {
                 let model = context.model_parameters();
                 let (strip, sigma) = match model {
                     ModelParameters::BlackScholesMerton(model) => {
+                        // A tight boundary can have material BSM continuation value.
+                        if settings.asset_upper_boundary.is_some() {
+                            return Ok(None);
+                        }
                         let sigma = model.volatility();
                         (StripModel::Constant(sigma), sigma)
                     }
