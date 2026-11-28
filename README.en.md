@@ -73,8 +73,6 @@ See [`examples/`](examples/) for more detailed usage.
 
 ## Supported products and algorithms
 
-See the [pricing operations guide](docs/pricing-operations.md) for strike batches, price surfaces, reusable solutions, and sampling statistics.
-
 | Product | Models | Pricing algorithms |
 | --- | --- | --- |
 | European vanilla options | BSM, local volatility, Heston | Analytic, quadrature, binomial tree, FD, MC |
