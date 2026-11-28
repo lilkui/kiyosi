@@ -146,17 +146,29 @@ impl SnowballObservation {
         levels: &[f64],
         coupon_rates: &[f64],
     ) -> Result<Vec<Self>> {
-        if times.len() != levels.len() || coupon_rates.len() != times.len() {
-            return Err(Error::InvalidInput(
-                "observation sequence lengths differ".into(),
-            ));
-        }
+        Self::validate_column_length(levels.len(), times.len())?;
+        Self::validate_column_length(coupon_rates.len(), times.len())?;
         times
             .iter()
             .zip(levels)
             .zip(coupon_rates)
             .map(|((&time, &level), &rate)| Self::new(time, level, rate))
             .collect()
+    }
+
+    /// Checks that a column has one value per timestamp in [`Self::from_columns`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] when the lengths differ.
+    #[doc(hidden)]
+    pub fn validate_column_length(count: usize, timestamps: usize) -> Result<()> {
+        if count != timestamps {
+            return Err(Error::InvalidInput(
+                "observation sequence lengths differ".into(),
+            ));
+        }
+        Ok(())
     }
 
     /// Returns a validated copy with the supplied fields applied.

@@ -298,6 +298,23 @@ def test_autocallable_calendars_control_knock_in_after_record_conversion():
     assert preset == note
 
 
+@pytest.mark.parametrize("column", ["levels", "coupons"])
+def test_snowball_columns_stop_at_first_extra_item(column):
+    end = datetime(2026, 1, 2)
+
+    def oversized():
+        yield 110.0
+        yield 110.0
+        pytest.fail("read past the first extra observation value")
+
+    levels = oversized() if column == "levels" else [110.0]
+    coupons = oversized() if column == "coupons" else [0.1]
+    with pytest.raises(InvalidInputError, match="observation sequence lengths differ"):
+        ins.SnowballObservation.from_columns(
+            [end], levels, knock_out_coupon_rates=coupons
+        )
+
+
 def test_observation_terms_control_cashflows():
     start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
     with pytest.raises(TypeError):

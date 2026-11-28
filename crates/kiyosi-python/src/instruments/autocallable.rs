@@ -1,7 +1,7 @@
 use crate::calendar::{TradingCalendar, run_date_scan};
 use crate::conversions::{
-    collect_values, integer_usize, python_timestamp, python_tuple, real, reals, supplied,
-    timestamp, timestamps,
+    collect_matching_values, collect_values, integer_usize, python_timestamp, python_tuple, real,
+    supplied, timestamp, timestamps,
 };
 use crate::error::domain;
 use kiyosi::binding_support::{
@@ -423,8 +423,9 @@ value_methods!(@documented SnowballObservation, SnowballObservationChanges,
         knock_out_coupon_rates: &Bound<'_, PyAny>,
     ) -> PyResult<Vec<Self>> {
         let times = timestamps(autocall_times)?;
-        let levels = reals(knock_out_levels)?;
-        let coupons = reals(knock_out_coupon_rates)?;
+        let validate = kiyosi::SnowballObservation::validate_column_length;
+        let levels = collect_matching_values(knock_out_levels, real, times.len(), validate)?;
+        let coupons = collect_matching_values(knock_out_coupon_rates, real, times.len(), validate)?;
         Ok(
             domain(kiyosi::SnowballObservation::from_columns(&times, &levels, &coupons))?
                 .into_iter()
