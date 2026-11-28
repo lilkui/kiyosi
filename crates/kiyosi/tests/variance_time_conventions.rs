@@ -3,11 +3,35 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-use kiyosi::engines::{FiniteDifferenceEngine, FiniteDifferenceSettings};
+use kiyosi::engines::{FiniteDifferenceEngine, FiniteDifferenceSettings, VanillaBatchEngine};
 use kiyosi::*;
 
 fn instant(year: i32, month: u32, day: u32, hour: u32) -> Timestamp {
     Timestamp::new(Date::new(year, month, day).unwrap(), hour, 0, 0, 0).unwrap()
+}
+
+#[test]
+fn all_days_clock_keeps_long_expiry_strike_batch_within_budget() -> Result<()> {
+    let start = instant(2025, 1, 1, 0);
+    let expiry = instant(2065, 1, 1, 0);
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, expiry)?;
+    let model = BlackScholesMertonParameters::new_with_variance_time_convention(
+        0.03,
+        0.02,
+        0.2,
+        VarianceTimeConvention::Business(TradingCalendar::all_days()),
+    )?;
+    let market = PricingContext::new(model, 100.0, start)?;
+    let engine = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 80_000,
+        time_step_count: 2,
+        ..Default::default()
+    })?;
+    assert_eq!(
+        engine.price_strikes(&option, &market, &[100.0])?,
+        [engine.price(&option, &market)?]
+    );
+    Ok(())
 }
 
 #[test]

@@ -231,11 +231,9 @@ pub(super) fn strike_rollback_work(
         return Ok(0);
     }
     let model = context.model_parameters();
-    let clock = model.variance_time_convention();
     let local_times =
         local_volatility::local_model(context).map_or(&[][..], |model| model.surface().times());
     let local_start = local_times.partition_point(|&time| time <= valuation);
-    let calendar = clock.calendar();
     let assets = u64::from(settings.asset_step_count.unsigned_abs());
     let base_steps = u64::from(settings.time_step_count.unsigned_abs())
         + if settings.scheme == FiniteDifferenceScheme::Rannacher {
@@ -245,9 +243,11 @@ pub(super) fn strike_rollback_work(
         };
     let knots = [model.risk_free_curve(), model.dividend_curve()]
         .map(|curve| Curve::interval_count(curve, valuation, expiry) - 1);
-    let variance_knots = calendar.map_or(0, |_| {
+    let variance_knots = if diffusion::uses_business_time(context) {
         valuation.date().days_until(expiry.date()).unsigned_abs()
-    });
+    } else {
+        0
+    };
     let local_knots = local_times[local_start..].partition_point(|&time| time < expiry) as u64;
     let steps = base_steps + knots[0] + knots[1] + local_knots + variance_knots;
     Ok(assets.saturating_mul(steps))

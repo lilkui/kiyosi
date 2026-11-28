@@ -165,6 +165,27 @@ def test_european_matches_independent_two_clock_formula(
     assert abs(actual - natural) > 0.05
 
 
+def test_all_days_clock_keeps_long_expiry_strike_batch_within_budget():
+    start, end = datetime(2025, 1, 1), datetime(2065, 1, 1)
+    option = european(start, end)
+    market = context(
+        bsm(
+            risk_free_rate=0.03,
+            dividend_yield=0.02,
+            volatility=0.2,
+            variance_time_convention="business",
+            calendar=TradingCalendar.all_days(),
+        ),
+        start,
+    )
+    engine = pricing.FiniteDifferenceVanillaEngine(
+        asset_step_count=80_000, time_step_count=2
+    )
+    assert engine.price_strikes(option, market, strikes=[100]) == (
+        engine.price(option, market),
+    )
+
+
 def test_all_days_365_matches_natural_clock_and_keeps_surface_dates():
     business = local(
         FRIDAY,
