@@ -9,11 +9,14 @@ bias. Solver tolerances constrain the engine's price curve, not pricing accuracy
 Engines with strike batches expose ``price_strikes(instrument, context, strikes=...)``.
 The instrument supplies the template terms. Each engine documents its supported
 templates and how it shares calculations across strikes.
+Use ``price_many`` on supported engines for already constructed contracts,
+``price_surface`` for a finite-difference strike–expiry grid, and ``solve``
+to keep a finite-difference solution for repeated spot queries.
 
 Engines with configurable constructor fields support ``replace(**changes)`` to
 create a validated engine. Omitted controls default to the source engine's values.
 
-``price_with_greeks`` requires a Greek name, an iterable of names, or ``"all"``.
+``price_with_greeks`` requires a ``Greek`` name, an iterable of names, or ``"all"``.
 An empty iterable requests price only. Unsupported measures are absent with
 status ``"unsupported"``, including requests with no supported measures.
 ``PricingResult`` documents units;

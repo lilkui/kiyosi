@@ -73,6 +73,8 @@ print(f"Implied volatility: {sigma:.2%}")  # Implied volatility: 20.00%
 
 ## 支持产品与算法
 
+按行权价批量定价、价格曲面、可复用求解和采样统计的支持范围见[定价操作支持表](docs/pricing-operations.md)。
+
 | 金融产品 | 模型 | 定价算法 |
 | --- | --- | --- |
 | 欧式香草期权 | BSM、局部波动率、Heston | 解析解、数值积分、二叉树、有限差分、蒙特卡洛模拟 |
