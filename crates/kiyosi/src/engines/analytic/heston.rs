@@ -150,8 +150,9 @@ impl AnalyticHestonEuropeanEngine {
     /// Prices European calls or puts across strikes with fixed dates and market inputs.
     ///
     /// Uses the template's direction and dates. The result preserves input order
-    /// and duplicates. The empty batch validates the market and returns an empty
-    /// vector. Dense strike batches can share one fast Fourier transform with
+    /// and duplicates, with each distinct strike priced once. The empty batch
+    /// validates the market and returns an empty vector. Dense strike batches
+    /// can share one fast Fourier transform with
     /// interpolation when the estimated error fits the price tolerances. Other
     /// quotes share Fourier samples across adaptive integration panels. The
     /// evaluation budget applies per strike.
@@ -193,6 +194,18 @@ impl AnalyticHestonEuropeanEngine {
             crate::cancellation::check()?;
             crate::error::finite(strike, true, "strike")?;
         }
+        crate::engines::quote_distinct_strikes(strikes, |unique| {
+            self.price_distinct_strikes(option, context, model, unique)
+        })
+    }
+
+    fn price_distinct_strikes(
+        &self,
+        option: &EuropeanOption,
+        context: &PricingContext,
+        model: &HestonParameters,
+        strikes: &[f64],
+    ) -> Result<Vec<f64>> {
         let transformed = fft::price_strikes(option, context, model, strikes, self.settings)?;
         let mut prices = Vec::new();
         prices.try_reserve_exact(strikes.len()).map_err(|_| {

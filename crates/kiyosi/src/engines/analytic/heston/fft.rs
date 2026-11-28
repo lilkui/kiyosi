@@ -1,4 +1,4 @@
-use std::{collections::HashSet, f64::consts::TAU};
+use std::f64::consts::TAU;
 
 use rustfft::FftPlanner;
 
@@ -54,7 +54,7 @@ pub(super) fn price_strikes(
     };
     let mut max_moneyness: f64 = 0.0;
     let mut max_weight: f64 = 0.0;
-    let mut distinct = HashSet::with_capacity(strikes.len());
+    let mut eligible_strikes = 0;
     let mut quotes = Vec::with_capacity(strikes.len());
     for &strike in strikes {
         crate::cancellation::check()?;
@@ -71,7 +71,7 @@ pub(super) fn price_strikes(
         }
         max_moneyness = max_moneyness.max(moneyness.abs());
         max_weight = max_weight.max(weight);
-        distinct.insert(strike.to_bits());
+        eligible_strikes += 1;
         let base = lognormal_price(
             spot,
             strike,
@@ -121,8 +121,8 @@ pub(super) fn price_strikes(
     // The direct integrator starts with five sampled panels per strike even
     // when their characteristic functions are cached. Weight the more expensive
     // characteristic samples and the cheaper FFT butterflies separately.
-    let direct_work = distinct.len() * 5 * super::PANEL_SAMPLES;
-    let transform_work = count + len * len.ilog2() as usize / 64 + 16 * distinct.len();
+    let direct_work = eligible_strikes * 5 * super::PANEL_SAMPLES;
+    let transform_work = count + len * len.ilog2() as usize / 64 + 16 * eligible_strikes;
     if transform_work >= direct_work {
         return Ok(None);
     }
@@ -259,14 +259,16 @@ mod tests {
             })
             .collect();
         strikes.insert(30, 1e12);
-        strikes.push(strikes[0]);
         for direction in [OptionType::Call, OptionType::Put] {
             let option = EuropeanOption::new(direction, 100.0, start, end)?;
             let actual = price_strikes(&option, &market, &model, &strikes, settings)?
                 .expect("ordinary Heston inputs use the transform for this strip");
             assert!(actual[30].is_none());
-            assert_eq!(actual[0].map(f64::to_bits), actual[129].map(f64::to_bits));
-            assert!(price_strikes(&option, &market, &model, &[100.0; 256], settings)?.is_none());
+            assert!(price_strikes(&option, &market, &model, &[100.0], settings)?.is_none());
+            assert_eq!(
+                engine.price_strikes(&option, &market, &[100.0; 256])?,
+                [engine.price(&option, &market)?; 256],
+            );
             for (index, (value, &strike)) in actual.into_iter().zip(&strikes).enumerate() {
                 if index == 30 {
                     continue;

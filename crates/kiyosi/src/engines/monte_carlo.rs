@@ -10,7 +10,7 @@ use std::{
 
 use rayon::prelude::*;
 
-use super::greeks;
+use super::{greeks, quote_distinct_strikes};
 use crate::numerics::discounted_product;
 use crate::{
     Error, EuropeanOption, GreeksRequest, NumericalShiftSettings, OptionType, PricingContext,
@@ -67,45 +67,6 @@ pub fn validate_monte_carlo_strike_batch_size(count: usize) -> Result<()> {
         ));
     }
     Ok(())
-}
-
-fn quote_distinct_strikes(
-    strikes: &[f64],
-    quote: impl FnOnce(&[f64]) -> Result<Vec<f64>>,
-) -> Result<Vec<f64>> {
-    if strikes.len() <= 1 {
-        return quote(strikes);
-    }
-    let workspace_error =
-        |_| Error::ComputationFailure("cannot reserve Monte Carlo strike batch workspace".into());
-    let mut indices = Vec::new();
-    indices
-        .try_reserve_exact(strikes.len())
-        .map_err(workspace_error)?;
-    indices.extend(0..strikes.len());
-    indices.sort_unstable_by(|&i, &j| strikes[i].total_cmp(&strikes[j]));
-    crate::cancellation::check()?;
-    let groups = || indices.chunk_by(|&i, &j| strikes[i].to_bits() == strikes[j].to_bits());
-    let mut unique = Vec::new();
-    unique
-        .try_reserve_exact(strikes.len())
-        .map_err(workspace_error)?;
-    for group in groups() {
-        crate::cancellation::check()?;
-        unique.push(strikes[group[0]]);
-    }
-    let quotes = quote(&unique)?;
-    let mut prices = unique;
-    prices.resize(strikes.len(), 0.0);
-    for (group, quote) in groups().zip(quotes) {
-        for chunk in group.chunks(1024) {
-            crate::cancellation::check()?;
-            for &index in chunk {
-                prices[index] = quote;
-            }
-        }
-    }
-    Ok(prices)
 }
 
 /// Selects terminal sampling independently of antithetic pairing.
