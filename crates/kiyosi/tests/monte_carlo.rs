@@ -21,7 +21,7 @@ fn market() -> PricingContext {
 
 #[test]
 fn vanilla_sampling_discounts_before_the_terminal_growth_overflows() -> Result<()> {
-    let option = contract(OptionType::Call).replace(EuropeanOptionChanges {
+    let option = contract(OptionType::Call).replace(VanillaOptionChanges {
         strike: Some(0.5),
         ..Default::default()
     })?;
@@ -52,7 +52,7 @@ fn vanilla_sampling_discounts_before_the_terminal_growth_overflows() -> Result<(
 
 #[test]
 fn high_variance_sampling_preserves_the_discounted_tail_value() -> Result<()> {
-    let option = contract(OptionType::Call).replace(EuropeanOptionChanges {
+    let option = contract(OptionType::Call).replace(VanillaOptionChanges {
         strike: Some(1.0),
         ..Default::default()
     })?;

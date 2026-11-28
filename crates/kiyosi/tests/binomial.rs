@@ -46,7 +46,7 @@ fn american_batch_matches_scalar_for_full_and_banded_trees() -> Result<()> {
     let short = puts
         .iter()
         .map(|put| {
-            put.replace(AmericanOptionChanges {
+            put.replace(VanillaOptionChanges {
                 expiry_time: Some(start.add_days(180)?),
                 ..Default::default()
             })

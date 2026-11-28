@@ -24,7 +24,7 @@ fn american_construction_and_replacement_validate_without_mutating() {
         ));
         assert!(matches!(
             option
-                .replace(AmericanOptionChanges {
+                .replace(VanillaOptionChanges {
                     strike: Some(strike),
                     ..Default::default()
                 })
@@ -38,7 +38,7 @@ fn american_construction_and_replacement_validate_without_mutating() {
     ));
     assert!(matches!(
         option
-            .replace(AmericanOptionChanges {
+            .replace(VanillaOptionChanges {
                 expiry_time: Some(start),
                 effective_time: Some(end),
                 ..Default::default()
@@ -48,7 +48,7 @@ fn american_construction_and_replacement_validate_without_mutating() {
     ));
     assert_eq!(option.replace(Default::default()).unwrap(), option);
     let replaced = option
-        .replace(AmericanOptionChanges {
+        .replace(VanillaOptionChanges {
             option_type: Some(OptionType::Call),
             strike: Some(105.0),
             effective_time: Some(end),

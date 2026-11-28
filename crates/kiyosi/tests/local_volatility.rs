@@ -55,7 +55,7 @@ fn european_surface_matches_independent_strips_and_preserves_order() -> Result<(
     for (&expiry, row) in expiries.iter().zip(rows) {
         assert_eq!(row.len(), strikes.len(), "strike quote count");
         assert_eq!(row[1].to_bits(), row[3].to_bits());
-        let option = option.replace(EuropeanOptionChanges {
+        let option = option.replace(VanillaOptionChanges {
             expiry_time: Some(expiry),
             ..Default::default()
         })?;
@@ -1131,7 +1131,7 @@ fn american_local_volatility_strips_match_refined_scalar_pricing() -> Result<()>
     assert_eq!(prices.len(), strikes.len(), "strike quote count");
     assert_eq!(prices[2].to_bits(), prices[5].to_bits());
     for (strike, price) in strikes.into_iter().zip(prices) {
-        let contract = option.replace(AmericanOptionChanges {
+        let contract = option.replace(VanillaOptionChanges {
             strike: Some(strike),
             ..Default::default()
         })?;

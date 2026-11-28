@@ -243,8 +243,8 @@ pub use instruments::range_accrual::{
     RangeAccrualOption, RangeAccrualOptionChanges, RangeAccrualTerms,
 };
 pub use instruments::vanilla::{
-    AmericanOption, AmericanOptionChanges, DigitalOption, DigitalOptionChanges, EuropeanOption,
-    EuropeanOptionChanges, OptionContract, OptionType,
+    AmericanOption, DigitalOption, DigitalOptionChanges, EuropeanOption, OptionContract,
+    OptionType, VanillaOptionChanges,
 };
 pub use market::{
     BlackScholesMertonParameterChanges, BlackScholesMertonParameters, HestonParameterChanges,

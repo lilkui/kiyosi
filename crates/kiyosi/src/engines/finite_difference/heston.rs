@@ -13,8 +13,8 @@ use crate::engines::rollback_pool;
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{checked_with_scale, scaled_cash};
 use crate::{
-    AmericanOption, EuropeanOption, EuropeanOptionChanges, GreeksRequest, HestonParameters,
-    OptionContract, PricingContext, PricingEngine, PricingResult, Result, Timestamp,
+    AmericanOption, EuropeanOption, GreeksRequest, HestonParameters, OptionContract,
+    PricingContext, PricingEngine, PricingResult, Result, Timestamp, VanillaOptionChanges,
 };
 
 use super::edge_weights::{self, EdgeWeights};
@@ -249,7 +249,7 @@ impl FiniteDifferenceHestonVanillaEngine {
             ordered.push(expiry);
         }
         let contract = |expiry, strike| {
-            template.replace(EuropeanOptionChanges {
+            template.replace(VanillaOptionChanges {
                 expiry_time: Some(expiry),
                 strike: Some(strike),
                 ..Default::default()

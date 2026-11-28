@@ -1,8 +1,8 @@
 use super::super::RollbackWork;
 use super::{
-    AmericanOption, AmericanOptionChanges, FiniteDifferenceScheme, FiniteDifferenceVanillaEngine,
-    Payoff, PricingContext, Result, SpatialGrid, american, diffusion, invalid_grid,
-    local_volatility, payoff, strike_group_len, surface::fallback_work,
+    AmericanOption, FiniteDifferenceScheme, FiniteDifferenceVanillaEngine, Payoff, PricingContext,
+    Result, SpatialGrid, VanillaOptionChanges, american, diffusion, invalid_grid, local_volatility,
+    payoff, strike_group_len, surface::fallback_work,
 };
 
 impl FiniteDifferenceVanillaEngine {
@@ -40,7 +40,7 @@ impl FiniteDifferenceVanillaEngine {
             return Ok(vec![Vec::new(); expiries.len()]);
         }
         let contract = |expiry| {
-            template.replace(AmericanOptionChanges {
+            template.replace(VanillaOptionChanges {
                 expiry_time: Some(expiry),
                 ..Default::default()
             })

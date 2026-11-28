@@ -12,8 +12,8 @@ use super::{
 };
 use crate::risk::numerical::symmetric_shift;
 use crate::{
-    AmericanOption, AmericanOptionChanges, BlackScholesMertonParameterChanges, Greek,
-    OptionContract, PricingContextChanges,
+    AmericanOption, BlackScholesMertonParameterChanges, Greek, OptionContract,
+    PricingContextChanges, VanillaOptionChanges,
 };
 
 const WORKSPACE_BUDGET: usize = 1 << 30;
@@ -939,7 +939,7 @@ impl MonteCarloVanillaEngine {
         let settings = self.settings.sampling;
         let step_count = self.settings.step_count;
         let contract = |strike| {
-            option.replace(AmericanOptionChanges {
+            option.replace(VanillaOptionChanges {
                 strike: Some(strike),
                 ..Default::default()
             })

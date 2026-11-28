@@ -42,7 +42,7 @@ fn analytic_strike_batch_preserves_independent_prices_and_errors() -> Result<()>
             let batch = engine.price_strikes(&template, &context, &strikes)?;
             assert_eq!(batch.len(), strikes.len(), "strike quote count");
             for (&strike, actual) in strikes.iter().zip(batch) {
-                let contract = template.replace(EuropeanOptionChanges {
+                let contract = template.replace(VanillaOptionChanges {
                     strike: Some(strike),
                     ..Default::default()
                 })?;

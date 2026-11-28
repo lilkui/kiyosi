@@ -9,8 +9,8 @@ use crate::numerics::{
     Sum, checked, checked_with_scale, discounted_product, log_interval_mass, log_ratio, scaled_cash,
 };
 use crate::{
-    AmericanOption, AmericanOptionChanges, Error, EuropeanOption, PricingContext, PricingEngine,
-    Result,
+    AmericanOption, Error, EuropeanOption, PricingContext, PricingEngine, Result,
+    VanillaOptionChanges,
 };
 
 /// Configures vanilla spatial quadrature and American exercise intervals.
@@ -216,7 +216,7 @@ impl QuadratureVanillaEngine {
         let spot = context.spot_price();
         for &strike in strikes {
             crate::cancellation::check()?;
-            let contract = option.replace(AmericanOptionChanges {
+            let contract = option.replace(VanillaOptionChanges {
                 strike: Some(strike),
                 ..Default::default()
             })?;

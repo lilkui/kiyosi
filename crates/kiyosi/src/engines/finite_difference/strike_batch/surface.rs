@@ -53,7 +53,7 @@ impl FiniteDifferenceVanillaEngine {
         let active = &ordered[live..];
         let payoff = Payoff::vanilla(template.option_type(), anchor, false);
         let contract = |expiry| {
-            template.replace(crate::EuropeanOptionChanges {
+            template.replace(crate::VanillaOptionChanges {
                 expiry_time: Some(expiry),
                 ..Default::default()
             })

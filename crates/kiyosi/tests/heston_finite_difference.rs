@@ -87,7 +87,7 @@ fn american_surface_matches_scalar_expiries_and_preserves_order() -> kiyosi::Res
     for (&expiry, row) in expiries.iter().zip(rows) {
         assert_eq!(row.len(), strikes.len());
         assert_eq!(row[1].to_bits(), row[3].to_bits());
-        let option = template.replace(kiyosi::AmericanOptionChanges {
+        let option = template.replace(kiyosi::VanillaOptionChanges {
             expiry_time: Some(expiry),
             ..Default::default()
         })?;

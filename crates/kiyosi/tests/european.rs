@@ -307,7 +307,7 @@ fn time_scaled_subnormal_volatility_preserves_positive_value() {
 
 #[test]
 fn european_replacements_validate_and_preserve_originals() {
-    use kiyosi::EuropeanOptionChanges;
+    use kiyosi::VanillaOptionChanges;
     let original = EuropeanOption::new(
         OptionType::Call,
         100.0,
@@ -316,7 +316,7 @@ fn european_replacements_validate_and_preserve_originals() {
     )
     .unwrap();
     let changed = original
-        .replace(EuropeanOptionChanges {
+        .replace(VanillaOptionChanges {
             option_type: Some(OptionType::Put),
             strike: Some(105.0),
             ..Default::default()
@@ -327,7 +327,7 @@ fn european_replacements_validate_and_preserve_originals() {
     assert_eq!(changed.expiry_time(), original.expiry_time());
     for strike in [0.0, f64::NAN] {
         assert!(matches!(
-            original.replace(EuropeanOptionChanges {
+            original.replace(VanillaOptionChanges {
                 strike: Some(strike),
                 ..Default::default()
             }),

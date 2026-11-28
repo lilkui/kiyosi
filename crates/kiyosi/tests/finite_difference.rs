@@ -1315,7 +1315,7 @@ fn american_strike_batch_matches_scalar_prices_in_input_order() -> Result<()> {
     assert_eq!(prices.len(), strikes.len(), "strike quote count");
     assert_eq!(prices[1], prices[5]);
     for (&strike, price) in strikes.iter().zip(prices) {
-        let scalar = option.replace(AmericanOptionChanges {
+        let scalar = option.replace(VanillaOptionChanges {
             strike: Some(strike),
             ..Default::default()
         })?;
@@ -1458,7 +1458,7 @@ fn american_bsm_surface_matches_independent_strips_and_preserves_order() -> Resu
     for (expiry, row) in expiries.into_iter().zip(rows) {
         assert_eq!(row.len(), strikes.len(), "strike quote count");
         assert_eq!(row[1].to_bits(), row[4].to_bits());
-        let option = template.replace(AmericanOptionChanges {
+        let option = template.replace(VanillaOptionChanges {
             expiry_time: Some(expiry),
             ..Default::default()
         })?;

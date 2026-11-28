@@ -79,7 +79,7 @@ impl FiniteDifferenceHestonVanillaEngine {
             }
         }
         let contract = |expiry| {
-            template.replace(crate::AmericanOptionChanges {
+            template.replace(crate::VanillaOptionChanges {
                 expiry_time: Some(expiry),
                 ..Default::default()
             })
@@ -244,7 +244,7 @@ impl FiniteDifferenceHestonVanillaEngine {
             if tile.len() == 1 {
                 return self.expiry_rows(template, context, tile, strikes, budget);
             }
-            let option = template.replace(crate::AmericanOptionChanges {
+            let option = template.replace(crate::VanillaOptionChanges {
                 expiry_time: tile.last().copied(),
                 ..Default::default()
             })?;
@@ -306,7 +306,7 @@ impl FiniteDifferenceHestonVanillaEngine {
         if spot.max(ordered[ordered.len() - 1]) >= upper {
             return self.expiry_rows(template, context, live, strikes, budget);
         }
-        let last = template.replace(crate::AmericanOptionChanges {
+        let last = template.replace(crate::VanillaOptionChanges {
             expiry_time: live.last().copied(),
             ..Default::default()
         })?;
@@ -389,7 +389,7 @@ impl FiniteDifferenceHestonVanillaEngine {
     ) -> Result<Vec<Vec<f64>>> {
         let price = |&expiry| {
             crate::cancellation::check()?;
-            let option = template.replace(crate::AmericanOptionChanges {
+            let option = template.replace(crate::VanillaOptionChanges {
                 expiry_time: Some(expiry),
                 ..Default::default()
             })?;

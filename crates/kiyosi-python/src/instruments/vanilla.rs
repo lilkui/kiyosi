@@ -32,8 +32,8 @@ use pyo3::prelude::*;
 pub(crate) struct EuropeanOption(pub(crate) kiyosi::EuropeanOption);
 
 macro_rules! vanilla_option_methods {
-    ($name:ident, $changes:ident) => {
-        value_methods!($name, $changes,
+    ($name:ident) => {
+        value_methods!($name, VanillaOptionChanges,
             [option_type, strike, effective_time, expiry_time], {
                 option_type: option_type.map(crate::conversions::direction).transpose()?,
                 strike: strike.map(crate::conversions::real).transpose()?,
@@ -82,4 +82,4 @@ macro_rules! vanilla_option_methods {
 }
 pub(super) use vanilla_option_methods;
 
-vanilla_option_methods!(EuropeanOption, EuropeanOptionChanges);
+vanilla_option_methods!(EuropeanOption);

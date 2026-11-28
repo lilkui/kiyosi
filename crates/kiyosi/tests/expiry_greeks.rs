@@ -308,7 +308,7 @@ fn automatic_spot_bumps_fit_small_price_units() -> Result<()> {
             valuation_time: Some(start),
             ..Default::default()
         })?;
-        let atm = option.replace(EuropeanOptionChanges {
+        let atm = option.replace(VanillaOptionChanges {
             strike: Some(spot),
             ..Default::default()
         })?;

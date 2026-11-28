@@ -26,11 +26,11 @@ pub struct EuropeanOption {
     expiry_time: Timestamp,
 }
 
-/// Selects European contract replacements. Absent fields default to the source values.
+/// Selects European or American vanilla contract replacements. Absent fields default to the source values.
 ///
-/// See [`EuropeanOption::replace`] for an example.
+/// See [`EuropeanOption::replace`] and [`AmericanOption::replace`] for examples.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct EuropeanOptionChanges {
+pub struct VanillaOptionChanges {
     /// Replaces the call-or-put direction.
     pub option_type: Option<OptionType>,
     /// Replaces the positive strike.
@@ -86,18 +86,18 @@ impl EuropeanOption {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{Date, EuropeanOption, EuropeanOptionChanges, OptionType};
+    /// use kiyosi::{Date, EuropeanOption, VanillaOptionChanges, OptionType};
     /// # fn main() -> kiyosi::Result<()> {
     /// let option = EuropeanOption::new(OptionType::Call, 100.0,
     ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2026, 1, 1)?.start_of_day())?;
-    /// let changed = option.replace(EuropeanOptionChanges {
+    /// let changed = option.replace(VanillaOptionChanges {
     ///     strike: Some(105.0), ..Default::default()
     /// })?;
     /// assert_eq!(changed.strike(), 105.0);
     /// assert_eq!(option.strike(), 100.0);
     /// # Ok(()) }
     /// ```
-    pub fn replace(&self, changes: EuropeanOptionChanges) -> Result<Self> {
+    pub fn replace(&self, changes: VanillaOptionChanges) -> Result<Self> {
         Self::new(
             changes.option_type.unwrap_or(self.option_type),
             changes.strike.unwrap_or(self.strike),
@@ -388,21 +388,6 @@ pub struct AmericanOption {
     terms: EuropeanOption,
 }
 
-/// Selects American contract replacements. Absent fields default to the source values.
-///
-/// See [`AmericanOption::replace`] for an example.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct AmericanOptionChanges {
-    /// Replaces the call-or-put direction.
-    pub option_type: Option<OptionType>,
-    /// Replaces the positive strike.
-    pub strike: Option<f64>,
-    /// Replaces the inclusive first exercise time.
-    pub effective_time: Option<Timestamp>,
-    /// Replaces the inclusive last exercise timestamp.
-    pub expiry_time: Option<Timestamp>,
-}
-
 impl AmericanOption {
     pub(crate) fn vanilla(&self) -> &EuropeanOption {
         &self.terms
@@ -448,24 +433,21 @@ impl AmericanOption {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{AmericanOption, AmericanOptionChanges, Date, OptionType};
+    /// use kiyosi::{AmericanOption, VanillaOptionChanges, Date, OptionType};
     /// # fn main() -> kiyosi::Result<()> {
     /// let original = AmericanOption::new(OptionType::Put, 100.0,
     ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2026, 1, 1)?.start_of_day())?;
-    /// let updated = original.replace(AmericanOptionChanges {
+    /// let updated = original.replace(VanillaOptionChanges {
     ///     strike: Some(105.0), ..Default::default()
     /// })?;
     /// assert_eq!(updated.strike(), 105.0);
     /// assert_eq!(original.strike(), 100.0);
     /// # Ok(()) }
     /// ```
-    pub fn replace(&self, changes: AmericanOptionChanges) -> Result<Self> {
-        Self::new(
-            changes.option_type.unwrap_or(self.option_type()),
-            changes.strike.unwrap_or(self.strike()),
-            changes.effective_time.unwrap_or(self.effective_time()),
-            changes.expiry_time.unwrap_or(self.expiry_time()),
-        )
+    pub fn replace(&self, changes: VanillaOptionChanges) -> Result<Self> {
+        Ok(Self {
+            terms: self.terms.replace(changes)?,
+        })
     }
     /// Returns the direction. See [`Self::new`] for an example.
     pub fn option_type(&self) -> OptionType {

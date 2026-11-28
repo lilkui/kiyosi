@@ -8,8 +8,8 @@ use std::collections::{HashMap, HashSet};
 use std::ops::RangeInclusive;
 
 use crate::{
-    AmericanOption, AmericanOptionChanges, FiniteDifferenceHestonVanillaEngine,
-    FiniteDifferenceSolution, Timestamp,
+    AmericanOption, FiniteDifferenceHestonVanillaEngine, FiniteDifferenceSolution, Timestamp,
+    VanillaOptionChanges,
 };
 
 use super::diffusion::{BusinessDiffusion, Diffusion};
@@ -161,7 +161,7 @@ impl FiniteDifferenceVanillaEngine {
         let scalar = |strike| {
             crate::cancellation::check()?;
             budget.charge(work)?;
-            let contract = option.replace(crate::EuropeanOptionChanges {
+            let contract = option.replace(crate::VanillaOptionChanges {
                 strike: Some(strike),
                 ..Default::default()
             })?;
@@ -237,7 +237,7 @@ impl FiniteDifferenceVanillaEngine {
             } else {
                 normalized_strikes(spot, group, prices, |range| {
                     budget.charge(work)?;
-                    let option = option.replace(crate::EuropeanOptionChanges {
+                    let option = option.replace(crate::VanillaOptionChanges {
                         strike: Some(spot),
                         ..Default::default()
                     })?;
@@ -266,7 +266,7 @@ impl FiniteDifferenceVanillaEngine {
         let budget = RollbackWork::default();
         let work = surface::strike_rollback_work(context, self.settings, option.expiry_time())?;
         let at_strike = |strike| {
-            option.replace(AmericanOptionChanges {
+            option.replace(VanillaOptionChanges {
                 strike: Some(strike),
                 ..Default::default()
             })

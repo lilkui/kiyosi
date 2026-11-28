@@ -884,7 +884,7 @@ fn european_vanilla_pre_effective_prices_greeks_and_solves_preserve_contract_dat
     let effective = valuation.add_days(30)?;
     let expiry = valuation.add_days(365)?;
     let future = EuropeanOption::new(OptionType::Call, 100.0, effective, expiry)?;
-    let existing = future.replace(EuropeanOptionChanges {
+    let existing = future.replace(VanillaOptionChanges {
         effective_time: Some(valuation),
         ..Default::default()
     })?;
