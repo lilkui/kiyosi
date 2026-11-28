@@ -1363,6 +1363,32 @@ fn bsm_european_surface_matches_analytic_across_dated_rates() -> Result<()> {
 }
 
 #[test]
+fn european_surface_resolves_short_expiries_on_a_long_grid() -> Result<()> {
+    let (start, end) = dates();
+    let short = start.add_days(1)?;
+    let template = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let context = market(100.0, 0.02, 0.03, 1.0);
+    let engine = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 256,
+        time_step_count: 240,
+        ..Default::default()
+    })?;
+    let rows = engine.price_surface(
+        &template,
+        &context,
+        &[short, start.add_days(180)?, end],
+        &[90.0, 95.0, 100.0, 105.0],
+    )?;
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, short)?;
+    let reference = AnalyticEuropeanEngine.price(&option, &context)?;
+    assert!(
+        (rows[0][2] - reference).abs() < 0.001,
+        "{rows:?} vs {reference}"
+    );
+    Ok(())
+}
+
+#[test]
 fn european_surface_caps_combined_expiry_rollbacks() -> Result<()> {
     let (start, end) = dates();
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;

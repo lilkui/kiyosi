@@ -103,11 +103,16 @@ impl FiniteDifferenceVanillaEngine {
                         .year_fraction(valuation, expiry)
                         .map(|years| sigma * years.sqrt())
                 };
+                // Require at least 24 nominal intervals to resolve the initial point mass.
+                let min_tenor =
+                    valuation.years_until(end) * (24.0 / f64::from(settings.time_step_count));
                 let (mut first, mut last) = (0, active.len());
                 while first < last {
                     crate::cancellation::check()?;
                     let middle = first + (last - first) / 2;
-                    if width(active[middle])? >= 0.04 {
+                    if valuation.years_until(active[middle]) >= min_tenor
+                        && width(active[middle])? >= 0.04
+                    {
                         last = middle;
                     } else {
                         first = middle + 1;
