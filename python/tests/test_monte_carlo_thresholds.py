@@ -49,7 +49,7 @@ def test_scheduled_barriers_preserve_sub_ulp_threshold_movements(
         "strike": strike,
         "effective_time": START,
         "expiry_time": END,
-        "observation_times": [END],
+        "observation_schedule": [END],
         "rebate": 2,
     }
     option = ins.BarrierOption(**common, barrier_level=100, barrier_type=kind)

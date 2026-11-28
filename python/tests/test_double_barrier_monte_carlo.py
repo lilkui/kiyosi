@@ -44,7 +44,7 @@ def test_tiny_volatility_payoffs_match_the_vanilla_limit(subtests):
             strike=spot,
             lower_barrier=0.8 * spot,
             upper_barrier=1.2 * spot,
-            observation_times=[END] if mode == "scheduled" else None,
+            observation_schedule=[END] if mode == "scheduled" else None,
         )
         context = market(spot, rate=0, dividend=0, volatility=sigma)
         expected = spot * sigma / math.sqrt(math.tau)
@@ -119,7 +119,7 @@ def test_scheduled_prices_match_independent_integrals_and_greeks_match_fd():
             upper_barrier=120.125,
             rebate=2,
             rebate_timing=timing,
-            observation_times=[FIRST, END] if final else [FIRST],
+            observation_schedule=[FIRST, END] if final else [FIRST],
         )
         expected = first_fixing_reference(100.25, direction, timing, final_fixing=final)
         refined = first_fixing_reference(
@@ -138,7 +138,7 @@ def test_scheduled_prices_match_independent_integrals_and_greeks_match_fd():
         option = contract(
             option_type=direction,
             rebate=2,
-            observation_times=[END],
+            observation_schedule=[END],
         )
         assert engine.price(option, market()) == pytest.approx(
             terminal_reference(100, direction, 80, 120, 1), rel=0, abs=0.002
@@ -150,7 +150,7 @@ def test_scheduled_prices_match_independent_integrals_and_greeks_match_fd():
                 rebate=2,
                 lower_barrier=80.125,
                 upper_barrier=120.125,
-                observation_times=[FIRST, END] if final else [FIRST],
+                observation_schedule=[FIRST, END] if final else [FIRST],
             )
             expected = (
                 vanilla_reference(100.25, direction, 1)
@@ -162,7 +162,7 @@ def test_scheduled_prices_match_independent_integrals_and_greeks_match_fd():
             assert engine.price(inside, market(100.25)) == pytest.approx(
                 expected, rel=0, abs=0.025
             )
-    option = contract(strike=130, observation_times=[FIRST])
+    option = contract(strike=130, observation_schedule=[FIRST])
     assert engine.price(option, market()) > 0.01
 
 
@@ -285,7 +285,7 @@ def test_steps_threads_pairing_and_concurrent_calls_preserve_samples():
             option_type="put",
             rebate=3,
             rebate_timing="at_hit",
-            **({"observation_times": [FIRST]} if scheduled else {}),
+            **({"observation_schedule": [FIRST]} if scheduled else {}),
         )
         settings = {
             "path_count": 1024,
@@ -361,7 +361,7 @@ def test_current_equality_prior_history_expiry_and_finished_monitoring():
             barrier_type=kind,
             rebate=7,
             rebate_timing=timing,
-            observation_times=[FIRST],
+            observation_schedule=[FIRST],
         )
         on_date = market(120, time=FIRST)
         assert engine.price(scheduled, on_date) == analytic.price(scheduled, on_date)
@@ -443,7 +443,7 @@ def test_errors_validation_order_and_failure_state():
     )
     with pytest.raises(InvalidInputError):
         contract(
-            observation_times=[START + timedelta(days=3)],
+            observation_schedule=[START + timedelta(days=3)],
         )
     assert engine.price(option, context) == quote
     assert context.model_parameters.volatility == 0.2
@@ -487,7 +487,7 @@ def test_solver_replays_draws_rejects_fixed_cashflows_and_preserves_inputs():
     fixed = contract(rebate=3, touch_state="touched")
     finished = contract(
         barrier_type="knock_in",
-        observation_times=[FIRST],
+        observation_schedule=[FIRST],
         touch_state="untouched",
     )
     for option, context in (
@@ -520,7 +520,7 @@ def test_sobol_dimension_limit_includes_unobserved_expiry_leg():
     dates = [START + timedelta(days=i) for i in range(1, 21202)]
     option = contract(
         expiry_time=dates[-1] + timedelta(days=1),
-        observation_times=dates,
+        observation_schedule=dates,
         calendar=TradingCalendar.all_days(),
     )
     engine = pricing.MonteCarloBarrierEngine(path_count=1, seed=42, sampling="sobol")

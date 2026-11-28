@@ -54,7 +54,7 @@ def test_scheduled_touch_occurs_only_at_original_midnight(subtests, kind):
     terms = {
         "rebate": 5,
         "rebate_timing": "at_hit" if kind.endswith("out") else "at_expiry",
-        "observation_times": [observation],
+        "observation_schedule": [observation],
     }
     contract = option(kind, **terms)
     prior_untouched = option(kind, **terms, touch_state="untouched")
@@ -98,7 +98,7 @@ def test_completed_monitoring_returns_vanilla_or_expiry_rebate(subtests):
                 contract = option(
                     kind,
                     rebate=3,
-                    observation_times=dates,
+                    observation_schedule=dates,
                     touch_state="untouched",
                 )
                 expected = (

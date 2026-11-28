@@ -26,7 +26,7 @@ def test_touch_construction_inherits_schedule_calendar_and_honors_overrides(
         "barrier_type": barrier_type,
         "payoff_type": payoff_type,
         "payout": 10 if payoff_type == "cash" else None,
-        "observation_times": schedule,
+        "observation_schedule": schedule,
         "touch_state": "untouched",
     }
     option = ins.TouchOption(**terms)
@@ -47,7 +47,7 @@ def test_touch_construction_preserves_payoff_and_monitoring_conversion_order():
         barrier_level=120,
         barrier_type="up_and_in",
         payout=2**53 + 1,
-        observation_times=[object()],
+        observation_schedule=[object()],
     )
 
 
@@ -125,7 +125,7 @@ def test_constructors_preserve_settlement_monitoring_and_terminal_payments(subte
     double = {"lower_barrier": 80, "upper_barrier": 120}
     calendar = market.TradingCalendar.all_days()
     monitoring = {
-        "observation_times": [end],
+        "observation_schedule": [end],
         "touch_state": "untouched",
         "calendar": calendar,
     }
@@ -233,7 +233,7 @@ def test_constructors_validate_representations_and_domain_inputs(subtests):
             (
                 {
                     "calendar": market.TradingCalendar.weekdays(),
-                    "observation_times": [end],
+                    "observation_schedule": [end],
                 },
                 InvalidInputError,
             ),

@@ -84,7 +84,7 @@ def test_sparse_barrier_rolls_back_a_tree_above_the_full_rollback_limit():
     expiry = START + timedelta(days=365)
     contract = option(
         expiry_time=expiry,
-        observation_times=(START + timedelta(days=73), expiry),
+        observation_schedule=(START + timedelta(days=73), expiry),
         rebate=2,
     )
     context = market(rate=0.05)
@@ -95,7 +95,7 @@ def test_sparse_barrier_rolls_back_a_tree_above_the_full_rollback_limit():
 
 def test_crr_requires_exact_future_observation_alignment():
     contract = option(
-        observation_times=[START + timedelta(days=91), END],
+        observation_schedule=[START + timedelta(days=91), END],
     )
     assert_rejection(
         UnsupportedOperationError,
@@ -120,7 +120,7 @@ def test_expiry_only_observation_matches_one_step_payment():
         expiry_time=START + timedelta(days=2),
         barrier_level=101,
         rebate=2,
-        observation_times=[START + timedelta(days=2)],
+        observation_schedule=[START + timedelta(days=2)],
     )
     context = market(rate=0, dividend=0)
     up = math.exp(0.2 * math.sqrt(2 / 365))
@@ -136,7 +136,7 @@ def test_expiry_only_barrier_prices_a_tree_above_the_rollback_limit():
         expiry_time=expiry,
         strike=120,
         rebate=2,
-        observation_times=[expiry],
+        observation_schedule=[expiry],
     )
     context = market(rate=0.05)
     digital = pricing.AnalyticDigitalEngine().price(
@@ -217,7 +217,7 @@ def test_current_hit_paid_history_and_resolved_vanilla_precede_grid(kind):
             kind,
             rebate=7,
             rebate_timing=timing,
-            observation_times=[START, START + timedelta(days=1), END],
+            observation_schedule=[START, START + timedelta(days=1), END],
         )
         context = market(spot=level)
         expected = pricing.AnalyticBarrierEngine().price(contract, context)
@@ -250,7 +250,7 @@ def test_microsecond_alignment_and_inclusive_noncentral_node_hits():
     contract = option(
         "up_and_out",
         expiry_time=end,
-        observation_times=[START + timedelta(days=2)],
+        observation_schedule=[START + timedelta(days=2)],
     )
     engine = pricing.CoxRossRubinsteinBarrierEngine(step_count=7)
     time = datetime(2025, 1, 1, 12)
@@ -270,7 +270,7 @@ def test_microsecond_alignment_and_inclusive_noncentral_node_hits():
                 "call" if up else "put",
                 expiry_time=START + timedelta(days=2),
                 barrier_level=100 * math.exp(jump if up else -jump),
-                observation_times=[START + timedelta(days=1)],
+                observation_schedule=[START + timedelta(days=1)],
             )
             # The sole ITM path is knocked out at its first move, including equality.
             assert pricing.CoxRossRubinsteinBarrierEngine(step_count=2).price(
@@ -314,7 +314,7 @@ def test_flat_curve_applicability_calendar_and_validation_order():
             )
     with pytest.raises(InvalidInputError):
         option(
-            observation_times=[datetime(2025, 1, 4)],
+            observation_schedule=[datetime(2025, 1, 4)],
             calendar=TradingCalendar.weekdays(),
         )
     for sigma, rate in ((1e-200, 0.03), (50, 0.03), (0.2, -1000)):
@@ -519,7 +519,7 @@ def test_reflected_tree_matches_rollback_with_every_node_observed(subtests, step
                 continuous = option(
                     kind, expiry_time=dates[-1], rebate=7.0, rebate_timing=timing
                 )
-                scheduled = continuous.replace(observation_times=dates)
+                scheduled = continuous.replace(observation_schedule=dates)
                 fast = engine.price_with_greeks(continuous, ctx, ["delta", "gamma"])
                 reference = engine.price_with_greeks(scheduled, ctx, ["delta", "gamma"])
                 assert engine.price(continuous, ctx) == fast.price
@@ -533,7 +533,7 @@ def test_dense_scheduled_barriers_roll_back_above_the_full_tree_limit():
     tree = pricing.CoxRossRubinsteinBarrierEngine(step_count=18_000)
     quadrature = pricing.QuadratureBarrierEngine()
     for kind in ("down_and_out", "down_and_in"):
-        contract = option(kind, observation_times=dates, rebate=2)
+        contract = option(kind, observation_schedule=dates, rebate=2)
         context = market()
         expected = quadrature.price(contract, context)
         assert tree.price(contract, context) == pytest.approx(

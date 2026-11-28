@@ -72,4 +72,4 @@ def monitoring_schedule(
     assert_type(schedule, ObservationSchedule | None)
     if schedule is not None:
         assert_type(schedule.times, tuple[datetime, ...])
-    option.replace(observation_times=schedule)
+    option.replace(observation_schedule=schedule)

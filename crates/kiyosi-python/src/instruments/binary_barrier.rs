@@ -58,7 +58,7 @@ fn replace_payoff(
 /// payout : float or None, optional
 ///     Positive cash amount required for cash settlement; absent for asset
 ///     settlement.
-/// observation_times : iterable of datetime.datetime or None, optional
+/// observation_schedule : ObservationSchedule or iterable of datetime.datetime or None, optional
 ///     Nonempty, strictly increasing times within life; None selects continuous monitoring.
 /// touch_state : {'untouched', 'touched'} or None, optional
 ///     Strictly prior touch history; defaults to unknown.
@@ -97,7 +97,7 @@ pub(crate) struct BinaryBarrierOption(pub kiyosi::BinaryBarrierOption);
 ///     settlement.
 /// settlement_timing : {'at_hit', 'at_expiry'}, optional
 ///     Defaults to expiry; at-hit settlement requires a one-touch.
-/// observation_times : iterable of datetime.datetime or None, optional
+/// observation_schedule : ObservationSchedule or iterable of datetime.datetime or None, optional
 ///     Nonempty, strictly increasing times within life; None selects continuous monitoring.
 /// touch_state : {'untouched', 'touched'} or None, optional
 ///     Strictly prior touch history; defaults to unknown.
@@ -148,15 +148,15 @@ macro_rules! binary_properties {
 }
 binary_properties!(
     BinaryBarrierOption,
-    @replace BinaryBarrierOptionChanges [option_type, strike, effective_time, expiry_time, barrier_level, barrier_type, observation_times, touch_state, payoff_type, payout, calendar] |self| {
-        calendar: crate::calendar::observation_calendar(calendar, observation_times)?,
+    @replace BinaryBarrierOptionChanges [option_type, strike, effective_time, expiry_time, barrier_level, barrier_type, observation_schedule, touch_state, payoff_type, payout, calendar] |self| {
+        calendar: crate::calendar::observation_calendar(calendar, observation_schedule)?,
         option_type: option_type.map(crate::conversions::direction).transpose()?,
         strike: strike.map(crate::conversions::real).transpose()?,
         effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
         expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
         barrier_level: barrier_level.map(crate::conversions::real).transpose()?,
         barrier_type: barrier_type.map(crate::instruments::barrier::kind).transpose()?,
-        observation_times: observation_times.map(crate::conversions::optional_timestamps).transpose()?,
+        observation_times: observation_schedule.map(crate::conversions::optional_timestamps).transpose()?,
         touch_state: touch_state.map(crate::instruments::barrier::history).transpose()?,
         payoff: replace_payoff(self.0.payout(), payoff_type, payout)?,
     }
@@ -177,7 +177,7 @@ binary_properties!(
     ///     Positive finite trigger level; equality counts as a touch.
     /// barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}, optional
     ///     Barrier direction and knock-in or knock-out behavior.
-    /// observation_times : iterable of datetime.datetime or None, optional
+    /// observation_schedule : ObservationSchedule or iterable of datetime.datetime or None, optional
     ///     The instance's monitoring is the default. None selects continuous monitoring.
     ///     A nonempty iterable selects scheduled monitoring.
     /// touch_state : {'untouched', 'touched'} or None, optional
@@ -205,7 +205,7 @@ binary_properties!(
     ///
     ],
     #[new]
-    #[pyo3(signature = (*, option_type, strike, effective_time, expiry_time, barrier_level, barrier_type, payoff_type, payout=None, observation_times=None, touch_state=None, calendar=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, option_type, strike, effective_time, expiry_time, barrier_level, barrier_type, payoff_type, payout=None, observation_schedule=None, touch_state=None, calendar=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     pub(crate) fn new(
         py: Python<'_>,
@@ -218,7 +218,7 @@ binary_properties!(
         payoff_type: &str,
         payout: Option<&Bound<'_, PyAny>>,
 
-        observation_times: Option<&Bound<'_, PyAny>>,
+        observation_schedule: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
         #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
@@ -231,12 +231,12 @@ binary_properties!(
             barrier::kind(barrier_type)?,
         );
         let payoff = payoff(payoff_type, payout.map(real).transpose()?)?;
-        terms.observation_times = observation_times
+        terms.observation_times = observation_schedule
             .map(crate::conversions::timestamps)
             .transpose()?;
         terms.touch_state = touch_state;
         terms.calendar =
-            crate::calendar::observation_calendar(calendar, observation_times)?.unwrap_or_default();
+            crate::calendar::observation_calendar(calendar, observation_schedule)?.unwrap_or_default();
         let count = terms.observation_times.as_ref().map_or(0, Vec::len);
         run_date_scan(py, count as u64, || match payoff {
             kiyosi::BinaryPayoff::Cash(payout) => kiyosi::BinaryBarrierOption::cash(terms, payout),
@@ -256,14 +256,14 @@ binary_properties!(
 );
 binary_properties!(
     TouchOption,
-    @replace TouchOptionChanges [effective_time, expiry_time, barrier_level, barrier_type, settlement_timing, observation_times, touch_state, payoff_type, payout, calendar] |self| {
-        calendar: crate::calendar::observation_calendar(calendar, observation_times)?,
+    @replace TouchOptionChanges [effective_time, expiry_time, barrier_level, barrier_type, settlement_timing, observation_schedule, touch_state, payoff_type, payout, calendar] |self| {
+        calendar: crate::calendar::observation_calendar(calendar, observation_schedule)?,
         effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
         expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
         barrier_level: barrier_level.map(crate::conversions::real).transpose()?,
         barrier_type: barrier_type.map(crate::instruments::barrier::kind).transpose()?,
         settlement_timing: settlement_timing.map(crate::instruments::binary_barrier::settlement).transpose()?,
-        observation_times: observation_times.map(crate::conversions::optional_timestamps).transpose()?,
+        observation_times: observation_schedule.map(crate::conversions::optional_timestamps).transpose()?,
         touch_state: touch_state.map(crate::instruments::barrier::history).transpose()?,
         payoff: replace_payoff(self.0.payout(), payoff_type, payout)?,
     }
@@ -282,7 +282,7 @@ binary_properties!(
     ///     Barrier direction and knock-in or knock-out behavior.
     /// settlement_timing : {'at_hit', 'at_expiry'}, optional
     ///     Payment timing; at-hit settlement requires a one-touch contract.
-    /// observation_times : iterable of datetime.datetime or None, optional
+    /// observation_schedule : ObservationSchedule or iterable of datetime.datetime or None, optional
     ///     The instance's monitoring is the default. None selects continuous monitoring.
     ///     A nonempty iterable selects scheduled monitoring.
     /// touch_state : {'untouched', 'touched'} or None, optional
@@ -310,7 +310,7 @@ binary_properties!(
     ///
     ],
     #[new]
-    #[pyo3(signature = (*, effective_time, expiry_time, barrier_level, barrier_type, payoff_type, payout=None, settlement_timing=kiyosi::SettlementTiming::default(), observation_times=None, touch_state=None, calendar=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, effective_time, expiry_time, barrier_level, barrier_type, payoff_type, payout=None, settlement_timing=kiyosi::SettlementTiming::default(), observation_schedule=None, touch_state=None, calendar=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     pub(crate) fn new(
         py: Python<'_>,
@@ -322,7 +322,7 @@ binary_properties!(
         payout: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = settlement)] settlement_timing: kiyosi::SettlementTiming,
 
-        observation_times: Option<&Bound<'_, PyAny>>,
+        observation_schedule: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
         #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
@@ -335,12 +335,12 @@ binary_properties!(
         // Convert the payoff before monitoring to preserve error precedence.
         let payoff = payoff(payoff_type, payout.map(real).transpose()?)?;
         terms.settlement_timing = settlement_timing;
-        terms.observation_times = observation_times
+        terms.observation_times = observation_schedule
             .map(crate::conversions::timestamps)
             .transpose()?;
         terms.touch_state = touch_state;
         terms.calendar =
-            crate::calendar::observation_calendar(calendar, observation_times)?.unwrap_or_default();
+            crate::calendar::observation_calendar(calendar, observation_schedule)?.unwrap_or_default();
         let count = terms.observation_times.as_ref().map_or(0, Vec::len);
         run_date_scan(py, count as u64, || match payoff {
             kiyosi::BinaryPayoff::Cash(payout) => kiyosi::TouchOption::cash(terms, payout),

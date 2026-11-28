@@ -255,16 +255,16 @@ def test_representation_domain_validation_and_failure_state(subtests):
             ({"strike": 0, "barrier_level": 0}, InvalidInputError),
             ({"barrier_level": 0}, InvalidInputError),
             ({"expiry_time": datetime(2024, 1, 1)}, InvalidInputError),
-            ({"observation_times": []}, InvalidInputError),
+            ({"observation_schedule": []}, InvalidInputError),
             (
                 {
-                    "observation_times": [datetime(2026, 1, 2)],
+                    "observation_schedule": [datetime(2026, 1, 2)],
                 },
                 InvalidInputError,
             ),
             (
                 {
-                    "observation_times": [datetime(2025, 1, 2)] * 2,
+                    "observation_schedule": [datetime(2025, 1, 2)] * 2,
                 },
                 InvalidInputError,
             ),
@@ -361,7 +361,7 @@ def test_deterministic_scheduled_touch_discounts_before_scaling():
         "effective_time": start,
         "expiry_time": start + timedelta(days=3),
         "calendar": TradingCalendar.all_days(),
-        "observation_times": [start + timedelta(days=1)],
+        "observation_schedule": [start + timedelta(days=1)],
         "settlement_timing": "at_hit",
     }
     deterministic = make_context(time=start, rate=365_000, dividend=7.3, sigma=0)
@@ -392,7 +392,7 @@ def test_scheduled_boundaries_history_and_owned_dates():
         one = kind == "up_and_in"
         option = make_touch(
             barrier_type=kind,
-            observation_times=(d for d in [fixing]),
+            observation_schedule=(d for d in [fixing]),
         )
         assert_rejection(
             UnsupportedOperationError,
@@ -432,7 +432,7 @@ def test_scheduled_boundaries_history_and_owned_dates():
         assert known.observation_times == ((fixing,))
     with pytest.raises(InvalidInputError):
         make_touch(
-            observation_times=[datetime(2025, 1, 4)],
+            observation_schedule=[datetime(2025, 1, 4)],
             touch_state="touched",
         )
 
@@ -537,7 +537,7 @@ def test_sensitivities_solve_expiry_curves_and_concurrent_reads():
             )
         assert all(p == result.price for p in prices)
     dense = make_touch(
-        observation_times=[
+        observation_schedule=[
             datetime(2025, 1, 1) + timedelta(days=i) for i in range(1, 366)
         ],
         touch_state="untouched",

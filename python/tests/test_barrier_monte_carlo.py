@@ -34,7 +34,7 @@ def test_dense_scheduled_knock_in_matches_quadrature(sampling, antithetic, seed)
         "call",
         barrier_level=99,
         rebate=2,
-        observation_times=[START + timedelta(days=60 + 18 * i) for i in range(16)],
+        observation_schedule=[START + timedelta(days=60 + 18 * i) for i in range(16)],
     )
     snapshot = market(rate=0.04)
     request = ("delta", "gamma")
@@ -64,7 +64,7 @@ def test_scheduled_barrier_checks_path_budget_before_building_steps():
         "call",
         expiry_time=end,
         calendar=TradingCalendar.all_days(),
-        observation_times=[START + timedelta(microseconds=i) for i in range(1, 101)],
+        observation_schedule=[START + timedelta(microseconds=i) for i in range(1, 101)],
     )
     engine = pricing.MonteCarloBarrierEngine(path_count=10_000_000, seed=42)
     with pytest.raises(InvalidInputError, match="path steps"):
@@ -81,7 +81,7 @@ def test_barrier_payoff_preserves_quoted_forward(scheduled):
         "put",
         strike=100 * scale,
         barrier_level=20 * scale,
-        observation_times=[END] if scheduled else None,
+        observation_schedule=[END] if scheduled else None,
     )
     expected = pricing.AnalyticEuropeanEngine().price(
         EuropeanOption(
@@ -113,7 +113,7 @@ def test_tiny_volatility_payoffs_match_the_vanilla_limit(subtests):
             strike=spot,
             barrier_level=0.8 * spot,
             expiry_time=end,
-            observation_times=[end] if mode == "scheduled" else None,
+            observation_schedule=[end] if mode == "scheduled" else None,
         )
         context = market(spot, rate=0, dividend=0, volatility=sigma)
         expected = spot * sigma / math.sqrt(math.tau)
@@ -208,7 +208,7 @@ def test_scheduled_prices_greeks_and_early_monitoring_match_quadrature(subtests)
                 kind,
                 "put",
                 rebate=2,
-                observation_times=dates,
+                observation_schedule=dates,
             )
             actual = engine.price_with_greeks(contract, market(), greeks="all")
             expected = pricing.QuadratureBarrierEngine().price_with_greeks(
@@ -226,7 +226,7 @@ def test_scheduled_prices_greeks_and_early_monitoring_match_quadrature(subtests)
     contract = option(
         "up_and_out",
         strike=130,
-        observation_times=[START + timedelta(days=90)],
+        observation_schedule=[START + timedelta(days=90)],
     )
     assert engine.price(contract, market()) > 0.01
 
@@ -255,7 +255,7 @@ def test_hit_rebates_and_negative_rates_match_analytic_values():
     observation = START + timedelta(days=180)
     terms = {
         "rebate_timing": "at_hit",
-        "observation_times": [observation],
+        "observation_schedule": [observation],
     }
     with_rebate = option("up_and_out", "put", rebate=10, **terms)
     without_rebate = option("up_and_out", "put", **terms)
@@ -278,7 +278,7 @@ def test_steps_threads_pairing_and_concurrent_calls_preserve_samples():
             rebate_timing="at_hit",
             **(
                 {
-                    "observation_times": [START + timedelta(days=90), END],
+                    "observation_schedule": [START + timedelta(days=90), END],
                 }
                 if scheduled
                 else {}
@@ -374,7 +374,7 @@ def test_history_current_equality_expiry_and_finished_monitoring():
                 kind,
                 rebate=7,
                 rebate_timing=timing,
-                observation_times=[observation],
+                observation_schedule=[observation],
             )
             on_date = market(spot=contract.barrier_level, valuation=observation)
             assert engine.price(
@@ -612,7 +612,7 @@ def test_sobol_dimension_limit_includes_the_unobserved_expiry_leg():
     contract = option(
         "up_and_out",
         expiry_time=dates[-1] + timedelta(days=1),
-        observation_times=dates,
+        observation_schedule=dates,
     )
     engine = pricing.MonteCarloBarrierEngine(path_count=1, seed=42, sampling="sobol")
     with pytest.raises(InvalidInputError, match="Sobol dimension"):
@@ -639,6 +639,6 @@ def test_scaled_rare_hits_and_only_requested_greek_failures():
 
     with pytest.raises(InvalidInputError):
         option(
-            observation_times=[START + timedelta(days=3)],
+            observation_schedule=[START + timedelta(days=3)],
             calendar=TradingCalendar.weekdays(),
         )

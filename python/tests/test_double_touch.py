@@ -392,7 +392,7 @@ def test_constructor_defaults_owning_schedules_and_history():
     assert option.touch_state is None
     assert replaced.replace(touch_state=None) == option
     dates = [FIRST, END]
-    scheduled = contract("knock_out", observation_times=dates)
+    scheduled = contract("knock_out", observation_schedule=dates)
     dates.clear()
     assert scheduled.observation_times == ((FIRST, END))
     assert scheduled.barrier_type == "knock_out"
@@ -425,10 +425,10 @@ def test_protocols_domain_errors_and_failed_replace_preserve_inputs(subtests):
                 {"expiry_time": START - timedelta(days=1)},
                 InvalidInputError,
             ),
-            ({"observation_times": []}, InvalidInputError),
+            ({"observation_schedule": []}, InvalidInputError),
             (
                 {
-                    "observation_times": [END, FIRST],
+                    "observation_schedule": [END, FIRST],
                 },
                 InvalidInputError,
             ),
@@ -499,7 +499,7 @@ def test_scheduled_one_two_fixings_early_window_and_outside_continuation():
         changes = {
             "lower_barrier": 80.125,
             "upper_barrier": 120.125,
-            "observation_times": dates,
+            "observation_schedule": dates,
         }
         options = (
             contract(**changes),
@@ -517,7 +517,7 @@ def test_scheduled_one_two_fixings_early_window_and_outside_continuation():
         "knock_out",
         lower_barrier=80.125,
         upper_barrier=120.125,
-        observation_times=[END],
+        observation_schedule=[END],
     )
     assert engine.price(future, market(125)) == pytest.approx(
         math.exp(-0.03) * survival_at_fixing(125, 1), rel=0, abs=3e-5
@@ -588,7 +588,7 @@ def test_early_window_utc_fixing_calendar_and_fixed_cash_greeks():
     option = contract(
         "knock_out",
         payout=2,
-        observation_times=[FIRST],
+        observation_schedule=[FIRST],
     )
     event = datetime.combine(FIRST, datetime.min.time())
     assert engine.price(option, market(120, time=event)) == 0
@@ -626,7 +626,7 @@ def test_early_window_utc_fixing_calendar_and_fixed_cash_greeks():
     with pytest.raises(InvalidInputError):
         contract(
             "knock_out",
-            observation_times=[datetime(2025, 1, 4)],
+            observation_schedule=[datetime(2025, 1, 4)],
         )
 
 
@@ -683,7 +683,7 @@ def test_greeks_iv_boundary_and_time_stencils():
             assert boundary.vega == 0
     scheduled = contract(
         "knock_out",
-        observation_times=[FIRST, END],
+        observation_schedule=[FIRST, END],
         touch_state="untouched",
     )
     result = engine.price_with_greeks(
@@ -763,7 +763,7 @@ def test_node_curves_and_early_at_hit_curve_horizon(early):
     fields = {
         "lower_barrier": 80.125,
         "upper_barrier": 120.125,
-        "observation_times": [horizon],
+        "observation_schedule": [horizon],
     }
     touched = sum(
         pricing.AnalyticDigitalEngine().price(
@@ -1133,14 +1133,14 @@ def test_analytic_history_current_boundaries_and_expiry():
 def test_analytic_schedules_validate_then_resolve_or_reject():
     engine = pricing.AnalyticDoubleTouchEngine()
     for option in (
-        contract(observation_times=[FIRST]),
+        contract(observation_schedule=[FIRST]),
         contract(
-            observation_times=[FIRST],
+            observation_schedule=[FIRST],
             settlement_timing="at_hit",
         ),
         contract(
             "knock_out",
-            observation_times=[FIRST],
+            observation_schedule=[FIRST],
         ),
     ):
         with pytest.raises(UnsupportedOperationError):
@@ -1175,7 +1175,7 @@ def test_analytic_schedules_validate_then_resolve_or_reject():
             market(125, time=after),
         ) == pytest.approx(expected, rel=0, abs=1e-12)
     with pytest.raises(InvalidInputError):
-        contract(observation_times=[datetime(2025, 1, 4)])
+        contract(observation_schedule=[datetime(2025, 1, 4)])
 
 
 def test_analytic_node_curves_and_numerical_failures():

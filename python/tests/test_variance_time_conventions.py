@@ -394,7 +394,7 @@ def test_closed_horizon_keeps_carry_discount_and_continuous_monitoring():
     )
     assert engine.price(barrier, market) < 0.002
     scheduled = barrier.replace(
-        observation_times=[start], calendar=TradingCalendar.all_days()
+        observation_schedule=[start], calendar=TradingCalendar.all_days()
     )
     assert engine.price(scheduled, market) == pytest.approx(expected, rel=0, abs=0.001)
     local_market = context(
@@ -462,13 +462,13 @@ def test_missed_closed_date_fixing_rolls_pending_barrier_to_reopen():
         barrier_type="up_and_out",
         barrier_level=100.02,
         calendar=TradingCalendar.all_days(),
-        observation_times=[sunday, tuesday],
+        observation_schedule=[sunday, tuesday],
     )
     engine = pricing.FiniteDifferenceBarrierEngine(asset_upper_boundary=400)
     rolled = market.replace(
         valuation_time=monday, spot_price=100 * math.exp((0.07 - 0.02) * 2 / 365)
     )
-    remaining = barrier.replace(observation_times=[tuesday])
+    remaining = barrier.replace(observation_schedule=[tuesday])
     expected = math.exp(-0.07 * 2 / 365) * engine.price(remaining, rolled)
     saved = engine.solve(barrier, market, spot_range=(99, 101))
     assert engine.price(barrier, market) == pytest.approx(expected, abs=1e-12)

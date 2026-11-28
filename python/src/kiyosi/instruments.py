@@ -22,12 +22,12 @@ Explicit observations use exact timestamps; automatic observations require
 ``knock_in_observation_clock_time``. Daily knock-in and accumulation include
 the effective instant; range accrual observations exclude it. Settlement adds
 no observation.
-Barrier and touch contracts use ``observation_times=None`` for continuous
-monitoring and a nonempty iterable for scheduled monitoring. Read
-``observation_schedule`` to get the contractual times and calendar together.
-It returns ``None`` for continuous monitoring. Pass the schedule as
-``observation_times`` when constructing or replacing another contract to
-carry the calendar with it. For direct reads, ``observation_mode`` reports
+Barrier and touch contracts use ``observation_schedule=None`` for continuous
+monitoring and a schedule or nonempty iterable for scheduled monitoring.
+Read ``observation_schedule`` to get the contractual times and calendar together,
+or ``None`` for continuous monitoring. Pass the same value as
+``observation_schedule`` when constructing or replacing another contract.
+For direct reads, ``observation_mode`` reports
 the mode and ``observation_times`` returns a timestamp tuple or ``None``.
 Forward the contract's calendar explicitly when passing a timestamp tuple.
 

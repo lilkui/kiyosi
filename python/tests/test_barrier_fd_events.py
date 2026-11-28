@@ -42,7 +42,7 @@ def option(up, barrier, *, dates=(END,), timing="at_expiry", knock_in=False):
         barrier_type=f"{'up' if up else 'down'}_and_{'in' if knock_in else 'out'}",
         rebate=2,
         rebate_timing=timing,
-        observation_times=dates,
+        observation_schedule=dates,
     )
 
 
@@ -208,7 +208,7 @@ def test_projection_preserves_large_finite_rebates():
             barrier_level=110,
             barrier_type="up_and_out",
             rebate=rebate,
-            observation_times=[END],
+            observation_schedule=[END],
         )
         return engine.price(contract, market)
 
@@ -228,7 +228,9 @@ def test_restarts_match_implicit_half_steps_without_extra_observations(subtests)
             rebate=2,
             rebate_timing=timing,
             calendar=TradingCalendar.all_days(),
-            observation_times=[START + timedelta(days=i) for i in (90, 180, 270, 360)],
+            observation_schedule=[
+                START + timedelta(days=i) for i in (90, 180, 270, 360)
+            ],
         )
         results = [
             pricing.FiniteDifferenceBarrierEngine(
@@ -378,7 +380,7 @@ def test_projection_preserves_vanishing_volatility_settlement_and_rebate_timing(
             barrier_type="up_and_out" if up else "down_and_out",
             rebate=2,
             rebate_timing=timing,
-            observation_times=[START + timedelta(days=180), END],
+            observation_schedule=[START + timedelta(days=180), END],
         )
         expected = (
             2 * math.exp(-0.04 * (180 / 365 if timing == "at_hit" else 1))

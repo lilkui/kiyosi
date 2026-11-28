@@ -121,7 +121,7 @@ def test_two_fixing_prices_and_grid_convergence_against_independent_integrals(
         fields = {
             "barrier_level": 120.125 if up else 79.875,
             "barrier_type": f"{'up' if up else 'down'}_and_{'in' if kind == 'one_touch' else 'out'}",
-            "observation_times": [datetime(2025, 6, 30), END],
+            "observation_schedule": [datetime(2025, 6, 30), END],
         }
         if kind == "one_touch":
             fields["settlement_timing"] = "at_hit" if at_hit else "at_expiry"
@@ -142,7 +142,7 @@ def test_two_fixing_prices_and_grid_convergence_against_independent_integrals(
                 "expiry_time": END,
                 "barrier_level": 120.125 if up else 79.875,
                 "barrier_type": f"{'up' if up else 'down'}_and_{'in' if knock_in else 'out'}",
-                "observation_times": [datetime(2025, 6, 30), END],
+                "observation_schedule": [datetime(2025, 6, 30), END],
             }
             if not asset:
                 fields["payout"] = 10
@@ -184,7 +184,7 @@ def test_node_curves_and_early_at_hit_horizon():
             option = touch(
                 "asset" if asset else "cash",
                 barrier_level=120.125,
-                observation_times=[fixing, END],
+                observation_schedule=[fixing, END],
                 settlement_timing="at_hit" if at_hit else "at_expiry",
             )
             expected = two_fixing_price(
@@ -203,7 +203,7 @@ def test_node_curves_and_early_at_hit_horizon():
     short = RateTermStructure(reference_time=START, times=[fixing], factors=[0.97])
     ctx = market(rate=short, dividend=short)
     option = touch(
-        observation_times=[fixing],
+        observation_schedule=[fixing],
         settlement_timing="at_hit",
     )
     digital = ins.CashOrNothingOption(
@@ -218,7 +218,7 @@ def test_node_curves_and_early_at_hit_horizon():
         rel=0,
         abs=0.0004,
     )
-    later_payment = touch(observation_times=[fixing])
+    later_payment = touch(observation_schedule=[fixing])
     assert_rejection(InvalidInputError, engine.price, later_payment, ctx)
     known = option.replace(
         touch_state="untouched",
@@ -229,7 +229,7 @@ def test_node_curves_and_early_at_hit_horizon():
     assert engine.price(option, market(130, fixing)) == 10
     no_touch = touch(
         barrier_type="up_and_out",
-        observation_times=[fixing],
+        observation_schedule=[fixing],
         touch_state="untouched",
     )
     assert engine.price(no_touch, after) == pytest.approx(
@@ -399,11 +399,11 @@ def test_settings_protocols_defaults_and_errors():
         assert_rejection(
             InvalidInputError,
             FiniteDifferenceBinaryBarrierEngine(**fields).price,
-            touch(observation_times=[END]),
+            touch(observation_schedule=[END]),
             market(),
         )
     with pytest.raises(InvalidInputError):
-        touch(observation_times=[datetime(2025, 1, 4)])
+        touch(observation_schedule=[datetime(2025, 1, 4)])
     with pytest.raises(TypeError):
         engine.price(object(), market())
     with pytest.raises(TypeError):

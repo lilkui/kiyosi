@@ -597,7 +597,7 @@ def test_finished_scheduled_monitoring_uses_saved_local_continuation(binary):
         "expiry_time": END,
         "barrier_type": "up_and_out",
         "barrier_level": 110,
-        "observation_times": [datetime(2025, 1, 2)],
+        "observation_schedule": [datetime(2025, 1, 2)],
         "touch_state": "untouched",
     }
     instrument = (
@@ -629,7 +629,7 @@ def test_fixed_rebate_after_monitoring_ignores_unused_surface_and_grid_coverage(
         barrier_type="up_and_in",
         barrier_level=110,
         rebate=2,
-        observation_times=[datetime(2025, 1, 2)],
+        observation_schedule=[datetime(2025, 1, 2)],
         touch_state="untouched",
     )
     snapshot = context("local", valuation=valuation).replace(
@@ -742,7 +742,7 @@ def test_current_scheduled_barrier_events_precede_saved_interpolation(kind, bina
         "expiry_time": end,
         "barrier_type": "up_and_out",
         "barrier_level": 110,
-        "observation_times": [valuation, end],
+        "observation_schedule": [valuation, end],
         "touch_state": "untouched",
     }
     instrument = (

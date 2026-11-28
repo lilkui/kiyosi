@@ -293,7 +293,7 @@ def test_current_and_past_touches_preserve_rebate_timing():
         lambda: engine.price(contract(touch_state="touched"), market()),
     )
     for bound, inside in ((80, math.inf), (120, 0)):
-        observed = contract(observation_times=[START, END], rebate=3)
+        observed = contract(observation_schedule=[START, END], rebate=3)
         actual = engine.price_with_greeks(
             observed,
             market(bound),
@@ -303,7 +303,7 @@ def test_current_and_past_touches_preserve_rebate_timing():
         assert actual.delta is None
         assert actual.gamma is None
         assert actual.vega == 0
-        future = contract(observation_times=[END], rebate=3)
+        future = contract(observation_schedule=[END], rebate=3)
         just_inside = market(math.nextafter(bound, inside))
         assert engine.price(observed, just_inside) == engine.price(future, just_inside)
 
@@ -315,7 +315,7 @@ def test_discrete_observation_is_only_at_midnight_and_history_can_end_early():
         option = contract(
             barrier_type=kind,
             rebate=3,
-            observation_times=[FIRST],
+            observation_schedule=[FIRST],
             touch_state="untouched",
         )
         context = market(130, time=time)
@@ -349,7 +349,7 @@ def test_discrete_observation_is_only_at_midnight_and_history_can_end_early():
                     )
                 ),
             )
-    future = contract(observation_times=[END])
+    future = contract(observation_schedule=[END])
     assert engine.price(future, market(125)) == pytest.approx(
         terminal_reference(125, "call", 80, 120, 1, rebate=0), rel=0, abs=0.002
     )
@@ -367,7 +367,7 @@ def test_one_and_two_fixings_and_early_windows_match_independent_integration(sub
                 upper_barrier=120.125,
                 rebate=2,
                 rebate_timing=timing,
-                observation_times=dates,
+                observation_schedule=dates,
             )
             if dates == [END]:
                 expected = terminal_reference(100.25, direction, 80.125, 120.125, 1)
@@ -400,7 +400,7 @@ def test_in_out_parity_preserves_expiry_rebates_and_native_greeks():
         terms = {
             "option_type": direction,
             "rebate": 2,
-            "observation_times": [FIRST, END] if mode == "scheduled" else None,
+            "observation_schedule": [FIRST, END] if mode == "scheduled" else None,
         }
         values = [
             engine.price_with_greeks(
@@ -489,7 +489,7 @@ def test_greek_stencils_and_implied_volatility_follow_existing_contracts():
         ),
     )
     scheduled = contract(
-        observation_times=[FIRST, END],
+        observation_schedule=[FIRST, END],
         touch_state="untouched",
     )
     event = engine.price_with_greeks(
@@ -597,11 +597,11 @@ def test_grid_validation_calendar_and_shared_instance_concurrency():
     clipped = pricing.FiniteDifferenceDoubleBarrierEngine(asset_upper_boundary=110)
     assert_rejection(
         InvalidInputError,
-        lambda: clipped.price(contract(observation_times=[END]), market()),
+        lambda: clipped.price(contract(observation_schedule=[END]), market()),
     )
     weekend = datetime(2025, 7, 5)
     with pytest.raises(InvalidInputError):
-        contract(observation_times=[weekend])
+        contract(observation_schedule=[weekend])
     engine = pricing.FiniteDifferenceDoubleBarrierEngine()
     option, context = contract(), market()
     expected = engine.price(option, context)
@@ -660,7 +660,7 @@ def test_overlapping_event_cells_preserve_surviving_payoff():
         lower_barrier=lower,
         upper_barrier=upper,
         rebate=2,
-        observation_times=[END],
+        observation_schedule=[END],
     )
     engine = pricing.FiniteDifferenceDoubleBarrierEngine(
         asset_step_count=800, time_step_count=2000, asset_upper_boundary=400
@@ -706,7 +706,7 @@ def test_interim_observations_preserve_nonnegative_continuation(subtests):
             strike=strike,
             lower_barrier=lower,
             upper_barrier=upper,
-            observation_times=[FIRST],
+            observation_schedule=[FIRST],
         )
         for scheme in ("crank_nicolson", "rannacher", "implicit_euler"):
             for index, count in enumerate((800, 1600, 3200)):
@@ -730,7 +730,7 @@ def test_interim_observations_preserve_nonnegative_continuation(subtests):
         strike=strike,
         lower_barrier=80.24995,
         upper_barrier=120,
-        observation_times=[FIRST],
+        observation_schedule=[FIRST],
     )
     before = datetime.combine(FIRST, datetime.min.time()) - timedelta(seconds=1)
     for scheme in ("crank_nicolson", "rannacher", "implicit_euler"):
@@ -911,7 +911,7 @@ def test_node_curves_preserve_payment_discounts_and_coverage_order():
         instrument = contract(
             rebate=7,
             rebate_timing=timing,
-            observation_times=[first, END],
+            observation_schedule=[first, END],
         )
         expected = 7 * math.exp(-0.08 * 91 / 365 if timing == "at_hit" else -0.01)
         assert engine.price(instrument, context) == pytest.approx(

@@ -235,7 +235,7 @@ def test_scheduled_touch_preserves_the_exact_final_curve_quote():
         barrier_type="up_and_in",
         payout=7,
         settlement_timing="at_hit",
-        observation_times=dates,
+        observation_schedule=dates,
     )
     engine = pricing.FiniteDifferenceBinaryBarrierEngine()
     for spot, expected in [(math.nextafter(100, 0), 0), (100, 7)]:
@@ -730,8 +730,8 @@ def test_deterministic_barrier_greeks_follow_fixings_and_in_life_curve_knots(
         payoff_type="cash",
         payout=10,
     )
-    scheduled = continuous.replace(observation_times=[END])
-    fixing_at_knot = continuous.replace(observation_times=[knot, END])
+    scheduled = continuous.replace(observation_schedule=[END])
+    fixing_at_knot = continuous.replace(observation_schedule=[knot, END])
     early_expiry = continuous.replace(expiry_time=START + timedelta(days=1))
     engine = pricing.FiniteDifferenceBinaryBarrierEngine()
     for option in (continuous, fixing_at_knot):
@@ -804,7 +804,7 @@ def test_deterministic_touch_discounts_across_distinct_curve_knots(sign, dense):
     expected = 7 * math.exp(risk(270) - sign * 0.15 * (hit_time - 270 / 365))
     engine = pricing.FiniteDifferenceBinaryBarrierEngine()
     assert engine.price(option, context) == pytest.approx(expected, abs=1e-10, rel=0)
-    scheduled = option.replace(observation_times=[START + timedelta(days=300)])
+    scheduled = option.replace(observation_schedule=[START + timedelta(days=300)])
     assert engine.price(scheduled, context) == pytest.approx(
         7 * math.exp(risk(300)), abs=1e-10, rel=0
     )
@@ -901,7 +901,7 @@ def test_continuous_and_scheduled_hits_use_exact_deterministic_payment_times(sub
                 barrier_type="up_and_in",
                 payout=7,
                 settlement_timing="at_hit",
-                observation_times=[end],
+                observation_schedule=[end],
             ),
             ("AnalyticBinaryBarrierEngine", "FiniteDifferenceBinaryBarrierEngine"),
             7 * math.exp(-0.1),
@@ -945,7 +945,7 @@ def test_piecewise_rate_paths_detect_hits_before_reversing():
         7 / 1.05, rel=0, abs=1e-10
     )
     scheduled = continuous.replace(
-        observation_times=[end],
+        observation_schedule=[end],
         touch_state=continuous.touch_state,
     )
     assert engine.price(scheduled, context) == 0
@@ -1249,7 +1249,7 @@ def test_quoted_fixings_use_exact_payoff_boundaries():
         barrier_type="up_and_in",
         effective_time=start,
         expiry_time=expiry,
-        observation_times=[expiry],
+        observation_schedule=[expiry],
     )
     for spot, expected in ((math.nextafter(80, 0), 0), (80, 6.25)):
         market = context(spot, curve(expiry, 0.625))

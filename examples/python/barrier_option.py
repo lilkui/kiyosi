@@ -110,11 +110,11 @@ monthly = ObservationSchedule.monthly(
     observation_clock_time=end.time(),
     calendar=TradingCalendar.all_days(),
 )
-scheduled = barrier.replace(observation_times=monthly)
+scheduled = barrier.replace(observation_schedule=monthly)
 schedule = scheduled.observation_schedule
 assert schedule is not None
 assert schedule.calendar == monthly.calendar
-scheduled_knock_in = knock_in.replace(observation_times=schedule)
+scheduled_knock_in = knock_in.replace(observation_schedule=schedule)
 print(f"按月监控的向上敲入看涨：{engine.price(scheduled_knock_in, context):.6f}")
 
 # 历史只描述估值时刻之前的事件；当前时刻的触碰由引擎根据现货判断。

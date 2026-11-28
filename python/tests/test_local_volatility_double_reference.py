@@ -19,7 +19,7 @@ def contracts(scheduled):
         "touch_state": "untouched",
     }
     if scheduled:
-        terms.update(observation_times=OBSERVATIONS)
+        terms.update(observation_schedule=OBSERVATIONS)
     result = {}
     for direction in ["call", "put"]:
         for kind in ["in", "out"]:

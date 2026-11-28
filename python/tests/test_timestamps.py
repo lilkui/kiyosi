@@ -417,12 +417,12 @@ def test_observation_schedules_preserve_clock_and_full_timestamp_order(subtests)
         expiry_time=time(6, 16),
         barrier_level=110,
         barrier_type="up_and_out",
-        observation_times=[time(6, 10), time(6, 10, 1), time(6, 15)],
+        observation_schedule=[time(6, 10), time(6, 10, 1), time(6, 15)],
     )
     assert option.observation_times == ((time(6, 10), time(6, 10, 1), time(6, 15)))
     for invalid in ([time(6, 10)] * 2, [time(6, 15), time(6, 10)]):
         with subtests.test(invalid=invalid), pytest.raises(InvalidInputError):
-            option.replace(observation_times=invalid)
+            option.replace(observation_schedule=invalid)
 
 
 def test_scheduled_barriers_use_exact_current_observations_and_strict_history():
@@ -433,7 +433,7 @@ def test_scheduled_barriers_use_exact_current_observations_and_strict_history():
         expiry_time=time(6, 16),
         barrier_level=110,
         barrier_type="up_and_out",
-        observation_times=[time(6, 10), time(6, 15)],
+        observation_schedule=[time(6, 10), time(6, 15)],
         rebate=7,
         rebate_timing="at_hit",
     )

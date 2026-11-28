@@ -427,7 +427,7 @@ def test_large_market_operations_release_gil_and_propagate_signals(case):
                     barrier_terms = dict(
                         option_type="call", strike=100, barrier_level=110,
                         barrier_type="up_and_out", effective_time=start_time,
-                        expiry_time=end, observation_times=times,
+                        expiry_time=end, observation_schedule=times,
                     )
                     if case == "barrier_new":
                         operation = lambda: BarrierOption(**barrier_terms)

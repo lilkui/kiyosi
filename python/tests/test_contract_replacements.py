@@ -8,7 +8,7 @@ import pytest
 from kiyosi import InvalidInputError
 from kiyosi import instruments as i
 from kiyosi.instruments import KnockInObservation
-from kiyosi.market import TradingCalendar
+from kiyosi.market import ObservationSchedule, TradingCalendar
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 
@@ -25,7 +25,7 @@ def contract_inputs():
             "barrier_type": "up_and_out",
             "rebate": 0,
             "rebate_timing": "at_expiry",
-            "observation_times": None,
+            "observation_schedule": None,
             "touch_state": "untouched",
         },
     )
@@ -41,7 +41,7 @@ def contract_inputs():
             "barrier_type": "knock_out",
             "rebate": 0,
             "rebate_timing": "at_expiry",
-            "observation_times": None,
+            "observation_schedule": None,
             "touch_state": "untouched",
         },
     )
@@ -55,7 +55,7 @@ def contract_inputs():
             "expiry_time": END,
             "barrier_level": 120,
             "barrier_type": "up_and_out",
-            "observation_times": None,
+            "observation_schedule": None,
             "touch_state": "untouched",
             "payout": 10,
         },
@@ -70,7 +70,7 @@ def contract_inputs():
             "expiry_time": END,
             "barrier_level": 120,
             "barrier_type": "up_and_out",
-            "observation_times": None,
+            "observation_schedule": None,
             "touch_state": "untouched",
         },
     )
@@ -83,7 +83,7 @@ def contract_inputs():
             "barrier_level": 120,
             "barrier_type": "up_and_in",
             "settlement_timing": "at_expiry",
-            "observation_times": None,
+            "observation_schedule": None,
             "touch_state": "untouched",
             "payout": 10,
         },
@@ -97,7 +97,7 @@ def contract_inputs():
             "barrier_level": 120,
             "barrier_type": "up_and_in",
             "settlement_timing": "at_expiry",
-            "observation_times": None,
+            "observation_schedule": None,
             "touch_state": "untouched",
         },
     )
@@ -110,7 +110,7 @@ def contract_inputs():
             "lower_barrier": 80,
             "upper_barrier": 120,
             "settlement_timing": "at_expiry",
-            "observation_times": None,
+            "observation_schedule": None,
             "touch_state": "untouched",
             "payout": 10,
         },
@@ -286,7 +286,7 @@ UPDATES = {
     "realized_average": 105,
 }
 NULLABLE = {
-    "observation_times",
+    "observation_schedule",
     "touch_state",
     "barrier_state",
     "realized_hit_count",
@@ -312,25 +312,30 @@ def test_monitoring_schedules_round_trip_for_continuous_and_scheduled_contracts(
             )
             assert continuous.observation_schedule is None
             assert (
-                continuous.replace(observation_times=continuous.observation_schedule)
+                continuous.replace(observation_schedule=continuous.observation_schedule)
                 == continuous
             )
-            scheduled = continuous.replace(observation_times=times)
+            scheduled = continuous.replace(observation_schedule=times)
             schedule = scheduled.observation_schedule
             assert schedule.times == times
-            assert scheduled.replace(observation_times=schedule) == scheduled
+            assert scheduled.observation_times == times
+            assert scheduled.observation_mode == "scheduled"
+            assert scheduled.replace(observation_schedule=schedule) == scheduled
             assert (
                 factory(
                     **fields
                     | {
                         "touch_state": None,
-                        "observation_times": schedule,
-                        "calendar": scheduled.calendar,
+                        "observation_schedule": schedule,
                     }
                 )
                 == scheduled
             )
-            assert scheduled.replace(observation_times=None) == continuous
+            assert scheduled.replace(observation_schedule=None) == continuous
+            with pytest.raises(TypeError, match="observation_times"):
+                factory(**fields, observation_times=times)
+            with pytest.raises(TypeError, match="observation_times"):
+                scheduled.replace(observation_times=times)
 
 
 def test_reactivation_with_changed_rules_retains_omitted_quantity():
@@ -432,9 +437,14 @@ def test_every_field_replaces_without_mutating_omitted_terms_or_history(subtests
             }
             assert original.replace(**forwarded) == original
         for name in inspect.signature(original.replace).parameters:
-            if name in ("observation_mode", "observation_times"):
-                continue
             value = UPDATES.get(name)
+            if name == "observation_schedule":
+                value = ObservationSchedule(
+                    times=[END],
+                    start_time=original.effective_time,
+                    end_time=original.expiry_time,
+                    calendar=original.calendar,
+                )
             if name == "knock_out_observations":
                 value = [i.KnockOutObservation(END, 115)]
             if name == "coupon_observations":
@@ -564,13 +574,13 @@ def test_validation_representation_errors_and_failure_state(subtests):
                 original.replace(unknown=1)
             with pytest.raises(TypeError):
                 original.replace(1)
-            if "observation_times" in fields:
+            if "observation_schedule" in fields:
                 assert (
-                    original.replace(observation_times=[END]).touch_state
+                    original.replace(observation_schedule=[END]).touch_state
                     == original.touch_state
                 )
                 scheduled = original.replace(
-                    observation_times=[END],
+                    observation_schedule=[END],
                     touch_state=original.touch_state,
                 )
                 assert scheduled.observation_times == ((END,))
@@ -583,25 +593,25 @@ def test_monitoring_schedule_selects_mode_and_preserves_history_validation(subte
             continue
         with subtests.test(contract=type(original).__name__):
             scheduled = original.replace(
-                observation_times=[END], touch_state=original.touch_state
+                observation_schedule=[END], touch_state=original.touch_state
             )
             assert scheduled.observation_mode == "scheduled"
             assert scheduled.observation_times == ((END,))
             assert scheduled.replace() == scheduled
-            assert scheduled.replace(observation_times=...) == scheduled
+            assert scheduled.replace(observation_schedule=...) == scheduled
             with pytest.raises(InvalidInputError):
-                scheduled.replace(observation_times=[])
-            assert scheduled.replace(observation_times=None) == original
+                scheduled.replace(observation_schedule=[])
+            assert scheduled.replace(observation_schedule=None) == original
             continuous = scheduled.replace(
-                observation_times=None, touch_state=scheduled.touch_state
+                observation_schedule=None, touch_state=scheduled.touch_state
             )
             assert continuous == original
             assert continuous.observation_mode == "continuous"
             assert continuous.observation_times is None
-            cleared = scheduled.replace(observation_times=None, touch_state=None)
+            cleared = scheduled.replace(observation_schedule=None, touch_state=None)
             assert cleared.touch_state is None
             assert (
-                scheduled.replace(touch_state=None).replace(observation_times=None)
+                scheduled.replace(touch_state=None).replace(observation_schedule=None)
                 == cleared
             )
             assert scheduled.observation_times == ((END,))

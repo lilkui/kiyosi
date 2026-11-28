@@ -47,7 +47,7 @@ impl Monitoring {
         }
         if observation_times.as_ref().is_some_and(Vec::is_empty) {
             return Err(Error::InvalidInput(
-                "scheduled monitoring requires nonempty observation_times".into(),
+                "scheduled monitoring requires at least one observation time".into(),
             ));
         }
         let schedule = ObservationSchedule::new(

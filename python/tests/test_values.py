@@ -93,7 +93,7 @@ def values():
         i.BarrierOption(
             barrier_level=120,
             barrier_type="up_and_out",
-            observation_times=[END],
+            observation_schedule=[END],
             touch_state="untouched",
             **vanilla,
         ),

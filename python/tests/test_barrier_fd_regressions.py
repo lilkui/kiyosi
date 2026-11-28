@@ -25,7 +25,7 @@ def test_scheduled_barrier_rejects_drift_that_overwhelms_grid_diffusion():
         barrier_level=102,
         barrier_type="up_and_in",
         rebate=2,
-        observation_times=[start + timedelta(days=day) for day in (30, 100, 365)],
+        observation_schedule=[start + timedelta(days=day) for day in (30, 100, 365)],
         calendar=TradingCalendar.all_days(),
     )
     context = PricingContext(
@@ -259,7 +259,7 @@ def test_scheduled_edges_retain_next_observation_settlement(subtests):
                 barrier_type="up_and_out" if up else "down_and_out",
                 rebate=rebate,
                 rebate_timing=timing,
-                observation_times=dates,
+                observation_schedule=dates,
             )
             engine = pricing.FiniteDifferenceBarrierEngine(
                 asset_step_count=200,

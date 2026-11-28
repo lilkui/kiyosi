@@ -217,18 +217,18 @@ def test_defaults_representations_core_validation_and_owned_replacement(subtests
             {"barrier_type": "knock_in", "rebate_timing": "at_hit"},
             InvalidInputError,
         ),
-        ({"observation_times": []}, InvalidInputError),
+        ({"observation_schedule": []}, InvalidInputError),
         (
-            {"observation_times": [END, END]},
+            {"observation_schedule": [END, END]},
             InvalidInputError,
         ),
         (
-            {"observation_times": [END, START]},
+            {"observation_schedule": [END, START]},
             InvalidInputError,
         ),
         (
             {
-                "observation_times": [datetime(2026, 1, 2)],
+                "observation_schedule": [datetime(2026, 1, 2)],
             },
             InvalidInputError,
         ),
@@ -248,7 +248,7 @@ def test_defaults_representations_core_validation_and_owned_replacement(subtests
     assert known.replace() == known
     assert known.replace(touch_state=None) == option
     assert option.touch_state is None
-    scheduled = contract(observation_times=(d for d in [START, END]))
+    scheduled = contract(observation_schedule=(d for d in [START, END]))
     assert scheduled.observation_times == ((START, END))
     assert scheduled.observation_schedule.times == ((START, END))
     with pytest.raises(AttributeError):
@@ -330,7 +330,7 @@ def test_schedules_validate_then_resolve_before_analytic_restrictions():
     engine = AnalyticDoubleBarrierEngine()
     first = datetime(2025, 6, 30)
     for dates in ([first], [first, END]):
-        option = contract(observation_times=dates)
+        option = contract(observation_schedule=dates)
         assert_rejection(
             UnsupportedOperationError,
             lambda option=option: engine.price(option, market()),
@@ -346,7 +346,7 @@ def test_schedules_validate_then_resolve_before_analytic_restrictions():
         option = contract(
             barrier_type=kind,
             rebate=3,
-            observation_times=[first],
+            observation_schedule=[first],
         )
         assert engine.price(
             option,
@@ -393,7 +393,7 @@ def test_schedules_validate_then_resolve_before_analytic_restrictions():
             expected, rel=0, abs=1e-12
         )
     with pytest.raises(InvalidInputError):
-        contract(observation_times=[datetime(2025, 7, 5)])
+        contract(observation_schedule=[datetime(2025, 7, 5)])
 
 
 def test_image_spectral_switch_boundary_limits_and_tiny_volatility():
@@ -657,7 +657,7 @@ def test_settled_zero_rebates_do_not_require_representable_discount():
     inside = contract(
         expiry_time=datetime(2027, 1, 1),
         barrier_type="knock_in",
-        observation_times=[START],
+        observation_schedule=[START],
         touch_state="untouched",
     )
     assert (

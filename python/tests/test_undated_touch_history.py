@@ -42,7 +42,7 @@ def test_undated_touch_history_reuses_caller_state_and_validates_at_pricing(
         fields,
         calendar=m.TradingCalendar.all_days(),
         touch_state="touched",
-        observation_times=[first, fields["expiry_time"]] if scheduled else None,
+        observation_schedule=[first, fields["expiry_time"]] if scheduled else None,
     )
     option = factory(**terms)
     context = m.PricingContext(
@@ -91,7 +91,7 @@ def test_scheduled_touch_at_valuation_is_processed_once_with_current_spot():
         barrier_type="up_and_out",
         rebate=7,
         rebate_timing="at_hit",
-        observation_times=[first],
+        observation_schedule=[first],
         calendar=m.TradingCalendar.all_days(),
     )
     context = m.PricingContext(

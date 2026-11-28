@@ -26,7 +26,7 @@ macro_rules! monitoring_properties {
                 let py = slf.py();
                 crate::representation::format(slf.as_any(), Self::_STATE_FIELDS, &[
                     ("calendar", crate::representation::calendar_preview(py, value.0.calendar())?),
-                    ("observation_times", value.0.observation_schedule().map(|schedule| crate::representation::times(py, schedule.times())).transpose()?),
+                    ("observation_schedule", value.0.observation_schedule().map(|schedule| crate::representation::times(py, schedule.times())).transpose()?),
                 ])
             }
 

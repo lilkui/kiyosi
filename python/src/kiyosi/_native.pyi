@@ -5829,7 +5829,7 @@ class BarrierOption:
         Nonnegative finite cash rebate; defaults to zero.
     rebate_timing : {'at_hit', 'at_expiry'}, optional
         Payment timing; at-hit rebates are valid only for knock-outs.
-    observation_times : iterable of datetime.datetime or None, optional
+    observation_schedule : ObservationSchedule or iterable of datetime.datetime or None, optional
         Nonempty, strictly increasing times within life; None selects continuous monitoring.
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior history. None means unknown; untouched means known no
@@ -5863,7 +5863,7 @@ class BarrierOption:
         | EllipsisType = ...,
         rebate: _Real | EllipsisType = ...,
         rebate_timing: Literal["at_hit", "at_expiry"] | EllipsisType = ...,
-        observation_times: Iterable[datetime] | None | EllipsisType = ...,
+        observation_schedule: Iterable[datetime] | None | EllipsisType = ...,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self:
@@ -5887,7 +5887,7 @@ class BarrierOption:
             Nonnegative finite cash rebate.
         rebate_timing : {'at_hit', 'at_expiry'}, optional
             Rebate payment timing; at-hit rebates require knock-out.
-        observation_times : iterable of datetime.datetime or None, optional
+        observation_schedule : ObservationSchedule or iterable of datetime.datetime or None, optional
             The instance's monitoring is the default. None selects continuous monitoring.
             A nonempty iterable selects scheduled monitoring.
         touch_state : {'untouched', 'touched'} or None, optional
@@ -5921,7 +5921,7 @@ class BarrierOption:
         barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
         rebate: _Real = ...,
         rebate_timing: Literal["at_hit", "at_expiry"] = ...,
-        observation_times: Iterable[datetime] | None = None,
+        observation_schedule: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> None: ...
@@ -6013,7 +6013,7 @@ class DoubleBarrierOption:
         Nonnegative finite cash rebate; defaults to zero.
     rebate_timing : {'at_hit', 'at_expiry'}, optional
         Payment timing; at-hit rebates are valid only for knock-outs.
-    observation_times : iterable of datetime.datetime or None, optional
+    observation_schedule : ObservationSchedule or iterable of datetime.datetime or None, optional
         Nonempty, strictly increasing times within life; None selects continuous monitoring.
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior history. None means unknown; untouched means known no
@@ -6047,7 +6047,7 @@ class DoubleBarrierOption:
         barrier_type: Literal["knock_in", "knock_out"] | EllipsisType = ...,
         rebate: _Real | EllipsisType = ...,
         rebate_timing: Literal["at_hit", "at_expiry"] | EllipsisType = ...,
-        observation_times: Iterable[datetime] | None | EllipsisType = ...,
+        observation_schedule: Iterable[datetime] | None | EllipsisType = ...,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self:
@@ -6071,7 +6071,7 @@ class DoubleBarrierOption:
             Nonnegative finite cash rebate.
         rebate_timing : {'at_hit', 'at_expiry'}, optional
             Rebate payment timing; at-hit rebates require knock-out.
-        observation_times : iterable of datetime.datetime or None, optional
+        observation_schedule : ObservationSchedule or iterable of datetime.datetime or None, optional
             The instance's monitoring is the default. None selects continuous monitoring.
             A nonempty iterable selects scheduled monitoring.
         touch_state : {'untouched', 'touched'} or None, optional
@@ -6106,7 +6106,7 @@ class DoubleBarrierOption:
         barrier_type: Literal["knock_in", "knock_out"],
         rebate: _Real = ...,
         rebate_timing: Literal["at_hit", "at_expiry"] = ...,
-        observation_times: Iterable[datetime] | None = None,
+        observation_schedule: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> None: ...
@@ -6369,7 +6369,7 @@ class BinaryBarrierOption:
     payout : float or None, optional
         Positive cash amount required for cash settlement; absent for asset
         settlement.
-    observation_times : iterable of datetime.datetime or None, optional
+    observation_schedule : ObservationSchedule or iterable of datetime.datetime or None, optional
         Nonempty, strictly increasing times within life; None selects continuous monitoring.
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior touch history; defaults to unknown.
@@ -6400,7 +6400,7 @@ class BinaryBarrierOption:
         barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
         payoff_type: Literal["cash"],
         payout: _Real,
-        observation_times: Iterable[datetime] | None = None,
+        observation_schedule: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> None: ...
@@ -6416,7 +6416,7 @@ class BinaryBarrierOption:
         barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
         payoff_type: Literal["asset"],
         payout: None = None,
-        observation_times: Iterable[datetime] | None = None,
+        observation_schedule: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> None: ...
@@ -6434,7 +6434,7 @@ class BinaryBarrierOption:
         barrier_level: _Real | EllipsisType = ...,
         barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"]
         | EllipsisType = ...,
-        observation_times: Iterable[datetime] | None | EllipsisType = ...,
+        observation_schedule: Iterable[datetime] | None | EllipsisType = ...,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
         payoff_type: Literal["cash", "asset"] | EllipsisType = ...,
         payout: _Real | None | EllipsisType = ...,
@@ -6456,7 +6456,7 @@ class BinaryBarrierOption:
             Positive finite trigger level; equality counts as a touch.
         barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}, optional
             Barrier direction and knock-in or knock-out behavior.
-        observation_times : iterable of datetime.datetime or None, optional
+        observation_schedule : ObservationSchedule or iterable of datetime.datetime or None, optional
             The instance's monitoring is the default. None selects continuous monitoring.
             A nonempty iterable selects scheduled monitoring.
         touch_state : {'untouched', 'touched'} or None, optional
@@ -6551,7 +6551,7 @@ class TouchOption:
         settlement.
     settlement_timing : {'at_hit', 'at_expiry'}, optional
         Defaults to expiry; at-hit settlement requires a one-touch.
-    observation_times : iterable of datetime.datetime or None, optional
+    observation_schedule : ObservationSchedule or iterable of datetime.datetime or None, optional
         Nonempty, strictly increasing times within life; None selects continuous monitoring.
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior touch history; defaults to unknown.
@@ -6583,7 +6583,7 @@ class TouchOption:
         payoff_type: Literal["cash"],
         payout: _Real,
         settlement_timing: Literal["at_hit", "at_expiry"] = ...,
-        observation_times: Iterable[datetime] | None = None,
+        observation_schedule: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> None: ...
@@ -6598,7 +6598,7 @@ class TouchOption:
         payoff_type: Literal["asset"],
         payout: None = None,
         settlement_timing: Literal["at_hit", "at_expiry"] = ...,
-        observation_times: Iterable[datetime] | None = None,
+        observation_schedule: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> None: ...
@@ -6615,7 +6615,7 @@ class TouchOption:
         barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"]
         | EllipsisType = ...,
         settlement_timing: Literal["at_hit", "at_expiry"] | EllipsisType = ...,
-        observation_times: Iterable[datetime] | None | EllipsisType = ...,
+        observation_schedule: Iterable[datetime] | None | EllipsisType = ...,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
         payoff_type: Literal["cash", "asset"] | EllipsisType = ...,
         payout: _Real | None | EllipsisType = ...,
@@ -6635,7 +6635,7 @@ class TouchOption:
             Barrier direction and knock-in or knock-out behavior.
         settlement_timing : {'at_hit', 'at_expiry'}, optional
             Payment timing; at-hit settlement requires a one-touch contract.
-        observation_times : iterable of datetime.datetime or None, optional
+        observation_schedule : ObservationSchedule or iterable of datetime.datetime or None, optional
             The instance's monitoring is the default. None selects continuous monitoring.
             A nonempty iterable selects scheduled monitoring.
         touch_state : {'untouched', 'touched'} or None, optional
@@ -6735,7 +6735,7 @@ class DoubleTouchOption:
         Positive finite cash payment.
     settlement_timing : {'at_hit', 'at_expiry'}, optional
         Defaults to expiry; at-hit settlement requires double one-touch.
-    observation_times : iterable of datetime.datetime or None, optional
+    observation_schedule : ObservationSchedule or iterable of datetime.datetime or None, optional
         Nonempty, strictly increasing times within life; None selects continuous monitoring.
     touch_state : {'untouched', 'touched'} or None, optional
         Strictly prior touch history; defaults to unknown.
@@ -6767,7 +6767,7 @@ class DoubleTouchOption:
         barrier_type: Literal["knock_in", "knock_out"],
         payout: _Real,
         settlement_timing: Literal["at_hit", "at_expiry"] = ...,
-        observation_times: Iterable[datetime] | None = None,
+        observation_schedule: Iterable[datetime] | None = None,
         touch_state: Literal["untouched", "touched"] | None = None,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> None: ...
@@ -6784,7 +6784,7 @@ class DoubleTouchOption:
         upper_barrier: _Real | EllipsisType = ...,
         barrier_type: Literal["knock_in", "knock_out"] | EllipsisType = ...,
         settlement_timing: Literal["at_hit", "at_expiry"] | EllipsisType = ...,
-        observation_times: Iterable[datetime] | None | EllipsisType = ...,
+        observation_schedule: Iterable[datetime] | None | EllipsisType = ...,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
         payout: _Real | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
@@ -6803,7 +6803,7 @@ class DoubleTouchOption:
             Knock-in or knock-out activation at either boundary.
         settlement_timing : {'at_hit', 'at_expiry'}, optional
             Payment timing; at-hit settlement requires a one-touch contract.
-        observation_times : iterable of datetime.datetime or None, optional
+        observation_schedule : ObservationSchedule or iterable of datetime.datetime or None, optional
             The instance's monitoring is the default. None selects continuous monitoring.
             A nonempty iterable selects scheduled monitoring.
         touch_state : {'untouched', 'touched'} or None, optional

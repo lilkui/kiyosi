@@ -361,7 +361,7 @@ def test_statistics_preserve_scheduled_barrier_prices(subtests):
     for name, factory, original in contracts()[-2:]:
         option = original.replace(
             touch_state=original.touch_state,
-            observation_times=[START + timedelta(days=182), END],
+            observation_schedule=[START + timedelta(days=182), END],
         )
         with subtests.test(product=name):
             sampler = engine(factory)

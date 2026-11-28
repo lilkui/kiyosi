@@ -24,7 +24,7 @@ def test_deterministic_barrier_uses_current_and_future_fixings_after_dense_histo
         rebate_timing="at_hit",
         touch_state="untouched",
         calendar=market.TradingCalendar.all_days(),
-        observation_times=(
+        observation_schedule=(
             *(start + timedelta(seconds=offset) for offset in range(4096)),
             valuation,
             first,
@@ -61,7 +61,7 @@ def test_barrier_calendars_are_owned_and_preserved_by_replacement(subtests):
     common = {
         "effective_time": start,
         "expiry_time": end,
-        "observation_times": [datetime(2025, 1, 4), end],
+        "observation_schedule": [datetime(2025, 1, 4), end],
     }
     cases = [
         (

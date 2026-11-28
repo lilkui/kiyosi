@@ -71,7 +71,7 @@ def test_later_guaranteed_touch_preserves_expiry_rebate_greeks():
     expiry = BarrierOption(
         **make_terms(
             expiry_time=end,
-            observation_times=[first, second],
+            observation_schedule=[first, second],
             calendar=TradingCalendar.all_days(),
             rebate=8,
         )
@@ -168,16 +168,16 @@ def test_construction_representation_and_replacement_failures_preserve_owner(sub
             {"barrier_type": "up_and_in", "rebate_timing": "at_hit"},
             InvalidInputError,
         ),
-        ({"observation_times": []}, InvalidInputError),
+        ({"observation_schedule": []}, InvalidInputError),
         (
             {
-                "observation_times": [datetime(2026, 1, 2)],
+                "observation_schedule": [datetime(2026, 1, 2)],
             },
             InvalidInputError,
         ),
         (
             {
-                "observation_times": [datetime(2025, 1, 2)] * 2,
+                "observation_schedule": [datetime(2025, 1, 2)] * 2,
             },
             InvalidInputError,
         ),
@@ -278,7 +278,7 @@ def test_expiry_and_prior_settlement_matrix(subtests):
 def test_scheduled_fixing_occurs_only_at_midnight_and_history_is_strict():
     engine = AnalyticBarrierEngine()
     fixing = datetime(2025, 1, 2)
-    option = BarrierOption(**make_terms(observation_times=[fixing], rebate=7))
+    option = BarrierOption(**make_terms(observation_schedule=[fixing], rebate=7))
     assert_rejection(
         UnsupportedOperationError,
         lambda: engine.price(option, make_context()),
@@ -319,7 +319,7 @@ def test_scheduled_fixing_occurs_only_at_midnight_and_history_is_strict():
     with pytest.raises(InvalidInputError):
         BarrierOption(
             **make_terms(
-                observation_times=[datetime(2025, 1, 4)],
+                observation_schedule=[datetime(2025, 1, 4)],
                 touch_state="touched",
             )
         )
@@ -334,7 +334,7 @@ def test_scheduled_bgk_domain_and_event_sensitive_greeks():
             **make_terms(
                 barrier_type=kind,
                 barrier_level=level,
-                observation_times=[datetime(2026, 1, 1)],
+                observation_schedule=[datetime(2026, 1, 1)],
                 touch_state="untouched",
             )
         )
@@ -362,7 +362,7 @@ def test_scheduled_bgk_domain_and_event_sensitive_greeks():
             **make_terms(
                 barrier_type=kind,
                 barrier_level=level,
-                observation_times=[
+                observation_schedule=[
                     datetime(2025, 1, 1) + timedelta(days=i) for i in range(1, 366)
                 ],
                 touch_state="untouched",

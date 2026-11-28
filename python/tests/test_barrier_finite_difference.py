@@ -35,7 +35,7 @@ def test_earlier_knock_out_preserves_rebate_greeks_at_later_barrier(strike, sche
         strike=strike,
         barrier_level=80,
         expiry_time=expiry,
-        observation_times=[END, expiry] if scheduled else None,
+        observation_schedule=[END, expiry] if scheduled else None,
         rebate=10,
     )
     context = market(spot=77.5, rate=risk, dividend=0, volatility=0)
@@ -46,7 +46,7 @@ def test_earlier_knock_out_preserves_rebate_greeks_at_later_barrier(strike, sche
     assert result.rho == pytest.approx(-19.375, abs=2e-7, rel=0)
     saved = engine.solve(contract, context, spot_range=(77, 78))
     assert saved.price_with_greeks(77.5, "delta").delta == pytest.approx(0, abs=1e-12)
-    last_only = contract.replace(observation_times=[expiry])
+    last_only = contract.replace(observation_schedule=[expiry])
     assert (
         engine.price_with_greeks(last_only, context, "delta").status("delta")
         == "undefined"
@@ -174,7 +174,7 @@ def test_early_ending_schedules_match_independent_bivariate_normal_payoffs(
             direction,
             rebate=3,
             rebate_timing=timing,
-            observation_times=[observation],
+            observation_schedule=[observation],
         )
         with subtests.test(kind=kind, direction=direction, timing=timing):
             assert engine.price(contract, market()) == pytest.approx(
@@ -185,7 +185,7 @@ def test_early_ending_schedules_match_independent_bivariate_normal_payoffs(
 def test_scheduled_greeks_solver_and_concurrency():
     engine = pricing.FiniteDifferenceBarrierEngine(asset_step_count=256)
     contract = option(
-        observation_times=[START + timedelta(days=91), START + timedelta(days=273)],
+        observation_schedule=[START + timedelta(days=91), START + timedelta(days=273)],
     )
     context = market()
     quote = engine.price(contract, context)
@@ -274,7 +274,7 @@ def test_node_curves_preserve_events_discounts_and_coverage_order():
             "up_and_out",
             rebate=7,
             rebate_timing=timing,
-            observation_times=[START + timedelta(days=91), END],
+            observation_schedule=[START + timedelta(days=91), END],
         )
         expected = 7 * math.exp(
             -0.08 * 91 / 365 if timing == "at_hit" else -0.01 * 360 / 365
@@ -367,7 +367,7 @@ def test_scheduled_payoff_peak_retains_spline_price_and_greeks(spot):
     from kiyosi.instruments import CashOrNothingOption
 
     engine = pricing.FiniteDifferenceBarrierEngine(asset_upper_boundary=400)
-    contract = option("up_and_out", observation_times=[END])
+    contract = option("up_and_out", observation_schedule=[END])
     common = {"option_type": "call", "effective_time": START, "expiry_time": END}
     lower = EuropeanOption(strike=100, **common)
     upper = EuropeanOption(strike=120, **common)
@@ -405,7 +405,7 @@ def test_scheduled_explicit_stability_retains_the_uniform_grid_bound():
     contract = option(
         "up_and_out",
         expiry_time=end,
-        observation_times=[end],
+        observation_schedule=[end],
     )
     engine = pricing.FiniteDifferenceBarrierEngine(
         asset_step_count=200,
@@ -430,7 +430,7 @@ def test_scheduled_barrier_work_limit_counts_damping_half_steps():
         "up_and_out",
         "call",
         expiry_time=dates[-1],
-        observation_times=dates,
+        observation_schedule=dates,
         calendar=TradingCalendar.all_days(),
     )
     engine = pricing.FiniteDifferenceBarrierEngine(

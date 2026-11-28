@@ -31,7 +31,7 @@ def test_fine_scheduled_barrier_grid_prices_within_the_rollback_budget():
         "down_and_out",
         expiry_time=START + timedelta(days=365),
         barrier_level=85,
-        observation_times=[START + timedelta(days=28 * i) for i in range(1, 13)],
+        observation_schedule=[START + timedelta(days=28 * i) for i in range(1, 13)],
     )
     engine = pricing.QuadratureBarrierEngine(asset_step_count=16_384)
     assert engine.price(contract, market(rate=0.05, dividend=0.02)) == pytest.approx(
@@ -45,7 +45,7 @@ def test_scheduled_quadrature_rejects_excessive_rollback_work():
         "up_and_out",
         expiry_time=end,
         barrier_level=140,
-        observation_times=[START + timedelta(days=i) for i in range(366)],
+        observation_schedule=[START + timedelta(days=i) for i in range(366)],
     )
     engine = pricing.QuadratureBarrierEngine(asset_step_count=32_768)
     with pytest.raises(InvalidInputError, match="rollback"):
@@ -63,7 +63,7 @@ def test_early_observation_rebate_discount(rate, timing):
         strike=1e9,
         rebate=7,
         rebate_timing=timing,
-        observation_times=[observation],
+        observation_schedule=[observation],
     )
     time = 90 / 365
     horizon = 360 / 365
@@ -223,7 +223,7 @@ def test_early_ending_schedules_match_independent_bivariate_normal_payoffs(
             direction,
             rebate=3,
             rebate_timing=timing,
-            observation_times=[observation],
+            observation_schedule=[observation],
         )
         with subtests.test(kind=kind, direction=direction, timing=timing):
             assert engine.price(contract, market()) == pytest.approx(
@@ -249,7 +249,7 @@ def test_two_observations_match_independent_joint_survival_probability(kind):
         kind,
         strike=1e9,
         rebate=7,
-        observation_times=[
+        observation_schedule=[
             START + timedelta(days=91),
             START + timedelta(days=273),
         ],
@@ -350,7 +350,7 @@ def test_applicability_precedes_request_solver_and_expiry_validation():
             assert_rejection(UnsupportedOperationError, operation, *args)
     with pytest.raises(InvalidInputError):
         option(
-            observation_times=[datetime(2025, 1, 4)],
+            observation_schedule=[datetime(2025, 1, 4)],
             touch_state="touched",
             calendar=TradingCalendar.weekdays(),
         )
@@ -362,7 +362,7 @@ def test_applicability_precedes_request_solver_and_expiry_validation():
             market(volatility=sigma),
         )
     huge_grid = pricing.QuadratureBarrierEngine(integration_standard_deviations=1e308)
-    scheduled = option(observation_times=[START + timedelta(days=91)])
+    scheduled = option(observation_schedule=[START + timedelta(days=91)])
     assert_rejection(
         ComputationFailureError,
         huge_grid.price,
@@ -374,7 +374,7 @@ def test_applicability_precedes_request_solver_and_expiry_validation():
 def test_scheduled_greeks_solver_and_concurrency():
     engine = pricing.QuadratureBarrierEngine(asset_step_count=256)
     contract = option(
-        observation_times=[START + timedelta(days=91), START + timedelta(days=273)],
+        observation_schedule=[START + timedelta(days=91), START + timedelta(days=273)],
     )
     context = market()
     quote = engine.price(contract, context)

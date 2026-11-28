@@ -34,7 +34,7 @@ pub(crate) fn kind(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::DoubleBarrierTy
 ///     Nonnegative finite cash rebate; defaults to zero.
 /// rebate_timing : {'at_hit', 'at_expiry'}, optional
 ///     Payment timing; at-hit rebates are valid only for knock-outs.
-/// observation_times : iterable of datetime.datetime or None, optional
+/// observation_schedule : ObservationSchedule or iterable of datetime.datetime or None, optional
 ///     Nonempty, strictly increasing times within life; None selects continuous monitoring.
 /// touch_state : {'untouched', 'touched'} or None, optional
 ///     Strictly prior history. None means unknown; untouched means known no
@@ -57,8 +57,8 @@ pub(crate) struct DoubleBarrierOption(pub kiyosi::DoubleBarrierOption);
 
 monitoring_properties!(
     DoubleBarrierOption,
-    @replace DoubleBarrierOptionChanges [option_type, strike, effective_time, expiry_time, lower_barrier, upper_barrier, barrier_type, rebate, rebate_timing, observation_times, touch_state, calendar] |self| {
-        calendar: crate::calendar::observation_calendar(calendar, observation_times)?,
+    @replace DoubleBarrierOptionChanges [option_type, strike, effective_time, expiry_time, lower_barrier, upper_barrier, barrier_type, rebate, rebate_timing, observation_schedule, touch_state, calendar] |self| {
+        calendar: crate::calendar::observation_calendar(calendar, observation_schedule)?,
         option_type: option_type.map(crate::conversions::direction).transpose()?,
         strike: strike.map(crate::conversions::real).transpose()?,
         effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
@@ -68,7 +68,7 @@ monitoring_properties!(
         barrier_type: barrier_type.map(crate::instruments::double_barrier::kind).transpose()?,
         rebate: rebate.map(crate::conversions::real).transpose()?,
         rebate_timing: rebate_timing.map(crate::instruments::barrier::timing).transpose()?,
-        observation_times: observation_times.map(crate::conversions::optional_timestamps).transpose()?,
+        observation_times: observation_schedule.map(crate::conversions::optional_timestamps).transpose()?,
         touch_state: touch_state.map(crate::instruments::barrier::history).transpose()?,
     }
     [
@@ -92,7 +92,7 @@ monitoring_properties!(
     ///     Nonnegative finite cash rebate.
     /// rebate_timing : {'at_hit', 'at_expiry'}, optional
     ///     Rebate payment timing; at-hit rebates require knock-out.
-    /// observation_times : iterable of datetime.datetime or None, optional
+    /// observation_schedule : ObservationSchedule or iterable of datetime.datetime or None, optional
     ///     The instance's monitoring is the default. None selects continuous monitoring.
     ///     A nonempty iterable selects scheduled monitoring.
     /// touch_state : {'untouched', 'touched'} or None, optional
@@ -116,7 +116,7 @@ monitoring_properties!(
     ///
     ],
     #[new]
-    #[pyo3(signature = (*, option_type, strike, effective_time, expiry_time, lower_barrier, upper_barrier, barrier_type, rebate=kiyosi::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=kiyosi::RebateTiming::default(), observation_times=None, touch_state=None, calendar=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, option_type, strike, effective_time, expiry_time, lower_barrier, upper_barrier, barrier_type, rebate=kiyosi::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=kiyosi::RebateTiming::default(), observation_schedule=None, touch_state=None, calendar=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         py: Python<'_>,
@@ -130,7 +130,7 @@ monitoring_properties!(
         #[pyo3(from_py_with = real)] rebate: f64,
         #[pyo3(from_py_with = timing)] rebate_timing: kiyosi::RebateTiming,
 
-        observation_times: Option<&Bound<'_, PyAny>>,
+        observation_schedule: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = history)] touch_state: Option<kiyosi::BarrierTouchState>,
         #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
@@ -145,12 +145,12 @@ monitoring_properties!(
         );
         terms.rebate = rebate;
         terms.rebate_timing = rebate_timing;
-        terms.observation_times = observation_times
+        terms.observation_times = observation_schedule
             .map(crate::conversions::timestamps)
             .transpose()?;
         terms.touch_state = touch_state;
         terms.calendar =
-            crate::calendar::observation_calendar(calendar, observation_times)?.unwrap_or_default();
+            crate::calendar::observation_calendar(calendar, observation_schedule)?.unwrap_or_default();
         let count = terms.observation_times.as_ref().map_or(0, Vec::len);
         run_date_scan(py, count as u64, || kiyosi::DoubleBarrierOption::new(terms)).map(Self)
     },

@@ -37,7 +37,7 @@ def test_schedules_retain_calendars_for_contract_composition(subtests):
         key = (
             "knock_out_observation_times"
             if "knock_out_observation_times" in fields
-            else "observation_times"
+            else "observation_schedule"
         )
         if key not in fields:
             continue
