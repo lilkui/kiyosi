@@ -340,7 +340,7 @@ pub enum PhoenixPreset {
 /// Supplies Phoenix preset inputs; see [`Self::expand`] for conventions and examples.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PhoenixPresetTerms {
-    /// Disables knock-out for initial observations; defaults to [`DEFAULT_PHOENIX_LOCKOUT_PERIODS`].
+    /// Sets the number of initial observations excluded from knock-out, defaulting to zero.
     pub lockout_periods: usize,
     /// Supplies the daily clock for standard and step-down presets; absent for FCN/DCN.
     pub knock_in_observation_clock_time: Option<TimeOfDay>,

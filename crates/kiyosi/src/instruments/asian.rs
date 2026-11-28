@@ -207,8 +207,8 @@ macro_rules! average_option {
             }
             /// Creates an average-price contract.
             ///
-            /// Use [`DEFAULT_REALIZED_AVERAGE`] before averaging starts. Positive history
-            /// is required strictly after the averaging start, checked during pricing.
+            /// Use `None` when no realized average is known. Pricing requires a
+            /// positive realized average strictly after the averaging start.
             /// History covers averaging strictly before the requested valuation time.
             /// The caller supplies the applicable average; no observations are reconstructed.
             ///
@@ -222,14 +222,14 @@ macro_rules! average_option {
             ///
             /// ```rust
             /// use kiyosi::{Date, OptionType, GeometricAveragePriceOption,
-            ///     ArithmeticAveragePriceOption, DEFAULT_REALIZED_AVERAGE};
+            ///     ArithmeticAveragePriceOption};
             /// # fn main() -> kiyosi::Result<()> {
             /// let start = Date::new(2025, 1, 1)?.start_of_day();
             /// let end = Date::new(2026, 1, 1)?.start_of_day();
             /// let geometric = GeometricAveragePriceOption::new(OptionType::Call,
-            ///     100.0, start, start, end, DEFAULT_REALIZED_AVERAGE)?;
+            ///     100.0, start, start, end, None)?;
             /// let arithmetic = ArithmeticAveragePriceOption::new(OptionType::Put,
-            ///     100.0, start, start, end, DEFAULT_REALIZED_AVERAGE)?;
+            ///     100.0, start, start, end, None)?;
             /// assert_eq!(geometric.realized_average(), None);
             /// assert_eq!(arithmetic.averaging_start_time(), start);
             /// # Ok(()) }

@@ -206,15 +206,8 @@ macro_rules! contract_tests {
                     .unwrap_err(),
                     Error::InvalidInput(_)
                 ));
-                let original = $option::new(
-                    OptionType::Put,
-                    100.0,
-                    start,
-                    start,
-                    end,
-                    DEFAULT_REALIZED_AVERAGE,
-                )
-                .unwrap();
+                let original =
+                    $option::new(OptionType::Put, 100.0, start, start, end, None).unwrap();
                 let updated = original
                     .replace(AveragePriceOptionChanges {
                         realized_average: Some(Some(110.0)),
@@ -236,7 +229,7 @@ macro_rules! contract_tests {
                         .unwrap_err(),
                     Error::InvalidInput(_)
                 ));
-                assert_eq!(original.realized_average(), DEFAULT_REALIZED_AVERAGE);
+                assert_eq!(original.realized_average(), None);
             }
             #[test]
             fn history_life_single_fixing_and_expiry_boundaries() {

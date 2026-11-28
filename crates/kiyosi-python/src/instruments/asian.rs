@@ -1,5 +1,6 @@
 use crate::conversions::{direction, optional_real, python_timestamp, real, timestamp};
 use crate::error::domain;
+use kiyosi::binding_support::DEFAULT_REALIZED_AVERAGE;
 use pyo3::prelude::*;
 
 macro_rules! average_option {
@@ -46,7 +47,7 @@ macro_rules! average_option {
 
 
             #[new]
-            #[pyo3(signature = (*, option_type, strike, effective_time, averaging_start_time, expiry_time, realized_average=kiyosi::DEFAULT_REALIZED_AVERAGE))]
+            #[pyo3(signature = (*, option_type, strike, effective_time, averaging_start_time, expiry_time, realized_average=DEFAULT_REALIZED_AVERAGE))]
             fn new(option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
                 effective_time: &Bound<'_, PyAny>, averaging_start_time: &Bound<'_, PyAny>,
                 expiry_time: &Bound<'_, PyAny>, #[pyo3(from_py_with = optional_real)] realized_average: Option<f64>,

@@ -4,6 +4,10 @@ use crate::conversions::{
     timestamp, timestamps,
 };
 use crate::error::domain;
+use kiyosi::binding_support::{
+    DEFAULT_AUTOCALLABLE_REBATE_RATE, DEFAULT_PHOENIX_LOCKOUT_PERIODS,
+    DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
+};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
@@ -672,7 +676,7 @@ macro_rules! snowball_preset {
                 /// maturity_coupon_rate edits only the maturity coupon.
                 ///
                 #[staticmethod]
-                #[pyo3(signature = (*, $coupon, initial_spot, knock_in_level, $level, $($extra,)* autocall_times, effective_time, expiry_time, $($clock,)? barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar=crate::conversions::OMITTED))]
+                #[pyo3(signature = (*, $coupon, initial_spot, knock_in_level, $level, $($extra,)* autocall_times, effective_time, expiry_time, $($clock,)? barrier_state=None, principal_redemption_ratio=DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar=crate::conversions::OMITTED))]
                 #[expect(clippy::too_many_arguments, reason = "keyword-only preset terms")]
                 fn $name(
                     py: Python<'_>,
@@ -785,7 +789,7 @@ snowball_preset! {
         ],
 
         #[new]
-        #[pyo3(signature = (*, maturity_coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation, effective_time, expiry_time, autocall_observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar))]
+        #[pyo3(signature = (*, maturity_coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation, effective_time, expiry_time, autocall_observations, barrier_state=None, principal_redemption_ratio=DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
         fn new(
             py: Python<'_>,
@@ -1095,7 +1099,7 @@ snowball_properties! {
     ],
 
     #[new]
-    #[pyo3(signature = (*, maturity_coupon_rate, effective_time, expiry_time, autocall_observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar))]
+    #[pyo3(signature = (*, maturity_coupon_rate, effective_time, expiry_time, autocall_observations, barrier_state=None, principal_redemption_ratio=DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         py: Python<'_>,
@@ -1240,7 +1244,7 @@ snowball_properties! {
     ],
 
     #[new]
-    #[pyo3(signature = (*, maturity_coupon_rate, minimum_coupon_rate, knock_in_level, knock_in_observation, effective_time, expiry_time, autocall_observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar))]
+    #[pyo3(signature = (*, maturity_coupon_rate, minimum_coupon_rate, knock_in_level, knock_in_observation, effective_time, expiry_time, autocall_observations, barrier_state=None, principal_redemption_ratio=DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         py: Python<'_>,
@@ -1440,7 +1444,7 @@ macro_rules! phoenix_preset {
                 /// Past coupons are settled.
                 ///
                 #[staticmethod]
-                #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, $knock_out, $($extra,)* $($clock,)? autocall_times, effective_time, expiry_time, lockout_periods=kiyosi::DEFAULT_PHOENIX_LOCKOUT_PERIODS, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar=crate::conversions::OMITTED))]
+                #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, $knock_out, $($extra,)* $($clock,)? autocall_times, effective_time, expiry_time, lockout_periods=DEFAULT_PHOENIX_LOCKOUT_PERIODS, barrier_state=None, principal_redemption_ratio=DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar=crate::conversions::OMITTED))]
                 #[expect(clippy::too_many_arguments, reason = "keyword-only preset terms")]
                 fn $name(
                     py: Python<'_>,
@@ -1555,7 +1559,7 @@ phoenix_preset! {
         ///
         ],
         #[new]
-        #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation, effective_time, expiry_time, knock_out_observations, coupon_observations, barrier_state=None, principal_redemption_ratio=kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar))]
+        #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation, effective_time, expiry_time, knock_out_observations, coupon_observations, barrier_state=None, principal_redemption_ratio=DEFAULT_PRINCIPAL_REDEMPTION_RATIO, rebate_rate=DEFAULT_AUTOCALLABLE_REBATE_RATE, annual_rebate_rate=DEFAULT_AUTOCALLABLE_REBATE_RATE, calendar))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
         fn new(
             py: Python<'_>,

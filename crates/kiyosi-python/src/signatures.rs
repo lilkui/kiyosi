@@ -1,3 +1,7 @@
+use kiyosi::binding_support::{
+    DEFAULT_AUTOCALLABLE_REBATE_RATE, DEFAULT_PHOENIX_LOCKOUT_PERIODS,
+    DEFAULT_PRINCIPAL_REDEMPTION_RATIO, DEFAULT_REALIZED_AVERAGE,
+};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 
@@ -23,7 +27,7 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     );
     register!(
         [GeometricAveragePriceOption, ArithmeticAveragePriceOption],
-        realized_average = kiyosi::DEFAULT_REALIZED_AVERAGE,
+        realized_average = DEFAULT_REALIZED_AVERAGE,
     );
     register!(
         [BarrierOption, DoubleBarrierOption],
@@ -51,9 +55,9 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
             SnowballOption.early_profit,
             SnowballOption.butterfly,
         ],
-        rebate_rate = kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE,
-        annual_rebate_rate = kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE,
-        principal_redemption_ratio = kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO
+        rebate_rate = DEFAULT_AUTOCALLABLE_REBATE_RATE,
+        annual_rebate_rate = DEFAULT_AUTOCALLABLE_REBATE_RATE,
+        principal_redemption_ratio = DEFAULT_PRINCIPAL_REDEMPTION_RATIO
     );
     register!(
         [
@@ -62,16 +66,16 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
             PhoenixOption.step_down,
             PhoenixOption.digital_coupon,
         ],
-        rebate_rate = kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE,
-        annual_rebate_rate = kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE,
-        principal_redemption_ratio = kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
-        lockout_periods = kiyosi::DEFAULT_PHOENIX_LOCKOUT_PERIODS,
+        rebate_rate = DEFAULT_AUTOCALLABLE_REBATE_RATE,
+        annual_rebate_rate = DEFAULT_AUTOCALLABLE_REBATE_RATE,
+        principal_redemption_ratio = DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
+        lockout_periods = DEFAULT_PHOENIX_LOCKOUT_PERIODS,
     );
     register!(
         [PhoenixOption],
-        rebate_rate = kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE,
-        annual_rebate_rate = kiyosi::DEFAULT_AUTOCALLABLE_REBATE_RATE,
-        principal_redemption_ratio = kiyosi::DEFAULT_PRINCIPAL_REDEMPTION_RATIO
+        rebate_rate = DEFAULT_AUTOCALLABLE_REBATE_RATE,
+        annual_rebate_rate = DEFAULT_AUTOCALLABLE_REBATE_RATE,
+        principal_redemption_ratio = DEFAULT_PRINCIPAL_REDEMPTION_RATIO
     );
     register!(
         [Accumulator],

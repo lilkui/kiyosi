@@ -147,7 +147,7 @@ mod numerics;
 mod risk;
 mod time;
 
-/// Shares pricing input limits with language bindings.
+/// Shares pricing input limits and defaults with language bindings.
 #[doc(hidden)]
 pub mod binding_support {
     pub use crate::engines::finite_difference::{
@@ -155,6 +155,11 @@ pub mod binding_support {
     };
     pub use crate::engines::monte_carlo::validate_monte_carlo_strike_batch_size;
     pub use crate::engines::validate_contract_batch_size;
+    pub use crate::instruments::asian::DEFAULT_REALIZED_AVERAGE;
+    pub use crate::instruments::autocallable::{
+        DEFAULT_AUTOCALLABLE_REBATE_RATE, DEFAULT_PHOENIX_LOCKOUT_PERIODS,
+        DEFAULT_PRINCIPAL_REDEMPTION_RATIO,
+    };
     pub use crate::time::variance_time_convention_from_inputs;
 }
 
@@ -200,18 +205,15 @@ pub use engines::quadrature::{
 pub use error::{Error, Result};
 pub use instruments::accumulator::{Accumulator, AccumulatorChanges, AccumulatorTerms};
 pub use instruments::asian::{
-    ArithmeticAveragePriceOption, AveragePriceOptionChanges, DEFAULT_REALIZED_AVERAGE,
-    GeometricAveragePriceOption,
+    ArithmeticAveragePriceOption, AveragePriceOptionChanges, GeometricAveragePriceOption,
 };
 pub use instruments::autocallable::{
     AutocallableBarrierState, AutocallableNote, AutocallableTerms, BinarySnowballOption,
-    BinarySnowballOptionChanges, BinarySnowballTerms, CouponObservation,
-    DEFAULT_AUTOCALLABLE_REBATE_RATE, DEFAULT_PHOENIX_LOCKOUT_PERIODS,
-    DEFAULT_PRINCIPAL_REDEMPTION_RATIO, KnockInObservation, KnockOutObservation, PhoenixOption,
-    PhoenixOptionChanges, PhoenixPreset, PhoenixPresetTerms, PhoenixTerms, SnowballCouponTerms,
-    SnowballObservation, SnowballObservationChanges, SnowballOption, SnowballOptionChanges,
-    SnowballPreset, SnowballPresetTerms, SnowballTerms, TernarySnowballOption,
-    TernarySnowballOptionChanges, TernarySnowballTerms,
+    BinarySnowballOptionChanges, BinarySnowballTerms, CouponObservation, KnockInObservation,
+    KnockOutObservation, PhoenixOption, PhoenixOptionChanges, PhoenixPreset, PhoenixPresetTerms,
+    PhoenixTerms, SnowballCouponTerms, SnowballObservation, SnowballObservationChanges,
+    SnowballOption, SnowballOptionChanges, SnowballPreset, SnowballPresetTerms, SnowballTerms,
+    TernarySnowballOption, TernarySnowballOptionChanges, TernarySnowballTerms,
 };
 pub(crate) use instruments::barrier::ObservationMode;
 pub use instruments::barrier::{
