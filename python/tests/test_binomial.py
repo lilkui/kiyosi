@@ -82,6 +82,17 @@ def test_american_binomial_batch_caps_combined_rollback_work():
     )
 
 
+def test_binomial_batch_reports_earlier_expired_contract_before_rollback_limit():
+    previous = START - timedelta(days=1)
+    expired = EuropeanOption(
+        option_type="call", strike=100, effective_time=previous, expiry_time=previous
+    )
+    put = contract(AmericanOption, "put")
+    engine = CoxRossRubinsteinVanillaEngine(step_count=16_000)
+    with pytest.raises(InvalidInputError, match="outside contract life"):
+        engine.price_many((expired, *((put,) * 8)), market())
+
+
 def test_vanilla_batch_matches_scalar_prices_and_preserves_input_order():
     engine = CoxRossRubinsteinVanillaEngine(step_count=192)
     snapshot = market()

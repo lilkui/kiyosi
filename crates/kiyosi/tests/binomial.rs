@@ -41,6 +41,29 @@ fn american_binomial_batch_caps_combined_rollback_work() -> Result<()> {
 }
 
 #[test]
+fn binomial_batch_reports_earlier_expired_contract_before_rollback_limit() -> Result<()> {
+    let (start, end) = dates();
+    let expired = EuropeanOption::new(
+        OptionType::Call,
+        100.0,
+        start.add_days(-1)?,
+        start.add_days(-1)?,
+    )?;
+    let put = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let engine = CoxRossRubinsteinVanillaEngine::new(BinomialVanillaSettings {
+        step_count: 16_000,
+        ..Default::default()
+    })?;
+    let mut instruments = [BinomialVanilla::American(&put); 9];
+    instruments[0] = BinomialVanilla::European(&expired);
+    assert!(matches!(
+        engine.price_many(&instruments, &market(100.0, 0.05, 0.02, 0.2)),
+        Err(Error::InvalidInput(message)) if message.contains("outside contract life")
+    ));
+    Ok(())
+}
+
+#[test]
 fn american_batch_matches_scalar_for_full_and_banded_trees() -> Result<()> {
     let (start, end) = dates();
     let snapshot = market(100.0, 0.05, 0.02, 0.2);

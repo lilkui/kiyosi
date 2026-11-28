@@ -68,18 +68,21 @@ impl CoxRossRubinsteinVanillaEngine {
                 Some(&budget),
             ),
         };
-        let eligible = self.settings.step_count >= 256
-            && options
-                .iter()
-                .any(|option| matches!(option, BinomialVanilla::American(_)));
-        if !eligible {
-            return options
+        let serial = || {
+            options
                 .iter()
                 .map(|&option| {
                     crate::cancellation::check()?;
                     scalar(option)
                 })
-                .collect();
+                .collect()
+        };
+        let eligible = self.settings.step_count >= 256
+            && options
+                .iter()
+                .any(|option| matches!(option, BinomialVanilla::American(_)));
+        if !eligible {
+            return serial();
         }
         let can_tile = self
             .rollback_tolerance
@@ -105,11 +108,20 @@ impl CoxRossRubinsteinVanillaEngine {
             let mut live = 0;
             for &option in options {
                 crate::cancellation::check()?;
-                if let Some(option) = exercise_option(option) {
-                    let Ok(dt) = time_step(option, context, self.settings) else {
-                        break;
-                    };
-                    live += u64::from(dt > 0.0);
+                let dt = match option {
+                    BinomialVanilla::European(contract) => {
+                        time_step(contract, context, self.settings)
+                    }
+                    BinomialVanilla::American(contract) => {
+                        time_step(contract, context, self.settings)
+                    }
+                };
+                let Ok(dt) = dt else {
+                    // Resolve earlier contract errors before reporting the invalid contract.
+                    return serial();
+                };
+                if dt > 0.0 && exercise_option(option).is_some() {
+                    live += 1;
                     validate_rollback_work(full_work, live)?;
                 }
             }
