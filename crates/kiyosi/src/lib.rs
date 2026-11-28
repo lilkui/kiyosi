@@ -1,12 +1,21 @@
 //! Prices derivatives under Black-Scholes-Merton, local-volatility, and Heston models.
 //!
-//! Construct a contract and a [`PricingContext`], then select an engine for the
-//! contract and model. Engine methods return prices, selected Greeks, and Monte
-//! Carlo sampling statistics. [`numerical_greeks`] selects scalar BSM differences;
-//! [`implied_volatility`] and the coupon solvers invert an engine's price curve.
-//! Engine documentation specifies model support and numerical controls.
-//! Import [`PricingEngine`] to call [`PricingEngine::price_with_greeks`]; each
-//! engine's pricing documentation describes its Greek estimators and boundaries.
+//! Construct a contract and a [`PricingContext`], then choose an engine that
+//! supports the contract and model. Use [`PricingEngine::price`] for a price
+//! and [`PricingEngine::price_with_greeks`] for selected sensitivities. Import
+//! [`PricingEngine`] to call its methods. Each engine documents its supported
+//! combinations and numerical controls.
+//!
+//! Use [`numerical_greeks`] to select scalar BSM differences explicitly.
+//! [`implied_volatility`], [`implied_snowball_coupon`] and
+//! [`implied_phoenix_coupon`] solve for inputs that reproduce a quoted price.
+//! Monte Carlo engines can also report the sampling seed and, for supported
+//! contracts, [sampling statistics][`PricingEngine::price_with_statistics`].
+//!
+//! For batches, choose the operation by the input that varies. Engines with
+//! `price_many` accept existing contracts. Use `price_strikes` to vary the
+//! strike, or [`VanillaBatchEngine::price_surface`] to vary strike and expiry.
+//! Use [`FiniteDifferenceEngine::solve`] to reuse a solution across spot prices.
 //!
 //! # Conventions
 //!
@@ -96,10 +105,8 @@
 //! [`FiniteDifferenceSolution`] owns immutable query state; clones and shared
 //! instances permit concurrent spot queries after the source inputs are dropped.
 //! Its queries do not perform rollback or mutate the saved numerical solution.
-//! [`PricingEngine::prepare_request`] handles support sequential use on the calling
-//! thread and need not be `Send` or `Sync`; concurrent requests prepare their own.
 //! Custom calendar predicates must return stable answers throughout the calendar's
-//! lifetime, including clones. Custom engines define their own concurrency contract.
+//! lifetime, including clones. See [`PricingEngine`] for custom engine contracts.
 //!
 //! Domain rejections return [`Result<T>`]. Operational failures retain native I/O
 //! details through [`Error::Io`]. Calls are synchronous; [`CancellationToken::run`]

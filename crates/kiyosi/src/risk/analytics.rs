@@ -533,14 +533,28 @@ impl GreekMethod {
 #[doc(hidden)]
 pub type CouponPricer<'a, I> = Box<dyn Fn(&I, f64) -> Result<Option<f64>> + 'a>;
 
-/// Provides scalar pricing for numerical analysis and solvers, independent of exercise style.
+/// Prices a contract and provides sensitivities for the supported model.
 ///
-/// Implementations must treat pricing inputs as read-only and return domain
-/// failures through [`Result<T>`](crate::Result).
-/// The instrument parameter selects supported combinations; it defaults to
-/// [`EuropeanOption`]. See [`crate::AnalyticDigitalEngine::price`] for digital usage.
-/// Custom estimators implement [`Self::price_with_greeks_with_settings`]. Generic
-/// callers use [`Self::price_with_greeks`] to retain native estimators and shared defaults.
+/// Use [`Self::price`] for scalar pricing and [`Self::price_with_greeks`] for
+/// sensitivities with shared bump defaults. The instrument type `I` selects
+/// supported combinations and defaults to [`EuropeanOption`]. See
+/// [`Self::price_with_greeks`] for a generic caller example.
+///
+/// # Implementing a custom engine
+///
+/// Implement [`Self::price`], treat pricing inputs as read-only, and return
+/// domain failures through [`Result<T>`](crate::Result). Override
+/// [`Self::price_with_greeks_with_settings`] to supply a native estimator.
+/// [`Self::validate_applicability`] defines model support for numerical requests.
+///
+/// Override [`Self::prepare_request`] to reuse state across evaluations within
+/// one numerical request. Prepared handles are used sequentially on the calling
+/// thread and need not be [`Send`] or [`Sync`]. Each concurrent request prepares
+/// its own handle. Custom engines define their concurrency contract.
+///
+/// [`Self::validate_solver_seed`] enforces replay requirements for stochastic
+/// solvers. [`Self::prepare_implied_volatility`] restricts the solver bracket
+/// to the engine's supported domain.
 pub trait PricingEngine<I = EuropeanOption> {
     /// Returns requested sensitivities using shared bump defaults.
     ///
