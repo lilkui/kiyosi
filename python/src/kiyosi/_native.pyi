@@ -1633,10 +1633,6 @@ class PricingContext:
         """Return positive finite underlying spot price."""
 
     @property
-    def valuation_date(self) -> date:
-        """Return the date containing the valuation instant."""
-
-    @property
     def valuation_time(self) -> datetime:
         """Return valuation time."""
 

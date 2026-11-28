@@ -1,9 +1,7 @@
-use crate::conversions::{
-    python_date, python_timestamp, python_timestamps, python_tuple, real, timestamp,
-};
+use crate::conversions::{python_timestamp, python_timestamps, python_tuple, real, timestamp};
 use crate::error::domain;
 use pyo3::prelude::*;
-use pyo3::types::{PyDate, PyTuple};
+use pyo3::types::PyTuple;
 
 macro_rules! rate_properties {
     ($name:ident, @replace $changes:ident [$($parameter:ident),+]
@@ -571,11 +569,6 @@ value_methods!(PricingContext, PricingContextChanges,
     #[getter]
     fn spot_price(&self) -> f64 {
         self.0.spot_price()
-    }
-    /// Return the date containing the valuation instant.
-    #[getter]
-    fn valuation_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.valuation_time().date())
     }
     /// Return valuation time.
     #[getter]
