@@ -334,6 +334,14 @@ pub(crate) fn finite_difference_strikes(value: &Bound<'_, PyAny>) -> PyResult<Ve
     })
 }
 
+pub(crate) fn heston_strikes(value: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
+    collect_values_checked(value, real, |count| {
+        domain(kiyosi::binding_support::validate_heston_strike_batch_size(
+            count,
+        ))
+    })
+}
+
 pub(crate) fn clock_time(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::TimeOfDay> {
     let time = value.cast::<PyTime>()?;
     if !value

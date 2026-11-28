@@ -72,6 +72,29 @@ fn analytic_strike_batch_preserves_independent_prices_and_errors() -> Result<()>
 }
 
 #[test]
+fn analytic_heston_strike_batch_enforces_inclusive_input_limit() -> Result<()> {
+    let engine = AnalyticHestonEuropeanEngine::default();
+    let call = option(OptionType::Call);
+    let market = context(model()).replace(PricingContextChanges {
+        valuation_time: Some(dates().1),
+        ..Default::default()
+    })?;
+    let strikes = vec![90.0; 1_048_577];
+    let prices = engine.price_strikes(&call, &market, &strikes[..strikes.len() - 1])?;
+    assert_eq!(prices.len(), 1_048_576);
+    assert!(
+        prices
+            .iter()
+            .all(|price| price.to_bits() == 10.0_f64.to_bits())
+    );
+    assert!(matches!(
+        engine.price_strikes(&call, &market, &strikes),
+        Err(Error::InvalidInput(message)) if message.contains("strike batch exceeds")
+    ));
+    Ok(())
+}
+
+#[test]
 fn dense_heston_batch_preserves_transform_quotes_above_chunk_limit() -> Result<()> {
     let engine = AnalyticHestonEuropeanEngine::default();
     let market = context(model());

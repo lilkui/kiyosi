@@ -1778,7 +1778,7 @@ class AnalyticHestonEuropeanEngine(_PricingMethods[EuropeanOption]):
     relative_tolerance : float, optional
         Finite nonnegative relative tolerance; defaults to 1e-8.
     max_evaluations : int, optional
-        Positive request-wide characteristic-function budget; defaults to
+        Positive per-quote characteristic-function budget; defaults to
         100,000.
 
     Raises
@@ -1815,7 +1815,8 @@ class AnalyticHestonEuropeanEngine(_PricingMethods[EuropeanOption]):
         context : PricingContext
             Heston market snapshot.
         strikes : iterable of float
-            Finite positive strikes in the desired output order.
+            Up to 1,048,576 finite positive strikes in the desired output order.
+            Duplicates count toward the limit.
 
         Returns
         -------
@@ -1826,7 +1827,7 @@ class AnalyticHestonEuropeanEngine(_PricingMethods[EuropeanOption]):
         Raises
         ------
         KiyosiError
-            If applicability, coverage, strike or numerical checks fail.
+            If applicability, coverage, strike count, strike or numerical checks fail.
         TypeError, ValueError, OverflowError
             If an input representation is invalid.
 
@@ -1885,7 +1886,7 @@ class AnalyticHestonEuropeanEngine(_PricingMethods[EuropeanOption]):
 
     @property
     def max_evaluations(self) -> int:
-        """Return the total characteristic-function budget per price request."""
+        """Return the characteristic-function budget per quote."""
 
     def price(self, instrument: EuropeanOption, context: PricingContext) -> float:
         """Return the price.

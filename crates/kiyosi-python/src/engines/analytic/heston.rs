@@ -12,7 +12,7 @@ use pyo3::{prelude::*, types::PyTuple};
 /// relative_tolerance : float, optional
 ///     Finite nonnegative relative tolerance; defaults to 1e-8.
 /// max_evaluations : int, optional
-///     Positive request-wide characteristic-function budget; defaults to
+///     Positive per-quote characteristic-function budget; defaults to
 ///     100,000.
 ///
 /// Raises
@@ -82,7 +82,8 @@ engine_methods!(
         /// context : PricingContext
         ///     Heston market snapshot.
         /// strikes : iterable of float
-        ///     Finite positive strikes in the desired output order.
+        ///     Up to 1,048,576 finite positive strikes in the desired output order.
+        ///     Duplicates count toward the limit.
         ///
         /// Returns
         /// -------
@@ -93,7 +94,7 @@ engine_methods!(
         /// Raises
         /// ------
         /// KiyosiError
-        ///     If applicability, coverage, strike or numerical checks fail.
+        ///     If applicability, coverage, strike count, strike or numerical checks fail.
         /// TypeError, ValueError, OverflowError
         ///     If an input representation is invalid.
         ///
@@ -110,7 +111,7 @@ engine_methods!(
             py: Python<'py>,
             #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, EuropeanOption>,
             context: &crate::market::PricingContext,
-            #[pyo3(from_py_with = crate::conversions::reals)] strikes: Vec<f64>,
+            #[pyo3(from_py_with = crate::conversions::heston_strikes)] strikes: Vec<f64>,
         ) -> PyResult<Bound<'py, PyTuple>> {
             let option = &instrument.0;
             let context = &context.0;
@@ -151,7 +152,7 @@ engine_methods!(
             self.0.settings().relative_tolerance
         }
 
-        /// Return the total characteristic-function budget per price request.
+        /// Return the characteristic-function budget per quote.
         #[getter]
         fn max_evaluations(&self) -> usize {
             self.0.settings().max_evaluations

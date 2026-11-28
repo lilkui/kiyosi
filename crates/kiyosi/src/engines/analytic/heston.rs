@@ -16,10 +16,26 @@ use crate::{
 
 mod fft;
 
+const MAX_BATCH_STRIKES: usize = 1 << 20;
 const PANEL_SAMPLES: usize = 15;
 const PANEL_CACHE_CAPACITY: usize = 16_384 / PANEL_SAMPLES;
 type PanelSamples = [FourierSample; PANEL_SAMPLES];
 type PanelCache = HashMap<[u64; 2], PanelSamples>;
+
+/// Checks the total input count for an analytic Heston strike batch.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidInput`] above 1,048,576 strikes, including duplicates.
+#[doc(hidden)]
+pub fn validate_heston_strike_batch_size(count: usize) -> Result<()> {
+    if count > MAX_BATCH_STRIKES {
+        return Err(Error::InvalidInput(
+            "analytic Heston strike batch exceeds 1,048,576 strikes".into(),
+        ));
+    }
+    Ok(())
+}
 
 /// Configures adaptive Heston Fourier integration; see [`AnalyticHestonEuropeanEngine::new`].
 ///
@@ -31,7 +47,7 @@ pub struct HestonIntegrationSettings {
     pub absolute_tolerance: f64,
     /// Sets a finite nonnegative relative tolerance; defaults to `1e-8`.
     pub relative_tolerance: f64,
-    /// Caps characteristic-function calculations across the entire price request.
+    /// Caps characteristic-function calculations per quote, including in strike batches.
     ///
     /// Counts both Heston and control-variate characteristic-function evaluations.
     /// Defaults to 100,000. Expiry and deterministic-variance branches consume no evaluations.
@@ -159,7 +175,8 @@ impl AnalyticHestonEuropeanEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] for nonpositive or non-finite strikes.
+    /// Returns [`Error::InvalidInput`] above 1,048,576 strikes (including duplicates)
+    /// or for nonpositive or non-finite strikes.
     /// Propagates scalar pricing errors and cancellation without a partial result.
     /// An output reservation failure returns [`Error::ComputationFailure`].
     ///
@@ -188,6 +205,7 @@ impl AnalyticHestonEuropeanEngine {
         context: &PricingContext,
         strikes: &[f64],
     ) -> Result<Vec<f64>> {
+        validate_heston_strike_batch_size(strikes.len())?;
         let model = validate_market(option, context)?;
         crate::cancellation::check()?;
         for &strike in strikes {

@@ -93,6 +93,18 @@ def test_analytic_strike_batch_preserves_independent_prices_and_errors():
         )
 
 
+def test_analytic_heston_strike_batch_stops_at_input_limit():
+    engine = AnalyticHestonEuropeanEngine()
+
+    def strikes():
+        for _ in range(1_048_577):
+            yield 90.0
+        pytest.fail("read beyond the first strike exceeding the batch limit")
+
+    with pytest.raises(InvalidInputError, match="strike batch exceeds"):
+        engine.price_strikes(option(), context(valuation_time=END), strikes=strikes())
+
+
 def test_dense_heston_batch_preserves_transform_quotes_above_chunk_limit():
     engine = AnalyticHestonEuropeanEngine()
     snapshot, template = context(), option()

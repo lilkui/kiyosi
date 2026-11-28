@@ -156,6 +156,7 @@ mod time;
 /// Shares pricing input limits, defaults, and work estimates with language bindings.
 #[doc(hidden)]
 pub mod binding_support {
+    pub use crate::engines::analytic::heston::validate_heston_strike_batch_size;
     pub use crate::engines::finite_difference::{
         validate_finite_difference_solution_batch_size,
         validate_finite_difference_strike_batch_size, validate_finite_difference_surface_size,
