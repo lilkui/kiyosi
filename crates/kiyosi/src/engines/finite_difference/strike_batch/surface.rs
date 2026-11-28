@@ -2,9 +2,9 @@ use std::cell::Cell;
 
 use super::{
     BusinessDiffusion, Diffusion, EuropeanOption, FiniteDifferenceScheme,
-    FiniteDifferenceVanillaEngine, Payoff, PricingContext, Result, Stepper, StripModel, diffusion,
-    indexed_value, invalid_grid, local_volatility, payoff, strike_group_len, strip_grid,
-    terminal_moments, validate_work, validate_workspace,
+    FiniteDifferenceVanillaEngine, Payoff, PricingContext, Result, RollbackWork, Stepper,
+    StripModel, diffusion, indexed_value, invalid_grid, local_volatility, payoff, strike_group_len,
+    strip_grid, terminal_moments, validate_work, validate_workspace,
 };
 use crate::engines::deterministic::{self, AmericanExerciseMarket};
 use crate::engines::finite_difference::{
@@ -59,12 +59,18 @@ impl FiniteDifferenceVanillaEngine {
                 ..Default::default()
             })
         };
+        let budget = RollbackWork::default();
         let scalar = |expiries: &[Timestamp]| {
             expiries
                 .iter()
                 .map(|&expiry| {
                     crate::cancellation::check()?;
-                    self.price_european_strikes(&contract(expiry)?, context, strikes)
+                    self.price_european_strikes_with_budget(
+                        &contract(expiry)?,
+                        context,
+                        strikes,
+                        &budget,
+                    )
                 })
                 .collect::<Result<Vec<_>>>()
         };
@@ -137,6 +143,7 @@ impl FiniteDifferenceVanillaEngine {
                     (payoff, width(compatible[0])?),
                     |work| {
                         validate_work(1, work.saturating_add(short_work))?;
+                        budget.charge(work)?;
                         shared_work.set(work);
                         Ok(())
                     },

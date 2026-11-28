@@ -141,11 +141,21 @@ vanilla_batch!(
 );
 
 impl FiniteDifferenceVanillaEngine {
-    pub(super) fn price_european_strikes(
+    fn price_european_strikes(
         &self,
         option: &EuropeanOption,
         context: &PricingContext,
         strikes: &[f64],
+    ) -> Result<Vec<f64>> {
+        self.price_european_strikes_with_budget(option, context, strikes, &RollbackWork::default())
+    }
+
+    fn price_european_strikes_with_budget(
+        &self,
+        option: &EuropeanOption,
+        context: &PricingContext,
+        strikes: &[f64],
+        budget: &RollbackWork,
     ) -> Result<Vec<f64>> {
         local_volatility::validate_model(context)?;
         validate_life(option, context)?;
@@ -157,7 +167,6 @@ impl FiniteDifferenceVanillaEngine {
         if strikes.is_empty() {
             return Ok(Vec::new());
         }
-        let budget = RollbackWork::default();
         let work = surface::strike_rollback_work(context, self.settings, option.expiry_time())?;
         let scalar = |strike| {
             crate::cancellation::check()?;
@@ -228,13 +237,8 @@ impl FiniteDifferenceVanillaEngine {
         batch_strikes(spot, strikes, scalar, |group, prices| {
             if let Some((model, width)) = strip {
                 let range = [group[0].1, group[group.len() - 1].1];
-                let batch = MarketStrip::new(self, option, context, model, range, width, &budget)?;
-                for &(i, strike) in group {
-                    crate::cancellation::check()?;
-                    let payoff = Payoff::vanilla(option.option_type(), strike, false);
-                    prices[i] = batch.price(payoff, spot)?;
-                }
-                Ok(())
+                let batch = MarketStrip::new(self, option, context, model, range, width, budget)?;
+                batch.quote_group(option.option_type(), spot, group, prices, budget)
             } else {
                 normalized_strikes(spot, group, prices, |range| {
                     budget.charge(work)?;
@@ -661,7 +665,35 @@ impl MarketStrip {
         })
     }
 
-    fn price(&self, payoff: Payoff, spot: f64) -> Result<f64> {
+    fn quote_group(
+        &self,
+        option_type: crate::OptionType,
+        spot: f64,
+        group: &[(usize, f64)],
+        prices: &mut [f64],
+        budget: &RollbackWork,
+    ) -> Result<()> {
+        let distinct = || group.chunk_by(|a, b| a.1.to_bits() == b.1.to_bits());
+        if let Boundary::Constant { exact, .. } = &self.boundary {
+            if !exact.is_empty() {
+                budget.charge((exact.len() as u64).saturating_mul(distinct().count() as u64))?;
+            }
+        }
+        for same in distinct() {
+            crate::cancellation::check()?;
+            let payoff = Payoff::vanilla(option_type, same[0].1, false);
+            let price = self.price(payoff, spot, budget)?;
+            for chunk in same.chunks(1024) {
+                crate::cancellation::check()?;
+                for &(index, _) in chunk {
+                    prices[index] = price;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn price(&self, payoff: Payoff, spot: f64, budget: &RollbackWork) -> Result<f64> {
         let strike = payoff.strike;
         let mut exact_sum = crate::numerics::Sum::default();
         let (boundary, error_budget) = match &self.boundary {
@@ -702,6 +734,11 @@ impl MarketStrip {
         }) {
             return payoff::checked_price(payoff, spot, value, self.discount, 0.0);
         }
+        let remaining_terms = match &self.boundary {
+            Boundary::Local { terms, .. } => terms.len(),
+            Boundary::Constant { approximated, .. } => approximated.len(),
+        };
+        budget.charge((self.weights.len() + remaining_terms) as u64)?;
         let mut value = crate::numerics::Sum::default();
         for (index, &weight) in self.weights.iter().enumerate() {
             if index % 1024 == 0 {
@@ -808,6 +845,63 @@ fn indexed_value(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::engines::FiniteDifferenceSettings;
+
+    #[test]
+    fn market_strip_budgets_exact_boundary_quotes_and_fallback_scans() -> Result<()> {
+        let start = crate::Date::new(2025, 1, 1)?.start_of_day();
+        let end = start.add_days(365)?;
+        let option = EuropeanOption::new(crate::OptionType::Call, 100.0, start, end)?;
+        let context = PricingContext::new(
+            crate::BlackScholesMertonParameters::new(0.02, 0.01, 0.2)?,
+            100.0,
+            start,
+        )?;
+        let engine = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+            asset_upper_boundary: Some(101.0),
+            ..Default::default()
+        })?;
+        let mut strip = MarketStrip::new(
+            &engine,
+            &option,
+            &context,
+            StripModel::Constant(0.2),
+            [95.0, 100.0],
+            0.2,
+            &RollbackWork::default(),
+        )?;
+        let Boundary::Constant { exact, .. } = &strip.boundary else {
+            unreachable!("the strip uses a BSM boundary");
+        };
+        let exact = exact.len() as u64;
+        assert!(exact > 0);
+        let group = [(0, 95.0), (1, 100.0), (2, 100.0)];
+        let mut prices = [0.0; 3];
+        let budget = RollbackWork::default();
+        budget.charge(1_000_000_000 - 2 * exact + 1)?;
+        assert!(matches!(
+            strip.quote_group(option.option_type(), 100.0, &group, &mut prices, &budget),
+            Err(crate::Error::InvalidInput(message)) if message.contains("one billion grid updates")
+        ));
+        assert_eq!(prices.map(f64::to_bits), [0; 3]);
+
+        let budget = RollbackWork::default();
+        budget.charge(1_000_000_000 - 2 * exact)?;
+        strip.quote_group(option.option_type(), 100.0, &group, &mut prices, &budget)?;
+        assert!(prices[0] > prices[1] && prices[1] > 0.0);
+        assert_eq!(prices[1].to_bits(), prices[2].to_bits());
+
+        if let Boundary::Constant { error_budget, .. } = &mut strip.boundary {
+            *error_budget = f64::MAX;
+        }
+        let budget = RollbackWork::default();
+        budget.charge(1_000_000_000 - 2 * exact)?;
+        assert!(matches!(
+            strip.quote_group(option.option_type(), 100.0, &group, &mut prices, &budget),
+            Err(crate::Error::InvalidInput(message)) if message.contains("one billion grid updates")
+        ));
+        Ok(())
+    }
 
     #[test]
     fn constant_boundary_uses_intrinsic_only_within_its_budget() {
